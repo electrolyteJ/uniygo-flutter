@@ -1,0 +1,52 @@
+name: uniygopro
+
+packages:
+  - packages/ocgcore
+  - packages/uniygopro
+
+usePubWorkspace: true
+
+scripts:
+  analyze:
+    run: melos exec -c 1 -- "dart analyze . --fatal-infos"
+    description: Run static analysis on all packages.
+
+  format:
+    run: melos exec -- "dart format ."
+    description: Format all Dart code.
+
+  test:
+    run: melos exec -c 1 --dir-exists="test" -- "flutter test"
+    description: Run all tests.
+    select-package:
+      dir-exists: test
+
+  test:ocgcore:
+    run: melos exec -c 1 --scope="ocgcore" -- "flutter test"
+    description: Run ocgcore tests only.
+
+  test:app:
+    run: melos exec -c 1 --scope="uniygopro" -- "flutter test"
+    description: Run uniygopro tests only.
+
+  clean:
+    run: |
+      melos exec -- "flutter clean"
+      melos exec -- "dart pub cache clean"
+    description: Clean all build artifacts.
+
+  build:macos:
+    run: melos exec -c 1 --scope="uniygopro" -- "flutter build macos --debug"
+    description: Build macOS app.
+
+  build:linux:
+    run: melos exec -c 1 --scope="uniygopro" -- "flutter build linux --debug"
+    description: Build Linux app.
+
+  build:windows:
+    run: melos exec -c 1 --scope="uniygopro" -- "flutter build windows --debug"
+    description: Build Windows app.
+
+  list:
+    run: melos list -l
+    description: List all packages and dependencies.

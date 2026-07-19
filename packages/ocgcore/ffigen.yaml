@@ -1,0 +1,68 @@
+name: OcgCoreBindings
+description: |
+  Generated bindings for ocgcore (libocgcore).
+  
+  Regenerate with `dart run ffigen --config ffigen.yaml`.
+output: 'lib/ocgcore_bindings_generated.dart'
+compiler-opts:
+  - '-xc'
+  - '-std=c11'
+typedef-map:
+  uint32_t:
+    typedef: ffi.Uint32
+    dart: int
+  int32_t:
+    typedef: ffi.Int32
+    dart: int
+  uint8_t:
+    typedef: ffi.Uint8
+    dart: int
+  intptr_t:
+    typedef: ffi.IntPtr
+    dart: int
+  unsigned char:
+    typedef: ffi.UnsignedChar
+    dart: int
+  char:
+    typedef: ffi.Char
+    dart: int
+  int:
+    typedef: ffi.Int
+    dart: int
+headers:
+  entry-points:
+    - 'src/ocgcore_ffi.h'
+  include-directives:
+    - 'src/ocgcore_ffi.h'
+comments:
+  style: any
+  length: full
+structs:
+  include:
+    - 'card_data'
+functions:
+  include:
+    - 'set_script_reader'
+    - 'set_card_reader'
+    - 'set_message_handler'
+    - 'create_duel'
+    - 'create_duel_v2'
+    - 'start_duel'
+    - 'end_duel'
+    - 'set_player_info'
+    - 'get_log_message'
+    - 'get_message'
+    - 'process'
+    - 'new_card'
+    - 'new_tag_card'
+    - 'query_card'
+    - 'query_field_count'
+    - 'query_field_card'
+    - 'query_field_info'
+    - 'set_responsei'
+    - 'set_responseb'
+    - 'preload_script'
+    - 'default_script_reader'
+    - 'read_script'
+    - 'read_card'
+    - 'handle_message'
