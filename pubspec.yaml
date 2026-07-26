@@ -6,8 +6,9 @@ environment:
 
 workspace:
   - packages/ocgcore
-  - packages/windbot
+  - packages/ygo_card_deck
+  - packages/duelink
+  - packages/duelink_online
+  - packages/duelink_lan
+  - packages/duelink_ai
   - apps/uniygopro
-
-dev_dependencies:
-  # Melos removed as per request to use official Dart workspace

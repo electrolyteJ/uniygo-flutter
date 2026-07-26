@@ -1,0 +1,20 @@
+name: duelink_ai
+description: AI local duel implementation for duelink using OCGCore engine.
+version: 0.0.1
+environment:
+  sdk: ^3.12.2
+resolution: workspace
+publish_to: 'none'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  duelink:
+    path: ../duelink
+  ocgcore:
+    path: ../ocgcore
+  async: ^2.11.0
+
+dev_dependencies:
+  test: ^1.25.0
+  flutter_lints: ^6.0.0
