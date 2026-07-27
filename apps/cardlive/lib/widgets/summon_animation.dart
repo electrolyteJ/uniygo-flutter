@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:ygo_card_deck/db/models/card_info.dart';
 import 'dart:math';
-import '../model/card_model.dart';
 
 class SummonAnimation extends StatefulWidget {
-  final CardData card;
+  final CardInfo card;
   final String imageUrl;
   final VoidCallback onComplete;
 
@@ -111,7 +111,7 @@ class _SummonAnimationState extends State<SummonAnimation>
     });
   }
 
-  SummonStyle _getSummonStyle(CardData card) {
+  SummonStyle _getSummonStyle(CardInfo card) {
     if (card.isFusion) {
       return SummonStyle.fusion();
     }

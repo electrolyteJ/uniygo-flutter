@@ -12,3 +12,4 @@ workspace:
   - packages/duelink_lan
   - packages/duelink_ai
   - apps/uniygopro
+  - apps/cardlive

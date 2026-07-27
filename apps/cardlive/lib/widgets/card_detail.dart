@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../model/card_model.dart';
+import 'package:ygo_card_deck/db/models/card_info.dart';
 import '../service/script_service.dart';
+import 'summon_animation_overlay.dart'; // 导入召唤叠加层
 
 class CardDetail extends StatelessWidget {
-  final CardData card;
+  final CardInfo card;
   final String imageUrl;
   final String limitText;
   final List<EffectType>? effects;
@@ -38,12 +39,54 @@ class CardDetail extends StatelessWidget {
               const SizedBox(height: 20),
               _buildCardStats(),
               const SizedBox(height: 20),
+              _buildSummonButton(context), // 插入召唤按钮
+              const SizedBox(height: 10),
               _buildCardDesc(),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildSummonButton(BuildContext context) {
+    // 只有怪兽卡可以发动召唤动效
+    if (!card.isMonster) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: ElevatedButton.icon(
+        onPressed: () {
+          Navigator.of(context).push(
+            PageRouteBuilder(
+              opaque: false,
+              pageBuilder: (context, _, __) => SummonAnimationOverlay(
+                card: card,
+                imageUrl: imageUrl,
+                onBack: () => Navigator.of(context).pop(),
+              ),
+              transitionsBuilder: (context, animation, _, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+            ),
+          );
+        },
+        icon: const Icon(Icons.flash_on, color: Colors.cyanAccent),
+        label: const Text(
+          '发动召唤',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 2),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blueAccent.withOpacity(0.2),
+          foregroundColor: Colors.white,
+          side: const BorderSide(color: Colors.cyanAccent, width: 1.5),
+          padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+          shadowColor: Colors.cyanAccent.withOpacity(0.5),
+          elevation: 10,
+        ),
+      ),
+    ).animate().fadeIn(delay: 600.ms).scale();
   }
 
   Widget _buildCloseButton() {
@@ -202,8 +245,8 @@ class CardDetail extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _buildStatItem('等级', card.level.toString(), Icons.star),
-          _buildStatItem('攻击', card.attack.toString(), Icons.favorite),
-          _buildStatItem('防御', card.defense.toString(), Icons.shield),
+          _buildStatItem('攻击', card.atk.toString(), Icons.favorite),
+          _buildStatItem('防御', card.def.toString(), Icons.shield),
         ],
       ),
     ).animate().fadeIn(delay: 500.ms).slide(begin: const Offset(0, 20), end: Offset.zero);

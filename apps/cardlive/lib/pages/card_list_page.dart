@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import '../config/env_config.dart';
-import '../model/card_model.dart';
+import 'package:ygo_card_deck/db/models/card_info.dart';
+import 'package:ygo_card_deck/ygo_card_deck.dart' show searchCards, EnvConfig, EnvType;
 import '../service/card_service.dart';
 import '../service/script_service.dart';
-import '../service/ocgcore_service.dart';
 import '../widgets/card_animation.dart';
 import '../widgets/card_detail.dart';
 
@@ -18,31 +17,20 @@ class _CardListPageState extends State<CardListPage> {
   final TextEditingController _searchController = TextEditingController();
   final CardService _cardService = CardService(EnvConfig.production);
   final ScriptService _scriptService = ScriptService();
-  final OcgcoreService _ocgcoreService = OcgcoreService();
-  List<CardData> _cards = [];
+
+  List<CardInfo> _cards = [];
   final Map<int, List<EffectType>> _cardEffects = {};
-  CardData? _selectedCard;
+  CardInfo? _selectedCard;
   bool _isLoading = true;
-  bool _ocgcoreInitialized = false;
   String _errorMessage = '';
 
   @override
   void initState() {
     super.initState();
     _initData();
-    _initOcgcore();
   }
 
-  Future<void> _initOcgcore() async {
-    try {
-      await _ocgcoreService.init();
-      setState(() {
-        _ocgcoreInitialized = true;
-      });
-    } catch (e) {
-      debugPrint('ocgcore 初始化失败: $e');
-    }
-  }
+
 
   Future<void> _initData() async {
     setState(() {
@@ -53,7 +41,7 @@ class _CardListPageState extends State<CardListPage> {
     try {
       await _cardService.init();
       await _scriptService.init();
-      _cards = await _cardService.searchCards('');
+      _cards = await searchCards('');
       await _preloadEffects();
     } catch (e) {
       setState(() {
@@ -72,7 +60,7 @@ class _CardListPageState extends State<CardListPage> {
     });
 
     try {
-      _cards = await _cardService.searchCards(keyword);
+      _cards = await searchCards(keyword);
       await _preloadEffects();
     } catch (e) {
       setState(() {
@@ -104,7 +92,7 @@ class _CardListPageState extends State<CardListPage> {
     _initData();
   }
 
-  void _showCardDetail(CardData card) {
+  void _showCardDetail(CardInfo card) {
     setState(() {
       _selectedCard = card;
     });
@@ -267,7 +255,6 @@ class _CardListPageState extends State<CardListPage> {
               height: cardWidth / 0.72,
               effects: effects,
               onTap: () => _showCardDetail(card),
-              ocgcoreService: _ocgcoreInitialized ? _ocgcoreService : null,
             );
           },
         );

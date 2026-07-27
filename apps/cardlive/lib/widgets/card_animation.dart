@@ -1,20 +1,19 @@
+import 'package:cached_network_image/cached_network_image.dart'
+    show CachedNetworkImage;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import '../model/card_model.dart';
+import 'package:ygo_card_deck/db/models/card_info.dart';
 import '../service/script_service.dart';
-import '../service/ocgcore_service.dart';
 import 'card_effect_animation.dart';
 import 'summon_animation.dart';
 
 class CardAnimation extends StatefulWidget {
-  final CardData card;
+  final CardInfo card;
   final String imageUrl;
   final double width;
   final double height;
   final List<EffectType>? effects;
   final VoidCallback? onTap;
-  final OcgcoreService? ocgcoreService;
 
   const CardAnimation({
     super.key,
@@ -24,7 +23,6 @@ class CardAnimation extends StatefulWidget {
     this.height = 280,
     this.effects,
     this.onTap,
-    this.ocgcoreService,
   });
 
   @override
@@ -47,52 +45,22 @@ class _CardAnimationState extends State<CardAnimation> {
     Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => SummonAnimation(
-          card: widget.card,
-          imageUrl: widget.imageUrl,
-          onComplete: () {
-            Navigator.pop(context);
-            setState(() {
-              _isAnimating = false;
-            });
-          },
-        ),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            SummonAnimation(
+              card: widget.card,
+              imageUrl: widget.imageUrl,
+              onComplete: () {
+                Navigator.pop(context);
+                setState(() {
+                  _isAnimating = false;
+                });
+              },
+            ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return child;
         },
       ),
     );
-  }
-
-  Future<void> _executeCardScript() async {
-    if (_isExecutingScript || widget.ocgcoreService == null) return;
-
-    setState(() {
-      _isExecutingScript = true;
-      _scriptResult = '正在执行脚本...';
-    });
-
-    try {
-      widget.ocgcoreService!.cacheCard(widget.card);
-      final result = await widget.ocgcoreService!.executeCardScript(widget.card.code);
-      setState(() {
-        _scriptResult = result;
-      });
-
-      Future.delayed(const Duration(milliseconds: 3000)).then((_) {
-        setState(() {
-          _scriptResult = '';
-        });
-      });
-    } catch (e) {
-      setState(() {
-        _scriptResult = '执行失败: $e';
-      });
-    } finally {
-      setState(() {
-        _isExecutingScript = false;
-      });
-    }
   }
 
   EffectType? get _currentEffect {
@@ -110,9 +78,6 @@ class _CardAnimationState extends State<CardAnimation> {
           _triggerEffectAnimation();
           widget.onTap?.call();
         },
-        onDoubleTap: () {
-          _executeCardScript();
-        },
         child: Stack(
           children: [
             _buildCardContainer(),
@@ -123,7 +88,8 @@ class _CardAnimationState extends State<CardAnimation> {
             _buildCardGlow(),
             _buildCardInfo(),
             EffectNameAnimation(
-              effect: _currentEffect ??
+              effect:
+                  _currentEffect ??
                   const EffectType(
                     name: '效果',
                     description: '',
@@ -149,7 +115,9 @@ class _CardAnimationState extends State<CardAnimation> {
         decoration: BoxDecoration(
           color: Colors.black.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _scriptResult.contains('失败') ? Colors.red : Colors.green),
+          border: Border.all(
+            color: _scriptResult.contains('失败') ? Colors.red : Colors.green,
+          ),
         ),
         child: Text(
           _scriptResult,
@@ -188,25 +156,25 @@ class _CardAnimationState extends State<CardAnimation> {
 
   Widget _buildCardImage() {
     return Container(
-      width: widget.width,
-      height: widget.height,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _getBorderColor(),
-          width: _isAnimating ? 4 : 3,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: CachedNetworkImage(
-          imageUrl: widget.imageUrl,
-          fit: BoxFit.cover,
-          placeholder: (context, url) => _buildPlaceholder(),
-          errorWidget: (context, url, error) => _buildPlaceholder(),
-        ),
-      ),
-    )
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _getBorderColor(),
+              width: _isAnimating ? 4 : 3,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: CachedNetworkImage(
+              imageUrl: widget.imageUrl,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => _buildPlaceholder(),
+              errorWidget: (context, url, error) => _buildPlaceholder(),
+            ),
+          ),
+        )
         .animate()
         .scale(
           duration: 300.ms,
@@ -220,7 +188,9 @@ class _CardAnimationState extends State<CardAnimation> {
         )
         .shimmer(
           duration: _isAnimating ? 500.ms : 0.ms,
-          color: _isAnimating ? Colors.white.withValues(alpha: 0.5) : Colors.transparent,
+          color: _isAnimating
+              ? Colors.white.withValues(alpha: 0.5)
+              : Colors.transparent,
         );
   }
 
@@ -284,18 +254,12 @@ class _CardAnimationState extends State<CardAnimation> {
               children: [
                 Text(
                   widget.card.attributeText,
-                  style: TextStyle(
-                    color: _getAttributeColor(),
-                    fontSize: 10,
-                  ),
+                  style: TextStyle(color: _getAttributeColor(), fontSize: 10),
                 ),
                 const SizedBox(width: 8),
                 Text(
                   widget.card.raceText,
-                  style: TextStyle(
-                    color: Colors.grey[300],
-                    fontSize: 10,
-                  ),
+                  style: TextStyle(color: Colors.grey[300], fontSize: 10),
                 ),
               ],
             ),
@@ -304,18 +268,11 @@ class _CardAnimationState extends State<CardAnimation> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.star,
-                      size: 10,
-                      color: Colors.amber,
-                    ),
+                    Icon(Icons.star, size: 10, color: Colors.amber),
                     const SizedBox(width: 4),
                     Text(
                       '${widget.effects!.length}个效果',
-                      style: TextStyle(
-                        color: Colors.amber,
-                        fontSize: 9,
-                      ),
+                      style: TextStyle(color: Colors.amber, fontSize: 9),
                     ),
                   ],
                 ),
@@ -335,18 +292,11 @@ class _CardAnimationState extends State<CardAnimation> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.image,
-              size: 48,
-              color: Colors.grey[600],
-            ),
+            Icon(Icons.image, size: 48, color: Colors.grey[600]),
             const SizedBox(height: 8),
             Text(
               widget.card.name,
-              style: TextStyle(
-                color: Colors.grey[500],
-                fontSize: 12,
-              ),
+              style: TextStyle(color: Colors.grey[500], fontSize: 12),
               textAlign: TextAlign.center,
             ),
           ],
@@ -360,10 +310,10 @@ class _CardAnimationState extends State<CardAnimation> {
       return _currentEffect?.animationType == 'destroy'
           ? Colors.red
           : _currentEffect?.animationType == 'spsummon'
-              ? Colors.amber
-              : _currentEffect?.animationType == 'negate'
-                  ? Colors.purple
-                  : Colors.white;
+          ? Colors.amber
+          : _currentEffect?.animationType == 'negate'
+          ? Colors.purple
+          : Colors.white;
     }
 
     if (widget.card.isSpell) return Colors.blue;
@@ -413,10 +363,7 @@ class _CardAnimationState extends State<CardAnimation> {
 class CardAttackAnimation extends StatelessWidget {
   final int attack;
 
-  const CardAttackAnimation({
-    super.key,
-    required this.attack,
-  });
+  const CardAttackAnimation({super.key, required this.attack});
 
   @override
   Widget build(BuildContext context) {
@@ -440,10 +387,7 @@ class CardAttackAnimation extends StatelessWidget {
 class CardLevelAnimation extends StatelessWidget {
   final int level;
 
-  const CardLevelAnimation({
-    super.key,
-    required this.level,
-  });
+  const CardLevelAnimation({super.key, required this.level});
 
   @override
   Widget build(BuildContext context) {
@@ -453,11 +397,7 @@ class CardLevelAnimation extends StatelessWidget {
       builder: (context, value, child) {
         return Row(
           children: List.generate(value, (index) {
-            return const Icon(
-              Icons.star,
-              size: 12,
-              color: Colors.yellow,
-            )
+            return const Icon(Icons.star, size: 12, color: Colors.yellow)
                 .animate()
                 .fadeIn(duration: 100.ms)
                 .slide(begin: const Offset(0, 5), end: Offset.zero);
