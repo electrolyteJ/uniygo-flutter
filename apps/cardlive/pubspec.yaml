@@ -42,8 +42,14 @@ dependencies:
   cached_network_image: ^3.4.1
   flutter_animate: ^4.5.0
   provider: ^6.1.2
-  ygo_card_deck:
-    path: ../../packages/ygo_card_deck
+  ygo_card:
+    path: ../../packages/ygo_card
+  ygo_card_mycard:
+    path: ../../packages/ygo_card_mycard
+  ygo_deck:
+    path: ../../packages/ygo_deck
+  ygo_deck_mdpro3:
+      path: ../../packages/ygo_deck_mdpro3
 dev_dependencies:
   flutter_test:
     sdk: flutter

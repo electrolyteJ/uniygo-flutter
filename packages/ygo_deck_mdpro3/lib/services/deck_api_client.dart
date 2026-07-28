@@ -1,10 +1,9 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-
-import '../exceptions/ygo_card_deck_exception.dart';
-import '../models/deck_info.dart';
-import '../models/deck_list_page.dart';
+import 'package:ygo_deck/deck_info.dart';
+import 'package:ygo_deck/deck_list_page.dart';
+import 'package:ygo_deck/ygo_card_deck_exception.dart';
 
 /// 卡组广场 Deck API 客户端
 ///
@@ -16,13 +15,11 @@ import '../models/deck_list_page.dart';
 /// - Android 端: `YGOMobile`
 class DeckApiClient {
   final http.Client _client;
-  final String baseUrl;
-  final String reqSource;
+  final String baseUrl = "https://deck.moecube.com";
+  final String reqSource = "MDPro3";
   final Duration timeout;
 
   DeckApiClient({
-    required this.baseUrl,
-    required this.reqSource,
     http.Client? client,
     this.timeout = const Duration(seconds: 30),
   }) : _client = client ?? http.Client();
@@ -32,14 +29,14 @@ class DeckApiClient {
   // ---------------------------------------------------------------------------
 
   Map<String, String> get _headers => {
-        'ReqSource': reqSource,
-        'Content-Type': 'application/json',
-      };
+    'ReqSource': reqSource,
+    'Content-Type': 'application/json',
+  };
 
   Map<String, String> _authHeaders(String token) => {
-        ..._headers,
-        'token': token,
-      };
+    ..._headers,
+    'token': token,
+  };
 
   // ---------------------------------------------------------------------------
   // 卡组广场
@@ -73,10 +70,12 @@ class DeckApiClient {
         params['contributor'] = contributor;
       }
 
-      final uri =
-          Uri.parse('$baseUrl/api/mdpro3/deck/list').replace(queryParameters: params);
-      final response =
-          await _client.get(uri, headers: _headers).timeout(timeout);
+      final uri = Uri.parse(
+        '$baseUrl/api/mdpro3/deck/list',
+      ).replace(queryParameters: params);
+      final response = await _client
+          .get(uri, headers: _headers)
+          .timeout(timeout);
       _ensureSuccess(response);
 
       final data = jsonDecode(response.body);
@@ -100,8 +99,9 @@ class DeckApiClient {
   Future<DeckInfo> fetchDeckDetail(String deckId) async {
     try {
       final uri = Uri.parse('$baseUrl/api/mdpro3/deck/$deckId');
-      final response =
-          await _client.get(uri, headers: _headers).timeout(timeout);
+      final response = await _client
+          .get(uri, headers: _headers)
+          .timeout(timeout);
       _ensureSuccess(response);
 
       final data = jsonDecode(response.body);
@@ -129,8 +129,9 @@ class DeckApiClient {
   Future<String> generateDeckId() async {
     try {
       final uri = Uri.parse('$baseUrl/api/mdpro3/deck/deckId');
-      final response =
-          await _client.get(uri, headers: _headers).timeout(timeout);
+      final response = await _client
+          .get(uri, headers: _headers)
+          .timeout(timeout);
       _ensureSuccess(response);
 
       final data = jsonDecode(response.body);
@@ -238,10 +239,7 @@ class DeckApiClient {
       final body = jsonEncode({
         'userId': userId,
         'contributor': contributor,
-        'deck': {
-          'deckId': deckId,
-          'isDelete': true,
-        },
+        'deck': {'deckId': deckId, 'isDelete': true},
       });
 
       final uri = Uri.parse('$baseUrl/api/mdpro3/sync/single');
@@ -293,8 +291,9 @@ class DeckApiClient {
   Future<void> likeDeck(String deckId) async {
     try {
       final uri = Uri.parse('$baseUrl/api/mdpro3/deck/like/$deckId');
-      final response =
-          await _client.post(uri, headers: _headers).timeout(timeout);
+      final response = await _client
+          .post(uri, headers: _headers)
+          .timeout(timeout);
       _ensureSuccess(response);
     } on YgoCardDeckException {
       rethrow;

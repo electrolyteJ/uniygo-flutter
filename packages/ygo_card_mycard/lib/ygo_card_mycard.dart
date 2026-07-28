@@ -4,7 +4,7 @@
 //
 //   Usage:
 //   ```dart
-//   import 'package:ygo_card_deck/ygo_card_deck.dart';
+//   import 'package:ygo_card_deck/ygo_card_mycard.dart';
 //
 //   // 卡片 CDN 接口
 //   final cardSvc = CardService();
@@ -21,31 +21,11 @@
 import 'dart:developer' as console;
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:ygo_card/lflist_info.dart';
 import 'db/card_database.dart';
-import 'db/dao/card_dao.dart';
 import 'db/models/card_info.dart';
-import 'models/lflist_info.dart';
-import 'services/card_service.dart';
-export 'models/card_info.dart';
-export 'models/deck_info.dart';
-export 'models/deck_list_page.dart';
-export 'models/lflist_info.dart';
-
-// 配置
-export 'config/ygo_card_deck_config.dart';
-export 'config/env_config.dart';
-
-// 客户端 (供需要自定义 http.Client 的场景)
-export 'clients/card_api_client.dart';
-export 'clients/deck_api_client.dart';
-
-// 服务
-export 'services/card_service.dart';
-export 'services/deck_service.dart';
-
-// 异常
-export 'exceptions/ygo_card_deck_exception.dart';
+import 'src/card_service.dart';
+export 'src/env_config.dart';
 
 CardDatabase? _database;
 

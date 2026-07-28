@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:ygo_card_deck/db/models/card_info.dart';
+import 'package:ygo_card_mycard/db/models/card_info.dart';
 import '../service/script_service.dart';
 import 'summon_animation_overlay.dart'; // 导入召唤叠加层
 

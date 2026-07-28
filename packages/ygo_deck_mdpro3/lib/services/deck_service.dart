@@ -1,7 +1,7 @@
-import '../clients/deck_api_client.dart';
-import '../config/ygo_card_deck_config.dart';
-import '../models/deck_info.dart';
-import '../models/deck_list_page.dart';
+import 'package:ygo_deck/deck_info.dart';
+import 'package:ygo_deck/deck_list_page.dart';
+
+import 'deck_api_client.dart';
 
 /// 卡组广场服务
 ///
@@ -10,13 +10,8 @@ class DeckService {
   final DeckApiClient _client;
 
   DeckService({
-    YgoCardDeckConfig config = YgoCardDeckConfig.production,
     DeckApiClient? client,
-  }) : _client = client ??
-            DeckApiClient(
-              baseUrl: config.effectiveDeckApiBaseUrl,
-              reqSource: config.reqSource,
-            );
+  }) : _client = client ?? DeckApiClient();
 
   // ---------------------------------------------------------------------------
   // 浏览

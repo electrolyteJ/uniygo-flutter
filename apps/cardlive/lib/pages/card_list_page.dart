@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:ygo_card_deck/db/models/card_info.dart';
-import 'package:ygo_card_deck/ygo_card_deck.dart' show searchCards, EnvConfig, EnvType;
-import '../service/card_service.dart';
+import 'package:ygo_card_mycard/card_service.dart';
+import 'package:ygo_card_mycard/db/models/card_info.dart';
+import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 import '../service/script_service.dart';
 import '../widgets/card_animation.dart';
 import '../widgets/card_detail.dart';

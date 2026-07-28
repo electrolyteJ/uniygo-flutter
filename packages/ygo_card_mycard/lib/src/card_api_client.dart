@@ -2,10 +2,11 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:ygo_card/card_info.dart';
+import 'package:ygo_card/ygo_card_deck_exception.dart';
+import 'package:ygo_card/lflist_info.dart';
 
-import '../exceptions/ygo_card_deck_exception.dart';
-import '../models/card_info.dart';
-import '../models/lflist_info.dart';
+import 'env_config.dart';
 
 /// CDN 静态资源接口客户端
 ///
@@ -13,11 +14,11 @@ import '../models/lflist_info.dart';
 /// [baseUrl] 为 CDN 根地址，如 `https://cdn02.moecube.com:444`。
 class CardApiClient {
   final http.Client _client;
-  final String baseUrl;
+  final EnvConfig config;
   final Duration timeout;
 
   CardApiClient({
-    required this.baseUrl,
+    required this.config,
     http.Client? client,
     this.timeout = const Duration(seconds: 30),
   }) : _client = client ?? http.Client();
@@ -29,10 +30,9 @@ class CardApiClient {
   /// 下载卡牌数据库 (cards.cdb) 原始字节
   ///
   /// 返回 SQLite 格式的数据库文件字节。
-  /// 路径: /ygopro-database/zh-CN/cards.cdb
   Future<Uint8List> fetchCardDatabase() async {
     try {
-      final uri = Uri.parse('$baseUrl/ygopro-database/zh-CN/cards.cdb');
+      final uri = Uri.parse(config.cardDatabaseUrl);
       final response = await _client.get(uri).timeout(timeout);
       _ensureSuccess(response);
       return response.bodyBytes;
@@ -44,11 +44,9 @@ class CardApiClient {
   }
 
   /// 获取禁限卡表
-  ///
-  /// 路径: /ygopro-database/zh-CN/lflist.conf
   Future<LflistInfo> fetchLflist() async {
     try {
-      final uri = Uri.parse('$baseUrl/ygopro-database/zh-CN/lflist.conf');
+      final uri = Uri.parse(config.lflistUrl);
       final response = await _client.get(uri).timeout(timeout);
       _ensureSuccess(response);
       return LflistInfo.parse(response.body);
@@ -59,31 +57,14 @@ class CardApiClient {
     }
   }
 
-  /// 获取 408 环境禁限卡表
-  ///
-  /// 路径: /cn-database/env408-zh-CN/expansions/lflist.conf
-  Future<LflistInfo> fetchLflist408() async {
-    try {
-      final uri = Uri.parse(
-        '$baseUrl/cn-database/env408-zh-CN/expansions/lflist.conf',
-      );
-      final response = await _client.get(uri).timeout(timeout);
-      _ensureSuccess(response);
-      return LflistInfo.parse(response.body);
-    } on YgoCardDeckException {
-      rethrow;
-    } catch (e) {
-      throw _mapError(e);
-    }
-  }
+
 
   /// 获取游戏字符串 (strings.conf)
   ///
   /// 按键值对格式返回: key=value 每行一个。
-  /// 路径: /ygopro-database/zh-CN/strings.conf
   Future<Map<String, String>> fetchStrings() async {
     try {
-      final uri = Uri.parse('$baseUrl/ygopro-database/zh-CN/strings.conf');
+      final uri = Uri.parse(config.stringsUrl);
       final response = await _client.get(uri).timeout(timeout);
       _ensureSuccess(response);
       return _parseStrings(response.body);
@@ -100,9 +81,7 @@ class CardApiClient {
   /// 返回卡牌列表，注意先行卡的数据结构可能与完整卡牌不同。
   Future<List<CardInfo>> fetchPreReleaseCards() async {
     try {
-      final uri = Uri.parse(
-        '$baseUrl/ygopro-super-pre/data/test-release.json',
-      );
+      final uri = Uri.parse(config.stagingCards!);
       final response = await _client.get(uri).timeout(timeout);
       _ensureSuccess(response);
       final list = jsonDecode(response.body);
@@ -122,7 +101,7 @@ class CardApiClient {
   /// 路径: /ygopro-super-pre/data/version.txt
   Future<String> fetchPreReleaseVersion() async {
     try {
-      final uri = Uri.parse('$baseUrl/ygopro-super-pre/data/version.txt');
+      final uri = Uri.parse(config.stagingVersion!);
       final response = await _client.get(uri).timeout(timeout);
       _ensureSuccess(response);
       return response.body.trim();
@@ -137,25 +116,11 @@ class CardApiClient {
   // 卡图
   // ---------------------------------------------------------------------------
 
-  /// 获取正式卡图 URL
-  ///
-  /// 路径: /images/ygopro-images-zh-CN/{code}.jpg
-  String getCardImageUrl(int code) =>
-      '$baseUrl/images/ygopro-images-zh-CN/$code.jpg';
+  String getCardImageUrl(int code) => config.getCardImageUrl(code);
 
-  /// 获取先行卡卡图 URL
-  ///
-  /// 路径: /ygopro-super-pre/data/pics/{code}.jpg
-  String getPreReleaseCardImageUrl(int code) =>
-      '$baseUrl/ygopro-super-pre/data/pics/$code.jpg';
-
-  /// 下载卡图原始字节
   Future<Uint8List> fetchCardImage(int code) =>
       _fetchBinary(getCardImageUrl(code));
 
-  /// 下载先行卡卡图原始字节
-  Future<Uint8List> fetchPreReleaseCardImage(int code) =>
-      _fetchBinary(getPreReleaseCardImageUrl(code));
 
   // ---------------------------------------------------------------------------
   // 内部工具

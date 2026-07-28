@@ -6,7 +6,10 @@ environment:
 
 workspace:
   - packages/ocgcore
-  - packages/ygo_card_deck
+  - packages/ygo_deck
+  - packages/ygo_deck_mdpro3
+  - packages/ygo_card
+  - packages/ygo_card_mycard
   - packages/duelink
   - packages/duelink_online
   - packages/duelink_lan

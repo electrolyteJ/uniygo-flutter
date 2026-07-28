@@ -9,14 +9,20 @@ class EnvConfig {
   final String name;
   final String cardImageUrl;
   final String cardDatabaseUrl;
+  final String? stagingCards;
+  final String? stagingVersion;
   final String lflistUrl;
+  final String stringsUrl;
 
   EnvConfig({
     required this.type,
     required this.name,
     required this.cardImageUrl,
     required this.cardDatabaseUrl,
+    this.stagingCards,
+    this.stagingVersion,
     required this.lflistUrl,
+    required this.stringsUrl,
   });
 
   static EnvConfig production = EnvConfig(
@@ -25,6 +31,7 @@ class EnvConfig {
     cardImageUrl: 'https://cdntx.moecube.com/images/ygopro-images-zh-CN/{code}.jpg',
     cardDatabaseUrl: 'https://cdn02.moecube.com:444/ygopro-database/zh-CN/cards.cdb',
     lflistUrl: 'https://cdn02.moecube.com:444/ygopro-database/zh-CN/lflist.conf',
+    stringsUrl: 'https://cdn02.moecube.com:444/ygopro-database/zh-CN/strings.conf',
   );
 
   static EnvConfig staging = EnvConfig(
@@ -32,7 +39,10 @@ class EnvConfig {
     name: '预发环境',
     cardImageUrl: 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/{code}.jpg',
     cardDatabaseUrl: 'https://cdn02.moecube.com:444/ygopro-super-pre/data/test-release.cdb',
+    stagingCards: 'https://cdn02.moecube.com:444/ygopro-super-pre/data/test-release.json',
+    stagingVersion: 'https://cdn02.moecube.com:444/ygopro-super-pre/data/version.txt',
     lflistUrl: 'https://cdn02.moecube.com:444/ygopro-database/zh-CN/lflist.conf',
+    stringsUrl: 'https://cdn02.moecube.com:444/ygopro-database/zh-CN/strings.conf',
   );
 
   static EnvConfig env408 = EnvConfig(
@@ -41,6 +51,7 @@ class EnvConfig {
     cardImageUrl: 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/{code}.jpg',
     cardDatabaseUrl: 'https://cdn02.moecube.com:444/ygopro-super-pre/data/test-release.cdb',
     lflistUrl: 'https://cdn02.moecube.com:444/cn-database/env408-zh-CN/expansions/lflist.conf',
+    stringsUrl: 'https://cdn02.moecube.com:444/ygopro-database/zh-CN/strings.conf',
   );
 
   String getCardImageUrl(int code) {

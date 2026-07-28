@@ -1,5 +1,7 @@
-import 'package:ygo_card_deck/models/lflist_info.dart';
-import 'package:ygo_card_deck/ygo_card_deck.dart';
+import 'package:ygo_card/lflist_info.dart';
+import 'package:ygo_card_mycard/src/env_config.dart';
+
+import 'ygo_card_mycard.dart';
 
 class CardService {
   static CardService? _instance;

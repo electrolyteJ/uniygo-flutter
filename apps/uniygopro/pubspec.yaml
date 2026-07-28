@@ -13,6 +13,14 @@ dependencies:
     sdk: flutter
   ocgcore:
     path: ../../packages/ocgcore
+  ygo_card:
+    path: ../../packages/ygo_card
+  ygo_card_mycard:
+    path: ../../packages/ygo_card_mycard
+  ygo_deck:
+    path: ../../packages/ygo_deck
+  ygo_deck_mdpro3:
+    path: ../../packages/ygo_deck_mdpro3
   cupertino_icons: ^1.0.8
   provider: ^6.1.1
   audioplayers: ^6.8.1
