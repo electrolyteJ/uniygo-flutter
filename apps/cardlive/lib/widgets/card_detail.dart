@@ -3,7 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:ygo_card/card_info.dart';
 import '../service/script_service.dart';
-import 'summon_animation_overlay.dart'; // 导入召唤叠加层
+import '../summon/summon_overlay.dart'; // 导入新的召唤叠加层
 
 class CardDetail extends StatelessWidget {
   final CardInfo card;
@@ -60,7 +60,7 @@ class CardDetail extends StatelessWidget {
           Navigator.of(context).push(
             PageRouteBuilder(
               opaque: false,
-              pageBuilder: (context, _, __) => SummonAnimationOverlay(
+              pageBuilder: (context, _, __) => SummonOverlay(
                 card: card,
                 imageUrl: imageUrl,
                 onBack: () => Navigator.of(context).pop(),

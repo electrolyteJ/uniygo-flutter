@@ -5,6 +5,7 @@ import 'package:ygo_card/lflist_info.dart';
 import 'package:ygo_card/ygo_card.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 import '../service/script_service.dart';
+import '../summon/summon_inline.dart';
 import '../widgets/card_animation.dart';
 import '../widgets/card_detail.dart';
 
@@ -27,6 +28,8 @@ class _CardListPageState extends State<CardListPage> {
   bool _isLoading = true;
   String _errorMessage = '';
   LflistInfo? _lflist;
+  CardInfo? _summoningCard;
+  bool _showInlineSummon = false;
   @override
   void initState() {
     super.initState();
@@ -101,6 +104,20 @@ class _CardListPageState extends State<CardListPage> {
     });
   }
 
+  void _triggerInlineSummon(CardInfo card) {
+    setState(() {
+      _summoningCard = card;
+      _showInlineSummon = true;
+    });
+  }
+
+  void _onInlineComplete() {
+    setState(() {
+      _showInlineSummon = false;
+      _summoningCard = null;
+    });
+  }
+
   void _closeCardDetail() {
     setState(() {
       _selectedCard = null;
@@ -119,6 +136,14 @@ class _CardListPageState extends State<CardListPage> {
         children: [
           _buildMainContent(),
           if (_selectedCard != null) _buildCardDetailOverlay(),
+          if (_showInlineSummon && _summoningCard != null)
+            Positioned.fill(
+              child: SummonInline(
+                card: _summoningCard!,
+                imageUrl: _cardService.getCardImageUrl(_summoningCard!.code),
+                onComplete: _onInlineComplete,
+              ),
+            ),
         ],
       ),
     );
@@ -257,7 +282,7 @@ class _CardListPageState extends State<CardListPage> {
               width: cardWidth,
               height: cardWidth / 0.72,
               effects: effects,
-              onTap: () => _showCardDetail(card),
+              onTap: () => _triggerInlineSummon(card),
             );
           },
         );

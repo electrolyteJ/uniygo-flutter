@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ygo_card/card_info.dart';
 import '../service/script_service.dart';
+import '../summon/summon_overlay.dart';
 import 'card_effect_animation.dart';
-import 'summon_animation.dart';
 
 class CardAnimation extends StatefulWidget {
   final CardInfo card;
@@ -32,40 +32,21 @@ class CardAnimation extends StatefulWidget {
 class _CardAnimationState extends State<CardAnimation> {
   bool _isHovered = false;
   bool _isAnimating = false;
-  int _animationIndex = 0;
-  bool _isExecutingScript = false;
-  String _scriptResult = '';
 
-  void _triggerEffectAnimation() {
-    setState(() {
-      _isAnimating = true;
-      _animationIndex = 0;
-    });
-
+  void _triggerSummonOverlay() {
     Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            SummonAnimation(
-              card: widget.card,
-              imageUrl: widget.imageUrl,
-              onComplete: () {
-                Navigator.pop(context);
-                setState(() {
-                  _isAnimating = false;
-                });
-              },
-            ),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return child;
-        },
+        opaque: false,
+        pageBuilder: (_, __, ___) => SummonOverlay(
+          card: widget.card,
+          imageUrl: widget.imageUrl,
+          onBack: () => Navigator.pop(context),
+        ),
+        transitionsBuilder: (_, anim, __, child) =>
+            FadeTransition(opacity: anim, child: child),
       ),
     );
-  }
-
-  EffectType? get _currentEffect {
-    if (widget.effects == null || widget.effects!.isEmpty) return null;
-    return widget.effects![_animationIndex % widget.effects!.length];
   }
 
   @override
@@ -75,60 +56,26 @@ class _CardAnimationState extends State<CardAnimation> {
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
         onTap: () {
-          _triggerEffectAnimation();
+          _isAnimating = true;
           widget.onTap?.call();
         },
+        onLongPress: _triggerSummonOverlay,
         child: Stack(
           children: [
             _buildCardContainer(),
             CardEffectAnimation(
-              animationType: _currentEffect?.animationType ?? 'default',
+              animationType:
+                  widget.effects?.firstOrNull?.animationType ?? 'default',
               child: _buildCardImage(),
             ),
             _buildCardGlow(),
             _buildCardInfo(),
-            EffectNameAnimation(
-              effect:
-                  _currentEffect ??
-                  const EffectType(
-                    name: '效果',
-                    description: '',
-                    animationType: 'default',
-                  ),
-              visible: _isAnimating && _currentEffect != null,
-            ),
-            _buildScriptResult(),
+            if (widget.effects != null && widget.effects!.isNotEmpty)
+              EffectNameAnimation(
+                effect: widget.effects!.first,
+                visible: _isAnimating,
+              ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildScriptResult() {
-    if (_scriptResult.isEmpty) return const SizedBox.shrink();
-    return Positioned(
-      top: 8,
-      left: 8,
-      right: 8,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: _scriptResult.contains('失败') ? Colors.red : Colors.green,
-          ),
-        ),
-        child: Text(
-          _scriptResult,
-          style: TextStyle(
-            color: _scriptResult.contains('失败') ? Colors.red : Colors.green,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-          ),
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
@@ -307,13 +254,7 @@ class _CardAnimationState extends State<CardAnimation> {
 
   Color _getBorderColor() {
     if (_isAnimating) {
-      return _currentEffect?.animationType == 'destroy'
-          ? Colors.red
-          : _currentEffect?.animationType == 'spsummon'
-          ? Colors.amber
-          : _currentEffect?.animationType == 'negate'
-          ? Colors.purple
-          : Colors.white;
+      return Colors.white;
     }
 
     if (widget.card.isSpell) return Colors.blue;
