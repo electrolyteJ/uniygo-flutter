@@ -5,7 +5,7 @@ environment:
   sdk: ^3.12.2
 
 workspace:
-  - packages/ocgcore
+  - packages/service_loader
   - packages/ygo_deck
   - packages/ygo_deck_mdpro3
   - packages/ygo_card
@@ -14,5 +14,6 @@ workspace:
   - packages/duelink_online
   - packages/duelink_lan
   - packages/duelink_ai
+  - packages/ocgcore
   - apps/uniygopro
   - apps/cardlive

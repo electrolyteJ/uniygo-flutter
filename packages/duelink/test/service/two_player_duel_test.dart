@@ -72,8 +72,8 @@ void main() {
   group('Two-Player Duel Communication', () {
     late CapturingConnection conn1;
     late CapturingConnection conn2;
-    late DuelService player1;
-    late DuelService player2;
+    late IDuelService player1;
+    late IDuelService player2;
 
     setUp(() async {
       conn1 = CapturingConnection();

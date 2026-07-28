@@ -121,7 +121,38 @@ class CardInfo {
     if (isCounter) types.add('反击');
     return types.join(' ');
   }
-
+  /// Human-readable card kind (for debug / UI labels).
+  String get kindLabel {
+    if (isLink) return 'Link';
+    if (isXyz) return 'Xyz';
+    if (isSynchro) return 'Synchro';
+    if (isFusion) return 'Fusion';
+    if (isRitual) return 'Ritual';
+    if (isPendulum && !isMonster) return 'Pendulum';
+    if (isMonster) {
+      final buf = <String>[];
+      if (isNormal) buf.add('Normal');
+      if (isEffect) buf.add('Effect');
+      // if (isTuner) buf.add('Tuner');
+      if (isPendulum) buf.add('Pendulum');
+      return buf.isEmpty ? 'Monster' : buf.join(' ');
+    }
+    if (isSpell) {
+      if (isQuickPlay) return 'Quick-Play';
+      if (isContinuous) return 'Continuous';
+      if (isEquip) return 'Equip';
+      if (isField) return 'Field';
+      if (isRitual) return 'Ritual';
+      if (isCounter) return 'Counter';
+      return 'Spell';
+    }
+    if (isTrap) {
+      if (isContinuous) return 'Continuous';
+      if (isCounter) return 'Counter';
+      return 'Trap';
+    }
+    return '?';
+  }
   // ---------------------------------------------------------------------------
   // 属性 / 种族 文本
   // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:ygo_card_mycard/db/models/card_info.dart';
+import 'package:ygo_card/card_info.dart';
 import '../service/script_service.dart';
 import 'summon_animation_overlay.dart'; // 导入召唤叠加层
 
@@ -245,8 +245,8 @@ class CardDetail extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _buildStatItem('等级', card.level.toString(), Icons.star),
-          _buildStatItem('攻击', card.atk.toString(), Icons.favorite),
-          _buildStatItem('防御', card.def.toString(), Icons.shield),
+          _buildStatItem('攻击', card.attack.toString(), Icons.favorite),
+          _buildStatItem('防御', card.attack.toString(), Icons.shield),
         ],
       ),
     ).animate().fadeIn(delay: 500.ms).slide(begin: const Offset(0, 20), end: Offset.zero);

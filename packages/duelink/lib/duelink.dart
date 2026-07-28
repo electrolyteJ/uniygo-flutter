@@ -2,6 +2,8 @@ library duelink;
 
 import 'dart:typed_data';
 
+import 'package:service_loader/service_loader.dart';
+
 import 'duelink.dart';
 
 export 'src/protocol/packet.dart';
@@ -101,7 +103,7 @@ export 'src/messages/game_msg/msg_remove_counter.dart';
 export 'src/messages/game_msg/msg_update_data.dart';
 export 'src/messages/game_msg/msg_update_card.dart';
 
-abstract class DuelService {
+abstract class IDuelService implements IService {
   Future<void> connect(String address, int port);
 
   Future<void> disconnect();
@@ -143,33 +145,8 @@ abstract class DuelService {
   Stream<RoomState> get onRoomStateChange;
 }
 
-/// 服务类型枚举
-enum ServiceType {
-  default_, // 默认网络服务
-  lan, // 局域网服务
-  ai, // AI本地服务
-}
-
-/// 服务工厂注册表
-class ServiceFactory {
-  static final Map<ServiceType, DuelService Function()> _registry = {};
-
-  /// 注册服务实现
-  static void register(ServiceType type, DuelService Function() creator) {
-    _registry[type] = creator;
-  }
-
-  /// 创建服务实例
-  static DuelService create({ServiceType type = ServiceType.default_}) {
-    final creator = _registry[type];
-    if (creator == null) {
-      throw UnimplementedError('Service type $type not registered');
-    }
-    return creator();
-  }
-
-  /// 检查类型是否已注册
-  static bool isRegistered(ServiceType type) => _registry.containsKey(type);
+IService createDuelService(int type) {
+  return ServiceFactory.create(type);
 }
 
 enum ConnectionState { disconnected, connecting, connected, error }

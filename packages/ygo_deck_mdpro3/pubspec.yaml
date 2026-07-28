@@ -16,6 +16,9 @@ dependencies:
   path: ^1.9.0
   ygo_deck:
     path: ../ygo_deck
+  service_loader:
+    path: ../service_loader
+
 dev_dependencies:
   test: ^1.24.0
   flutter_lints: ^6.0.0

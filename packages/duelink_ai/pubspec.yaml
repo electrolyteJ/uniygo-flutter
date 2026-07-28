@@ -14,6 +14,9 @@ dependencies:
   ocgcore:
     path: ../ocgcore
   async: ^2.11.0
+  service_loader:
+    path: ../service_loader
+
 
 dev_dependencies:
   test: ^1.25.0

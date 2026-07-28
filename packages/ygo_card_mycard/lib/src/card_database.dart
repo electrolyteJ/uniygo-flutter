@@ -1,15 +1,16 @@
+import 'dart:developer' as console;
 import 'dart:io' show Platform, File;
 
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:sqflite/sqflite.dart';
-// Desktop / FFI helper — only imported when needed.
-// ignore_for_file: depend_on_referenced_packages
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'card_dao.dart';
 
-import 'dao/card_dao.dart';
-
+Future<void> initDatabase(String dbPath) async {
+  final _database = CardDatabase.instance;
+  await _database.initialize(dbPath);
+}
 /// Singleton service that owns the bundled cards.cdb lifecycle — copies the
 /// asset to a writable path, opens the SQLite database, and exposes a [dao]
 /// for all card queries.
@@ -36,6 +37,8 @@ class CardDatabase {
 
   bool get isInitialized => _db != null;
 
+  get isOpen => _db?.isOpen == true;
+
   // ---------------------------------------------------------------------------
   // Init
   // ---------------------------------------------------------------------------
@@ -43,7 +46,8 @@ class CardDatabase {
   /// Copy the bundled cards.cdb from assets to a writable path, then open
   /// it as a read-only SQLite database.  Safe to call multiple times;
   /// subsequent calls are a no-op.
-  Future<void> initialize() async {
+  Future<void> initialize(String dbPath) async {
+    console.log('Opening database at $dbPath ${_db?.isOpen}');
     if (_db != null) return;
 
     // On desktop platforms sqflite needs the ffi backend.
@@ -52,7 +56,7 @@ class CardDatabase {
       databaseFactory = databaseFactoryFfi;
     }
 
-    final dbPath = await _copyAssetToWritable('assets/data/cards.cdb');
+    // final dbPath = await _copyAssetToWritable('assets/data/cards.cdb');
 
     _db = await openDatabase(
       dbPath,

@@ -4,7 +4,7 @@ import 'package:duelink/duelink.dart';
 import 'ai_connection.dart';
 
 /// AI DuelService实现
-class AiDuelServiceImpl implements DuelService {
+class AiDuelServiceImpl implements IDuelService {
   final DuelConnection _connection;
   final _messageController = StreamController<YgoStocMsg>.broadcast();
   final _stateController = StreamController<RoomState>.broadcast();

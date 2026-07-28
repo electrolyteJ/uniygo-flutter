@@ -143,4 +143,72 @@ class CardInfo {
 
   @override
   int get hashCode => code.hashCode;
+
+  String get raceText {
+    const races = {
+      0x1: '战士', 0x2: '魔法师', 0x4: '天使', 0x8: '恶魔',
+      0x10: '不死', 0x20: '机械', 0x40: '水族', 0x80: '炎族',
+      0x100: '岩石', 0x200: '鸟兽', 0x400: '植物', 0x800: '昆虫',
+      0x1000: '雷族', 0x2000: '龙', 0x4000: '兽', 0x8000: '兽战士',
+      0x10000: '恐龙', 0x20000: '鱼', 0x40000: '海龙', 0x80000: '爬虫类',
+      0x100000: '念动力', 0x200000: '幻神', 0x400000: '创造神',
+      0x800000: '幻龙', 0x1000000: '电子界', 0x2000000: '幻兽神',
+    };
+    return races[race] ?? '未知';
+  }
+
+  String get typeText {
+    List<String> types = [];
+    if (isMonster) types.add('怪兽');
+    if (isSpell) types.add('魔法');
+    if (isTrap) types.add('陷阱');
+    if (isNormal) types.add('通常');
+    if (isEffect) types.add('效果');
+    if (isFusion) types.add('融合');
+    if (isRitual) types.add('仪式');
+    if (isSynchro) types.add('同调');
+    if (isXyz) types.add('XYZ');
+    if (isLink) types.add('连接');
+    if (isPendulum) types.add('灵摆');
+    return types.join(' ');
+  }
+
+  String get attributeText {
+    switch (attribute) {
+      case 0x01: return '地';
+      case 0x02: return '水';
+      case 0x04: return '炎';
+      case 0x08: return '风';
+      case 0x10: return '光';
+      case 0x20: return '暗';
+      case 0x40: return '神';
+      default: return '无';
+    }
+  }
+
+  // String get attributeText {
+  //   switch (attribute) {
+  //     case 0x01: return 'EARTH';
+  //     case 0x02: return 'WATER';
+  //     case 0x04: return 'FIRE';
+  //     case 0x08: return 'WIND';
+  //     case 0x10: return 'LIGHT';
+  //     case 0x20: return 'DARK';
+  //     case 0x40: return 'DIVINE';
+  //     default: return 'NONE';
+  //   }
+  // }
+  //
+  // String get raceText {
+  //   const races = {
+  //     0x1: 'Warrior', 0x2: 'Spellcaster', 0x4: 'Fairy', 0x8: 'Fiend',
+  //     0x10: 'Zombie', 0x20: 'Machine', 0x40: 'Aqua', 0x80: 'Pyro',
+  //     0x100: 'Rock', 0x200: 'Winged Beast', 0x400: 'Plant', 0x800: 'Insect',
+  //     0x1000: 'Thunder', 0x2000: 'Dragon', 0x4000: 'Beast', 0x8000: 'Beast-Warrior',
+  //     0x10000: 'Dinosaur', 0x20000: 'Fish', 0x40000: 'Sea Serpent', 0x80000: 'Reptile',
+  //     0x100000: 'Psychic', 0x200000: 'Divine-Beast', 0x400000: 'Creator God',
+  //     0x800000: 'Wyrm', 0x1000000: 'Cyberse', 0x2000000: 'Illusion',
+  //   };
+  //   return races[race] ?? 'Unknown';
+  // }
 }

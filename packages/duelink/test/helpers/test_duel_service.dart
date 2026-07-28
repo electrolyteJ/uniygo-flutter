@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:duelink/duelink.dart';
 
 /// 测试用的DuelService实现
-class TestDuelServiceImpl implements DuelService {
+class TestDuelServiceImpl implements IDuelService {
   final DuelConnection _connection;
   final _messageController = StreamController<YgoStocMsg>.broadcast();
   final _stateController = StreamController<RoomState>.broadcast();

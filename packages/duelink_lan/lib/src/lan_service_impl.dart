@@ -4,7 +4,7 @@ import 'dart:typed_data';
 
 import 'package:duelink/duelink.dart';
 
-class LanDuelServiceImpl implements DuelService {
+class LanDuelServiceImpl implements IDuelService {
   @override
   Future<void> connect(String address, int port) {
     // TODO: implement connect

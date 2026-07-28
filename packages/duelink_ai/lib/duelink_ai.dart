@@ -7,6 +7,7 @@ import 'package:duelink/duelink.dart';
 import 'package:duelink_ai/src/ocgcore_service.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:ocgcore/ocgcore.dart';
+import 'package:service_loader/service_loader.dart';
 import 'src/ai_connection.dart';
 import 'src/ai_service_impl.dart';
 

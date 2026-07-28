@@ -1,6 +1,6 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
-import 'package:ygo_card_mycard/db/models/card_info.dart';
+import 'package:ygo_card/card_info.dart';
 import '../scene/summon_scene.dart';
 
 class SummonAnimationOverlay extends StatelessWidget {

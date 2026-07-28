@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:ygo_card_mycard/card_service.dart';
-import 'package:ygo_card_mycard/db/models/card_info.dart';
+import 'package:service_loader/service_loader.dart';
+import 'package:ygo_card/card_info.dart';
+import 'package:ygo_card/lflist_info.dart';
+import 'package:ygo_card/ygo_card.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 import '../service/script_service.dart';
 import '../widgets/card_animation.dart';
@@ -15,7 +17,8 @@ class CardListPage extends StatefulWidget {
 
 class _CardListPageState extends State<CardListPage> {
   final TextEditingController _searchController = TextEditingController();
-  final CardService _cardService = CardService(EnvConfig.production);
+
+  final ICardService _cardService = createCardService(ServiceType.mycard) as ICardService;
   final ScriptService _scriptService = ScriptService();
 
   List<CardInfo> _cards = [];
@@ -23,7 +26,7 @@ class _CardListPageState extends State<CardListPage> {
   CardInfo? _selectedCard;
   bool _isLoading = true;
   String _errorMessage = '';
-
+  LflistInfo? _lflist;
   @override
   void initState() {
     super.initState();
@@ -39,9 +42,9 @@ class _CardListPageState extends State<CardListPage> {
     });
 
     try {
-      await _cardService.init();
+      _lflist = await _cardService.fetchLflist();
       await _scriptService.init();
-      _cards = await searchCards('');
+      _cards = await _cardService.searchCards('');
       await _preloadEffects();
     } catch (e) {
       setState(() {
@@ -60,7 +63,7 @@ class _CardListPageState extends State<CardListPage> {
     });
 
     try {
-      _cards = await searchCards(keyword);
+      _cards = await _cardService.searchCards(keyword);
       await _preloadEffects();
     } catch (e) {
       setState(() {
@@ -87,7 +90,7 @@ class _CardListPageState extends State<CardListPage> {
   }
 
   void _switchEnvironment(EnvType type) {
-    _cardService.switchEnv(EnvConfig.fromType(type));
+    _cardService.envType = type;
     _cardEffects.clear();
     _initData();
   }
@@ -267,7 +270,8 @@ class _CardListPageState extends State<CardListPage> {
     return CardDetail(
       card: _selectedCard!,
       imageUrl: _cardService.getCardImageUrl(_selectedCard!.code),
-      limitText: _cardService.getCardLimitText(_selectedCard!.code),
+
+      limitText: _lflist?.getLimitText(_selectedCard!.code) ?? '无限制',
       effects: _cardEffects[_selectedCard!.code],
       onClose: _closeCardDetail,
     );

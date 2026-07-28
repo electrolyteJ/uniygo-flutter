@@ -7,7 +7,7 @@ import 'package:duelink/duelink.dart';
 import 'online_connection.dart';
 
 /// 在线DuelService实现
-class OnlineDuelServiceImpl implements DuelService {
+class OnlineDuelServiceImpl implements IDuelService {
   final DuelConnection _connection = OnlineConnection();
   final _messageController = StreamController<YgoStocMsg>.broadcast();
   final _stateController = StreamController<RoomState>.broadcast();

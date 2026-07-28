@@ -2,8 +2,8 @@ import 'dart:developer' as console;
 
 import 'package:sqflite/sqflite.dart';
 
-import '../models/card_info.dart';
-
+import '../../src/card_info.dart';
+import 'package:ygo_card/card_info.dart' as pkg;
 /// Pure data-access layer for card queries against a cards.cdb SQLite database.
 ///
 /// Accepts an already-open [Database] in the constructor — it does **not** own
@@ -264,4 +264,76 @@ class CardDao {
     ''');
     return (r.first['c'] as int) == 0;
   }
+  /// 组合搜索：按名称关键字 + 类型 + 属性 + 种族筛选
+  Future<List<CardInfo>> searchCombined({
+    String? query,
+    int? cardType,
+    int? attribute,
+    int? race,
+    int maxResults = 50,
+  }) async {
+    final conditions = <String>[];
+    final args = <Object?>[];
+
+    if (query != null && query.isNotEmpty) {
+      conditions.add('t.name LIKE ?');
+      args.add('%$query%');
+    }
+    if (cardType != null) {
+      conditions.add('(d.type & ?) != 0');
+      args.add(cardType);
+    }
+    if (attribute != null) {
+      conditions.add('d.attribute = ?');
+      args.add(attribute);
+    }
+    if (race != null) {
+      conditions.add('d.race = ?');
+      args.add(race);
+    }
+
+    final where = conditions.isEmpty ? '' : 'WHERE ${conditions.join(' AND ')}';
+    args.add(maxResults);
+
+    final rows = await _db.rawQuery(
+      _cardSql('$where ORDER BY d.id LIMIT ?'),
+      args,
+    );
+    return rows.map(_rowToCard).toList();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 类型转换
+// ---------------------------------------------------------------------------
+/// 将本地 CardInfo 转换为包 CardInfo（用于卡组编辑器）
+pkg.CardInfo toPackageCard(CardInfo c) {
+// 从 level 提取灵摆刻度（高16位为右刻度，低16位为左刻度）
+  final lscale = (c.level >> 24) & 0xFF;
+  final rscale = (c.level >> 16) & 0xFF;
+// 从 level 提取等级（低16位）
+  final levelValue = c.level & 0xFFFF;
+// 负等级表示 XYZ
+  final effectiveLevel = (c.type & 0x800000) != 0
+      ? -levelValue.abs()
+      : levelValue;
+  return pkg.CardInfo(
+    code: c.code,
+    alias: c.alias,
+    setcode: List
+        .generate(16, (i) => c.setcodeAt(i))
+        .where((v) => v != 0)
+        .toList(),
+    type: c.type,
+    level: effectiveLevel,
+    attribute: c.attribute,
+    race: c.race,
+    attack: c.atk,
+    defense: c.def,
+    lscale: lscale,
+    rscale: rscale,
+    linkMarker: c.type & 0x4000000 != 0 ? c.def : 0,
+    name: c.name,
+    desc: c.desc,
+  );
 }
