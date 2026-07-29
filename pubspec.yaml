@@ -17,3 +17,5 @@ workspace:
   - packages/ocgcore
   - apps/uniygopro
   - apps/cardlive
+  - apps/duelarena
+  - apps/holoduel
