@@ -24,9 +24,9 @@ class ServiceFactory {
 
 /// 服务类型枚举
 interface class ServiceType {
-  static const int default_ = 0; // 默认网络服务
-  static const int lan = 1; // 局域网服务
-  static const int ai = 2; // AI本地服务
-  static const int mycard = 3;
-  static const int mdpro3 = 4;
+  static const int duelink_online = 0; // 默认网络服务
+  static const int duelink_lan = 1; // 局域网服务
+  static const int duelink_ai = 2; // AI本地服务
+  static const int card_mycard = 3;
+  static const int deck_mdpro3 = 4;
 }

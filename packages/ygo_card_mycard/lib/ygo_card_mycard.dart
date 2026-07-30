@@ -27,7 +27,5 @@ export 'src/env_config.dart';
 
 
 void registerMyCardCardService() {
-  var cardService = CardService(config: EnvConfig.production);
-  registerCardService(ServiceType.mycard, () => cardService);
-
+  registerCardService(ServiceType.card_mycard, () => CardService(config: EnvConfig.production));
 }
