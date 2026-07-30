@@ -6,5 +6,5 @@ import 'package:service_loader/service_loader.dart';
 
 /// 注册局域网连接到工厂
 void registerLanService() {
-  ServiceFactory.register(ServiceType.lan, () => LanDuelServiceImpl());
+  ServiceFactory.register(ServiceType.duelink_lan, () => LanDuelServiceImpl());
 }

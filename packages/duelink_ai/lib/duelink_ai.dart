@@ -13,7 +13,7 @@ import 'src/ai_service_impl.dart';
 
 /// 注册AI连接到工厂
 void registerAiService() {
-  ServiceFactory.register(ServiceType.ai, () => AiDuelServiceImpl());
+  ServiceFactory.register(ServiceType.duelink_ai, () => AiDuelServiceImpl());
 }
 
 final OcgcoreService _ocgcoreService = OcgcoreService();

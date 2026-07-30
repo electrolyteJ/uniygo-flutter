@@ -5,5 +5,5 @@ import 'package:service_loader/service_loader.dart';
 
 /// 注册在线连接到工厂
 void registerOnlineService() {
-  ServiceFactory.register(ServiceType.default_, () => OnlineDuelServiceImpl());
+  ServiceFactory.register(ServiceType.duelink_online, () => OnlineDuelServiceImpl());
 }
