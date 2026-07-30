@@ -19,3 +19,4 @@ workspace:
   - apps/cardlive
   - apps/duelarena
   - apps/holoduel
+  - apps/mdduel
