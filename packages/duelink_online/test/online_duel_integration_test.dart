@@ -168,9 +168,9 @@ void main() {
   late List<YgoStocMsg> aM, bM;
 
   setUp(() {
-    registerOnlineService();
-    alice = createDuelService(ServiceType.duelink_online) as IDuelService;
-    bob = createDuelService(ServiceType.duelink_online) as IDuelService;
+    ServiceFactory.register<OnlineDuelService>(OnlineDuelService.new);
+    alice = ServiceFactory.create<OnlineDuelService>();
+    bob = ServiceFactory.create<OnlineDuelService>();
     aS = []; bS = []; aM = []; bM = [];
     alice.onRoomStateChange.listen(aS.add);
     bob.onRoomStateChange.listen(bS.add);

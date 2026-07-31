@@ -6,6 +6,7 @@ environment:
 
 workspace:
   - packages/service_loader
+  - packages/service_loader_gen
   - packages/ygo_deck
   - packages/ygo_deck_mdpro3
   - packages/ygo_card

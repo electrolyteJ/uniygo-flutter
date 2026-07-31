@@ -1,3 +1,4 @@
+import 'package:service_loader/service_loader.dart';
 import 'package:ygo_deck/deck_info.dart';
 import 'package:ygo_deck/deck_list_page.dart';
 import 'package:ygo_deck/ygo_deck.dart';
@@ -7,6 +8,7 @@ import 'deck_api_client.dart';
 /// 卡组广场服务
 ///
 /// 封装 [DeckApiClient]，提供高层级的卡组管理能力。
+@ServiceRegister(DeckService)
 class DeckService implements IDeckService{
   final DeckApiClient _client;
 

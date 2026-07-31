@@ -1,6 +1,7 @@
 library duelink;
 
-export 'src/iduel_service.dart' show IDuelService, createDuelService, ConnectionState, DuelConnection;
+export 'src/iduel_service.dart' show IDuelService, ConnectionState, DuelConnection;
+export 'src/base_duel_service.dart' show BaseDuelService;
 export 'src/model/room_player.dart';
 export 'src/model/room_options.dart';
 export 'src/model/room_password.dart';

@@ -19,13 +19,3 @@ abstract class ICardService implements IService {
     int maxResults = 100,
   });
 }
-
-
-
-ICardService createCardService(int type) {
-  return ServiceFactory.create(type) as ICardService;
-}
-
-void registerCardService(int type, ICardService Function() creator) {
-  ServiceFactory.register(type, creator);
-}

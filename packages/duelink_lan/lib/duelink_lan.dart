@@ -1,10 +1,11 @@
 library duelink_lan;
 
 import 'package:duelink/duelink.dart';
-import 'package:duelink_lan/src/lan_service_impl.dart';
+import 'package:duelink_lan/src/lan_connection.dart';
 import 'package:service_loader/service_loader.dart';
 
-/// 注册局域网连接到工厂
-void registerLanService() {
-  ServiceFactory.register(ServiceType.duelink_lan, () => LanDuelServiceImpl());
+/// 局域网决斗服务实现 — 只需提供 TCP 连接，其余由 [BaseDuelService] 承担。
+@ServiceRegister(LanDuelService)
+class LanDuelService extends BaseDuelService {
+  LanDuelService() : super(LanConnection());
 }

@@ -1,31 +1,35 @@
 // =============================================================================
-//     ygo_card_deck — Card CDN + Deck Square API
+//     ygo_card_mycard — Card CDN + Deck Square API
 // =============================================================================
 //
 //   Usage:
 //   ```dart
-//   import 'package:ygo_card_deck/ygo_card_mycard.dart';
+//   import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 //
 //   // 卡片 CDN 接口
 //   final cardSvc = CardService();
 //   final lflist = await cardSvc.fetchLflist();
-//   final db = await cardSvc.downloadDatabase();
 //   final imageUrl = cardSvc.getCardImageUrl(89631139);
-//
-//   // 卡组广场接口
-//   final deckSvc = DeckService();
-//   final page = await deckSvc.fetchDeckList(page: 1, size: 20);
-//   final detail = await deckSvc.fetchDeckDetail(page.decks.first.deckId);
 //   ```
-// 模型
+//
+//   服务实例统一通过 `registerAllServices()` 编译期注册后，
+//   由 ServiceFactory 创建（见 service_loader 包）。
 import 'package:service_loader/service_loader.dart';
-import 'package:ygo_card/ygo_card.dart';
-import 'package:ygo_card_mycard/src/card_database.dart';
+import 'package:ygo_card_mycard/src/card_service.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
-import 'src/card_service.dart';
+
 export 'src/env_config.dart';
 
 
-void registerMyCardCardService() {
-  registerCardService(ServiceType.card_mycard, () => CardService(config: EnvConfig.production));
+/// 生产环境卡片服务工厂。
+///
+/// [CardService] 需要 [EnvConfig] 构造参数，无法直接无参构造，
+/// 因此以顶层函数形式标注 [ServiceRegister]。
+@ServiceRegister(CardService)
+CardService createMyCardCardService() =>
+    CardService(config: EnvConfig.production);
+
+
+class CardService extends BaseCardService {
+  CardService({required EnvConfig config}) : super(config: config);
 }

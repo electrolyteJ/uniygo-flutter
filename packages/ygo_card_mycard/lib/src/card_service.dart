@@ -19,12 +19,12 @@ import 'package:ygo_card/ygo_card_deck_exception.dart';
 ///
 /// 封装 [CardApiClient]，提供高层级的卡片数据获取能力。
 /// 管理 CDN 配置，支持多环境切换。
-class CardService implements ICardService {
+class BaseCardService implements ICardService {
   http.Client _client = http.Client();
   EnvConfig config;
   final Duration timeout;
   CardDao? _cardDao;
-  CardService({
+  BaseCardService({
     required this.config,
     this.timeout = const Duration(seconds: 30),
   }) {
