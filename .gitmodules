@@ -1,0 +1,3 @@
+[submodule "packages/ocgcore/vendor/ocgcore"]
+	path = packages/ocgcore/vendor/ocgcore
+	url = git@github.com:electrolyteJ/ygopro-core.git
