@@ -2,7 +2,18 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Select sum interaction (complex nested format, store raw data for now).
+/// MSG_SELECT_SUM (0x17) — 选择合计数值交互
+///
+/// 服务端要求玩家选择多张卡牌，使其等级/数值之和满足给定条件。
+/// 格式较复杂，目前保留原始字节数据。
+///
+/// 有线格式 (变长):
+/// | 偏移 | 大小 | 类型     | 说明                           |
+/// |------|------|----------|--------------------------------|
+/// | 0x00 | 1    | uint8    | 玩家 (0 或 1)                  |
+/// | 0x01 | 变长 | 原始数据 | 候选卡牌列表和条件信息          |
+///
+/// 参考 neos-ts 的 selectSum.ts 定义。
 class MsgSelectSum {
   final int player;
   final Uint8List rawData;

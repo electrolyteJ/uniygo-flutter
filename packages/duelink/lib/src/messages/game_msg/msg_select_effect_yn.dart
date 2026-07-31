@@ -2,7 +2,19 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Select effect yes/no (12 bytes: player + code + location + effectDescription).
+/// MSG_SELECT_EFFECTYN (0x0C) — 选择是否发动效果交互
+///
+/// 服务端询问玩家是否发动某张卡牌的效果。
+///
+/// 有线格式 (13 字节):
+/// | 偏移 | 大小 | 类型         | 说明                     |
+/// |------|------|--------------|--------------------------|
+/// | 0x00 | 1    | uint8        | 玩家 (0 或 1)            |
+/// | 0x01 | 4    | uint32       | 卡牌 code                |
+/// | 0x05 | 4    | CardLocation | 卡牌位置                  |
+/// | 0x09 | 4    | uint32       | 效果描述 ID              |
+///
+/// 参考 neos-ts 的 selectEffectYn.ts 定义。
 class MsgSelectEffectYn {
   final int player;
   final int code;

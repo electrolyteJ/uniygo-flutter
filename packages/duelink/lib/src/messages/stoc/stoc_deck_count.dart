@@ -2,6 +2,19 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
+/// STOC_DECK_COUNT (9)
+///
+/// 双方卡组数量信息。
+///
+/// 协议格式:
+/// - meMain:  int16 — 我方主卡组数量
+/// - meExtra: int16 — 我方额外卡组数量
+/// - meSide:  int16 — 我方副卡组数量
+/// - opMain:  int16 — 对方主卡组数量
+/// - opExtra: int16 — 对方额外卡组数量
+/// - opSide:  int16 — 对方副卡组数量
+///
+/// 参考 neos-ts 的 stocDeckCount.ts 定义。
 class StocDeckCount {
   final int meMain;
   final int meExtra;

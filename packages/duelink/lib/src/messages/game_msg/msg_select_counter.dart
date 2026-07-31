@@ -2,8 +2,20 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Select counter interaction (complex format).
-/// player + counterType(uint16) + min(uint16) + count + items: [code(u32) + shortLocation(3) + counterCount(u16); count]
+/// MSG_SELECT_COUNTER (0x16) — 选择计数器交互
+///
+/// 服务端要求玩家从多张卡片上移除指定数量的计数器。
+///
+/// 有线格式 (变长):
+/// | 偏移 | 大小     | 类型                      | 说明                    |
+/// |------|----------|---------------------------|-------------------------|
+/// | 0x00 | 1        | uint8                     | 玩家 (0 或 1)           |
+/// | 0x01 | 2        | uint16                    | 计数器类型 counterType   |
+/// | 0x03 | 2        | uint16                    | 最少需选数量 min         |
+/// | 0x05 | 1        | uint8                     | 可选卡片数量 count       |
+/// | 0x06 | 9 * n    | code(u32) + shortLocation(3) + counterCount(u16) | 每张卡: 卡牌 code + 短位置 + 该卡上的计数器数量 |
+///
+/// 参考 neos-ts 的 selectCounter.ts 定义。
 class MsgSelectCounter {
   final int player;
   final int counterType;

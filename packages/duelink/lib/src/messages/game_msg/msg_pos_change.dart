@@ -2,7 +2,18 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Position change notification (CardInfo 7 bytes + prePosition + curPosition).
+/// MSG_POS_CHANGE (0x35) — 表示形式变化通知
+///
+/// 通知客户端卡牌的表示形式发生了变化。
+///
+/// 有线格式 (9 字节):
+/// | 偏移 | 大小 | 类型     | 说明                 |
+/// |------|------|----------|----------------------|
+/// | 0x00 | 7    | CardInfo | 卡牌当前信息          |
+/// | 0x07 | 1    | uint8    | 变化前的表示形式       |
+/// | 0x08 | 1    | uint8    | 变化后的表示形式       |
+///
+/// 参考 neos-ts 的 posChange.ts 定义。
 class MsgPosChange {
   final CardInfo cardInfo;
   final int prePosition;

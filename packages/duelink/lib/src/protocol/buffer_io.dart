@@ -1,7 +1,13 @@
 import 'dart:typed_data';
 import '../constants.dart';
 
-/// Sequential binary reader, little-endian.
+/// 二进制缓冲区顺序读写工具。
+///
+/// 所有数值均为小端序（LE），与 ygopro 服务端协议一致。
+///
+/// 参考 neos-ts 的 bufferIO.ts 定义。
+
+/// 顺序二进制读取器，小端序。
 class BufferReader {
   final Uint8List _data;
   int _offset = 0;
@@ -56,7 +62,11 @@ class BufferReader {
     return List.generate(count, (_) => readUint32());
   }
 
-  /// Reads 4 bytes: controller(u8) + location(u8) + sequence(u8) + ss(u8)
+  /// 读取 4 字节卡牌位置：
+  /// - controller (u8): 控制者，0=自己，1=对方
+  /// - location (u8): 区域标识（可能包含 LOCATION_OVERLAY 位标记）
+  /// - sequence (u8): 序列号
+  /// - ss (u8): 表示形式或叠放序号（由 isOverlay 决定语义）
   CardLocation readCardLocation() {
     final c = readUint8();
     final l = readUint8();
@@ -73,7 +83,8 @@ class BufferReader {
     );
   }
 
-  /// Reads 3 bytes: controller(u8) + location(u8) + sequence(u8)
+  /// 读取 3 字节短卡牌位置（不含表示形式/叠放序号）：
+  /// - controller (u8) + location (u8) + sequence (u8)
   CardShortLocation readCardShortLocation() {
     return CardShortLocation(
       controller: readUint8(),
@@ -82,7 +93,11 @@ class BufferReader {
     );
   }
 
-  /// Reads 7 bytes: code(u32) + controller(u8) + location(u8) + sequence(u8)
+  /// 读取 7 字节卡牌信息：
+  /// - code (u32): 卡牌密码
+  /// - controller (u8): 控制者
+  /// - location (u8): 区域
+  /// - sequence (u8): 序列号
   CardInfo readCardInfo() {
     return CardInfo(
       code: readUint32(),
@@ -92,7 +107,10 @@ class BufferReader {
     );
   }
 
-  /// Reads UTF-16 LE null-terminated string up to [maxBytes] bytes.
+  /// 读取固定长度 UTF-16 LE 编码的字符串（最大 [maxBytes] 字节）。
+  ///
+  /// ygopro 协议中的昵称等字段使用 20 字符（40 字节）固定长度，
+  /// 以 null 结束，剩余用 0xcccc 填充。
   String readUtf16({int maxBytes = 40}) {
     final codes = <int>[];
     final end = (_offset + maxBytes).clamp(0, _data.length);
@@ -103,12 +121,12 @@ class BufferReader {
       if (low == 0 && high == 0) break;
       codes.add(low | (high << 8));
     }
-    // Skip remaining bytes in fixed block
+    // 跳过固定块中剩余字节
     _offset = end;
     return String.fromCharCodes(codes.where((c) => c != 0xcccc && c != 0));
   }
 
-  /// Reads variable-length UTF-16 LE null-terminated string.
+  /// 读取变长 UTF-16 LE 编码的字符串（以 null 结束）。
   String readUtf16Var() {
     final codes = <int>[];
     while (_offset < _data.length - 1) {
@@ -122,7 +140,7 @@ class BufferReader {
   }
 }
 
-/// Sequential binary writer, little-endian.
+/// 顺序二进制写入器，小端序。
 class BufferWriter {
   final _buffer = <int>[];
 
@@ -150,6 +168,12 @@ class BufferWriter {
     for (final v in list) writeUint32(v);
   }
 
+  /// 写入 4 字节卡牌位置。
+  ///
+  /// - controller (u8): 控制者
+  /// - location (u8): 区域标识（叠放时设置 LOCATION_OVERLAY 位）
+  /// - sequence (u8): 序列号
+  /// - ss (u8): 非叠放时为表示形式，叠放时为叠放序号
   void writeCardLocation(CardLocation loc) {
     final locationByte = loc.isOverlay ? (loc.location | LOCATION_OVERLAY) : loc.location;
     writeUint8(loc.controller);
@@ -158,12 +182,14 @@ class BufferWriter {
     writeUint8(loc.isOverlay ? loc.overlaySequence : loc.position);
   }
 
+  /// 写入 3 字节短卡牌位置（controller + location + sequence）。
   void writeCardShortLocation(CardShortLocation loc) {
     writeUint8(loc.controller);
     writeUint8(loc.location);
     writeUint8(loc.sequence);
   }
 
+  /// 写入 7 字节卡牌信息（code: u32 + controller: u8 + location: u8 + sequence: u8）。
   void writeCardInfo(CardInfo info) {
     writeUint32(info.code);
     writeUint8(info.controller);
@@ -171,33 +197,37 @@ class BufferWriter {
     writeUint8(info.sequence);
   }
 
-  /// Writes fixed-length UTF-16 LE string (max 20 chars, 40 bytes).
-  /// Null-terminated, remainder filled with 0xcccc.
+  /// 写入定长 UTF-16 LE 字符串（最多 20 字符 / 40 字节）。
+  ///
+  /// 以 null 结束，剩余字节以 0xcccc 填充（与 ygopro 服务端一致）。
   void writeUtf16Fixed(String str) {
     final codes = str.codeUnits;
     for (int i = 0; i < 20; i++) {
       if (i < codes.length) {
         writeUint16(codes[i]);
       } else if (i == codes.length) {
-        writeUint16(0); // null terminator
+        writeUint16(0); // null 结束符
       } else {
-        writeUint16(0xcccc); // fill
+        writeUint16(0xcccc); // 填充
       }
     }
   }
 
-  /// Writes variable-length UTF-16 LE string with null terminator.
+  /// 写入变长 UTF-16 LE 字符串，以 null 结束。
   void writeUtf16Var(String str) {
     for (final c in str.codeUnits) {
       writeUint16(c);
     }
-    writeUint16(0); // null terminator
+    writeUint16(0); // null 结束符
   }
 
   Uint8List toBytes() => Uint8List.fromList(_buffer);
 }
 
-/// 4-byte card location: controller + location + sequence + position/overlay.
+/// 4 字节卡牌位置。
+///
+/// 当 [isOverlay] 为 true 时，[overlaySequence] 表示叠放序号，
+/// 否则 [position] 表示卡牌表示形式。
 class CardLocation {
   final int controller;
   final int location;
@@ -232,7 +262,9 @@ class CardLocation {
   String toString() => 'CardLocation(c:$controller l:$location s:$sequence p:$position)';
 }
 
-/// 3-byte short location: controller + location + sequence.
+/// 3 字节短卡牌位置（controller + location + sequence）。
+///
+/// 不含表示形式/叠放信息，常用于只需要区域的场景。
 class CardShortLocation {
   final int controller;
   final int location;
@@ -255,7 +287,9 @@ class CardShortLocation {
   int get hashCode => Object.hash(controller, location, sequence);
 }
 
-/// 7-byte card info: code(u32) + controller(u8) + location(u8) + sequence(u8).
+/// 7 字节卡牌信息（code: u32 + controller: u8 + location: u8 + sequence: u8）。
+///
+/// 一种紧凑的卡牌引用格式，常用于 select card 等交互中。
 class CardInfo {
   final int code;
   final int controller;

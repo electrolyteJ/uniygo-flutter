@@ -18,6 +18,13 @@ import 'stoc/stoc_change_side.dart';
 import 'stoc/stoc_waiting_side.dart';
 import 'stoc/stoc_game_msg.dart';
 
+/// StoC 消息的联合容器。
+///
+/// 每个工厂方法对应一种服务端到客户端的消息类型，
+/// [protoId] 返回对应的协议标识号（见 constants.dart 中的 STOC_* 常量）。
+///
+/// 参考 neos-ts 中 ocgAdapter/stoc/ 目录下的各个 STOC 消息定义。
+
 class YgoStocMsg {
   final StocJoinGame? joinGame;
   final StocChat? chat;
@@ -57,36 +64,55 @@ class YgoStocMsg {
     this.duelEnd,
   });
 
+  // ---- 工厂构造函数 ----
+
+  /// STOC_JOIN_GAME (18): 告知客户端已成功加入房间。
   factory YgoStocMsg.joinGame(StocJoinGame m) => YgoStocMsg._(joinGame: m);
+  /// STOC_CHAT (25): 聊天消息。
   factory YgoStocMsg.chat(StocChat m) => YgoStocMsg._(chat: m);
+  /// STOC_HS_PLAYER_ENTER (32): 有新玩家进入等待房间。
   factory YgoStocMsg.hsPlayerEnter(StocHsPlayerEnter m) =>
       YgoStocMsg._(hsPlayerEnter: m);
+  /// STOC_TYPE_CHANGE (19): 玩家自身类型变化（player1/player2/observer）。
   factory YgoStocMsg.typeChange(StocTypeChange m) =>
       YgoStocMsg._(typeChange: m);
+  /// STOC_HS_PLAYER_CHANGE (33): 等待房间中玩家状态变化（就绪/取消/离开等）。
   factory YgoStocMsg.hsPlayerChange(StocHsPlayerChange m) =>
       YgoStocMsg._(hsPlayerChange: m);
+  /// STOC_HS_WATCH_CHANGE (34): 观战人数变化。
   factory YgoStocMsg.hsWatchChange(StocHsWatchChange m) =>
       YgoStocMsg._(hsWatchChange: m);
+  /// STOC_SELECT_HAND (3): 猜拳阶段 — 要求选择剪刀/石头/布。
   factory YgoStocMsg.selectHand() =>
       YgoStocMsg._(selectHand: const StocSelectHand());
+  /// STOC_HAND_RESULT (5): 猜拳结果。
   factory YgoStocMsg.handResult(StocHandResult m) =>
       YgoStocMsg._(handResult: m);
+  /// STOC_SELECT_TP (4): 猜拳胜者选择先/后攻。
   factory YgoStocMsg.selectTp() =>
       YgoStocMsg._(selectTp: const StocSelectTp());
+  /// STOC_DECK_COUNT (9): 双方卡组数量信息。
   factory YgoStocMsg.deckCount(StocDeckCount m) =>
       YgoStocMsg._(deckCount: m);
+  /// STOC_DUEL_START (21): 对局开始。
   factory YgoStocMsg.duelStart() =>
       YgoStocMsg._(duelStart: const StocDuelStart());
+  /// STOC_GAME_MSG (1): 决斗对局中的 GameMsg 消息（包含 SELECT_* / UPDATE_* / MOVE 等子消息）。
   factory YgoStocMsg.gameMsg(StocGameMessage m) =>
       YgoStocMsg._(gameMsg: m);
+  /// STOC_TIME_LIMIT (24): 计时更新。
   factory YgoStocMsg.timeLimit(StocTimeLimit m) =>
       YgoStocMsg._(timeLimit: m);
+  /// STOC_ERROR_MSG (2): 服务端错误消息（如卡组不合规、版本不匹配等）。
   factory YgoStocMsg.errorMsg(StocErrorMsg m) =>
       YgoStocMsg._(errorMsg: m);
+  /// STOC_CHANGE_SIDE (7): 换备（换副卡组）阶段开始。
   factory YgoStocMsg.changeSide() =>
       YgoStocMsg._(changeSide: const StocChangeSide());
+  /// STOC_WAITING_SIDE (8): 等待对手换备完成。
   factory YgoStocMsg.waitingSide() =>
       YgoStocMsg._(waitingSide: const StocWaitingSide());
+  /// STOC_DUEL_END (22): 对局结束。
   factory YgoStocMsg.duelEnd() =>
       YgoStocMsg._(duelEnd: const StocDuelEnd());
 
@@ -126,6 +152,7 @@ class YgoStocMsg {
     return Uint8List(0);
   }
 
+  /// 从原始字节数据解码 StoC 消息。
   static YgoStocMsg decode(int protoId, Uint8List data) {
     switch (protoId) {
       case STOC_JOIN_GAME:

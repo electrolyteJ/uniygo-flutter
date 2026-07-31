@@ -2,6 +2,16 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
+/// STOC_TIME_LIMIT (24)
+///
+/// 计时更新通知。
+///
+/// 协议格式:
+/// - player:   int8   — 玩家标识
+/// - (padding): uint8
+/// - leftTime: uint16 — 剩余时间（秒）
+///
+/// 参考 neos-ts 的 stocTimeLimit.ts 定义。
 class StocTimeLimit {
   final int player;
   final int leftTime;

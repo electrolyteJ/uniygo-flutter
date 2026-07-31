@@ -2,7 +2,19 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Remove counter notification (same format as add_counter).
+/// MSG_REMOVE_COUNTER (0x66) — 移除计数器通知
+///
+/// 当卡牌上的计数器被移除时，核心将此消息发送至客户端。
+/// 格式与 MSG_ADD_COUNTER 相同。
+///
+/// 有线格式 (7 字节):
+/// | 偏移 | 大小 | 类型   | 说明           |
+/// |------|------|--------|----------------|
+/// | 0x00 | 2    | uint16 | 计数器类型      |
+/// | 0x02 | 3    | CardShortLocation | 卡片短位置 |
+/// | 0x05 | 2    | uint16 | 移除的计数器数量 |
+///
+/// 参考 neos-ts 的 removeCounter.ts 定义。
 class MsgRemoveCounter {
   final int counterType;
   final CardShortLocation location;

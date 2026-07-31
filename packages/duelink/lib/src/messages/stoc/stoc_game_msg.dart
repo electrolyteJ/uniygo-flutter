@@ -63,10 +63,25 @@ import '../game_msg/msg_update_data.dart';
 import '../game_msg/msg_update_card.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Server-to-client game message wrapper.
-/// First byte of exData is the func (MSG_* constant).
+/// STOC_GAME_MSG (1)
+///
+/// 服务端到客户端 — GameMsg 消息路由分发器。
+///
+/// ygopro 协议中所有决斗对局内的消息都嵌套在 STOC_GAME_MSG 之中。
+/// 第一个字节为 func（MSG_* 常量），标识消息子类型，
+/// 后续字节为该子类型的负载数据。
+///
+/// 协议格式:
+/// - func: unsigned char — GameMsg 协议的 function 编号
+/// - data: binary bytes  — 各 MSG_* 子类型的负载
+///
+/// @usage 服务端告诉客户端决斗对局中的 UI 展示与交互逻辑。
+///
+/// 参考 neos-ts 的 stocGameMsg/mod.ts 定义。
 class StocGameMessage {
+  /// GameMsg 子类型编号（见 constants.dart 中的 MSG_* 常量）
   final int func;
+  /// 解码后的内部消息对象（如 MsgStart, MsgDraw, MsgSelectCard 等）
   final dynamic innerMsg;
 
   const StocGameMessage({required this.func, required this.innerMsg});
@@ -83,6 +98,7 @@ class StocGameMessage {
 
   Uint8List _encodeInner() {
     switch (func) {
+      // ---- 基础流程消息 ----
       case MSG_START:
         return (innerMsg as MsgStart).encode();
       case MSG_DRAW:
@@ -99,6 +115,8 @@ class StocGameMessage {
         return (innerMsg as MsgHint).encode();
       case MSG_MOVE:
         return (innerMsg as MsgMove).encode();
+
+      // ---- 交互选择消息 ----
       case MSG_SELECT_IDLE_CMD:
         return (innerMsg as MsgSelectIdleCmd).encode();
       case MSG_SELECT_CARD:
@@ -127,6 +145,8 @@ class StocGameMessage {
         return (innerMsg as MsgSelectCounter).encode();
       case MSG_SORT_CARD:
         return (innerMsg as MsgSortCard).encode();
+
+      // ---- LP & 伤害 ----
       case MSG_DAMAGE:
         return (innerMsg as MsgDamage).encode();
       case MSG_RECOVER:
@@ -135,6 +155,8 @@ class StocGameMessage {
         return (innerMsg as MsgLpUpdate).encode();
       case MSG_PAY_LP_COST:
         return (innerMsg as MsgPayLpCost).encode();
+
+      // ---- 召唤 ----
       case MSG_SUMMONING:
         return (innerMsg as MsgSummoning).encode();
       case MSG_SUMMONED:
@@ -147,18 +169,24 @@ class StocGameMessage {
         return (innerMsg as MsgFlipSummoning).encode();
       case MSG_FLIP_SUMMONED:
         return (innerMsg as MsgFlipSummoned).encode();
+
+      // ---- 连锁 ----
       case MSG_CHAINING:
         return (innerMsg as MsgChaining).encode();
       case MSG_CHAIN_SOLVED:
         return (innerMsg as MsgChainSolved).encode();
       case MSG_CHAIN_END:
         return (innerMsg as MsgChainEnd).encode();
+
+      // ---- 战斗 & 攻击 ----
       case MSG_ATTACK:
         return (innerMsg as MsgAttack).encode();
       case MSG_ATTACK_DISABLE:
         return (innerMsg as MsgAttackDisable).encode();
       case MSG_BECOME_TARGET:
         return (innerMsg as MsgBecomeTarget).encode();
+
+      // ---- 场地状态 ----
       case MSG_FIELD_DISABLED:
         return (innerMsg as MsgFieldDisabled).encode();
       case MSG_POS_CHANGE:
@@ -167,6 +195,8 @@ class StocGameMessage {
         return (innerMsg as MsgSet).encode();
       case MSG_SWAP:
         return (innerMsg as MsgSwap).encode();
+
+      // ---- 洗牌 ----
       case MSG_SHUFFLE_DECK:
         return (innerMsg as MsgShuffleDeck).encode();
       case MSG_SHUFFLE_HAND:
@@ -177,6 +207,8 @@ class StocGameMessage {
         return (innerMsg as MsgSwapGraveDeck).encode();
       case MSG_SHUFFLE_SET_CARD:
         return (innerMsg as MsgShuffleSetCard).encode();
+
+      // ---- 猜拳/随机 ----
       case MSG_HAND_RES:
         return (innerMsg as MsgHandRes).encode();
       case MSG_TOSS_COIN:
@@ -185,6 +217,8 @@ class StocGameMessage {
         return (innerMsg as MsgToss).encode();
       case MSG_ROCK_PAPER_SCISSORS:
         return (innerMsg as MsgRockPaperScissors).encode();
+
+      // ---- 宣言 ----
       case MSG_ANNOUNCE_RACE:
         return (innerMsg as MsgAnnounceRace).encode();
       case MSG_ANNOUNCE_ATTRIB:
@@ -193,8 +227,12 @@ class StocGameMessage {
         return (innerMsg as MsgAnnounceCard).encode();
       case MSG_ANNOUNCE_NUMBER:
         return (innerMsg as MsgAnnounceNumber).encode();
+
+      // ---- 卡牌信息 ----
       case MSG_CONFIRM_CARDS:
         return (innerMsg as MsgConfirmCards).encode();
+
+      // ---- 刷新/更新 ----
       case MSG_RELOAD_FIELD:
         return (innerMsg as MsgReloadField).encode();
       case MSG_SIBYL_NAME:
@@ -207,6 +245,7 @@ class StocGameMessage {
         return (innerMsg as MsgUpdateData).encode();
       case MSG_UPDATE_CARD:
         return (innerMsg as MsgUpdateCard).encode();
+
       default:
         return Uint8List(0);
     }
@@ -219,6 +258,7 @@ class StocGameMessage {
         Uint8List.view(data.buffer, data.offsetInBytes + 1, data.length - 1);
 
     switch (func) {
+      // ---- 基础流程消息 ----
       case MSG_START:
         return StocGameMessage(func: func, innerMsg: MsgStart.decode(innerData));
       case MSG_DRAW:
@@ -235,6 +275,8 @@ class StocGameMessage {
         return StocGameMessage(func: func, innerMsg: MsgHint.decode(innerData));
       case MSG_MOVE:
         return StocGameMessage(func: func, innerMsg: MsgMove.decode(innerData));
+
+      // ---- 交互选择消息 ----
       case MSG_SELECT_IDLE_CMD:
         return StocGameMessage(
             func: func, innerMsg: MsgSelectIdleCmd.decode(innerData));
@@ -279,6 +321,8 @@ class StocGameMessage {
             func: func, innerMsg: MsgSelectUnselectCard.decode(innerData));
       case MSG_SORT_CARD:
         return StocGameMessage(func: func, innerMsg: MsgSortCard.decode(innerData));
+
+      // ---- LP & 伤害 ----
       case MSG_DAMAGE:
         return StocGameMessage(func: func, innerMsg: MsgDamage.decode(innerData));
       case MSG_RECOVER:
@@ -289,6 +333,8 @@ class StocGameMessage {
       case MSG_PAY_LP_COST:
         return StocGameMessage(
             func: func, innerMsg: MsgPayLpCost.decode(innerData));
+
+      // ---- 召唤 ----
       case MSG_SUMMONING:
         return StocGameMessage(
             func: func, innerMsg: MsgSummoning.decode(innerData));
@@ -307,6 +353,8 @@ class StocGameMessage {
       case MSG_FLIP_SUMMONED:
         return StocGameMessage(
             func: func, innerMsg: MsgFlipSummoned.decode(innerData));
+
+      // ---- 连锁 ----
       case MSG_CHAINING:
         return StocGameMessage(
             func: func, innerMsg: MsgChaining.decode(innerData));
@@ -316,6 +364,8 @@ class StocGameMessage {
       case MSG_CHAIN_END:
         return StocGameMessage(
             func: func, innerMsg: MsgChainEnd.decode(innerData));
+
+      // ---- 战斗 & 攻击 ----
       case MSG_ATTACK:
         return StocGameMessage(func: func, innerMsg: MsgAttack.decode(innerData));
       case MSG_ATTACK_DISABLE:
@@ -324,6 +374,8 @@ class StocGameMessage {
       case MSG_BECOME_TARGET:
         return StocGameMessage(
             func: func, innerMsg: MsgBecomeTarget.decode(innerData));
+
+      // ---- 场地状态 ----
       case MSG_FIELD_DISABLED:
         return StocGameMessage(
             func: func, innerMsg: MsgFieldDisabled.decode(innerData));
@@ -334,6 +386,8 @@ class StocGameMessage {
         return StocGameMessage(func: func, innerMsg: MsgSet.decode(innerData));
       case MSG_SWAP:
         return StocGameMessage(func: func, innerMsg: MsgSwap.decode(innerData));
+
+      // ---- 洗牌 ----
       case MSG_SHUFFLE_DECK:
         return StocGameMessage(
             func: func, innerMsg: MsgShuffleDeck.decode(innerData));
@@ -349,6 +403,8 @@ class StocGameMessage {
       case MSG_SHUFFLE_SET_CARD:
         return StocGameMessage(
             func: func, innerMsg: MsgShuffleSetCard.decode(innerData));
+
+      // ---- 猜拳/随机 ----
       case MSG_HAND_RES:
         return StocGameMessage(
             func: func, innerMsg: MsgHandRes.decode(innerData));
@@ -359,6 +415,8 @@ class StocGameMessage {
       case MSG_ROCK_PAPER_SCISSORS:
         return StocGameMessage(
             func: func, innerMsg: MsgRockPaperScissors.decode(innerData));
+
+      // ---- 宣言 ----
       case MSG_ANNOUNCE_RACE:
         return StocGameMessage(
             func: func, innerMsg: MsgAnnounceRace.decode(innerData));
@@ -371,9 +429,13 @@ class StocGameMessage {
       case MSG_ANNOUNCE_NUMBER:
         return StocGameMessage(
             func: func, innerMsg: MsgAnnounceNumber.decode(innerData));
+
+      // ---- 卡牌信息 ----
       case MSG_CONFIRM_CARDS:
         return StocGameMessage(
             func: func, innerMsg: MsgConfirmCards.decode(innerData));
+
+      // ---- 刷新/更新 ----
       case MSG_RELOAD_FIELD:
         return StocGameMessage(
             func: func, innerMsg: MsgReloadField.decode(innerData));
@@ -392,6 +454,7 @@ class StocGameMessage {
       case MSG_UPDATE_CARD:
         return StocGameMessage(
             func: func, innerMsg: MsgUpdateCard.decode(innerData));
+
       default:
         return StocGameMessage(func: func, innerMsg: MsgWait.decode(innerData));
     }

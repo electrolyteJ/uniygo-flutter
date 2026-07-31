@@ -2,6 +2,20 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
+/// STOC_ERROR_MSG (2)
+///
+/// 服务端错误消息。
+///
+/// 协议格式:
+/// - errorType:  uint8   — 错误类型
+///   - 0 = JOIN（加入失败）
+///   - 1 = DECK（卡组问题）
+///   - 2 = SIDE（副卡组问题）
+///   - 3 = VERSION（版本不匹配）
+/// - (padding):  3 bytes
+/// - errorCode:  int32   — 具体错误码
+///
+/// 参考 neos-ts 的 stocErrorMsg.ts 定义。
 class StocErrorMsg {
   final int errorType;
   final int errorCode;

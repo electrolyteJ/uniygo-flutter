@@ -2,8 +2,22 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Sibyl name interaction.
-/// 6 fixed-length UTF-16 strings, each 100 bytes (50 uint16 units).
+/// MSG_SIBYL_NAME (0xEB) — 神托/占卜选名交互
+///
+/// 回放模式获取对战双方的昵称，或用于占卜选名效果。
+/// 包含 6 个定长 UTF-16 字符串块，每个 100 字节（50 个 uint16 单元）。
+///
+/// 有线格式 (600 字节):
+/// | 偏移 | 大小  | 类型   | 说明                  |
+/// |------|-------|--------|-----------------------|
+/// | 0x00 | 100   | utf16  | 玩家 0 昵称           |
+/// | 0x64 | 100   | utf16  | 玩家 0 昵称标签       |
+/// | 0xC8 | 100   | utf16  | 玩家 0 昵称 C 版本   |
+/// | 0x12C| 100   | utf16  | 玩家 1 昵称           |
+/// | 0x190| 100   | utf16  | 玩家 1 昵称标签       |
+/// | 0x1F4| 100   | utf16  | 玩家 1 昵称 C 版本   |
+///
+/// 参考 neos-ts 的 sibylName.ts 定义。
 class MsgSibylName {
   final String name0;
   final String name0Tag;

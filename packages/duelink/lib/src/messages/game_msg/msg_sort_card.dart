@@ -2,7 +2,18 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Sort cards interaction (player + count + [code + shortLocation; count]).
+/// MSG_SORT_CARD (0x19) — 排卡序交互
+///
+/// 服务端要求玩家对一组卡牌进行排序（例如墓地排序效果）。
+///
+/// 有线格式 (变长):
+/// | 偏移 | 大小    | 类型                    | 说明               |
+/// |------|---------|-------------------------|--------------------|
+/// | 0x00 | 1       | uint8                   | 玩家 (0 或 1)      |
+/// | 0x01 | 1       | uint8                   | 卡牌数量 count      |
+/// | 0x02 | 7 * n   | code(u32) + shortLocation(3) | 每张卡: code + 短位置 |
+///
+/// 参考 neos-ts 的 sortCard.ts 定义。
 class MsgSortCard {
   final int player;
   final int count;

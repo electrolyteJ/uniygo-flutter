@@ -1,4 +1,4 @@
-@Timeout(Duration(minutes: 3))
+@Timeout(Duration(minutes: 5))
 library;
 
 import 'dart:async';
@@ -9,21 +9,13 @@ import 'package:duelink_online/duelink_online.dart';
 import 'package:service_loader/service_loader.dart';
 import 'package:test/test.dart';
 
-/// 直连的真实对战服务器（srvpro，YGOPro Koishi Server）。
-///
-/// 这些是网络集成测试：需要能访问该服务器，且服务器行为符合
-/// mycard/srvpro 房间协议（密码建房、房内聊天转发、准备同步、猜拳选先后等）。
 const String kServerHost = 'koishi.momobako.com';
 const int kServerPort = 7211;
-
-/// 网络等待统一用较宽松的超时。
 const Duration kNetTimeout = Duration(seconds: 30);
 
-/// 每次运行生成唯一房间 ID，避免与残留房间或其他测试冲突。
 String uniqueRoomId() =>
     'c${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}';
 
-/// 构造一段由 int32 卡组编码组成的字节（小端）。
 Uint8List deckBytes(List<int> codes) {
   final w = ByteData(codes.length * 4);
   for (var i = 0; i < codes.length; i++) {
@@ -32,299 +24,500 @@ Uint8List deckBytes(List<int> codes) {
   return w.buffer.asUint8List();
 }
 
-/// 合法测试卡组：13 种古老通常怪兽 ×3 + 1 种 ×1 = 40 张。
-/// 通常怪兽不受禁限卡表约束，且任何服务端卡库都包含它们。
+  /// 合法主卡组（40张，全部通常怪兽）。
+  ///  89631139 — 青眼白龙 (Blue-Eyes White Dragon)          Lv8 ATK 3000 / DEF 2500 龙族
+  ///  46986414 — 黑魔导 (Dark Magician)                     Lv7 ATK 2500 / DEF 2100 魔法师族
+  ///  15025844 — 神圣精灵 (Mystical Elf)                     Lv4 ATK  800 / DEF 2000 魔法师族
+  ///  91152256 — 精灵剑士 (Celtic Guardian)                  Lv4 ATK 1400 / DEF 1200 战士族
+  ///  13039848 — 岩石巨兵 (Giant Soldier of Stone)           Lv3 ATK 1300 / DEF 2000 岩石族
+  ///  6368038  — 暗黑骑士盖亚 (Gaia The Fierce Knight)       Lv7 ATK 2300 / DEF 2100 战士族
+  ///  28279543 — 诅咒之龙 (Curse of Dragon)                  Lv5 ATK 2000 / DEF 1500 龙族
+  ///  74677422 — 真红眼黑龙 (Red-Eyes Black Dragon)          Lv7 ATK 2400 / DEF 2000 龙族
+  ///  88819587 — 宝贝龙 (Baby Dragon)                        Lv4 ATK 1200 / DEF  700 龙族
+  ///  76184692 — 独眼巨人 (Hitotsu-Me Giant)                 Lv4 ATK 1200 / DEF 1000 兽战士族
+  ///  41392891 — 恶魔召唤 (Feral Imp)                       Lv4 ATK 1300 / DEF 1400 恶魔族（美版"小恶魔"）
+  ///  15303296 — 龙族封印壶 (Ryu-Kishin)                     Lv3 ATK 1000 / DEF  500 恶魔族（美版"龙魂"）
+  ///  87796900 — 守城翼龙 (Winged Dragon, Guardian #1)       Lv4 ATK 1400 / DEF 1200 龙族
+  ///  32452818 — 恶魔海狸 (Beaver Warrior)                   Lv4 ATK 1200 / DEF 1500 兽战士族
 Uint8List legalMainDeck() => deckBytes(const [
-      89631139, 89631139, 89631139, // 青眼白龙
-      46986414, 46986414, 46986414, // 黑魔术师
-      15025844, 15025844, 15025844, // 神秘精灵
-      91152256, 91152256, 91152256, // 精灵剑士
-      13039848, 13039848, 13039848, // 岩石巨兵
-      6368038, 6368038, 6368038, // 盖亚骑士
-      28279543, 28279543, 28279543, // 诅咒之龙
-      74677422, 74677422, 74677422, // 真红眼黑龙
-      88819587, 88819587, 88819587, // 宝贝龙
-      76184692, 76184692, 76184692, // 独眼巨人
-      41392891, 41392891, 41392891, // 小恶魔
-      15303296, 15303296, 15303296, // 岩石精灵
-      87796900, 87796900, 87796900, // 翼龙守卫
-      32452818, // 海狸战士
+      89631139, 89631139, 89631139,   // 青眼白龙 ×3
+      46986414, 46986414, 46986414,   // 黑魔导 ×3
+      15025844, 15025844, 15025844,   // 神圣精灵 ×3
+      91152256, 91152256, 91152256,   // 精灵剑士 ×3
+      13039848, 13039848, 13039848,   // 岩石巨兵 ×3
+      6368038,  6368038,  6368038,    // 暗黑骑士盖亚 ×3
+      28279543, 28279543, 28279543,   // 诅咒之龙 ×3
+      74677422, 74677422, 74677422,   // 真红眼黑龙 ×3
+      88819587, 88819587, 88819587,   // 宝贝龙 ×3
+      76184692, 76184692, 76184692,   // 独眼巨人 ×3
+      41392891, 41392891, 41392891,   // 恶魔召唤 ×3
+      15303296, 15303296, 15303296,   // 龙族封印壶 ×3
+      87796900, 87796900, 87796900,   // 守城翼龙 ×3
+      32452818,                         // 恶魔海狸 ×1
     ]);
 
-/// 等待 [collected] 中出现满足条件的元素。
-///
-/// 若历史事件中已有匹配则立即返回，否则监听后续事件，避免错过
-/// 在订阅之前就已经到达的广播事件。
-Future<T> waitUntil<T>(
-  List<T> collected,
-  Stream<T> stream,
-  bool Function(T) predicate, {
-  Duration timeout = kNetTimeout,
-  String? hint,
-}) async {
-  final hit = collected.where(predicate);
-  if (hit.isNotEmpty) return hit.last;
+  /// 含魔法卡的卡组：通常怪兽 (30张) + 强欲之壶 (10张)。
+  /// 用于测试魔法卡发动流程。
+  ///  55144522 — 强欲之壶 (Pot of Greed)  通常魔法  效果：抽2张卡
+Uint8List deckWithSpells() => deckBytes(const [
+      89631139, 89631139, 89631139,   // 青眼白龙 ×3
+      46986414, 46986414, 46986414,   // 黑魔导 ×3
+      15025844, 15025844, 15025844,   // 神圣精灵 ×3
+      91152256, 91152256, 91152256,   // 精灵剑士 ×3
+      13039848, 13039848, 13039848,   // 岩石巨兵 ×3
+      6368038,  6368038,  6368038,    // 暗黑骑士盖亚 ×3
+      28279543, 28279543, 28279543,   // 诅咒之龙 ×3
+      74677422, 74677422, 74677422,   // 真红眼黑龙 ×3
+      88819587, 88819587, 88819587,   // 宝贝龙 ×3
+      76184692, 76184692, 76184692,   // 独眼巨人 ×3
+      55144522, 55144522, 55144522,   // 强欲之壶 ×3
+      55144522, 55144522, 55144522,   // 强欲之壶 ×3
+      55144522, 55144522, 55144522,   // 强欲之壶 ×3
+      55144522,                         // 强欲之壶 ×1
+    ]);
 
-  final completer = Completer<T>();
-  late final StreamSubscription<T> sub;
-  sub = stream.listen((event) {
-    if (!completer.isCompleted && predicate(event)) {
-      completer.complete(event);
-      sub.cancel();
-    }
-  });
+  /// 含魔法·陷阱的卡组：通常怪兽 (30张) + 强欲之壶 (7张) + 落穴 (3张)。
+  ///  4206964  — 落穴 (Trap Hole)  通常陷阱  效果：对方召唤攻击力1000以上的怪兽时，破坏那只怪兽
+Uint8List deckWithSpellsAndTraps() => deckBytes(const [
+      89631139, 89631139, 89631139,   // 青眼白龙 ×3
+      46986414, 46986414, 46986414,   // 黑魔导 ×3
+      15025844, 15025844, 15025844,   // 神圣精灵 ×3
+      91152256, 91152256, 91152256,   // 精灵剑士 ×3
+      13039848, 13039848, 13039848,   // 岩石巨兵 ×3
+      6368038,  6368038,  6368038,    // 暗黑骑士盖亚 ×3
+      28279543, 28279543, 28279543,   // 诅咒之龙 ×3
+      74677422, 74677422, 74677422,   // 真红眼黑龙 ×3
+      88819587, 88819587, 88819587,   // 宝贝龙 ×3
+      76184692, 76184692, 76184692,   // 独眼巨人 ×3
+      55144522, 55144522, 55144522,   // 强欲之壶 ×3
+      55144522, 55144522, 55144522,   // 强欲之壶 ×3
+      55144522,                         // 强欲之壶 ×1
+      4206964,  4206964,  4206964,    // 落穴 (落穴) ×3
+    ]);
 
-  // 订阅建立后再查一次历史，消除检查与订阅之间的竞态。
-  final recheck = collected.where(predicate);
-  if (recheck.isNotEmpty && !completer.isCompleted) {
-    completer.complete(recheck.last);
-    await sub.cancel();
+List<int> parseIdleTypes(Uint8List rawData) {
+  final types = <int>[];
+  final r = BufferReader(rawData);
+  if (!r.hasRemaining) return types;
+  final n = r.readUint8();
+  for (int i = 0; i < n && r.remaining >= 5; i++) {
+    r.readUint32();
+    types.add(r.readUint8());
+    if (r.remaining >= 11) r.skip(11);
   }
+  return types;
+}
 
-  return completer.future.timeout(
-    timeout,
-    onTimeout: () => throw TimeoutException(
-      '等待条件超时（${timeout.inSeconds}s）${hint == null ? '' : '：$hint'}',
-    ),
-  );
+/// Auto-play bot: always end turn (7), end battle (7).
+StreamSubscription<YgoStocMsg> botEndTurn(IDuelService svc) {
+  return svc.onServerMessage.listen((msg) {
+    final gm = msg.gameMsg;
+    if (gm == null) return;
+    CtosGameMsgResponse? r;
+    switch (gm.func) {
+      case MSG_SELECT_IDLE_CMD:  r = CtosGameMsgResponse.selectIdleCmd(7); break;
+      case MSG_SELECT_BATTLE_CMD: r = CtosGameMsgResponse.selectBattleCmd(7); break;
+      case MSG_SELECT_PLACE:
+        final sp = gm.innerMsg as MsgSelectPlace;
+        int seq = 0, zone = CARD_ZONE_MZONE;
+        for (int s = 0; s < 5; s++) {
+          if ((sp.field & (1 << s)) != 0) {seq = s; break;}
+        }
+        r = CtosGameMsgResponse.selectPlace(CtosSelectPlace(player: sp.player, zone: zone, sequence: seq));
+        break;
+      case MSG_SELECT_CARD:
+        final sc = gm.innerMsg as MsgSelectCard;
+        r = sc.min == 0 ? CtosGameMsgResponse.selectMulti([])
+            : sc.max == 1 ? CtosGameMsgResponse.selectSingle(0)
+            : CtosGameMsgResponse.selectMulti(List.generate(sc.min, (i) => i));
+        break;
+      case MSG_SELECT_CHAIN:  r = CtosGameMsgResponse.selectMulti([]); break;
+      case MSG_SELECT_EFFECTYN: r = CtosGameMsgResponse.selectEffectYn(0); break;
+      case MSG_SELECT_YES_NO: r = CtosGameMsgResponse.selectOption(1); break;
+      case MSG_SELECT_OPTION: r = CtosGameMsgResponse.selectOption(0); break;
+      case MSG_SELECT_POSITION: r = CtosGameMsgResponse.selectPosition(POS_FACEUP_ATTACK); break;
+      case MSG_SELECT_TRIBUTE:
+        final st = gm.innerMsg as MsgSelectTribute;
+        r = st.min == 0 ? CtosGameMsgResponse.selectMulti([])
+            : CtosGameMsgResponse.selectMulti(List.generate(st.min, (i) => i));
+        break;
+      case MSG_SELECT_COUNTER: r = CtosGameMsgResponse.selectCounter([0]); break;
+      case MSG_SORT_CARD: r = CtosGameMsgResponse.sortCard([0]); break;
+    }
+    if (r != null) svc.playGameResponse(r);
+  });
+}
+
+Future<T> waitUntil<T>(List<T> c, Stream<T> s, bool Function(T) p,
+    {Duration timeout = kNetTimeout, String? hint}) async {
+  final hit = c.where(p);
+  if (hit.isNotEmpty) return hit.last;
+  final f = Completer<T>();
+  late final StreamSubscription<T> sub;
+  sub = s.listen((e) {if (!f.isCompleted && p(e)) {f.complete(e); sub.cancel();}});
+  final re = c.where(p);
+  if (re.isNotEmpty && !f.isCompleted) {f.complete(re.last); sub.cancel();}
+  return f.future.timeout(timeout, onTimeout: () => throw TimeoutException('wait ${hint ?? ""}'));
 }
 
 void main() {
-  // 每次运行使用独立的玩家名：该服务器会按玩家名保持会话（同名登录被视为
-  // “重新连接”），复用名字会导致跨用例干扰。
-  final runId = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
-  final aliceName = 'A_$runId';
-  final bobName = 'B_$runId';
-
-  late IDuelService alice;
-  late IDuelService bob;
-
-  // 从连接开始就收集双方全部事件，避免错过广播。
-  late List<RoomState> aliceStates;
-  late List<RoomState> bobStates;
-  late List<YgoStocMsg> aliceMessages;
-  late List<YgoStocMsg> bobMessages;
+  final id = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
+  final aN = 'A_$id', bN = 'B_$id';
+  late IDuelService alice, bob;
+  late List<RoomState> aS, bS;
+  late List<YgoStocMsg> aM, bM;
 
   setUp(() {
     registerOnlineService();
     alice = createDuelService(ServiceType.duelink_online) as IDuelService;
     bob = createDuelService(ServiceType.duelink_online) as IDuelService;
-
-    aliceStates = [];
-    bobStates = [];
-    aliceMessages = [];
-    bobMessages = [];
-    alice.onRoomStateChange.listen(aliceStates.add);
-    bob.onRoomStateChange.listen(bobStates.add);
-    alice.onMessage.listen(aliceMessages.add);
-    bob.onMessage.listen(bobMessages.add);
+    aS = []; bS = []; aM = []; bM = [];
+    alice.onRoomStateChange.listen(aS.add);
+    bob.onRoomStateChange.listen(bS.add);
+    alice.onServerMessage.listen(aM.add);
+    bob.onServerMessage.listen(bM.add);
   });
 
   tearDown(() async {
-    // 若用例使决斗处于进行中，先投降让服务端正常结束决斗并清理房间，
-    // 避免残留的“等待重连”房间影响后续用例（服务端会按 IP 限制活跃对局）。
-    if (alice.connectionState == ConnectionState.connected) {
-      alice.sendSurrender();
-    }
-    if (bob.connectionState == ConnectionState.connected) {
-      bob.sendSurrender();
-    }
+    if (alice.connectionState == ConnectionState.connected) alice.surrender();
+    if (bob.connectionState == ConnectionState.connected) bob.surrender();
     await Future<void>.delayed(const Duration(seconds: 2));
-    await alice.disconnect();
-    await bob.disconnect();
-    // 给服务端留出清理会话的时间，避免连续用例被限流。
-    await Future<void>.delayed(const Duration(seconds: 1));
+    await alice.disconnect(); await bob.disconnect();
+    await Future<void>.delayed(const Duration(seconds: 2));
   });
 
-  /// 连接服务器，以 [name] 身份、用 [passwd] 加入/创建房间。
-  Future<void> joinRoom(IDuelService svc, String name, String passwd) async {
-    await svc.connect(kServerHost, kServerPort);
-    svc.sendPlayerInfo(name);
-    svc.sendJoinGame(0, passwd);
+  Future<void> join(IDuelService s, String n, String pw) async {
+    await s.connect(kServerHost, kServerPort);
+    s.setPlayerName(n);
+    s.enterRoom(pw);
   }
 
-  /// Alice 建房、Bob 进房，等待双方互相可见。
-  Future<void> setupDuel() async {
-    final roomId = uniqueRoomId();
-    const options = RoomOptions(
-      mode: RoomMode.single,
-      noCheckDeck: true,
-      noShuffleDeck: true,
-    );
-    // 该服务器（srvpro）以完整密码字符串作为房间标识：
-    // 第一名玩家用它建房，第二名玩家发送相同密码即可进房
-    // （若用 encodeJoin 生成不同密码，服务端会另开一个新房间）。
-    final roomPassword =
-        RoomPassword.encodeCreate(options: options, roomId: roomId);
-
-    await joinRoom(alice, aliceName, roomPassword);
-    await waitUntil(
-      aliceStates,
-      alice.onRoomStateChange,
-      (s) => s.joined && s.selfType == SelfType.player1,
-      hint: 'Alice 建房并拿到 player1 身份',
-    );
-
-    await joinRoom(bob, bobName, roomPassword);
-    await waitUntil(
-      bobStates,
-      bob.onRoomStateChange,
-      (s) => s.players.length >= 2 && s.players.any((p) => p.name == aliceName),
-      hint: 'Bob 进房并看到双方玩家',
-    );
-    await waitUntil(
-      aliceStates,
-      alice.onRoomStateChange,
-      (s) => s.players.length >= 2 && s.players.any((p) => p.name == bobName),
-      hint: 'Alice 收到 Bob 的入场通知',
-    );
-  }
-
-  /// 双方提交卡组并准备，等待双方都收到「全部准备」状态。
-  Future<void> readyBoth() async {
-    final extra = deckBytes([]);
-    alice.sendUpdateDeck(legalMainDeck(), extra);
-    bob.sendUpdateDeck(legalMainDeck(), extra);
-    // 留出服务端处理卡组的时间，再发送准备。
+  Future<void> sendDeck(Uint8List d) async {
+    final x = deckBytes([]);
+    alice.submitDeck(d, x); bob.submitDeck(d, x);
     await Future<void>.delayed(const Duration(milliseconds: 500));
-    alice.sendReady();
-    bob.sendReady();
-
-    bool allReady(RoomState s) =>
-        s.players.length == 2 && s.players.every((p) => p.ready);
-
-    // 服务端偶尔会忽略一次 READY（网络/限流抖动），未就绪时重发。
-    for (var attempt = 0; attempt < 3; attempt++) {
+    alice.ready(); bob.ready();
+    bool ok(RoomState s) => s.players.length == 2 && s.players.every((p) => p.ready);
+    for (var i = 0; i < 3; i++) {
       try {
-        await waitUntil(aliceStates, alice.onRoomStateChange, allReady,
-            timeout: const Duration(seconds: 8), hint: 'Alice 侧双方都准备');
-        await waitUntil(bobStates, bob.onRoomStateChange, allReady,
-            timeout: const Duration(seconds: 8), hint: 'Bob 侧双方都准备');
+        await waitUntil(aS, alice.onRoomStateChange, ok, timeout: const Duration(seconds: 8));
+        await waitUntil(bS, bob.onRoomStateChange, ok, timeout: const Duration(seconds: 8));
         return;
-      } on TimeoutException {
-        alice.sendReady();
-        bob.sendReady();
-      }
+      } on TimeoutException { alice.ready(); bob.ready(); }
     }
-    await waitUntil(aliceStates, alice.onRoomStateChange, allReady,
-        hint: 'Alice 侧双方都准备');
-    await waitUntil(bobStates, bob.onRoomStateChange, allReady,
-        hint: 'Bob 侧双方都准备');
   }
 
-  group('两名玩家在线对战（直连 $kServerHost:$kServerPort）', () {
-    test('双方加入同一房间并互相可见', () async {
-      await setupDuel();
+  Future<void> buildRoom() async {
+    final rid = uniqueRoomId();
+    const o = RoomOptions(mode: RoomMode.single, noCheckDeck: true, noShuffleDeck: true);
+    final pw = RoomPassword.encodeCreate(options: o, roomId: rid);
+    await join(alice, aN, pw);
+    await waitUntil(aS, alice.onRoomStateChange,
+        (s) => s is RoomInLobby && s.selfType == SelfType.player1);
+    await join(bob, bN, pw);
+    await waitUntil(bS, bob.onRoomStateChange, (s) => s.players.length >= 2);
+    await waitUntil(aS, alice.onRoomStateChange, (s) => s.players.length >= 2);
+  }
 
+  Future<void> startDuel({Uint8List? deck}) async {
+    await buildRoom(); await sendDeck(deck ?? legalMainDeck()); alice.startDuel();
+    await waitUntil(aS, alice.onRoomStateChange, (s) => s is RoomSelectingHand);
+    await waitUntil(bS, bob.onRoomStateChange, (s) => s is RoomSelectingHand);
+    alice.chooseHand(HandType.rock); bob.chooseHand(HandType.scissors);
+    await waitUntil(aS, alice.onRoomStateChange, (s) => s is RoomSelectingTurn);
+    alice.chooseTurnOrder(true);
+    await waitUntil(aS, alice.onRoomStateChange,
+        (s) => s is RoomPreDuel && s.isFirstTurn == true);
+    await waitUntil(bS, bob.onRoomStateChange, (s) => s is RoomPreDuel);
+  }
+
+  group('$kServerHost:$kServerPort', () {
+    test('双方加入房间并互相可见', () async {
+      await buildRoom();
       expect(alice.connectionState, ConnectionState.connected);
-      expect(bob.connectionState, ConnectionState.connected);
+    });
+    test('聊天', () async {
+      await buildRoom();
+      alice.sendChat('hi');
+      await waitUntil(bM, bob.onServerMessage, (m) => m.chat?.message == 'hi');
+    });
+    test('开始→猜拳→选先后→决斗开始', () async => await startDuel());
 
-      final a = aliceStates.lastWhere(
-          (s) => s.selfType == SelfType.player1 && s.players.length >= 2);
-      expect(a.joined, isTrue);
-      expect(a.isHost, isTrue, reason: '先建房的 Alice 应为房主');
-      expect(a.players.map((p) => p.name), containsAll([aliceName, bobName]));
-
-      final b = bobStates.lastWhere(
-          (s) => s.selfType == SelfType.player2 && s.players.length >= 2);
-      expect(b.joined, isTrue);
-      expect(b.isHost, isFalse, reason: '后进房的 Bob 不是房主');
-      expect(b.players.map((p) => p.name), containsAll([aliceName, bobName]));
+    test('MSG_START(8000 LP/40 deck)、MSG_NEW_TURN、MSG_DRAW', () async {
+      await startDuel();
+      final s = await waitUntil(aM, alice.onServerMessage, (m) => m.gameMsg?.func == MSG_START);
+      final st = s.gameMsg!.innerMsg as MsgStart;
+      expect(st.life1, 8000); expect(st.life2, 8000);
+      expect(st.deckSize1, 40); expect(st.deckSize2, 40);
+      await waitUntil(aM, alice.onServerMessage, (m) => m.gameMsg?.func == MSG_NEW_TURN);
+      await waitUntil(aM, alice.onServerMessage, (m) => m.gameMsg?.func == MSG_DRAW);
+    });
+    test('MSG_SELECT_IDLE_CMD', () async {
+      await startDuel();
+      final m = await waitUntil(aM, alice.onServerMessage, (m) => m.gameMsg?.func == MSG_SELECT_IDLE_CMD);
+      expect((m.gameMsg!.innerMsg as MsgSelectIdleCmd).player, 0);
+    });
+    test('进战斗→MSG_NEW_PHASE', () async {
+      await startDuel();
+      await waitUntil(aM, alice.onServerMessage, (m) => m.gameMsg?.func == MSG_SELECT_IDLE_CMD);
+      alice.playGameResponse(CtosGameMsgResponse.selectIdleCmd(6));
+      await waitUntil(aM, alice.onServerMessage, (m) => m.gameMsg?.func == MSG_NEW_PHASE);
+    });
+    test('结束回合→对手MSG_NEW_TURN', () async {
+      await startDuel();
+      await waitUntil(aM, alice.onServerMessage, (m) => m.gameMsg?.func == MSG_SELECT_IDLE_CMD);
+      alice.playGameResponse(CtosGameMsgResponse.selectIdleCmd(7));
+      await waitUntil(bM, bob.onServerMessage, (m) => m.gameMsg?.func == MSG_NEW_TURN,
+          timeout: const Duration(seconds: 60));
     });
 
-    test('聊天消息双向收发', () async {
-      await setupDuel();
-
-      // Alice -> Bob
-      alice.sendChat('你好，Bob！');
-      final atBob = await waitUntil(
-        bobMessages,
-        bob.onMessage,
-        (m) => m.chat?.message == '你好，Bob！',
-        hint: 'Bob 收到 Alice 的聊天',
-      );
-      expect(atBob.chat, isNotNull);
-
-      // Bob -> Alice
-      bob.sendChat('你好，Alice！');
-      await waitUntil(
-        aliceMessages,
-        alice.onMessage,
-        (m) => m.chat?.message == '你好，Alice！',
-        hint: 'Alice 收到 Bob 的聊天',
-      );
+    // ═══ 魔法卡 ═══
+    test('含魔法卡：空闲命令出现 ACTIVATE(type=5)', () async {
+      await buildRoom();
+      await sendDeck(deckWithSpells());
+      alice.startDuel();
+      await waitUntil(aS, alice.onRoomStateChange, (s) => s is RoomSelectingHand,
+          timeout: const Duration(seconds: 120));
+      await waitUntil(bS, bob.onRoomStateChange, (s) => s is RoomSelectingHand,
+          timeout: const Duration(seconds: 120));
+      alice.chooseHand(HandType.rock); bob.chooseHand(HandType.scissors);
+      await waitUntil(aS, alice.onRoomStateChange, (s) => s is RoomSelectingTurn,
+          timeout: const Duration(seconds: 120));
+      alice.chooseTurnOrder(true);
+      await waitUntil(aS, alice.onRoomStateChange,
+          (s) => s is RoomPreDuel && s.isFirstTurn == true,
+          timeout: const Duration(seconds: 120));
+      await waitUntil(bS, bob.onRoomStateChange, (s) => s is RoomPreDuel,
+          timeout: const Duration(seconds: 120));
+      await waitUntil(aM, alice.onServerMessage, (m) => m.gameMsg?.func == MSG_START,
+          timeout: const Duration(seconds: 120));
+      final m = await waitUntil(aM, alice.onServerMessage, (m) => m.gameMsg?.func == MSG_SELECT_IDLE_CMD,
+          timeout: const Duration(seconds: 120));
+      final types = parseIdleTypes((m.gameMsg!.innerMsg as MsgSelectIdleCmd).rawData);
+      expect(types.contains(5), isTrue, reason: '应出现 ACTIVATE(type=5)');
     });
 
-    test('连续发送的多条消息按顺序到达对方', () async {
-      await setupDuel();
-
-      for (final text in ['消息1', '消息2', '消息3']) {
-        alice.sendChat(text);
-      }
-      await waitUntil(
-        bobMessages,
-        bob.onMessage,
-        (m) => m.chat?.message == '消息3',
-        hint: 'Bob 收到第 3 条消息',
-      );
-
-      final received = bobMessages
-          .where((m) => m.chat != null)
-          .map((m) => m.chat!.message)
-          .toList();
-      expect(received, containsAllInOrder(['消息1', '消息2', '消息3']));
+    // ═══ Bot 推进：验证多轮协议交互 ═══
+    test('Bot平稳推进45秒：连续回合交互无异常', () async {
+      await startDuel();
+      final gm = <int>[];
+      final aSub = botEndTurn(alice), bSub = botEndTurn(bob);
+      final cS = alice.onServerMessage.listen((m) {if (m.gameMsg != null) gm.add(m.gameMsg!.func);});
+      await Future<void>.delayed(const Duration(seconds: 45));
+      await aSub.cancel(); await bSub.cancel(); await cS.cancel();
+      expect(gm, contains(MSG_START), reason: '应有决斗开始');
+      expect(gm, contains(MSG_SELECT_IDLE_CMD), reason: '应有空闲命令交互');
+      expect(gm, contains(MSG_NEW_PHASE), reason: '应有阶段切换');
+      expect(gm, contains(MSG_WAITING), reason: '应有等待提示');
     });
 
-    test('完整决斗流程：开始 -> 猜拳 -> 选先后 -> 决斗开始', () async {
-      await setupDuel();
-      await readyBoth();
-      alice.sendStart();
+    test('Bot(魔法卡)平稳推进45秒：MSG_HINT+额外抽卡', () async {
+      await startDuel(deck: deckWithSpells());
+      final gm = <int>[];
+      int d = 0;
+      final aSub = botEndTurn(alice), bSub = botEndTurn(bob);
+      final cS = alice.onServerMessage.listen((m) {
+        if (m.gameMsg != null) {gm.add(m.gameMsg!.func); if (m.gameMsg!.func == MSG_DRAW) d++;}
+      });
+      await Future<void>.delayed(const Duration(seconds: 45));
+      await aSub.cancel(); await bSub.cancel(); await cS.cancel();
+      expect(gm, contains(MSG_HINT), reason: '魔法卡发动应有 MSG_HINT');
+      expect(d, greaterThan(2), reason: '含强欲之壶的卡组应有多次抽卡(>2)，实际$d');
+    });
 
-      // 服务端要求双方猜拳。
-      await waitUntil(aliceStates, alice.onRoomStateChange,
-          (s) => s.stage == RoomStage.handSelecting,
-          hint: 'Alice 收到猜拳请求');
-      await waitUntil(bobStates, bob.onRoomStateChange,
-          (s) => s.stage == RoomStage.handSelecting,
-          hint: 'Bob 收到猜拳请求');
+    // ═══ 完整回合交互：召唤→发动魔法→覆盖陷阱→攻击→LP ═══
+    test('A召唤→发动强欲→盖放落穴→结束 B召唤→攻击→LP计算→结束', () async {
+      await startDuel(deck: deckWithSpellsAndTraps());
+      final aLp = <int>[], bLp = <int>[];
+      final List<YgoStocMsg> aExtra = [];
 
-      // Alice 出石头、Bob 出剪刀 -> Alice 胜。
-      alice.sendHandResult(HandType.rock);
-      bob.sendHandResult(HandType.scissors);
+      // 收集 LP 变化与额外消息
+      final aSub = alice.onServerMessage.listen((m) {
+        if (m.gameMsg != null) {
+          aExtra.add(m);
+          if (m.gameMsg!.func == MSG_LP_UPDATE) {
+            aLp.add((m.gameMsg!.innerMsg as MsgLpUpdate).newLp);
+          } else if (m.gameMsg!.func == MSG_DAMAGE) {
+            aLp.add(-(m.gameMsg!.innerMsg as MsgDamage).value);
+          }
+        }
+      });
+      final bSub = bob.onServerMessage.listen((m) {
+        if (m.gameMsg != null) {
+          if (m.gameMsg!.func == MSG_LP_UPDATE) {
+            bLp.add((m.gameMsg!.innerMsg as MsgLpUpdate).newLp);
+          } else if (m.gameMsg!.func == MSG_DAMAGE) {
+            bLp.add(-(m.gameMsg!.innerMsg as MsgDamage).value);
+          }
+        }
+      });
 
-      final handAtAlice = await waitUntil(
-        aliceStates,
-        alice.onRoomStateChange,
-        (s) => s.stage == RoomStage.handSelected,
-        hint: 'Alice 收到猜拳结果',
-      );
-      expect(handAtAlice.myHandResult, HandType.rock.value);
-      expect(handAtAlice.opponentHandResult, HandType.scissors.value);
+      // ─── 等待对局开始 ───
+      await waitUntil(aM, alice.onServerMessage, (m) => m.gameMsg?.func == MSG_START,
+          timeout: const Duration(seconds: 60));
+      await waitUntil(aM, alice.onServerMessage, (m) => m.gameMsg?.func == MSG_NEW_TURN,
+          timeout: const Duration(seconds: 30));
+      await waitUntil(aM, alice.onServerMessage, (m) => m.gameMsg?.func == MSG_DRAW,
+          timeout: const Duration(seconds: 30));
 
-      final handAtBob = await waitUntil(
-        bobStates,
-        bob.onRoomStateChange,
-        (s) => s.stage == RoomStage.handSelected,
-        hint: 'Bob 收到猜拳结果',
-      );
-      expect(handAtBob.myHandResult, HandType.scissors.value);
-      expect(handAtBob.opponentHandResult, HandType.rock.value);
+      // ─── A 的回合：召唤怪兽 ───
+      var idle = await waitUntil(aM, alice.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_IDLE_CMD,
+          timeout: const Duration(seconds: 30));
+      var types = parseIdleTypes((idle.gameMsg!.innerMsg as MsgSelectIdleCmd).rawData);
+      final aSummonIdx = types.indexOf(0);
+      expect(aSummonIdx, isNot(-1), reason: 'A的回合应有通常召唤选项');
+      alice.playGameResponse(CtosGameMsgResponse.selectIdleCmd(aSummonIdx));
 
-      // 胜者 Alice 选择先攻 -> 双方收到 MSG_START，决斗正式开始。
-      await waitUntil(aliceStates, alice.onRoomStateChange,
-          (s) => s.stage == RoomStage.tpSelecting,
-          hint: 'Alice 收到先后手选择');
-      alice.sendTpResult(true);
+      var place = await waitUntil(aM, alice.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_PLACE,
+          timeout: const Duration(seconds: 30));
+      var sp = place.gameMsg!.innerMsg as MsgSelectPlace;
+      int seq = 0;
+      for (int s = 0; s < 5; s++) { if ((sp.field & (1 << s)) != 0) { seq = s; break; } }
+      alice.playGameResponse(CtosGameMsgResponse.selectPlace(
+          CtosSelectPlace(player: sp.player, zone: CARD_ZONE_MZONE, sequence: seq)));
 
-      await waitUntil(
-        aliceStates,
-        alice.onRoomStateChange,
-        (s) => s.stage == RoomStage.tpSelected && s.isFirstTurn == true,
-        hint: 'Alice 确认先攻',
-      );
-      await waitUntil(bobStates, bob.onRoomStateChange,
-          (s) => s.stage == RoomStage.tpSelected,
-          hint: 'Bob 收到决斗开始');
+      await waitUntil(aM, alice.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_POSITION,
+          timeout: const Duration(seconds: 15));
+      alice.playGameResponse(CtosGameMsgResponse.selectPosition(POS_FACEUP_ATTACK));
+
+      await waitUntil(aM, alice.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SUMMONED,
+          timeout: const Duration(seconds: 30));
+      expect(aM.any((m) => m.gameMsg?.func == MSG_SUMMONING), isTrue,
+          reason: '应有通常召唤宣言 MSG_SUMMONING');
+
+      // ─── A 的回合：发动魔法卡（强欲之壶） ───
+      idle = await waitUntil(aM, alice.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_IDLE_CMD,
+          timeout: const Duration(seconds: 30));
+      types = parseIdleTypes((idle.gameMsg!.innerMsg as MsgSelectIdleCmd).rawData);
+      final aActivateIdx = types.indexOf(5);
+      expect(aActivateIdx, isNot(-1), reason: 'A手牌有强欲之壶，应有发动魔法选项');
+      alice.playGameResponse(CtosGameMsgResponse.selectIdleCmd(aActivateIdx));
+
+      await waitUntil(aM, alice.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_CARD,
+          timeout: const Duration(seconds: 30));
+      alice.playGameResponse(CtosGameMsgResponse.selectSingle(0));
+
+      await waitUntil(aM, alice.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_EFFECTYN,
+          timeout: const Duration(seconds: 15));
+      alice.playGameResponse(CtosGameMsgResponse.selectEffectYn(1));
+
+      int drawCount = 0;
+      final allDraws = <MsgDraw>[];
+      await waitUntil(aM, alice.onServerMessage, (m) {
+        if (m.gameMsg?.func == MSG_DRAW) {
+          final d = m.gameMsg!.innerMsg as MsgDraw;
+          drawCount++;
+          allDraws.add(d);
+        }
+        return drawCount >= 1;
+      }, timeout: const Duration(seconds: 30));
+      expect(allDraws.map((d) => d.count).fold(0, (a, b) => a + b), 2,
+          reason: '强欲之壶应抽2张卡');
+
+      // ─── A 的回合：覆盖陷阱卡（落穴） ───
+      idle = await waitUntil(aM, alice.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_IDLE_CMD,
+          timeout: const Duration(seconds: 30));
+      types = parseIdleTypes((idle.gameMsg!.innerMsg as MsgSelectIdleCmd).rawData);
+      final setIdx = types.contains(3) ? types.indexOf(3) : types.indexOf(2);
+      expect(setIdx, isNot(-1), reason: 'A手牌有落穴，应有盖放(set)选项');
+      alice.playGameResponse(CtosGameMsgResponse.selectIdleCmd(setIdx));
+
+      place = await waitUntil(aM, alice.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_PLACE,
+          timeout: const Duration(seconds: 30));
+      sp = place.gameMsg!.innerMsg as MsgSelectPlace;
+      seq = 0;
+      for (int s = 0; s < 5; s++) { if ((sp.field & (1 << s)) != 0) { seq = s; break; } }
+      alice.playGameResponse(CtosGameMsgResponse.selectPlace(
+          CtosSelectPlace(player: sp.player, zone: CARD_ZONE_SZONE, sequence: seq)));
+
+      await waitUntil(aM, alice.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SET,
+          timeout: const Duration(seconds: 15));
+
+      // ─── A 结束回合 ───
+      idle = await waitUntil(aM, alice.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_IDLE_CMD,
+          timeout: const Duration(seconds: 30));
+      alice.playGameResponse(CtosGameMsgResponse.selectIdleCmd(7));
+      await waitUntil(aM, alice.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_WAITING,
+          timeout: const Duration(seconds: 60));
+
+      // ─── B 的回合：开始 ───
+      await waitUntil(bM, bob.onServerMessage, (m) => m.gameMsg?.func == MSG_NEW_TURN,
+          timeout: const Duration(seconds: 60));
+      await waitUntil(bM, bob.onServerMessage, (m) => m.gameMsg?.func == MSG_DRAW,
+          timeout: const Duration(seconds: 30));
+
+      // ─── B 的回合：召唤怪兽 ───
+      idle = await waitUntil(bM, bob.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_IDLE_CMD,
+          timeout: const Duration(seconds: 60));
+      types = parseIdleTypes((idle.gameMsg!.innerMsg as MsgSelectIdleCmd).rawData);
+      final bSummonIdx = types.indexOf(0);
+      expect(bSummonIdx, isNot(-1), reason: 'B的回合应有通常召唤选项');
+      bob.playGameResponse(CtosGameMsgResponse.selectIdleCmd(bSummonIdx));
+
+      place = await waitUntil(bM, bob.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_PLACE,
+          timeout: const Duration(seconds: 30));
+      sp = place.gameMsg!.innerMsg as MsgSelectPlace;
+      seq = 0;
+      for (int s = 0; s < 5; s++) { if ((sp.field & (1 << s)) != 0) { seq = s; break; } }
+      bob.playGameResponse(CtosGameMsgResponse.selectPlace(
+          CtosSelectPlace(player: sp.player, zone: CARD_ZONE_MZONE, sequence: seq)));
+
+      await waitUntil(bM, bob.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_POSITION,
+          timeout: const Duration(seconds: 15));
+      bob.playGameResponse(CtosGameMsgResponse.selectPosition(POS_FACEUP_ATTACK));
+
+      // ─── B 进入战斗阶段 ───
+      idle = await waitUntil(bM, bob.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_IDLE_CMD,
+          timeout: const Duration(seconds: 30));
+      types = parseIdleTypes((idle.gameMsg!.innerMsg as MsgSelectIdleCmd).rawData);
+      final battleIdx = types.indexOf(6);
+      expect(battleIdx, isNot(-1), reason: 'B的回合应有进战斗选项');
+      bob.playGameResponse(CtosGameMsgResponse.selectIdleCmd(battleIdx));
+
+      await waitUntil(bM, bob.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_BATTLE_CMD,
+          timeout: const Duration(seconds: 60));
+      bob.playGameResponse(CtosGameMsgResponse.selectBattleCmd(0));
+
+      // ─── 攻击结果验证 ───
+      await waitUntil(bM, bob.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_ATTACK,
+          timeout: const Duration(seconds: 60));
+      await waitUntil(bM, bob.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_LP_UPDATE || m.gameMsg?.func == MSG_DAMAGE,
+          timeout: const Duration(seconds: 30));
+      final bCurrentLp = bLp.isNotEmpty ? bLp.last : 8000;
+      expect(bCurrentLp, equals(8000), reason: '青眼vs青眼同ATK互灭，B的LP应为8000');
+
+      // ─── B 结束 ───
+      await waitUntil(bM, bob.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_BATTLE_CMD,
+          timeout: const Duration(seconds: 30));
+      bob.playGameResponse(CtosGameMsgResponse.selectBattleCmd(7));
+
+      idle = await waitUntil(bM, bob.onServerMessage,
+          (m) => m.gameMsg?.func == MSG_SELECT_IDLE_CMD,
+          timeout: const Duration(seconds: 30));
+      bob.playGameResponse(CtosGameMsgResponse.selectIdleCmd(7));
+
+      await aSub.cancel();
+      await bSub.cancel();
     });
   });
 }

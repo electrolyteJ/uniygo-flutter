@@ -2,6 +2,17 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
+/// CTOS_JOIN_GAME (18)
+///
+/// 加入房间。
+///
+/// 协议格式:
+/// - version:   unsigned short — 版本号
+/// - _align:    unsigned short — 对齐填充（始终为 0）
+/// - gameId:    unsigned int — 永远是 0（保留字段）
+/// - passWd:    [unsigned short; 20] — 房间密码，UTF-16 LE 编码
+///
+/// 参考 neos-ts 的 ctosJoinGame.ts 定义。
 class CtosJoinGame {
   final int version;
   final int gameId;

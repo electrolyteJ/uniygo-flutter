@@ -2,6 +2,14 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
+/// CTOS_HS_KICK (36)
+///
+/// 踢出指定位置的玩家（仅房主可用）。
+///
+/// 协议格式:
+/// - pos: unsigned char — 要踢出的玩家位置（0-3 之间）
+///
+/// 参考 neos-ts 中对应的 HS 消息定义。
 class CtosHsKick {
   final int pos;
   const CtosHsKick({required this.pos});

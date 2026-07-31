@@ -1,6 +1,12 @@
+/// 游戏王协议枚举和常量定义。
+///
+/// 包含 HandType（猜拳类型）、CardZone（卡牌区域）等基础协议枚举。
+///
+/// 参考 neos-ts 的 ocgcore.ts IDL 定义。
 
-
-/// 游戏王协议枚举和常量。
+/// 猜拳类型枚举。
+///
+/// 用于 CtoS/StoC 猜拳交互协议。
 enum HandType {
   unknown(0),
   scissors(1),
@@ -25,6 +31,9 @@ enum HandType {
   }
 }
 
+/// 卡牌区域枚举，与 ygopro 核心的 CardZone 值一一对应。
+///
+/// 部分值支持位组合（如 onfield = mzone | szone）。
 enum CardZone {
   deck(0x01),
   hand(0x02),
@@ -33,6 +42,7 @@ enum CardZone {
   grave(0x10),
   removed(0x20),
   extra(0x40),
+  /// 场上（MZONE | SZONE）
   onfield(0x0c),
   fzone(0x100),
   pzone(0x200),
@@ -42,6 +52,7 @@ enum CardZone {
 
   const CardZone(this.value);
 
+  /// 将 ygopro 协议中的数字区域值转换为 [CardZone] 枚举。
   static CardZone fromNumber(int n) {
     switch (n) {
       case 0x01:
@@ -71,4 +82,3 @@ enum CardZone {
     }
   }
 }
-

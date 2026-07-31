@@ -2,6 +2,26 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
+/// CTOS_RESPONSE (1)
+///
+/// 回复服务端的各种游戏内交互请求。
+///
+/// 一个 [CtosGameMsgResponse] 只包含一种响应类型的字段（互斥），
+/// 编码时根据具体的响应类型构造对应的二进制数据：
+///
+/// - [selectIdleCmd]   → uint32: 选择的指令序号
+/// - [selectPlace]     → controller(u8) + zone(u8) + sequence(u8)
+/// - [selectMulti]     → count(u8) + [ptrs; count] (u8 each)
+/// - [selectSingle]    → int32: 指针序号
+/// - [selectEffectYn]  → uint32: 是否发动 (1=是, 0=否)
+/// - [selectPosition]  → uint32: 表示形式
+/// - [selectOption]    → uint32: 选项序号
+/// - [selectBattleCmd] → uint32: 战斗指令
+/// - [selectCounter]   → [int16; N]: 各计数器值
+/// - [sortCard]        → [u8; N]: 排序索引
+///
+/// 参考 neos-ts 中 ctosGameMsgResponse/ 目录下的各响应类型定义。
+
 class CtosSelectPlace {
   final int player;
   final int zone;
@@ -39,24 +59,34 @@ class CtosGameMsgResponse {
     this.sortCardIndices,
   });
 
+  /// 选择空闲阶段指令（MSG_SELECT_IDLE_CMD 响应）。
   factory CtosGameMsgResponse.selectIdleCmd(int code) =>
       CtosGameMsgResponse._(selectIdleCmdCode: code);
+  /// 选择放置位置（MSG_SELECT_PLACE 响应）。
   factory CtosGameMsgResponse.selectPlace(CtosSelectPlace p) =>
       CtosGameMsgResponse._(selectPlace: p);
+  /// 多选卡牌（MSG_SELECT_CARD / MSG_SELECT_TRIBUTE / MSG_SELECT_UNSELECT_CARD 响应）。
   factory CtosGameMsgResponse.selectMulti(List<int> ptrs) =>
       CtosGameMsgResponse._(selectMultiPtrs: ptrs);
+  /// 单选卡牌（MSG_CONFIRM_CARDS 等多交互响应）。
   factory CtosGameMsgResponse.selectSingle(int ptr) =>
       CtosGameMsgResponse._(selectSinglePtr: ptr);
+  /// 是否发动效果（MSG_SELECT_EFFECTYN 响应）。
   factory CtosGameMsgResponse.selectEffectYn(int result) =>
       CtosGameMsgResponse._(selectEffectYnResult: result);
+  /// 选择表示形式（MSG_SELECT_POSITION 响应）。
   factory CtosGameMsgResponse.selectPosition(int pos) =>
       CtosGameMsgResponse._(selectPositionPos: pos);
+  /// 选择选项（MSG_SELECT_OPTION 响应）。
   factory CtosGameMsgResponse.selectOption(int code) =>
       CtosGameMsgResponse._(selectOptionCode: code);
+  /// 选择战斗指令（MSG_SELECT_BATTLE_CMD 响应）。
   factory CtosGameMsgResponse.selectBattleCmd(int cmd) =>
       CtosGameMsgResponse._(selectBattleCmdValue: cmd);
+  /// 选择计数器（MSG_SELECT_COUNTER 响应）。
   factory CtosGameMsgResponse.selectCounter(List<int> values) =>
       CtosGameMsgResponse._(selectCounterValues: values);
+  /// 排卡序（MSG_SORT_CARD 响应）。
   factory CtosGameMsgResponse.sortCard(List<int> indices) =>
       CtosGameMsgResponse._(sortCardIndices: indices);
 

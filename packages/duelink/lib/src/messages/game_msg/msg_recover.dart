@@ -2,7 +2,17 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// LP recover notification (player: uint8 + value: int32).
+/// MSG_RECOVER (0x5C) — LP 恢复通知
+///
+/// 通知客户端某位玩家的 LP 被恢复。
+///
+/// 有线格式 (5 字节):
+/// | 偏移 | 大小 | 类型  | 说明               |
+/// |------|------|-------|--------------------|
+/// | 0x00 | 1    | uint8 | 玩家 (0 或 1)      |
+/// | 0x01 | 4    | int32 | 恢复的 LP 值        |
+///
+/// 参考 neos-ts 的 recover.ts 定义。
 class MsgRecover {
   final int player;
   final int value;

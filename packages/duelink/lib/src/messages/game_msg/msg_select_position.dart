@@ -2,7 +2,18 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Select position interaction (player + code + positions).
+/// MSG_SELECT_POSITION (0x13) — 选择表示形式交互
+///
+/// 服务端要求玩家选择怪兽的表示形式（攻击/守备，表侧/里侧）。
+///
+/// 有线格式 (6 字节):
+/// | 偏移 | 大小 | 类型   | 说明                           |
+/// |------|------|--------|--------------------------------|
+/// | 0x00 | 1    | uint8  | 玩家 (0 或 1)                  |
+/// | 0x01 | 4    | uint32 | 卡牌 code                      |
+/// | 0x05 | 1    | uint8  | 可用表示形式位掩码 positions   |
+///
+/// 参考 neos-ts 的 selectPosition.ts 定义。
 class MsgSelectPosition {
   final int player;
   final int code;

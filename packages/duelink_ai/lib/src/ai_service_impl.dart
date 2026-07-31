@@ -1,14 +1,16 @@
 import 'dart:async';
 import 'dart:typed_data';
+
 import 'package:duelink/duelink.dart';
+
 import 'ai_connection.dart';
 
-/// AI DuelService实现
+/// AI 本地决斗服务实现。
 class AiDuelServiceImpl implements IDuelService {
   final DuelConnection _connection;
   final _messageController = StreamController<YgoStocMsg>.broadcast();
   final _stateController = StreamController<RoomState>.broadcast();
-  RoomState _roomState = const RoomState();
+  RoomState _roomState = const RoomNotJoined();
   StreamSubscription? _connectionSub;
   ConnectionState _connState = ConnectionState.disconnected;
 
@@ -35,6 +37,8 @@ class AiDuelServiceImpl implements IDuelService {
   Future<void> disconnect() async {
     await _connectionSub?.cancel();
     await _connection.disconnect();
+    _roomState = const RoomNotJoined();
+    _stateController.add(_roomState);
   }
 
   void _handleRawData(Uint8List data) {
@@ -42,76 +46,107 @@ class AiDuelServiceImpl implements IDuelService {
     for (final packet in packets) {
       final stoc = adaptStoc(packet);
       _messageController.add(stoc);
-      _updateRoomState(stoc);
+      _applyStoc(stoc);
     }
   }
 
-  void _updateRoomState(YgoStocMsg stoc) {
-    RoomState next = _roomState;
+  void _applyStoc(YgoStocMsg stoc) {
     if (stoc.joinGame != null) {
-      next = next.copyWith(
-        joined: true,
-        roomOptions: stoc.joinGame!.toRoomOptions(),
-      );
+      _pendingOptions = stoc.joinGame!.toRoomOptions();
     } else if (stoc.typeChange != null) {
-      final change = stoc.typeChange!;
-      final selfType = change.selfType == 7
-          ? SelfType.observer
-          : change.selfType == 0
-              ? SelfType.player1
-              : SelfType.player2;
-      final isFirstTurn = change.selfType == 0;
-      next = next.copyWith(
-          selfType: selfType, isHost: change.isHost, isFirstTurn: isFirstTurn);
+      final m = stoc.typeChange!;
+      final selfType = m.selfType == 7
+          ? SelfType.observer : m.selfType == 0
+          ? SelfType.player1 : SelfType.player2;
+      _roomState = RoomInLobby(
+        players: _p, observerCount: _o,
+        selfType: selfType, isHost: m.isHost,
+        options: _pendingOptions ?? const RoomOptions(),
+      );
+      _pendingOptions = null;
     } else if (stoc.hsPlayerEnter != null) {
-      final enter = stoc.hsPlayerEnter!;
-      final updated = List<PlayerInfo>.from(next.players);
-      updated.add(PlayerInfo(name: enter.name, pos: enter.pos));
-      next = next.copyWith(players: updated);
+      final m = stoc.hsPlayerEnter!;
+      final updated = List<RoomPlayer>.from(_p);
+      updated.add(RoomPlayer(name: m.name, pos: m.pos));
+      _setPlayers(updated);
     } else if (stoc.hsPlayerChange != null) {
-      final change = stoc.hsPlayerChange!;
-      final updated = List<PlayerInfo>.from(next.players);
-      if (change.state == 11 || change.state == 8) {
-        updated.removeWhere((p) => p.pos == change.pos);
-        next = next.copyWith(
-          players: updated,
-          observerCount: change.state == 8
-              ? next.observerCount + 1
-              : next.observerCount,
-        );
-      } else if (change.state == 9 || change.state == 10) {
-        final idx = updated.indexWhere((p) => p.pos == change.pos);
-        if (idx >= 0) {
-          updated[idx] = updated[idx].copyWith(ready: change.state == 9);
-        }
-        next = next.copyWith(players: updated);
-      } else if (change.state < 4) {
-        final idx = updated.indexWhere((p) => p.pos == change.pos);
-        if (idx >= 0) {
-          updated[idx] = updated[idx].copyWith(pos: change.state);
-        }
-        next = next.copyWith(players: updated);
+      final m = stoc.hsPlayerChange!;
+      final updated = List<RoomPlayer>.from(_p);
+      if (m.state == 11 || m.state == 8) {
+        updated.removeWhere((p) => p.pos == m.pos);
+        _roomState = _withP(updated);
+        if (m.state == 8) _roomState = _withO(_o + 1);
+      } else if (m.state == 9 || m.state == 10) {
+        final idx = updated.indexWhere((p) => p.pos == m.pos);
+        if (idx >= 0) updated[idx] = updated[idx].copyWith(ready: m.state == 9);
+        _setPlayers(updated);
+      } else if (m.state < 4) {
+        final idx = updated.indexWhere((p) => p.pos == m.pos);
+        if (idx >= 0) updated[idx] = updated[idx].copyWith(pos: m.state);
+        _setPlayers(updated);
       }
     } else if (stoc.hsWatchChange != null) {
-      next = next.copyWith(observerCount: stoc.hsWatchChange!.count);
+      _roomState = _withO(stoc.hsWatchChange!.count);
     } else if (stoc.selectHand != null) {
-      next = next.copyWith(stage: RoomStage.handSelecting);
+      _roomState = RoomSelectingHand(players: _p, observerCount: _o);
     } else if (stoc.handResult != null) {
-      final res = stoc.handResult!;
-      next = next.copyWith(
-        stage: RoomStage.handSelected,
-        myHandResult: res.meResult,
-        opponentHandResult: res.opResult,
-      );
+      final m = stoc.handResult!;
+      _roomState = RoomSelectingTurn(players: _p, observerCount: _o, myHand: m.meResult, opponentHand: m.opResult);
     } else if (stoc.selectTp != null) {
-      next = next.copyWith(stage: RoomStage.tpSelecting);
+      if (_roomState is! RoomSelectingTurn) {
+        _roomState = RoomSelectingTurn(players: _p, observerCount: _o, myHand: 0, opponentHand: 0);
+      }
     } else if (stoc.gameMsg != null && stoc.gameMsg!.func == MSG_START) {
-      next = next.copyWith(stage: RoomStage.tpSelected);
+      final isFirst = _roomState is RoomInLobby
+          ? (_roomState as RoomInLobby).selfType == SelfType.player1 : true;
+      _roomState = RoomPreDuel(players: _p, observerCount: _o, isFirstTurn: isFirst);
     } else if (stoc.duelStart != null) {
-      next = next.copyWith(stage: RoomStage.duelStart);
+      _roomState = RoomInDuel(players: _p, observerCount: _o);
+    } else if (stoc.duelEnd != null) {
+      _roomState = RoomDuelEnded(players: _p, observerCount: _o);
+    } else if (stoc.changeSide != null) {
+      _roomState = RoomSideDecking(players: _p, observerCount: _o);
     }
-    _roomState = next;
-    _stateController.add(next);
+
+    _stateController.add(_roomState);
+  }
+
+  RoomOptions? _pendingOptions;
+  List<RoomPlayer> get _p => _roomState.players;
+  int get _o => _roomState.observerCount;
+
+  void _setPlayers(List<RoomPlayer> players) {
+    _roomState = _withP(players);
+  }
+
+  RoomState _withP(List<RoomPlayer> players) {
+    return switch (_roomState) {
+      RoomNotJoined() => RoomNotJoined(),
+      RoomInLobby(:final selfType, :final isHost, :final options) =>
+        RoomInLobby(players: players, observerCount: _o, selfType: selfType, isHost: isHost, options: options),
+      RoomSelectingHand() => RoomSelectingHand(players: players, observerCount: _o),
+      RoomSelectingTurn(:final myHand, :final opponentHand) =>
+        RoomSelectingTurn(players: players, observerCount: _o, myHand: myHand, opponentHand: opponentHand),
+      RoomPreDuel(:final isFirstTurn) => RoomPreDuel(players: players, observerCount: _o, isFirstTurn: isFirstTurn),
+      RoomInDuel() => RoomInDuel(players: players, observerCount: _o),
+      RoomDuelEnded() => RoomDuelEnded(players: players, observerCount: _o),
+      RoomSideDecking() => RoomSideDecking(players: players, observerCount: _o),
+    };
+  }
+
+  RoomState _withO(int count) {
+    return switch (_roomState) {
+      RoomNotJoined() => RoomNotJoined(),
+      RoomInLobby(:final selfType, :final isHost, :final options) =>
+        RoomInLobby(players: _p, observerCount: count, selfType: selfType, isHost: isHost, options: options),
+      RoomSelectingHand() => RoomSelectingHand(players: _p, observerCount: count),
+      RoomSelectingTurn(:final myHand, :final opponentHand) =>
+        RoomSelectingTurn(players: _p, observerCount: count, myHand: myHand, opponentHand: opponentHand),
+      RoomPreDuel(:final isFirstTurn) => RoomPreDuel(players: _p, observerCount: count, isFirstTurn: isFirstTurn),
+      RoomInDuel() => RoomInDuel(players: _p, observerCount: count),
+      RoomDuelEnded() => RoomDuelEnded(players: _p, observerCount: count),
+      RoomSideDecking() => RoomSideDecking(players: _p, observerCount: count),
+    };
   }
 
   void _send(YgoCtosMsg msg) {
@@ -119,75 +154,47 @@ class AiDuelServiceImpl implements IDuelService {
     _connection.send(packet.serialize());
   }
 
-  @override
-  void sendPlayerInfo(String name) =>
+  @override void setPlayerName(String name) =>
       _send(YgoCtosMsg.playerInfo(CtosPlayerInfo(name: name)));
 
-  @override
-  void sendJoinGame(int gameId, String? passwd) =>
-      _send(YgoCtosMsg.joinGame(
-          CtosJoinGame(version: 4962, gameId: gameId, passwd: passwd ?? '')));
+  @override void enterRoom(String password) =>
+      _send(YgoCtosMsg.joinGame(CtosJoinGame(version: 4962, gameId: 0, passwd: password)));
 
-  @override
-  void sendUpdateDeck(Uint8List mainDeck, Uint8List extraDeck) {
-    final mainCards = <int>[];
-    final extraCards = <int>[];
-    final mainBd = ByteData.view(mainDeck.buffer, mainDeck.offsetInBytes);
-    for (int i = 0; i < mainDeck.length; i += 4) {
-      if (i + 4 <= mainDeck.length) {
-        mainCards.add(mainBd.getInt32(i, Endian.little));
-      }
-    }
-    final extraBd = ByteData.view(extraDeck.buffer, extraDeck.offsetInBytes);
-    for (int i = 0; i < extraDeck.length; i += 4) {
-      if (i + 4 <= extraDeck.length) {
-        extraCards.add(extraBd.getInt32(i, Endian.little));
-      }
-    }
-    _send(YgoCtosMsg.updateDeck(CtosUpdateDeck(
-        mainDeck: mainCards, extraDeck: extraCards, sideDeck: [])));
+  @override void submitDeck(Uint8List mainDeck, Uint8List extraDeck) {
+    final bd = ByteData.view(mainDeck.buffer, mainDeck.offsetInBytes);
+    final mainCards = List.generate(mainDeck.length ~/ 4, (i) => bd.getInt32(i * 4, Endian.little));
+    final eb = ByteData.view(extraDeck.buffer, extraDeck.offsetInBytes);
+    final extraCards = List.generate(extraDeck.length ~/ 4, (i) => eb.getInt32(i * 4, Endian.little));
+    _send(YgoCtosMsg.updateDeck(CtosUpdateDeck(mainDeck: mainCards, extraDeck: extraCards, sideDeck: [])));
   }
 
-  @override
-  void sendReady() => _send(YgoCtosMsg.hsReady());
-  @override
-  void sendNotReady() => _send(YgoCtosMsg.hsNotReady());
-  @override
-  void sendStart() => _send(YgoCtosMsg.hsStart());
-  @override
-  void sendKick(int pos) => _send(YgoCtosMsg.hsKick(pos));
-  @override
-  void sendToObserver() => _send(YgoCtosMsg.hsToObserver());
-  @override
-  void sendToDuelist() => _send(YgoCtosMsg.hsToDuelist());
-  @override
-  void sendTimeConfirm() => _send(YgoCtosMsg.timeConfirm());
-  @override
-  void sendSurrender() => _send(YgoCtosMsg.surrender());
+  @override void ready()             => _send(YgoCtosMsg.hsReady());
+  @override void unready()           => _send(YgoCtosMsg.hsNotReady());
+  @override void startDuel()         => _send(YgoCtosMsg.hsStart());
+  @override void kickPlayer(int pos) => _send(YgoCtosMsg.hsKick(pos));
+  @override void becomeObserver()    => _send(YgoCtosMsg.hsToObserver());
+  @override void becomeDuelist()     => _send(YgoCtosMsg.hsToDuelist());
+  @override void confirmTime()       => _send(YgoCtosMsg.timeConfirm());
+  @override void surrender()         => _send(YgoCtosMsg.surrender());
 
-  @override
-  void sendChat(String message) =>
-      _send(YgoCtosMsg.chat(CtosChat(message: message)));
+  @override void sendChat(String m) =>
+      _send(YgoCtosMsg.chat(CtosChat(message: m)));
 
-  @override
-  void sendHandResult(HandType hand) =>
+  @override void chooseHand(HandType hand) =>
       _send(YgoCtosMsg.handResult(CtosHandResult(hand: hand.value)));
 
-  @override
-  void sendTpResult(bool first) {
-    _send(YgoCtosMsg.tpResult(CtosTpResult(first: first)));
-    _roomState = _roomState.copyWith(
-        stage: RoomStage.tpSelected, isFirstTurn: first);
-    _stateController.add(_roomState);
+  @override void chooseTurnOrder(bool goFirst) {
+    _send(YgoCtosMsg.tpResult(CtosTpResult(first: goFirst)));
+    if (_roomState is RoomSelectingTurn) {
+      _roomState = RoomPreDuel(players: _p, observerCount: _o, isFirstTurn: goFirst);
+      _stateController.add(_roomState);
+    }
   }
 
-  @override
-  void sendResponse(CtosGameMsgResponse response) =>
-      _send(YgoCtosMsg.response(response));
+  @override void playGameResponse(CtosGameMsgResponse r) =>
+      _send(YgoCtosMsg.response(r));
 
-  @override
-  Stream<YgoStocMsg> get onMessage => _messageController.stream;
+  @override Stream<YgoStocMsg> get onServerMessage => _messageController.stream;
 
-  @override
-  Stream<RoomState> get onRoomStateChange => _stateController.stream;
+  @override Stream<RoomState> get onRoomStateChange => _stateController.stream;
 }

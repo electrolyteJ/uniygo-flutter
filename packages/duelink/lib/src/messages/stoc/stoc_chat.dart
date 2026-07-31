@@ -2,6 +2,15 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
+/// STOC_CHAT (25)
+///
+/// 聊天消息。
+///
+/// 协议格式:
+/// - player:  uint16 — 发送方玩家标识
+/// - message: 变长 UTF-16 LE 字符串 — 消息内容
+///
+/// 参考 neos-ts 的 stocChat.ts 定义。
 class StocChat {
   final int player;
   final String message;

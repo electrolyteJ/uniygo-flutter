@@ -2,7 +2,18 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Announce number interaction (player + count + numbers[]).
+/// MSG_ANNOUNCE_NUMBER (0x8F) — 宣言数值交互
+///
+/// 服务端要求玩家从给定的数值列表中宣选一个或按顺序排列。
+///
+/// 有线格式 (变长):
+/// | 偏移 | 大小  | 类型     | 说明               |
+/// |------|-------|----------|--------------------|
+/// | 0x00 | 1     | uint8    | 玩家 (0 或 1)      |
+/// | 0x01 | 1     | uint8    | 可选数值个数 count  |
+/// | 0x02 | 4 * n | uint32[] | count 个候选数值    |
+///
+/// 参考 neos-ts 的 announceNumber.ts 定义。
 class MsgAnnounceNumber {
   final int player;
   final int count;

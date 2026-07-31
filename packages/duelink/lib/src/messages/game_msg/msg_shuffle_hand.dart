@@ -2,7 +2,18 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Hand shuffle notification with card codes.
+/// MSG_SHUFFLE_HAND (0x21) — 洗手牌通知
+///
+/// 通知客户端手牌被洗牌，携带洗牌后的卡牌 code 列表。
+///
+/// 有线格式 (变长):
+/// | 偏移 | 大小  | 类型     | 说明               |
+/// |------|-------|----------|--------------------|
+/// | 0x00 | 1     | uint8    | 玩家 (0 或 1)      |
+/// | 0x01 | 1     | uint8    | 卡牌数量 count      |
+/// | 0x02 | 4 * n | uint32[] | 洗牌后的卡牌 code 列表 |
+///
+/// 参考 neos-ts 的 shuffleHand.ts 定义。
 class MsgShuffleHand {
   final int player;
   final int count;

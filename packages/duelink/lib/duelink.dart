@@ -1,18 +1,13 @@
 library duelink;
 
-import 'dart:typed_data';
-
-import 'package:service_loader/service_loader.dart';
-
-import 'duelink.dart';
-
-export 'src/protocol/packet.dart';
+export 'src/iduel_service.dart' show IDuelService, createDuelService, ConnectionState, DuelConnection;
+export 'src/model/room_player.dart';
+export 'src/model/room_options.dart';
+export 'src/model/room_password.dart';
+export 'src/model/room_state.dart';
 export 'src/types.dart';
-export 'src/service/PlayerInfo.dart';
-export 'src/service/room_options.dart';
-export 'src/service/room_password.dart';
-export 'src/service/room_state.dart';
 export 'src/constants.dart';
+export 'src/protocol/packet.dart';
 export 'src/protocol/adapter.dart';
 export 'src/protocol/buffer_io.dart';
 export 'src/messages/ygo_ctos_msg.dart';
@@ -102,63 +97,3 @@ export 'src/messages/game_msg/msg_add_counter.dart';
 export 'src/messages/game_msg/msg_remove_counter.dart';
 export 'src/messages/game_msg/msg_update_data.dart';
 export 'src/messages/game_msg/msg_update_card.dart';
-
-abstract class IDuelService implements IService {
-  Future<void> connect(String address, int port);
-
-  Future<void> disconnect();
-
-  ConnectionState get connectionState;
-
-  void sendPlayerInfo(String name);
-
-  void sendJoinGame(int gameId, String? passwd);
-
-  void sendUpdateDeck(Uint8List mainDeck, Uint8List extraDeck);
-
-  void sendReady();
-
-  void sendNotReady();
-
-  void sendStart();
-
-  void sendKick(int pos);
-
-  void sendToObserver();
-
-  void sendToDuelist();
-
-  void sendChat(String message);
-
-  void sendSurrender();
-
-  void sendHandResult(HandType hand);
-
-  void sendTpResult(bool first);
-
-  void sendResponse(CtosGameMsgResponse response);
-
-  void sendTimeConfirm();
-
-  Stream<YgoStocMsg> get onMessage;
-
-  Stream<RoomState> get onRoomStateChange;
-}
-
-IService createDuelService(int type) {
-  return ServiceFactory.create(type);
-}
-
-enum ConnectionState { disconnected, connecting, connected, error }
-
-abstract class DuelConnection {
-  Future<void> connect(String address, int port);
-
-  void send(Uint8List data);
-
-  Stream<Uint8List> get messages;
-
-  Future<void> disconnect();
-
-  Stream<ConnectionState> get state;
-}

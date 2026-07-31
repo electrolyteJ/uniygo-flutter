@@ -2,6 +2,17 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
+/// CTOS_UPDATE_DECK (2)
+///
+/// 更新对局的卡组信息。
+///
+/// 协议格式:
+/// - main:  unsigned int — 主卡组数目（含 extra）
+/// - extra: unsigned int — 副卡组数目
+/// - mainCards: [unsigned int; main] — 主卡组 + 额外卡组卡密列表
+/// - sideCards: [unsigned int; extra] — 副卡组卡密列表
+///
+/// 参考 neos-ts 的 ctosUpdateDeck.ts 定义。
 class CtosUpdateDeck {
   final List<int> mainDeck;
   final List<int> extraDeck;

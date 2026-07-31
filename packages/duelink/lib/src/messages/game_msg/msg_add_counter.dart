@@ -2,7 +2,18 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Add counter notification (counterType: uint16 + shortLocation: 3 + count: uint16 = 7 bytes).
+/// MSG_ADD_COUNTER (0x65) — 添加计数器通知
+///
+/// 当卡牌上增加计数器时，核心将此消息发送至客户端。
+///
+/// 有线格式 (7 字节):
+/// | 偏移 | 大小 | 类型   | 说明           |
+/// |------|------|--------|----------------|
+/// | 0x00 | 2    | uint16 | 计数器类型      |
+/// | 0x02 | 3    | CardShortLocation | 卡片短位置 |
+/// | 0x05 | 2    | uint16 | 添加的计数器数量 |
+///
+/// 参考 neos-ts 的 addCounter.ts 定义。
 class MsgAddCounter {
   final int counterType;
   final CardShortLocation location;

@@ -2,8 +2,17 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Hand result notification.
-/// Packed byte: result1 = byte & 0x3, result2 = (byte >> 2) & 0x3.
+/// MSG_HAND_RES (0x85) — 猜拳结果通知
+///
+/// 通知客户端双方猜拳（石头剪刀布）的结果。
+/// 两个结果打包在一个字节中。
+///
+/// 有线格式 (1 字节):
+/// | 偏移 | 大小 | 类型  | 说明                                    |
+/// |------|------|-------|-----------------------------------------|
+/// | 0x00 | 1    | uint8 | 打包字节: result1 = byte & 0x3, result2 = (byte >> 2) & 0x3 |
+///
+/// 参考 neos-ts 的 handRes.ts 定义。
 class MsgHandRes {
   final int result1;
   final int result2;

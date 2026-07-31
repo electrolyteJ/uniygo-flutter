@@ -2,8 +2,19 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
+/// CTOS_TP_RESULT (4)
+///
+/// 告知服务端当前玩家的先后攻选择。
+///
+/// 协议格式:
+/// - first: unsigned char — 是否选择先攻
+///   - 1 = 先攻（FIRST）
+///   - 0 = 后攻（SECOND）
+///
+/// 参考 neos-ts 的 ctosTpResult.ts 定义。
 class CtosTpResult {
-  final bool first; // true=first, false=second
+  /// true=先攻, false=后攻
+  final bool first;
   const CtosTpResult({required this.first});
   int get protoId => CTOS_TP_RESULT;
 

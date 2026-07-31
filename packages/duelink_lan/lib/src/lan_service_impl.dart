@@ -6,6 +6,31 @@ import 'package:duelink/duelink.dart';
 
 class LanDuelServiceImpl implements IDuelService {
   @override
+  void becomeDuelist() {
+    // TODO: implement becomeDuelist
+  }
+
+  @override
+  void becomeObserver() {
+    // TODO: implement becomeObserver
+  }
+
+  @override
+  void chooseHand(HandType hand) {
+    // TODO: implement chooseHand
+  }
+
+  @override
+  void chooseTurnOrder(bool goFirst) {
+    // TODO: implement chooseTurnOrder
+  }
+
+  @override
+  void confirmTime() {
+    // TODO: implement confirmTime
+  }
+
+  @override
   Future<void> connect(String address, int port) {
     // TODO: implement connect
     throw UnimplementedError();
@@ -22,12 +47,32 @@ class LanDuelServiceImpl implements IDuelService {
   }
 
   @override
-  // TODO: implement onMessage
-  Stream<YgoStocMsg> get onMessage => throw UnimplementedError();
+  void enterRoom(String password) {
+    // TODO: implement enterRoom
+  }
+
+  @override
+  void kickPlayer(int pos) {
+    // TODO: implement kickPlayer
+  }
 
   @override
   // TODO: implement onRoomStateChange
   Stream<RoomState> get onRoomStateChange => throw UnimplementedError();
+
+  @override
+  // TODO: implement onServerMessage
+  Stream<YgoStocMsg> get onServerMessage => throw UnimplementedError();
+
+  @override
+  void playGameResponse(CtosGameMsgResponse response) {
+    // TODO: implement playGameResponse
+  }
+
+  @override
+  void ready() {
+    // TODO: implement ready
+  }
 
   @override
   void sendChat(String message) {
@@ -35,73 +80,29 @@ class LanDuelServiceImpl implements IDuelService {
   }
 
   @override
-  void sendHandResult(HandType hand) {
-    // TODO: implement sendHandResult
+  void setPlayerName(String name) {
+    // TODO: implement setPlayerName
   }
 
   @override
-  void sendJoinGame(int gameId, String? passwd) {
-    // TODO: implement sendJoinGame
+  void startDuel() {
+    // TODO: implement startDuel
   }
 
   @override
-  void sendKick(int pos) {
-    // TODO: implement sendKick
+  void submitDeck(Uint8List mainDeck, Uint8List extraDeck) {
+    // TODO: implement submitDeck
   }
 
   @override
-  void sendNotReady() {
-    // TODO: implement sendNotReady
+  void surrender() {
+    // TODO: implement surrender
   }
 
   @override
-  void sendPlayerInfo(String name) {
-    // TODO: implement sendPlayerInfo
+  void unready() {
+    // TODO: implement unready
   }
 
-  @override
-  void sendReady() {
-    // TODO: implement sendReady
-  }
-
-  @override
-  void sendResponse(CtosGameMsgResponse response) {
-    // TODO: implement sendResponse
-  }
-
-  @override
-  void sendStart() {
-    // TODO: implement sendStart
-  }
-
-  @override
-  void sendSurrender() {
-    // TODO: implement sendSurrender
-  }
-
-  @override
-  void sendTimeConfirm() {
-    // TODO: implement sendTimeConfirm
-  }
-
-  @override
-  void sendToDuelist() {
-    // TODO: implement sendToDuelist
-  }
-
-  @override
-  void sendToObserver() {
-    // TODO: implement sendToObserver
-  }
-
-  @override
-  void sendTpResult(bool first) {
-    // TODO: implement sendTpResult
-  }
-
-  @override
-  void sendUpdateDeck(Uint8List mainDeck, Uint8List extraDeck) {
-    // TODO: implement sendUpdateDeck
-  }
 
 }

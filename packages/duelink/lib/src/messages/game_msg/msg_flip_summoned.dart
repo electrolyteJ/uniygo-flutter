@@ -1,7 +1,14 @@
 import 'dart:typed_data';
 import '../../constants.dart';
 
-/// Empty payload — a monster has been flip summoned.
+/// MSG_FLIP_SUMMONED (0x41) — 反转召唤完成通知
+///
+/// 通知客户端怪兽反转召唤已完成。
+/// 此消息没有附加负载数据。
+///
+/// 有线格式 (0 字节): 空负载，仅通过消息号传递事件。
+///
+/// 参考 neos-ts 的 flipSummoned.ts 定义。
 class MsgFlipSummoned {
   const MsgFlipSummoned();
 

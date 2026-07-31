@@ -2,7 +2,18 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Confirm cards interaction (player + count + [CardInfo(7); count]).
+/// MSG_CONFIRM_CARDS (0x1E) — 确认卡牌交互
+///
+/// 服务端展示一组卡牌让客户端确认查看（例如手牌确认/卡组检索展示）。
+///
+/// 有线格式 (变长):
+/// | 偏移 | 大小  | 类型         | 说明                |
+/// |------|-------|--------------|---------------------|
+/// | 0x00 | 1     | uint8        | 玩家 (0 或 1)       |
+/// | 0x01 | 1     | uint8        | 卡片数量 count       |
+/// | 0x02 | 7 * n | CardInfo[n]  | 每张 card 的完整信息 |
+///
+/// 参考 neos-ts 的 confirmCards.ts 定义。
 class MsgConfirmCards {
   final int player;
   final int count;

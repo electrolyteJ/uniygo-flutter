@@ -2,6 +2,14 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
+/// CTOS_CHAT (22)
+///
+/// 发送聊天消息。
+///
+/// 协议格式:
+/// - message: 变长 UTF-16 LE 编码字符串，以 null 结束
+///
+/// 参考 neos-ts 的 ctosChat.ts 定义。
 class CtosChat {
   final String message;
   const CtosChat({required this.message});

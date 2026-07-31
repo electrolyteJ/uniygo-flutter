@@ -2,8 +2,20 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
+/// CTOS_HAND_RESULT (3)
+///
+/// 告知服务端当前玩家的猜拳选择。
+///
+/// 协议格式:
+/// - hand: unsigned char — 玩家的猜拳选择
+///   - 1 = SCISSORS（剪刀）
+///   - 2 = ROCK（石头）
+///   - 3 = PAPER（布）
+///
+/// 参考 neos-ts 的 ctosHandResult.ts 定义。
 class CtosHandResult {
-  final int hand; // 1=SCISSORS, 2=ROCK, 3=PAPER
+  /// 1=SCISSORS, 2=ROCK, 3=PAPER
+  final int hand;
   const CtosHandResult({required this.hand});
   int get protoId => CTOS_HAND_RESULT;
 

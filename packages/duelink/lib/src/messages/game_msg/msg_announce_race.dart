@@ -2,7 +2,19 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Announce race interaction (player + count + min + available: uint32).
+/// MSG_ANNOUNCE_RACE (0x8C) — 宣言种族交互
+///
+/// 服务端要求玩家从可选种族中宣言一个或多个种族。
+///
+/// 有线格式 (7 字节):
+/// | 偏移 | 大小 | 类型   | 说明                       |
+/// |------|------|--------|----------------------------|
+/// | 0x00 | 1    | uint8  | 玩家 (0 或 1)              |
+/// | 0x01 | 1    | uint8  | 可选种族个数                |
+/// | 0x02 | 1    | uint8  | 最少需选数量 (min)          |
+/// | 0x03 | 4    | uint32 | 可用种族位掩码 (available)  |
+///
+/// 参考 neos-ts 的 announceRace.ts 定义。
 class MsgAnnounceRace {
   final int player;
   final int count;

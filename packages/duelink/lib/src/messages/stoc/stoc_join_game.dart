@@ -1,7 +1,26 @@
 import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
-import '../../service/room_options.dart';
+import '../../model/room_options.dart';
+
+/// STOC_JOIN_GAME (18)
+///
+/// 服务端告知客户端已成功加入房间，并携带房间配置信息。
+///
+/// 协议格式:
+/// - lflist:       uint32 — 禁限卡表 ID
+/// - rule:         uint8  — 规则版本
+/// - mode:         uint8  — 房间模式 (0=single, 1=match, 2=tag)
+/// - duelRule:     uint8  — 决斗规则 (3=MR3, 4=MR4, 其他=MR2020+)
+/// - noCheckDeck:  uint8  — 是否跳过卡组检查
+/// - noShuffleDeck:uint8  — 是否跳过洗牌
+/// - (padding):    3 bytes
+/// - startLp:      int32  — 初始 LP
+/// - startHand:    uint8  — 起手手牌数
+/// - drawCount:    uint8  — 每回合抽牌数
+/// - timeLimit:    uint16 — 时间限制（秒）
+///
+/// 参考 neos-ts 的 stocJoinGame.ts 定义。
 
 class StocJoinGame {
   final int lflist;

@@ -2,7 +2,19 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Shuffle set card notification.
+/// MSG_SHUFFLE_SET_CARD (0x24) — 盖放卡位置随机交换通知
+///
+/// 通知客户端盖放的多张卡牌位置进行了随机交换（例如魔术礼帽效果）。
+///
+/// 有线格式 (变长):
+/// | 偏移 | 大小    | 类型             | 说明                    |
+/// |------|---------|------------------|-------------------------|
+/// | 0x00 | 1       | uint8            | 区域 zone               |
+/// | 0x01 | 1       | uint8            | 卡牌数量 count          |
+/// | 0x02 | 4 * n   | CardLocation[n]  | 交换前的位置列表         |
+/// | ...  | 4 * n   | CardLocation[n]  | 叠放素材位置列表         |
+///
+/// 参考 neos-ts 的 shuffleSetCard.ts 定义。
 class MsgShuffleSetCard {
   final int zone;
   final int count;

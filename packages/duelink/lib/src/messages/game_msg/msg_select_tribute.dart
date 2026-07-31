@@ -2,8 +2,21 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Select tribute interaction (fully decoded).
-/// Format: player + cancelable + min + max + count + [code(u32) + shortLocation(3) + level(u8); count]
+/// MSG_SELECT_TRIBUTE (0x14) — 选择解放素材交互
+///
+/// 服务端要求玩家选择用于上级召唤/仪式等的解放素材。
+///
+/// 有线格式 (变长):
+/// | 偏移 | 大小    | 类型                      | 说明                    |
+/// |------|---------|---------------------------|-------------------------|
+/// | 0x00 | 1       | uint8                     | 玩家 (0 或 1)           |
+/// | 0x01 | 1       | uint8                     | 是否可取消 cancelable   |
+/// | 0x02 | 1       | uint8                     | 最少需选数量 min         |
+/// | 0x03 | 1       | uint8                     | 最多可选数量 max         |
+/// | 0x04 | 1       | uint8                     | 可选卡片数量 count       |
+/// | 0x05 | 8 * n   | code(u32) + shortLocation(3) + level(u8) | 每张卡: 卡牌 code + 短位置 + 等级 |
+///
+/// 参考 neos-ts 的 selectTribute.ts 定义。
 class MsgSelectTribute {
   final int player;
   final int cancelable;

@@ -2,6 +2,15 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
+/// STOC_HAND_RESULT (5)
+///
+/// 猜拳结果通知。
+///
+/// 协议格式:
+/// - meResult: uint8 — 我方的猜拳选择 (1=SCISSORS, 2=ROCK, 3=PAPER)
+/// - opResult: uint8 — 对方的猜拳选择
+///
+/// 参考 neos-ts 的 stocHandResult.ts 定义。
 class StocHandResult {
   final int meResult;
   final int opResult;
