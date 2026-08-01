@@ -16,6 +16,21 @@ class StocTypeChange {
   /// 0=PLAYER1, 1=PLAYER2, 7=OBSERVER
   final int selfType;
   const StocTypeChange({required this.isHost, required this.selfType});
+
+  StocSelfType get selfTypeValue {
+    switch (selfType) {
+      case 0:
+        return StocSelfType.player1;
+      case 1:
+        return StocSelfType.player2;
+      case 7:
+        return StocSelfType.observer;
+      default:
+        return StocSelfType.unknown;
+    }
+  }
+
+  bool get isObserver => selfTypeValue == StocSelfType.observer;
   int get protoId => STOC_TYPE_CHANGE;
 
   Uint8List encode() {
@@ -32,3 +47,5 @@ class StocTypeChange {
   @override
   String toString() => 'StocTypeChange(isHost:$isHost selfType:$selfType)';
 }
+
+enum StocSelfType { unknown, player1, player2, observer }

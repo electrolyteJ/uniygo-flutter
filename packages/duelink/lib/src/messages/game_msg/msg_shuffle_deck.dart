@@ -2,7 +2,9 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Deck shuffle notification.
+/// MSG_SHUFFLE_DECK (0x20) — 主卡组洗切通知。
+///
+/// 通知客户端某位玩家的主卡组完成洗切。
 class MsgShuffleDeck {
   final int player;
 

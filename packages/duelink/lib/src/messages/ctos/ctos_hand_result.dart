@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
+import '../../types.dart';
 
 /// CTOS_HAND_RESULT (3)
 ///
@@ -18,6 +19,15 @@ class CtosHandResult {
   final int hand;
   const CtosHandResult({required this.hand});
   int get protoId => CTOS_HAND_RESULT;
+
+  /// 语义化的猜拳结果枚举，避免上层直接判断 `1/2/3`。
+  HandType get handValue => HandType.fromValue(hand);
+
+  bool get isScissors => handValue == HandType.scissors;
+
+  bool get isRock => handValue == HandType.rock;
+
+  bool get isPaper => handValue == HandType.paper;
 
   Uint8List encode() {
     final w = BufferWriter();

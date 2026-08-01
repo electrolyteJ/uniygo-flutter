@@ -21,6 +21,25 @@ class StocHsPlayerChange {
   /// MOVE=0, READY=1, NO_READY=2, LEAVE=3, TO_OBSERVER=4
   final int state;
   const StocHsPlayerChange({required this.pos, required this.state});
+
+  StocHsPlayerChangeState get stateValue {
+    switch (state) {
+      case 0:
+        return StocHsPlayerChangeState.move;
+      case 1:
+        return StocHsPlayerChangeState.ready;
+      case 2:
+        return StocHsPlayerChangeState.notReady;
+      case 3:
+        return StocHsPlayerChangeState.leave;
+      case 4:
+        return StocHsPlayerChangeState.toObserver;
+      default:
+        return StocHsPlayerChangeState.unknown;
+    }
+  }
+
+  bool get isReady => stateValue == StocHsPlayerChangeState.ready;
   int get protoId => STOC_HS_PLAYER_CHANGE;
 
   Uint8List encode() {
@@ -36,4 +55,13 @@ class StocHsPlayerChange {
 
   @override
   String toString() => 'StocHsPlayerChange(pos:$pos state:$state)';
+}
+
+enum StocHsPlayerChangeState {
+  unknown,
+  move,
+  ready,
+  notReady,
+  leave,
+  toObserver,
 }

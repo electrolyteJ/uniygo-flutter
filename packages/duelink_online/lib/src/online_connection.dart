@@ -4,10 +4,13 @@ import 'dart:typed_data';
 import 'package:duelink/duelink.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-/// 在线WebSocket连接实现
+/// 在线WebSocket连接实现。
+///
+/// 工作在 [YgoCtosMsg] / [YgoStocMsg] 消息对象上，
+/// 线格式由 duelink 的 [encodeCtos] / [decodeStocs] 负责。
 class OnlineConnection implements DuelConnection {
   WebSocketChannel? _channel;
-  final _messageController = StreamController<Uint8List>.broadcast();
+  final _msgCtrl = StreamController<YgoStocMsg>.broadcast();
   final _stateController = StreamController<ConnectionState>.broadcast();
   ConnectionState _state = ConnectionState.disconnected;
 
@@ -23,7 +26,10 @@ class OnlineConnection implements DuelConnection {
       _stateController.add(_state);
       _channel!.stream.listen(
         (data) {
-          _messageController.add(data is List<int> ? Uint8List.fromList(data) : data as Uint8List);
+          final bytes = data is List<int> ? Uint8List.fromList(data) : data as Uint8List;
+          for (final s in decodeStocs(bytes)) {
+            _msgCtrl.add(s);
+          }
         },
         onError: (e) {
           console.log('WebSocket error: $e');
@@ -44,10 +50,10 @@ class OnlineConnection implements DuelConnection {
   }
 
   @override
-  void send(Uint8List data) => _channel?.sink.add(data);
+  void send(YgoCtosMsg msg) => _channel?.sink.add(encodeCtos(msg));
 
   @override
-  Stream<Uint8List> get messages => _messageController.stream;
+  Stream<YgoStocMsg> get messages => _msgCtrl.stream;
 
   @override
   Future<void> disconnect() async {

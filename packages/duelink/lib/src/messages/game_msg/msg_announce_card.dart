@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Announce card interaction (player + count + codes[]).
+/// MSG_ANNOUNCE_CARD (0x8E) — 宣言卡名交互。
 class MsgAnnounceCard {
   final int player;
   final int count;

@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Select option interaction (player + count + codes[]).
+/// MSG_SELECT_OPTION (0x0E) — 选项列表交互。
 class MsgSelectOption {
   final int player;
   final int count;

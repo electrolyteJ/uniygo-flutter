@@ -2,7 +2,10 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Hint from the server (hintCommand: uint8 + hintPlayer: uint8 + hintData: int32).
+/// MSG_HINT (0x02) — 服务端提示消息。
+///
+/// 载荷为 `hintCommand + hintPlayer + hintData`，用于传递效果提示、选择文案、
+/// 属性/种族/数值等上下文信息。
 class MsgHint {
   final int hintCommand;
   final int hintPlayer;
@@ -13,6 +16,35 @@ class MsgHint {
     required this.hintPlayer,
     required this.hintData,
   });
+
+  MsgHintType get hintType {
+    switch (hintCommand) {
+      case 1:
+        return MsgHintType.event;
+      case 2:
+        return MsgHintType.message;
+      case 3:
+        return MsgHintType.selectMessage;
+      case 4:
+        return MsgHintType.optionSelected;
+      case 5:
+        return MsgHintType.effect;
+      case 6:
+        return MsgHintType.race;
+      case 7:
+        return MsgHintType.attribute;
+      case 8:
+        return MsgHintType.code;
+      case 9:
+        return MsgHintType.number;
+      case 10:
+        return MsgHintType.card;
+      case 11:
+        return MsgHintType.zone;
+      default:
+        return MsgHintType.unknown;
+    }
+  }
 
   int get funcId => MSG_HINT;
 
@@ -36,4 +68,19 @@ class MsgHint {
   @override
   String toString() =>
       'MsgHint(hintCommand:$hintCommand hintPlayer:$hintPlayer hintData:$hintData)';
+}
+
+enum MsgHintType {
+  unknown,
+  event,
+  message,
+  selectMessage,
+  optionSelected,
+  effect,
+  race,
+  attribute,
+  code,
+  number,
+  card,
+  zone,
 }

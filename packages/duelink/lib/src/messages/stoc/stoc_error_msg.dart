@@ -20,6 +20,21 @@ class StocErrorMsg {
   final int errorType;
   final int errorCode;
   const StocErrorMsg({required this.errorType, required this.errorCode});
+
+  StocErrorType get errorTypeValue {
+    switch (errorType) {
+      case 0:
+        return StocErrorType.join;
+      case 1:
+        return StocErrorType.deck;
+      case 2:
+        return StocErrorType.side;
+      case 3:
+        return StocErrorType.version;
+      default:
+        return StocErrorType.unknown;
+    }
+  }
   int get protoId => STOC_ERROR_MSG;
 
   Uint8List encode() {
@@ -43,3 +58,5 @@ class StocErrorMsg {
   @override
   String toString() => 'StocErrorMsg(type:$errorType code:$errorCode)';
 }
+
+enum StocErrorType { unknown, join, deck, side, version }

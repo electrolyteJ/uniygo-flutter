@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Draw cards notification.
+/// MSG_DRAW (0x5A) — 抽卡结果通知。
 class MsgDraw {
   final int player;
   final int count;

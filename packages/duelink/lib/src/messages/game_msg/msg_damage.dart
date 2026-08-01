@@ -2,7 +2,10 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Damage notification (player: int8 + value: int32).
+/// MSG_DAMAGE (0x5B) — LP 伤害通知。
+///
+/// 载荷格式为 `player(int8) + value(int32)`。
+/// `neos-ts` 会把它映射到 `update_hp` 语义；在 `duelink` 中保留为原始 damage 消息。
 class MsgDamage {
   final int player;
   final int value;

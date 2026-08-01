@@ -18,6 +18,13 @@ class CtosTpResult {
   const CtosTpResult({required this.first});
   int get protoId => CTOS_TP_RESULT;
 
+  /// 语义化的先后攻选择值，和原始 `first` 字段保持兼容。
+  bool get tpValue => first;
+
+  bool get isFirst => first;
+
+  bool get isSecond => !first;
+
   Uint8List encode() {
     final w = BufferWriter();
     w.writeUint8(first ? 1 : 0);

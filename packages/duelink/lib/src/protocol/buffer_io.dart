@@ -1,9 +1,15 @@
 import 'dart:typed_data';
 import '../constants.dart';
+import '../types.dart';
 
 /// 二进制缓冲区顺序读写工具。
 ///
 /// 所有数值均为小端序（LE），与 ygopro 服务端协议一致。
+///
+/// 本文件里的 `CardLocation` / `CardShortLocation` / `CardInfo` 在保留原始协议字段
+/// 的同时，额外提供了 enum helper getter，方便上层直接按语义消费：
+/// - 优先使用 `zone` / `zoneEnum` / `cardPosition` 这类语义化 getter
+/// - 需要保留原始字节、做位运算、或兼容未知值时，再读取 `rawLocation` / `rawPosition`
 ///
 /// 参考 neos-ts 的 bufferIO.ts 定义。
 
@@ -245,6 +251,35 @@ class CardLocation {
     this.overlaySequence = 0,
   });
 
+  /// 原始协议中的 location 数字值。
+  ///
+  /// 当上层需要保留线协议值、做位运算、或排查未知区域编码时使用；
+  /// 一般业务逻辑优先使用 [zone] / [zoneEnum]。
+  int get rawLocation => location;
+
+  /// [rawLocation] 的别名，便于和其他 message 上的 `*Code` getter 保持一致。
+  int get zoneCode => location;
+
+  /// 语义化的区域枚举，适合大多数消费场景。
+  CardZone get zone => zoneEnum;
+
+  /// 语义化的区域枚举，适合大多数消费场景。
+  CardZone get zoneEnum => CardZone.fromNumber(location);
+
+  /// 原始协议中的 position 数字值。
+  ///
+  /// 仅在非叠放位置有意义；若 [isOverlay] 为 true，该字节语义改为叠放序号。
+  int get rawPosition => position;
+
+  /// [rawPosition] 的别名，便于和其他 message 上的 `*Code` getter 保持一致。
+  int get positionCode => position;
+
+  /// 语义化的表示形式枚举，适合 UI/规则判断。
+  CardPosition get cardPosition => positionEnum;
+
+  /// 语义化的表示形式枚举，适合 UI/规则判断。
+  CardPosition get positionEnum => CardPosition.fromNumber(position);
+
   @override
   bool operator ==(Object other) =>
       other is CardLocation &&
@@ -276,6 +311,18 @@ class CardShortLocation {
     required this.sequence,
   });
 
+  /// 原始协议中的 location 数字值。
+  int get rawLocation => location;
+
+  /// [rawLocation] 的别名，便于与 message 上的辅助 getter 命名保持一致。
+  int get zoneCode => location;
+
+  /// 语义化的区域枚举，适合大多数消费场景。
+  CardZone get zone => zoneEnum;
+
+  /// 语义化的区域枚举，适合大多数消费场景。
+  CardZone get zoneEnum => CardZone.fromNumber(location);
+
   @override
   bool operator ==(Object other) =>
       other is CardShortLocation &&
@@ -302,6 +349,18 @@ class CardInfo {
     required this.location,
     required this.sequence,
   });
+
+  /// 原始协议中的 location 数字值。
+  int get rawLocation => location;
+
+  /// [rawLocation] 的别名，便于与其他 message 的 helper getter 一致。
+  int get zoneCode => location;
+
+  /// 语义化的区域枚举，适合大多数消费场景。
+  CardZone get zone => zoneEnum;
+
+  /// 语义化的区域枚举，适合大多数消费场景。
+  CardZone get zoneEnum => CardZone.fromNumber(location);
 
   @override
   bool operator ==(Object other) =>

@@ -89,9 +89,14 @@ class YgoCtosMsg {
   factory YgoCtosMsg.hsStart() =>
       YgoCtosMsg._(hsStart: const CtosHsStart());
   /// CTOS_HS_KICK (36): 踢出指定位置的玩家。
+  ///
+  /// 这是原始 ygopro 二进制协议里的房间管理消息，`ocgcore.proto` 当前未建模。
   factory YgoCtosMsg.hsKick(int pos) =>
       YgoCtosMsg._(hsKick: CtosHsKick(pos: pos));
   /// CTOS_HS_TO_DUELIST (32): 告知服务端当前玩家进入决斗者行列。
+  ///
+  /// 命名差异：原始协议常叫 `HsToDuelist`，而 `ocgcore.proto` / `neos-ts`
+  /// 中的 protobuf 语义名是 `CtosHsToDuelList`。两者协议号相同。
   factory YgoCtosMsg.hsToDuelist() =>
       YgoCtosMsg._(hsToDuelist: const CtosHsToDuelist());
   /// CTOS_HS_TO_OBSERVER (33): 告知服务端当前玩家进入观战者行列。
@@ -122,6 +127,55 @@ class YgoCtosMsg {
     if (timeConfirm != null) return CTOS_TIME_CONFIRM;
     if (surrender != null) return CTOS_SURRENDER;
     return 0;
+  }
+
+  bool get isPlayerInfo => playerInfo != null;
+
+  bool get isJoinGame => joinGame != null;
+
+  bool get isUpdateDeck => updateDeck != null;
+
+  bool get isHandResult => handResult != null;
+
+  bool get isTpResult => tpResult != null;
+
+  bool get isResponse => response != null;
+
+  bool get isChat => chat != null;
+
+  bool get isHsReady => hsReady != null;
+
+  bool get isHsNotReady => hsNotReady != null;
+
+  bool get isHsStart => hsStart != null;
+
+  bool get isHsKick => hsKick != null;
+
+  bool get isHsToDuelist => hsToDuelist != null;
+
+  bool get isHsToObserver => hsToObserver != null;
+
+  bool get isTimeConfirm => timeConfirm != null;
+
+  bool get isSurrender => surrender != null;
+
+  String get variantType {
+    if (isPlayerInfo) return 'playerInfo';
+    if (isJoinGame) return 'joinGame';
+    if (isUpdateDeck) return 'updateDeck';
+    if (isHandResult) return 'handResult';
+    if (isTpResult) return 'tpResult';
+    if (isResponse) return 'response';
+    if (isChat) return 'chat';
+    if (isHsReady) return 'hsReady';
+    if (isHsNotReady) return 'hsNotReady';
+    if (isHsStart) return 'hsStart';
+    if (isHsKick) return 'hsKick';
+    if (isHsToDuelist) return 'hsToDuelist';
+    if (isHsToObserver) return 'hsToObserver';
+    if (isTimeConfirm) return 'timeConfirm';
+    if (isSurrender) return 'surrender';
+    return 'unknown';
   }
 
   /// 编码为网络传输格式的字节数组。

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
+import '../../types.dart';
 
 /// CTOS_RESPONSE (1)
 ///
@@ -32,6 +33,18 @@ class CtosSelectPlace {
     required this.zone,
     required this.sequence,
   });
+
+  /// 原始协议中的区域数字值。
+  int get rawZone => zone;
+
+  /// [rawZone] 的别名，便于与其他协议结构的 helper getter 保持一致。
+  int get zoneCode => zone;
+
+  /// 语义化的区域枚举，适合大多数消费场景。
+  CardZone get zoneValue => zoneEnum;
+
+  /// [zoneValue] 的别名，便于与其他协议结构保持一致。
+  CardZone get zoneEnum => CardZone.fromNumber(zone);
 }
 
 class CtosGameMsgResponse {
@@ -92,17 +105,55 @@ class CtosGameMsgResponse {
 
   int get protoId => CTOS_RESPONSE;
 
+  /// 原始协议中的 position 数字值，仅在 `selectPosition` 变体下有意义。
+  int? get rawPosition => selectPositionPos;
+
+  /// [rawPosition] 的别名，便于与其他协议结构保持一致。
+  int? get positionCode => selectPositionPos;
+
+  /// 语义化的表示形式枚举。
+  CardPosition? get cardPosition =>
+      selectPositionPos == null ? null : CardPosition.fromNumber(selectPositionPos!);
+
+  /// [cardPosition] 的别名，便于与其他 message 的 helper getter 保持一致。
+  CardPosition? get positionValue =>
+      cardPosition;
+
+  /// 是否发动效果的语义化布尔值，仅在 `selectEffectYn` 变体下有意义。
+  bool? get effectYnValue =>
+      selectEffectYnResult == null ? null : selectEffectYnResult != 0;
+
+  bool get isSelectIdleCmd => selectIdleCmdCode != null;
+
+  bool get isSelectPlace => selectPlace != null;
+
+  bool get isSelectMulti => selectMultiPtrs != null;
+
+  bool get isSelectSingle => selectSinglePtr != null;
+
+  bool get isSelectEffectYn => selectEffectYnResult != null;
+
+  bool get isSelectPosition => selectPositionPos != null;
+
+  bool get isSelectOption => selectOptionCode != null;
+
+  bool get isSelectBattleCmd => selectBattleCmdValue != null;
+
+  bool get isSelectCounter => selectCounterValues != null;
+
+  bool get isSortCard => sortCardIndices != null;
+
   String get variantType {
-    if (selectIdleCmdCode != null) return 'selectIdleCmd';
-    if (selectPlace != null) return 'selectPlace';
-    if (selectMultiPtrs != null) return 'selectMulti';
-    if (selectSinglePtr != null) return 'selectSingle';
-    if (selectEffectYnResult != null) return 'selectEffectYn';
-    if (selectPositionPos != null) return 'selectPosition';
-    if (selectOptionCode != null) return 'selectOption';
-    if (selectBattleCmdValue != null) return 'selectBattleCmd';
-    if (selectCounterValues != null) return 'selectCounter';
-    if (sortCardIndices != null) return 'sortCard';
+    if (isSelectIdleCmd) return 'selectIdleCmd';
+    if (isSelectPlace) return 'selectPlace';
+    if (isSelectMulti) return 'selectMulti';
+    if (isSelectSingle) return 'selectSingle';
+    if (isSelectEffectYn) return 'selectEffectYn';
+    if (isSelectPosition) return 'selectPosition';
+    if (isSelectOption) return 'selectOption';
+    if (isSelectBattleCmd) return 'selectBattleCmd';
+    if (isSelectCounter) return 'selectCounter';
+    if (isSortCard) return 'sortCard';
     return 'unknown';
   }
 

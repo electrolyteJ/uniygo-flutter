@@ -1,30 +1,24 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:uniygopro/main.dart';
+import 'package:provider/provider.dart';
+import 'package:duelink/duelink.dart';
+import 'package:uniygopro/stores/duel_room_state.dart';
+import 'package:uniygopro/stores/match_store.dart';
+import 'package:uniygopro/stores/side_store.dart';
+import 'package:uniygopro/app.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
-
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('App renders home page', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => MatchStore()),
+          ChangeNotifierProvider(create: (_) => SideStore()),
+        ],
+        child: const UniygoproApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('uniygopro'), findsOneWidget);
+    expect(find.text('开始对战'), findsOneWidget);
   });
 }

@@ -2,8 +2,9 @@ import 'dart:typed_data';
 
 import 'package:service_loader/service_loader.dart';
 
+import '../duelink.dart';
 import 'messages/ygo_stoc_msg.dart';
-import 'model/room_state.dart';
+import 'model/room_stage.dart';
 import 'messages/ctos/ctos_game_msg_response.dart';
 import 'types.dart';
 
@@ -33,7 +34,7 @@ import 'types.dart';
 ///
 /// ## 事件流
 /// - [onServerMessage] 服务端消息
-/// - [onRoomStateChange] 房间状态变化
+/// - [onRoomStageChange] 房间状态变化
 abstract class IDuelService implements IService {
   // ─── 连接 ──────────────────────────────────────────
 
@@ -106,14 +107,7 @@ abstract class IDuelService implements IService {
   Stream<YgoStocMsg> get onServerMessage;
 
   /// 房间状态变化流（经过状态机解析后的高层语义）。
-  Stream<RoomState> get onRoomStateChange;
-}
-
-/// 创建决斗服务实例。
-///
-/// [type] 为 [ServiceType] 中注册的类型标识。
-IService createDuelService(int type) {
-  return ServiceFactory.create(type);
+  Stream<RoomStage> get onRoomStageChange;
 }
 
 /// 网络连接状态。
@@ -128,9 +122,9 @@ enum ConnectionState { disconnected, connecting, connected, error }
 abstract class DuelConnection {
   Future<void> connect(String address, int port);
 
-  void send(Uint8List data);
+  void send(YgoCtosMsg data);
 
-  Stream<Uint8List> get messages;
+  Stream<YgoStocMsg> get messages;
 
   Future<void> disconnect();
 

@@ -1,43 +1,138 @@
 import 'dart:typed_data';
+
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// MSG_SELECT_SUM (0x17) — 选择合计数值交互
+/// MSG_SELECT_SUM (0x17) — 选择合计数值交互。
 ///
-/// 服务端要求玩家选择多张卡牌，使其等级/数值之和满足给定条件。
-/// 格式较复杂，目前保留原始字节数据。
+/// 这里已结构化解析 must-select / selectable 两段卡牌列表，且保留 [rawData]
+/// 作为协议回退数据。
 ///
-/// 有线格式 (变长):
-/// | 偏移 | 大小 | 类型     | 说明                           |
-/// |------|------|----------|--------------------------------|
-/// | 0x00 | 1    | uint8    | 玩家 (0 或 1)                  |
-/// | 0x01 | 变长 | 原始数据 | 候选卡牌列表和条件信息          |
-///
-/// 参考 neos-ts 的 selectSum.ts 定义。
+/// [rawData] 不是冗余副本：它允许调用方在现有结构化字段之外，继续保留完整原消息，
+/// 用于协议透传、录包调试、或兼容将来新增但当前尚未建模的字段。
 class MsgSelectSum {
+  final int overflow;
   final int player;
+  final int levelSum;
+  final int min;
+  final int max;
+  final List<MsgSelectSumInfo> mustSelectCards;
+  final List<MsgSelectSumInfo> selectableCards;
   final Uint8List rawData;
 
-  const MsgSelectSum({required this.player, required this.rawData});
+  const MsgSelectSum({
+    required this.overflow,
+    required this.player,
+    required this.levelSum,
+    required this.min,
+    required this.max,
+    required this.mustSelectCards,
+    required this.selectableCards,
+    required this.rawData,
+  });
 
   int get funcId => MSG_SELECT_SUM;
 
   Uint8List encode() {
     final w = BufferWriter();
+    w.writeUint8(overflow);
     w.writeUint8(player);
-    w.writeBytes(rawData);
+    w.writeInt32(levelSum);
+    w.writeUint8(min);
+    w.writeUint8(max);
+    w.writeUint8(mustSelectCards.length);
+    for (final info in mustSelectCards) {
+      _writeInfo(w, info);
+    }
+    w.writeUint8(selectableCards.length);
+    for (final info in selectableCards) {
+      _writeInfo(w, info);
+    }
     return w.toBytes();
   }
 
+  static void _writeInfo(BufferWriter w, MsgSelectSumInfo info) {
+    w.writeInt32(info.code);
+    w.writeCardShortLocation(info.location);
+    if (info.level1 == info.level2) {
+      w.writeInt32(info.level1);
+    } else {
+      w.writeInt32((info.level2 << 16) | (info.level1 & 0xffff));
+    }
+  }
+
   static MsgSelectSum decode(Uint8List data) {
+    final rawData = Uint8List.fromList(data);
     final r = BufferReader(data);
+    final overflow = r.readUint8();
+    final player = r.readUint8();
+    final levelSum = r.readInt32();
+    final min = r.readUint8();
+    final max = r.readUint8();
+
+    MsgSelectSumInfo readInfo(int response) {
+      final code = r.readInt32();
+      final location = r.readCardShortLocation();
+      final para = r.readInt32();
+      var level1 = para & 0xffff;
+      var level2 = para >> 16;
+      if ((para & 0x80000000) != 0) {
+        level1 = para & 0x7fffffff;
+        level2 = level1;
+      }
+      if (level2 == 0) {
+        level2 = level1;
+      }
+      return MsgSelectSumInfo(
+        code: code,
+        location: location,
+        level1: level1,
+        level2: level2,
+        response: response,
+      );
+    }
+
+    final mustCount = r.readUint8();
+    final mustSelectCards = <MsgSelectSumInfo>[];
+    for (var i = 0; i < mustCount; i++) {
+      mustSelectCards.add(readInfo(i));
+    }
+
+    final selectableCount = r.readUint8();
+    final selectableCards = <MsgSelectSumInfo>[];
+    for (var i = 0; i < selectableCount; i++) {
+      selectableCards.add(readInfo(i));
+    }
+
     return MsgSelectSum(
-      player: r.readUint8(),
-      rawData: r.readBytes(data.length - 1),
+      overflow: overflow,
+      player: player,
+      levelSum: levelSum,
+      min: min,
+      max: max,
+      mustSelectCards: mustSelectCards,
+      selectableCards: selectableCards,
+      rawData: rawData,
     );
   }
 
   @override
   String toString() =>
-      'MsgSelectSum(player:$player rawDataLen:${rawData.length})';
+      'MsgSelectSum(player:$player levelSum:$levelSum must:${mustSelectCards.length} selectable:${selectableCards.length})';
+}
+
+class MsgSelectSumInfo {
+  final int code;
+  final CardShortLocation location;
+  final int level1;
+  final int level2;
+  final int response;
+
+  const MsgSelectSumInfo({
+    required this.code,
+    required this.location,
+    required this.level1,
+    required this.level2,
+    required this.response,
+  });
 }

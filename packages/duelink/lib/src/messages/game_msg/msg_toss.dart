@@ -2,8 +2,7 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Coin toss / dice roll results.
-/// Used for both MSG_TOSS_COIN and MSG_TOSS_DICE.
+/// MSG_TOSS_COIN (0x82) / MSG_TOSS_DICE (0x83) — 掷硬币或掷骰子结果。
 class MsgToss {
   final int player;
   final int count;

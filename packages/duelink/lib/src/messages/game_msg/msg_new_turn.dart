@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// New turn notification.
+/// MSG_NEW_TURN (0x28) — 回合切换通知。
 class MsgNewTurn {
   final int player;
 

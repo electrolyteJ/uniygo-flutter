@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import '../../constants.dart';
 import '../game_msg/msg_start.dart';
+import '../game_msg/msg_retry.dart';
 import '../game_msg/msg_draw.dart';
 import '../game_msg/msg_new_turn.dart';
 import '../game_msg/msg_new_phase.dart';
@@ -33,11 +34,17 @@ import '../game_msg/msg_sp_summoned.dart';
 import '../game_msg/msg_flip_summoning.dart';
 import '../game_msg/msg_flip_summoned.dart';
 import '../game_msg/msg_chaining.dart';
+import '../game_msg/msg_chained.dart';
+import '../game_msg/msg_chain_solving.dart';
 import '../game_msg/msg_chain_solved.dart';
 import '../game_msg/msg_chain_end.dart';
+import '../game_msg/msg_chain_negated.dart';
+import '../game_msg/msg_chain_disabled.dart';
 import '../game_msg/msg_attack.dart';
+import '../game_msg/msg_battle.dart';
 import '../game_msg/msg_attack_disable.dart';
 import '../game_msg/msg_become_target.dart';
+import '../game_msg/msg_random_selected.dart';
 import '../game_msg/msg_field_disabled.dart';
 import '../game_msg/msg_pos_change.dart';
 import '../game_msg/msg_set.dart';
@@ -46,6 +53,8 @@ import '../game_msg/msg_shuffle_deck.dart';
 import '../game_msg/msg_shuffle_hand.dart';
 import '../game_msg/msg_shuffle_extra.dart';
 import '../game_msg/msg_swap_grave_deck.dart';
+import '../game_msg/msg_reverse_deck.dart';
+import '../game_msg/msg_deck_top.dart';
 import '../game_msg/msg_shuffle_set_card.dart';
 import '../game_msg/msg_hand_res.dart';
 import '../game_msg/msg_toss.dart';
@@ -56,11 +65,24 @@ import '../game_msg/msg_announce_card.dart';
 import '../game_msg/msg_announce_number.dart';
 import '../game_msg/msg_confirm_cards.dart';
 import '../game_msg/msg_reload_field.dart';
+import '../game_msg/msg_card_hint.dart';
+import '../game_msg/msg_tag_swap.dart';
+import '../game_msg/msg_ai_name.dart';
+import '../game_msg/msg_show_hint.dart';
+import '../game_msg/msg_player_hint.dart';
+import '../game_msg/msg_match_kill.dart';
 import '../game_msg/msg_sibyl_name.dart';
 import '../game_msg/msg_add_counter.dart';
 import '../game_msg/msg_remove_counter.dart';
+import '../game_msg/msg_equip.dart';
+import '../game_msg/msg_card_target.dart';
+import '../game_msg/msg_cancel_target.dart';
+import '../game_msg/msg_damage_step_start.dart';
+import '../game_msg/msg_damage_step_end.dart';
+import '../game_msg/msg_missed_effect.dart';
 import '../game_msg/msg_update_data.dart';
 import '../game_msg/msg_update_card.dart';
+import '../game_msg/msg_unimplemented.dart';
 import '../../protocol/buffer_io.dart';
 
 /// STOC_GAME_MSG (1)
@@ -99,6 +121,8 @@ class StocGameMessage {
   Uint8List _encodeInner() {
     switch (func) {
       // ---- 基础流程消息 ----
+      case MSG_RETRY:
+        return (innerMsg as MsgRetry).encode();
       case MSG_START:
         return (innerMsg as MsgStart).encode();
       case MSG_DRAW:
@@ -173,18 +197,34 @@ class StocGameMessage {
       // ---- 连锁 ----
       case MSG_CHAINING:
         return (innerMsg as MsgChaining).encode();
+      case MSG_CHAINED:
+        return (innerMsg as MsgChained).encode();
+      case MSG_CHAIN_SOLVING:
+        return (innerMsg as MsgChainSolving).encode();
       case MSG_CHAIN_SOLVED:
         return (innerMsg as MsgChainSolved).encode();
       case MSG_CHAIN_END:
         return (innerMsg as MsgChainEnd).encode();
+      case MSG_CHAIN_NEGATED:
+        return (innerMsg as MsgChainNegated).encode();
+      case MSG_CHAIN_DISABLED:
+        return (innerMsg as MsgChainDisabled).encode();
 
       // ---- 战斗 & 攻击 ----
       case MSG_ATTACK:
         return (innerMsg as MsgAttack).encode();
+      case MSG_BATTLE:
+        return (innerMsg as MsgBattle).encode();
       case MSG_ATTACK_DISABLE:
         return (innerMsg as MsgAttackDisable).encode();
+      case MSG_DAMAGE_STEP_START:
+        return (innerMsg as MsgDamageStepStart).encode();
+      case MSG_DAMAGE_STEP_END:
+        return (innerMsg as MsgDamageStepEnd).encode();
       case MSG_BECOME_TARGET:
         return (innerMsg as MsgBecomeTarget).encode();
+      case MSG_RANDOM_SELECTED:
+        return (innerMsg as MsgRandomSelected).encode();
 
       // ---- 场地状态 ----
       case MSG_FIELD_DISABLED:
@@ -205,6 +245,10 @@ class StocGameMessage {
         return (innerMsg as MsgShuffleExtra).encode();
       case MSG_SWAP_GRAVE_DECK:
         return (innerMsg as MsgSwapGraveDeck).encode();
+      case MSG_REVERSE_DECK:
+        return (innerMsg as MsgReverseDeck).encode();
+      case MSG_DECK_TOP:
+        return (innerMsg as MsgDeckTop).encode();
       case MSG_SHUFFLE_SET_CARD:
         return (innerMsg as MsgShuffleSetCard).encode();
 
@@ -230,17 +274,39 @@ class StocGameMessage {
 
       // ---- 卡牌信息 ----
       case MSG_CONFIRM_CARDS:
+      case MSG_CONFIRM_DECKTOP:
+      case MSG_CONFIRM_EXTRATOP:
         return (innerMsg as MsgConfirmCards).encode();
 
       // ---- 刷新/更新 ----
+      case MSG_CARD_HINT:
+        return (innerMsg as MsgCardHint).encode();
+      case MSG_TAG_SWAP:
+        return (innerMsg as MsgTagSwap).encode();
       case MSG_RELOAD_FIELD:
         return (innerMsg as MsgReloadField).encode();
+      case MSG_AI_NAME:
+        return (innerMsg as MsgAiName).encode();
+      case MSG_SHOW_HINT:
+        return (innerMsg as MsgShowHint).encode();
+      case MSG_PLAYER_HINT:
+        return (innerMsg as MsgPlayerHint).encode();
+      case MSG_MATCH_KILL:
+        return (innerMsg as MsgMatchKill).encode();
       case MSG_SIBYL_NAME:
         return (innerMsg as MsgSibylName).encode();
       case MSG_ADD_COUNTER:
         return (innerMsg as MsgAddCounter).encode();
       case MSG_REMOVE_COUNTER:
         return (innerMsg as MsgRemoveCounter).encode();
+      case MSG_EQUIP:
+        return (innerMsg as MsgEquip).encode();
+      case MSG_CARD_TARGET:
+        return (innerMsg as MsgCardTarget).encode();
+      case MSG_CANCEL_TARGET:
+        return (innerMsg as MsgCancelTarget).encode();
+      case MSG_MISSED_EFFECT:
+        return (innerMsg as MsgMissedEffect).encode();
       case MSG_UPDATE_DATA:
         return (innerMsg as MsgUpdateData).encode();
       case MSG_UPDATE_CARD:
@@ -259,6 +325,8 @@ class StocGameMessage {
 
     switch (func) {
       // ---- 基础流程消息 ----
+      case MSG_RETRY:
+        return StocGameMessage(func: func, innerMsg: MsgRetry.decode(innerData));
       case MSG_START:
         return StocGameMessage(func: func, innerMsg: MsgStart.decode(innerData));
       case MSG_DRAW:
@@ -318,7 +386,7 @@ class StocGameMessage {
             func: func, innerMsg: MsgSelectCounter.decode(innerData));
       case MSG_SELECT_DISFIELD:
         return StocGameMessage(
-            func: func, innerMsg: MsgSelectUnselectCard.decode(innerData));
+            func: func, innerMsg: MsgSelectPlace.decode(innerData));
       case MSG_SORT_CARD:
         return StocGameMessage(func: func, innerMsg: MsgSortCard.decode(innerData));
 
@@ -358,22 +426,45 @@ class StocGameMessage {
       case MSG_CHAINING:
         return StocGameMessage(
             func: func, innerMsg: MsgChaining.decode(innerData));
+      case MSG_CHAINED:
+        return StocGameMessage(
+            func: func, innerMsg: MsgChained.decode(innerData));
+      case MSG_CHAIN_SOLVING:
+        return StocGameMessage(
+            func: func, innerMsg: MsgChainSolving.decode(innerData));
       case MSG_CHAIN_SOLVED:
         return StocGameMessage(
             func: func, innerMsg: MsgChainSolved.decode(innerData));
       case MSG_CHAIN_END:
         return StocGameMessage(
             func: func, innerMsg: MsgChainEnd.decode(innerData));
+      case MSG_CHAIN_NEGATED:
+        return StocGameMessage(
+            func: func, innerMsg: MsgChainNegated.decode(innerData));
+      case MSG_CHAIN_DISABLED:
+        return StocGameMessage(
+            func: func, innerMsg: MsgChainDisabled.decode(innerData));
 
       // ---- 战斗 & 攻击 ----
       case MSG_ATTACK:
         return StocGameMessage(func: func, innerMsg: MsgAttack.decode(innerData));
+      case MSG_BATTLE:
+        return StocGameMessage(func: func, innerMsg: MsgBattle.decode(innerData));
       case MSG_ATTACK_DISABLE:
         return StocGameMessage(
             func: func, innerMsg: MsgAttackDisable.decode(innerData));
+      case MSG_DAMAGE_STEP_START:
+        return StocGameMessage(
+            func: func, innerMsg: MsgDamageStepStart.decode(innerData));
+      case MSG_DAMAGE_STEP_END:
+        return StocGameMessage(
+            func: func, innerMsg: MsgDamageStepEnd.decode(innerData));
       case MSG_BECOME_TARGET:
         return StocGameMessage(
             func: func, innerMsg: MsgBecomeTarget.decode(innerData));
+      case MSG_RANDOM_SELECTED:
+        return StocGameMessage(
+            func: func, innerMsg: MsgRandomSelected.decode(innerData));
 
       // ---- 场地状态 ----
       case MSG_FIELD_DISABLED:
@@ -400,6 +491,12 @@ class StocGameMessage {
       case MSG_SWAP_GRAVE_DECK:
         return StocGameMessage(
             func: func, innerMsg: MsgSwapGraveDeck.decode(innerData));
+      case MSG_REVERSE_DECK:
+        return StocGameMessage(
+            func: func, innerMsg: MsgReverseDeck.decode(innerData));
+      case MSG_DECK_TOP:
+        return StocGameMessage(
+            func: func, innerMsg: MsgDeckTop.decode(innerData));
       case MSG_SHUFFLE_SET_CARD:
         return StocGameMessage(
             func: func, innerMsg: MsgShuffleSetCard.decode(innerData));
@@ -432,13 +529,32 @@ class StocGameMessage {
 
       // ---- 卡牌信息 ----
       case MSG_CONFIRM_CARDS:
+      case MSG_CONFIRM_DECKTOP:
+      case MSG_CONFIRM_EXTRATOP:
         return StocGameMessage(
             func: func, innerMsg: MsgConfirmCards.decode(innerData));
 
       // ---- 刷新/更新 ----
+      case MSG_CARD_HINT:
+        return StocGameMessage(
+            func: func, innerMsg: MsgCardHint.decode(innerData));
+      case MSG_TAG_SWAP:
+        return StocGameMessage(
+            func: func, innerMsg: MsgTagSwap.decode(innerData));
       case MSG_RELOAD_FIELD:
         return StocGameMessage(
             func: func, innerMsg: MsgReloadField.decode(innerData));
+      case MSG_AI_NAME:
+        return StocGameMessage(func: func, innerMsg: MsgAiName.decode(innerData));
+      case MSG_SHOW_HINT:
+        return StocGameMessage(
+            func: func, innerMsg: MsgShowHint.decode(innerData));
+      case MSG_PLAYER_HINT:
+        return StocGameMessage(
+            func: func, innerMsg: MsgPlayerHint.decode(innerData));
+      case MSG_MATCH_KILL:
+        return StocGameMessage(
+            func: func, innerMsg: MsgMatchKill.decode(innerData));
       case MSG_SIBYL_NAME:
         return StocGameMessage(
             func: func, innerMsg: MsgSibylName.decode(innerData));
@@ -448,6 +564,17 @@ class StocGameMessage {
       case MSG_REMOVE_COUNTER:
         return StocGameMessage(
             func: func, innerMsg: MsgRemoveCounter.decode(innerData));
+      case MSG_EQUIP:
+        return StocGameMessage(func: func, innerMsg: MsgEquip.decode(innerData));
+      case MSG_CARD_TARGET:
+        return StocGameMessage(
+            func: func, innerMsg: MsgCardTarget.decode(innerData));
+      case MSG_CANCEL_TARGET:
+        return StocGameMessage(
+            func: func, innerMsg: MsgCancelTarget.decode(innerData));
+      case MSG_MISSED_EFFECT:
+        return StocGameMessage(
+            func: func, innerMsg: MsgMissedEffect.decode(innerData));
       case MSG_UPDATE_DATA:
         return StocGameMessage(
             func: func, innerMsg: MsgUpdateData.decode(innerData));
@@ -456,7 +583,9 @@ class StocGameMessage {
             func: func, innerMsg: MsgUpdateCard.decode(innerData));
 
       default:
-        return StocGameMessage(func: func, innerMsg: MsgWait.decode(innerData));
+        return StocGameMessage(
+            func: func,
+            innerMsg: MsgUnimplemented.decode(func, innerData));
     }
   }
 

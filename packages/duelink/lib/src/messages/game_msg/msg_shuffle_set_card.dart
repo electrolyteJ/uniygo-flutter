@@ -1,10 +1,14 @@
 import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
+import '../../types.dart';
 
 /// MSG_SHUFFLE_SET_CARD (0x24) — 盖放卡位置随机交换通知
 ///
 /// 通知客户端盖放的多张卡牌位置进行了随机交换（例如魔术礼帽效果）。
+///
+/// 上层通常应优先使用 [zoneValue] / [zoneEnum] 来判断发生交换的区域；只有在需要
+/// 保留协议原值或兼容未知区域编码时，才读取 [rawZone] / [zoneCode]。
 ///
 /// 有线格式 (变长):
 /// | 偏移 | 大小    | 类型             | 说明                    |
@@ -27,6 +31,18 @@ class MsgShuffleSetCard {
     required this.fromLocations,
     required this.overlayLocations,
   });
+
+  /// 原始协议中的区域数字值。
+  int get rawZone => zone;
+
+  /// [rawZone] 的别名，便于与其他 message 的 helper getter 保持一致。
+  int get zoneCode => zone;
+
+  /// 语义化的区域枚举，适合大多数消费场景。
+  CardZone get zoneValue => zoneEnum;
+
+  /// 语义化的区域枚举，适合大多数消费场景。
+  CardZone get zoneEnum => CardZone.fromNumber(zone);
 
   int get funcId => MSG_SHUFFLE_SET_CARD;
 

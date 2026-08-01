@@ -2,8 +2,10 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Select card interaction (fully decoded).
-/// Format: player + cancelable + min + max + count + [code(u32) + CardLocation(4); count]
+/// MSG_SELECT_CARD (0x0F) — 选卡交互。
+///
+/// 载荷格式为 `player + cancelable + min + max + count + cards[]`，
+/// 当前已完成结构化解码。
 class MsgSelectCard {
   final int player;
   final int cancelable;

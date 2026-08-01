@@ -51,7 +51,8 @@ const int STOC_HS_WATCH_CHANGE = 34;
 // ============================================================================
 
 // ---- 基础流程消息 ----
-const int MSG_RESPONSE = 1;
+/// MSG_RETRY: 要求客户端重试上一条交互响应
+const int MSG_RETRY = 1;
 /// MSG_HINT: 服务端提示/描述文字
 const int MSG_HINT = 2;
 /// MSG_WAITING: 等待对手操作
@@ -102,6 +103,8 @@ const int MSG_SELECT_UNSELECT_CARD = 26;
 const int MSG_CONFIRM_CARDS = 30;
 /// MSG_CONFIRM_DECKTOP: 确认卡组顶部卡片
 const int MSG_CONFIRM_DECKTOP = 31;
+/// MSG_CONFIRM_EXTRATOP: 确认额外卡组顶部卡片
+const int MSG_CONFIRM_EXTRATOP = 42;
 
 // ---- 洗牌消息 ----
 /// MSG_SHUFFLE_DECK: 洗主卡组
@@ -111,6 +114,10 @@ const int MSG_SHUFFLE_HAND = 33;
 const int MSG_SWAP_GRAVE_DECK = 35;
 /// MSG_SHUFFLE_SET_CARD: 盖放卡位置随机交换
 const int MSG_SHUFFLE_SET_CARD = 36;
+/// MSG_REVERSE_DECK: 卡组朝向翻转
+const int MSG_REVERSE_DECK = 37;
+/// MSG_DECK_TOP: 更新卡组顶部卡片信息
+const int MSG_DECK_TOP = 38;
 /// MSG_SHUFFLE_EXTRA: 洗额外卡组
 const int MSG_SHUFFLE_EXTRA = 39;
 
@@ -149,12 +156,22 @@ const int MSG_FLIP_SUMMONED = 65;
 // ---- 连锁消息 ----
 /// MSG_CHAINING: 连锁开始
 const int MSG_CHAINING = 70;
+/// MSG_CHAINED: 连锁已入链
+const int MSG_CHAINED = 71;
+/// MSG_CHAIN_SOLVING: 当前正在处理的连锁序号
+const int MSG_CHAIN_SOLVING = 72;
 /// MSG_CHAIN_SOLVED: 连锁逆解中（单步处理）
 const int MSG_CHAIN_SOLVED = 73;
 /// MSG_CHAIN_END: 连锁结束
 const int MSG_CHAIN_END = 74;
+/// MSG_CHAIN_NEGATED: 连锁被无效
+const int MSG_CHAIN_NEGATED = 75;
+/// MSG_CHAIN_DISABLED: 连锁效果被无效
+const int MSG_CHAIN_DISABLED = 76;
 
 // ---- 效果/目标 ----
+/// MSG_RANDOM_SELECTED: 随机选中卡片结果
+const int MSG_RANDOM_SELECTED = 81;
 /// MSG_BECOME_TARGET: 成为效果对象
 const int MSG_BECOME_TARGET = 83;
 
@@ -165,8 +182,14 @@ const int MSG_DRAW = 90;
 const int MSG_DAMAGE = 91;
 /// MSG_RECOVER: LP 恢复
 const int MSG_RECOVER = 92;
+/// MSG_EQUIP: 建立装备关系
+const int MSG_EQUIP = 93;
 /// MSG_LP_UPDATE: LP 变化通知（用于 Damage+Recover 合并后的更新）
 const int MSG_LP_UPDATE = 94;
+/// MSG_CARD_TARGET: 建立取对象关系
+const int MSG_CARD_TARGET = 96;
+/// MSG_CANCEL_TARGET: 取消取对象关系
+const int MSG_CANCEL_TARGET = 97;
 /// MSG_PAY_LP_COST: 支付 LP 代价
 const int MSG_PAY_LP_COST = 100;
 
@@ -179,8 +202,18 @@ const int MSG_REMOVE_COUNTER = 102;
 // ---- 战斗 ----
 /// MSG_ATTACK: 攻击宣言（全零 target = 直接攻击）
 const int MSG_ATTACK = 110;
+/// MSG_BATTLE: 战斗结算数据
+const int MSG_BATTLE = 111;
 /// MSG_ATTACK_DISABLE: 攻击无效/无法攻击
 const int MSG_ATTACK_DISABLE = 112;
+/// MSG_DAMAGE_STEP_START: 进入伤害步骤
+const int MSG_DAMAGE_STEP_START = 113;
+/// MSG_DAMAGE_STEP_END: 离开伤害步骤
+const int MSG_DAMAGE_STEP_END = 114;
+
+// ---- 其他效果状态 ----
+/// MSG_MISSED_EFFECT: 错过时点的效果提示
+const int MSG_MISSED_EFFECT = 120;
 
 // ---- 随机 ----
 /// MSG_TOSS_COIN: 掷硬币
@@ -203,8 +236,20 @@ const int MSG_ANNOUNCE_CARD = 142;
 const int MSG_ANNOUNCE_NUMBER = 143;
 
 // ---- 其他 ----
+/// MSG_CARD_HINT: 卡牌级提示状态更新
+const int MSG_CARD_HINT = 160;
+/// MSG_TAG_SWAP: Tag Duel 换人/换手牌同步
+const int MSG_TAG_SWAP = 161;
 /// MSG_RELOAD_FIELD: 刷新整个场地（含卡组状态）
 const int MSG_RELOAD_FIELD = 162;
+/// MSG_AI_NAME: 调试 AI 名称
+const int MSG_AI_NAME = 163;
+/// MSG_SHOW_HINT: 调试提示文本
+const int MSG_SHOW_HINT = 164;
+/// MSG_PLAYER_HINT: 玩家级提示状态更新
+const int MSG_PLAYER_HINT = 165;
+/// MSG_MATCH_KILL: Match Kill 标记
+const int MSG_MATCH_KILL = 170;
 /// MSG_SIBYL_NAME: 神托/占卜选名
 const int MSG_SIBYL_NAME = 235;
 

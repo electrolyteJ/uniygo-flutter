@@ -2,7 +2,10 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Attack declaration. All-zero target = direct attack.
+/// MSG_ATTACK (0x6E) — 攻击宣言通知。
+///
+/// 载荷包含攻击方和目标方的 `CardLocation`。
+/// 若目标位置全 0，则表示直接攻击。
 class MsgAttack {
   final CardLocation attacker;
   final CardLocation? target;

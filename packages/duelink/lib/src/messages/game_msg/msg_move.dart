@@ -2,7 +2,9 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Card movement notification. 19 bytes total.
+/// MSG_MOVE (0x32) — 卡牌移动通知。
+///
+/// 通知客户端某张卡从一个位置移动到另一个位置，并携带移动原因位掩码。
 class MsgMove {
   final int code;
   final CardLocation from;

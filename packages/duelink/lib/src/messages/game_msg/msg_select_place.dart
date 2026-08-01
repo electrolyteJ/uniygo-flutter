@@ -2,7 +2,11 @@ import 'dart:typed_data';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
 
-/// Select place interaction (similar to select card but with field: uint32).
+/// MSG_SELECT_PLACE (0x12) / MSG_SELECT_DISFIELD (0x18) — 选择场地区域交互。
+///
+/// 两个消息的线格式一致，都是 `player + count + fieldMask`：
+/// - `MSG_SELECT_PLACE` 用于从可用区域中选择放置位置
+/// - `MSG_SELECT_DISFIELD` 用于选择被禁用/受限的区域位图
 class MsgSelectPlace {
   final int player;
   final int count;
@@ -14,6 +18,8 @@ class MsgSelectPlace {
     required this.field,
   });
 
+  /// 默认函数号使用 `MSG_SELECT_PLACE`；当作 `MSG_SELECT_DISFIELD` 解码时，
+  /// 外层 `StocGameMessage.func` 会保留原始命令号。
   int get funcId => MSG_SELECT_PLACE;
 
   Uint8List encode() {
