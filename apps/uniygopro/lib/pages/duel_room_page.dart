@@ -53,11 +53,16 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
       state.updateFromDuelink(roomStage);
       if (roomStage is RoomInDuel) {
         state.bind(_duelService);
+      }else if (roomStage is RoomDuelEnded) {
+        state.unbind();
+        Navigator.of(context).pop();
+        context.go('/');
       }
     });
 
     _msgSub = _duelService.onServerMessage.listen((msg) {
       if (msg.selectTp != null) {
+        console.log('Received selectTp message: ${msg.selectTp}');
         state.enableTurnOrderSelection();
       }
       if (msg.chat != null) {
@@ -118,9 +123,8 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
 
   Future<void> _toggleReady() async {
     final state = context.read<DuelRoomState>();
-    final mySlotVal = _mySlot(state);
     final isReady = state.players
-        .where((p) => p.pos == mySlotVal)
+        .where((p) => p.pos == state.selfType.slot)
         .any((p) => p.ready);
     if (isReady) {
       _duelService.unready();
@@ -164,20 +168,6 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     }
     return bytes;
   }
-
-  int _mySlot(DuelRoomState state) {
-    switch (state.selfType) {
-      case SelfType.player1:
-        return 0;
-      case SelfType.player2:
-        return 1;
-      default:
-        return -1;
-    }
-  }
-
-  bool _isMyself(DuelRoomState state, int pos) => _mySlot(state) == pos;
-
   String _roomTitle(DuelRoomState state, MatchStore match) {
     final modeName = switch (state.roomOptions?.mode) {
       RoomMode.single => '单局',
@@ -234,9 +224,9 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     }
 
     return Scaffold(
-      backgroundColor: state.isInDuel ? Colors.brown.shade900 : Colors.blueGrey.shade900,
-      appBar: state.isInDuel ? null : _buildAppBar(state, match) as PreferredSizeWidget?,
-      body: state.isInDuel ? _buildDuelView(state) : _buildReadyRoomView(state, match),
+      backgroundColor: state.stage is RoomInDuel ? Colors.brown.shade900 : Colors.blueGrey.shade900,
+      appBar: state.stage is RoomInDuel ? null : _buildAppBar(state, match) as PreferredSizeWidget?,
+      body: state.stage is RoomInDuel ? _buildDuelView(state) : _buildReadyRoomView(state, match),
     );
   }
 
@@ -257,7 +247,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
 
   Widget _buildReadyRoomView(DuelRoomState state, MatchStore match) {
     final opts = state.roomOptions;
-    final mySlotVal = _mySlot(state);
+    final mySlotVal = state.selfType.slot;
     final isPlayer = mySlotVal >= 0 && mySlotVal <= 1;
     final isReady = isPlayer &&
         state.players.where((p) => p.pos == mySlotVal).any((p) => p.ready);
@@ -327,7 +317,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
   }
 
   Widget _buildStatusBarResult(DuelRoomState state) {
-    final mySlotVal = _mySlot(state);
+    final mySlotVal = state.selfType.slot;
     final myPlayer = state.players.where((p) => p.pos == mySlotVal).toList();
     final myName = myPlayer.isNotEmpty ? myPlayer.first.name : '我';
 
@@ -420,6 +410,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     _msgSub?.cancel();
     _chatCtrl.dispose();
     _chatScrollCtrl.dispose();
+    _duelService.surrender();
     _duelService.disconnect();
     super.dispose();
   }

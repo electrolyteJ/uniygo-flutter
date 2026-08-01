@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import '../../constants.dart';
+import '../../model/room_stage.dart';
 import '../../protocol/buffer_io.dart';
 
 /// STOC_TYPE_CHANGE (19)
@@ -14,28 +15,15 @@ import '../../protocol/buffer_io.dart';
 class StocTypeChange {
   final bool isHost;
   /// 0=PLAYER1, 1=PLAYER2, 7=OBSERVER
-  final int selfType;
-  const StocTypeChange({required this.isHost, required this.selfType});
+  final int _selfType;
+  const StocTypeChange({required this.isHost, required this._selfType});
 
-  StocSelfType get selfTypeValue {
-    switch (selfType) {
-      case 0:
-        return StocSelfType.player1;
-      case 1:
-        return StocSelfType.player2;
-      case 7:
-        return StocSelfType.observer;
-      default:
-        return StocSelfType.unknown;
-    }
-  }
-
-  bool get isObserver => selfTypeValue == StocSelfType.observer;
+  get selfType => SelfType.fromValue(_selfType);
   int get protoId => STOC_TYPE_CHANGE;
 
   Uint8List encode() {
     final w = BufferWriter();
-    w.writeUint8(((isHost ? 1 : 0) << 4) | (selfType & 0xf));
+    w.writeUint8(((isHost ? 1 : 0) << 4) | (_selfType & 0xf));
     return w.toBytes();
   }
 
@@ -45,7 +33,5 @@ class StocTypeChange {
   }
 
   @override
-  String toString() => 'StocTypeChange(isHost:$isHost selfType:$selfType)';
+  String toString() => 'StocTypeChange(isHost:$isHost selfType:$_selfType)';
 }
-
-enum StocSelfType { unknown, player1, player2, observer }

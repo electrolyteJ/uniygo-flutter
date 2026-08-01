@@ -1,6 +1,8 @@
 import 'dart:typed_data';
+
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
+import '../../types.dart';
 
 /// MSG_SELECT_POSITION (0x13) — 选择表示形式交互
 ///
@@ -26,6 +28,17 @@ class MsgSelectPosition {
   });
 
   int get funcId => MSG_SELECT_POSITION;
+
+  int get rawPositions => positions;
+
+  List<CardPosition> get availablePositions {
+    final result = <CardPosition>[];
+    if ((positions & 0x1) != 0) result.add(CardPosition.faceupAttack);
+    if ((positions & 0x2) != 0) result.add(CardPosition.facedownAttack);
+    if ((positions & 0x4) != 0) result.add(CardPosition.faceupDefense);
+    if ((positions & 0x8) != 0) result.add(CardPosition.facedownDefense);
+    return result;
+  }
 
   Uint8List encode() {
     final w = BufferWriter();

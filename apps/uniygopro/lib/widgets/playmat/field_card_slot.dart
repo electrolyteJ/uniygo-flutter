@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../models/FieldCard.dart';
 import '../../stores/duel_room_state.dart';
 import '../shared/card_image.dart';
 
@@ -63,6 +64,7 @@ class FieldCardSlot extends StatelessWidget {
     final pos = card!.position;
     final isFaceUp = (pos & 0x1 != 0) || (pos & 0x2 != 0);
     final isDefense = (pos & 0x2 != 0) || (pos & 0x8 != 0);
+    final isDisabled = card!.disabled;
 
     return GestureDetector(
       onTap: onTap,
@@ -75,12 +77,18 @@ class FieldCardSlot extends StatelessWidget {
           border: Border.all(
             color: isSelected
                 ? Colors.cyanAccent
-                : (isSelectable ? Colors.amberAccent : Colors.white30),
+                : (isSelectable
+                    ? Colors.amberAccent
+                    : (isDisabled ? Colors.redAccent : Colors.white30)),
             width: isSelected || isSelectable ? 2.0 : 1.0,
           ),
           boxShadow: isSelected
               ? [BoxShadow(color: Colors.cyanAccent.withOpacity(0.6), blurRadius: 8)]
-              : (isSelectable ? [BoxShadow(color: Colors.amber.withOpacity(0.5), blurRadius: 6)] : []),
+              : (isSelectable
+                  ? [BoxShadow(color: Colors.amber.withOpacity(0.5), blurRadius: 6)]
+                  : (isDisabled
+                      ? [BoxShadow(color: Colors.redAccent.withOpacity(0.35), blurRadius: 6)]
+                      : [])),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(3),
@@ -91,20 +99,35 @@ class FieldCardSlot extends StatelessWidget {
               Center(
                 child: Transform.rotate(
                   angle: isDefense ? 1.5708 : 0, // 90度旋转表示守备状态
-                  child: isFaceUp
-                      ? CardImage(code: card!.code, width: slotWidth, height: slotHeight)
-                      : Container(
-                          width: slotWidth,
-                          height: slotHeight,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      isFaceUp
+                          ? CardImage(code: card!.code, width: slotWidth, height: slotHeight)
+                          : Container(
+                              width: slotWidth,
+                              height: slotHeight,
+                              decoration: BoxDecoration(
+                                color: Colors.brown.shade800,
+                                borderRadius: BorderRadius.circular(3),
+                                border: Border.all(color: Colors.amber.shade900),
+                              ),
+                              child: const Center(
+                                child: Icon(Icons.shield_outlined, color: Colors.amber, size: 16),
+                              ),
+                            ),
+                      if (isDisabled)
+                        Container(
                           decoration: BoxDecoration(
-                            color: Colors.brown.shade800,
-                            borderRadius: BorderRadius.circular(3),
-                            border: Border.all(color: Colors.amber.shade900),
+                            color: Colors.black.withOpacity(0.38),
+                            border: Border.all(color: Colors.redAccent, width: 1.5),
                           ),
                           child: const Center(
-                            child: Icon(Icons.shield_outlined, color: Colors.amber, size: 16),
+                            child: Icon(Icons.block, color: Colors.redAccent, size: 18),
                           ),
                         ),
+                    ],
+                  ),
                 ),
               ),
 

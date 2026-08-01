@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flutter/material.dart';
+import '../../../models/FieldCard.dart';
 import '../../../stores/duel_room_state.dart';
 import 'duel_flame_game.dart';
 

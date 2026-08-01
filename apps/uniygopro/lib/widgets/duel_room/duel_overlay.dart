@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../models/SelectState.dart';
 import '../../stores/duel_room_state.dart';
 import 'select_menu.dart';
 import 'battle_select_menu.dart';

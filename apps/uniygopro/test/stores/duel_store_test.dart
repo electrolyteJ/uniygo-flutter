@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:duelink/duelink.dart';
+import 'package:uniygopro/models/FieldCard.dart';
+import 'package:uniygopro/models/SelectState.dart';
 import 'package:uniygopro/stores/duel_room_state.dart';
 
 void main() {

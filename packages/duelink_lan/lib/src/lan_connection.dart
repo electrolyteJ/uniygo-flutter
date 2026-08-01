@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:duelink/duelink.dart';
 
-/// 局域网TCP连接实现
+/// 局域网TCP连接实现。
+///
+/// 工作在 [YgoCtosMsg] / [YgoStocMsg] 消息对象上，
+/// 线格式由 duelink 的 [encodeCtos] / [decodeStocs] 负责。
 class LanConnection implements DuelConnection {
   Socket? _socket;
-  final _messageController = StreamController<Uint8List>.broadcast();
+  final _msgCtrl = StreamController<YgoStocMsg>.broadcast();
   final _stateController = StreamController<ConnectionState>.broadcast();
   ConnectionState _state = ConnectionState.disconnected;
 
@@ -22,7 +24,9 @@ class LanConnection implements DuelConnection {
 
       _socket!.listen(
         (data) {
-          _messageController.add(data);
+          for (final s in decodeStocs(data)) {
+            _msgCtrl.add(s);
+          }
         },
         onError: (error) {
           _state = ConnectionState.error;
@@ -41,12 +45,12 @@ class LanConnection implements DuelConnection {
   }
 
   @override
-  void send(Uint8List data) {
-    _socket?.add(data);
+  void send(YgoCtosMsg msg) {
+    _socket?.add(encodeCtos(msg));
   }
 
   @override
-  Stream<Uint8List> get messages => _messageController.stream;
+  Stream<YgoStocMsg> get messages => _msgCtrl.stream;
 
   @override
   Future<void> disconnect() async {

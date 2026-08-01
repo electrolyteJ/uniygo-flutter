@@ -102,16 +102,11 @@ abstract class BaseDuelService implements IDuelService {
   }
 
   void _onTypeChange(StocTypeChange m) {
-    final selfType = m.selfType == 7
-        ? SelfType.observer
-        : m.selfType == 0
-            ? SelfType.player1
-            : SelfType.player2;
-    console.log('RoomStage: TYPE_CHANGE → RoomInLobby self:$selfType host:${m.isHost}');
+    console.log('RoomStage: TYPE_CHANGE → RoomInLobby self:${m.selfType} host:${m.isHost}');
     _roomStage = RoomInLobby(
       players: _playersOf(_roomStage),
       observerCount: _obsOf(_roomStage),
-      selfType: selfType,
+      selfType: m.selfType,
       isHost: m.isHost,
       options: _pendingOptions ?? const RoomOptions(),
     );
@@ -183,7 +178,7 @@ abstract class BaseDuelService implements IDuelService {
   }
 
   void _onTpSelected(MsgStart gameMsg) {
-    console.log('RoomStage: tp selected → RoomPreDuel ${gameMsg}');
+    console.log('RoomStage: tp selected → RoomInDuel ${gameMsg}');
     _roomStage = RoomInDuel(
       players: _playersOf(_roomStage),
       observerCount: _obsOf(_roomStage),

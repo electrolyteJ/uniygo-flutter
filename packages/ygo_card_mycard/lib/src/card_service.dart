@@ -307,7 +307,7 @@ class BaseCardService implements ICardService {
     // _cardDao ??= await initDatabase();
     final result = await _cardDao!.getCard(code);
     if (result == null) return null;
-    console.log('searchCards: found ${result} results for "$code ${envType}"');
+    // console.log('searchCards: found ${result} results for "$code ${envType}"');
     return toPackageCard(result);
   }
 
@@ -317,7 +317,7 @@ class BaseCardService implements ICardService {
       throw Exception('CardService not initialized. Call initDatabase() first.');
     }
     final results = await _cardDao!.searchByName(keyword);
-    console.log('searchCards: found ${results.length} results for "$keyword ${envType}"');
+    // console.log('searchCards: found ${results.length} results for "$keyword ${envType}"');
     return results.map(toPackageCard).toList();
   }
 
@@ -340,7 +340,7 @@ class BaseCardService implements ICardService {
       race: race,
       maxResults: maxResults,
     );
-    console.log('searchCards: found ${dbCards.length} results for "$query ${envType}"');
+    // console.log('searchCards: found ${dbCards.length} results for "$query ${envType}"');
     return dbCards.map(toPackageCard).toList();
   }
 }

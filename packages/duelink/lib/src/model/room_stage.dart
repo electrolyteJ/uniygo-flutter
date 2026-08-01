@@ -118,7 +118,7 @@ class RoomInDuel extends RoomStage {
     required this.isFirstTurn,
   });
 
-  @override String toString() => 'RoomPreDuel(first:$isFirstTurn)';
+  @override String toString() => 'RoomInDuel(first:$isFirstTurn)';
 }
 
 /// 决斗结束。
@@ -148,4 +148,25 @@ class RoomSideDecking extends RoomStage {
 // ─── 辅助枚举 ───────────────────────────────────────────
 
 /// 玩家在房间中的身份。
-enum SelfType { unknown, player1, player2, observer }
+enum SelfType {
+  unknown(-1),
+  player1(0),
+  player2(1),
+  observer(7);
+  final int slot;
+
+  const SelfType(this.slot);
+
+  static SelfType fromValue(int value) {
+    switch (value) {
+      case 0:
+        return SelfType.player1;
+      case 1:
+        return SelfType.player2;
+      case 7:
+        return SelfType.observer;
+      default:
+        return SelfType.unknown;
+    }
+  }
+}
