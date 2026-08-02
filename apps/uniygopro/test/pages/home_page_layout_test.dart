@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:uniygopro/config/servers.dart';
-import 'package:uniygopro/pages/home_page.dart';
+import 'package:uniygopro/widgets/create_room/env_selector.dart';
 
 void main() {
   testWidgets('EnvSelector fits narrow row width without overflow', (tester) async {

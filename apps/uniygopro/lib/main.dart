@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:uniygopro/service_loader.registrations.g.dart';
 import 'package:uniygopro/service_singleton.dart';
 import 'package:uniygopro/stores/deck_editor_store.dart';
 import 'package:uniygopro/stores/duel_room_state.dart';
@@ -10,6 +11,7 @@ import 'stores/side_store.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  registerAllServices();
   ServiceSingleton.instance.registerService();
   runApp(
     MultiProvider(

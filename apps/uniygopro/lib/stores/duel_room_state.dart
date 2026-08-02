@@ -2,20 +2,30 @@ import 'dart:async';
 import 'dart:developer' as console;
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/BattleAction.dart';
 import '../models/ChainLink.dart';
 import '../models/ChatMessage.dart';
+import '../models/duel_board_state.dart';
+import '../models/duel_event.dart';
 import '../models/DuelPhase.dart';
 import '../models/FieldCard.dart';
 import '../models/IdleAction.dart';
+import '../models/duel_selection_state.dart';
 import '../models/SelectState.dart';
 import '../models/deck_model.dart';
 import '../service_singleton.dart';
 import '../services/deck_service.dart';
+import 'duel_board_controller.dart';
+import '../eventbus/duel_event_mapper.dart';
+import 'duel_selection_controller.dart';
 import 'package:ygo_card/card_info.dart' as pkg;
 // ── DuelRoomState ──
 
 class DuelRoomState extends ChangeNotifier {
+  static const _autoHandPrefKey = 'duel.auto_hand_enabled';
+  static const _autoTurnOrderPrefKey = 'duel.auto_turn_order_enabled';
+
   // === 等待房间字段 (from RoomStore) ===
   RoomStage stage = const RoomNotJoined();
   SelfType selfType = SelfType.unknown;
@@ -31,70 +41,131 @@ class DuelRoomState extends ChangeNotifier {
   String? errorMessage;
   String? selectedDeckName;
   List<DeckMeta> availableDecks = [];
-
-  // === 决斗字段 (from DuelStore) ===
-  final Map<String, FieldCard> fieldCards = {};
-  final List<int> selfHand = [];
-  final List<int> opponentHand = [];
-  int selfDeck = 0, selfExtra = 0, selfGrave = 0, selfRemoved = 0;
-  int oppDeck = 0, oppExtra = 0, oppGrave = 0, oppRemoved = 0;
-  int selfLp = 8000, opponentLp = 8000;
-  int currentPlayer = 0;
-  int phase = 0;
-  int turnCount = 0;
-  int myController = 0;
+  bool autoHandEnabled = false;
+  bool autoTurnOrderEnabled = false;
+  // === 决斗字段 ===
+  final DuelBoardState board = DuelBoardState();
 
   /// 卡片信息缓存：code → CardInfo（从本地 SQLite 查询）
   final Map<int, pkg.CardInfo> _cardInfoCache = {};
-  List<DuelPhase> phases = [];
-  List<IdleAction> selectedIdleActions = [];
-  List<BattleAction> selectedBattleActions = [];
-  bool enableBp = false;
-  bool enableM2 = false;
-  bool enableEp = false;
-  SelectState? currentSelect;
+  final DuelSelectionState selection = DuelSelectionState();
 
-  bool get isWaitingForInput => currentSelect != null;
-  String? lastSummonKey;
-  String? lastAttackFrom;
-  String? lastAttackTo;
-  List<ChainLink> chains = [];
+  Map<String, FieldCard> get fieldCards => board.fieldCards;
+  List<int> get selfHand => board.selfHand;
+  List<int> get opponentHand => board.opponentHand;
+  List<int> get selfGraveCodes => board.selfGraveCodes;
+  List<int> get opponentGraveCodes => board.opponentGraveCodes;
+  List<int> get selfRemovedCodes => board.selfRemovedCodes;
+  List<int> get opponentRemovedCodes => board.opponentRemovedCodes;
+  List<int> get selfExtraCodes => board.selfExtraCodes;
+  List<int> get opponentExtraCodes => board.opponentExtraCodes;
+  int get selfDeck => board.selfDeck;
+  set selfDeck(int value) => board.selfDeck = value;
+  int get selfExtra => board.selfExtra;
+  set selfExtra(int value) => board.selfExtra = value;
+  int get selfGrave => board.selfGrave;
+  set selfGrave(int value) => board.selfGrave = value;
+  int get selfRemoved => board.selfRemoved;
+  set selfRemoved(int value) => board.selfRemoved = value;
+  int get oppDeck => board.oppDeck;
+  set oppDeck(int value) => board.oppDeck = value;
+  int get oppExtra => board.oppExtra;
+  set oppExtra(int value) => board.oppExtra = value;
+  int get oppGrave => board.oppGrave;
+  set oppGrave(int value) => board.oppGrave = value;
+  int get oppRemoved => board.oppRemoved;
+  set oppRemoved(int value) => board.oppRemoved = value;
+  int get selfLp => board.selfLp;
+  set selfLp(int value) => board.selfLp = value;
+  int get opponentLp => board.opponentLp;
+  set opponentLp(int value) => board.opponentLp = value;
+  int get currentPlayer => board.currentPlayer;
+  set currentPlayer(int value) => board.currentPlayer = value;
+  int get phase => board.phase;
+  set phase(int value) => board.phase = value;
+  int get turnCount => board.turnCount;
+  set turnCount(int value) => board.turnCount = value;
+  int get myController => board.myController;
+  set myController(int value) => board.myController = value;
+  List<DuelPhase> get phases => board.phases;
+  set phases(List<DuelPhase> value) => board.phases = value;
+  String? get lastSummonKey => board.lastSummonKey;
+  set lastSummonKey(String? value) => board.lastSummonKey = value;
+  String? get lastAttackFrom => board.lastAttackFrom;
+  set lastAttackFrom(String? value) => board.lastAttackFrom = value;
+  String? get lastAttackTo => board.lastAttackTo;
+  set lastAttackTo(String? value) => board.lastAttackTo = value;
+  List<ChainLink> get chains => board.chains;
+  set chains(List<ChainLink> value) => board.chains = value;
+  String? get inspectedZoneKey => board.inspectedZoneKey;
+  set inspectedZoneKey(String? value) => board.inspectedZoneKey = value;
+
+  List<IdleAction> get selectedIdleActions => selection.selectedIdleActions;
+  set selectedIdleActions(List<IdleAction> value) => selection.selectedIdleActions = value;
+  List<BattleAction> get selectedBattleActions => selection.selectedBattleActions;
+  set selectedBattleActions(List<BattleAction> value) => selection.selectedBattleActions = value;
+  bool get enableBp => selection.enableBp;
+  set enableBp(bool value) => selection.enableBp = value;
+  bool get enableM2 => selection.enableM2;
+  set enableM2(bool value) => selection.enableM2 = value;
+  bool get enableEp => selection.enableEp;
+  set enableEp(bool value) => selection.enableEp = value;
+  SelectState? get currentSelect => selection.currentSelect;
+  set currentSelect(SelectState? value) => selection.currentSelect = value;
+  bool get isWaitingForInput => selection.isWaitingForInput;
 
   // === 共享 ===
   IDuelService? _service;
   StreamSubscription<YgoStocMsg>? _msgSub;
+  late final DuelBoardController _boardController = DuelBoardController(
+    board: board,
+    ensureCardInfo: _ensureCardInfo,
+    getCardInfo: getCardInfo,
+  );
+  late final DuelSelectionController _selectionController =
+      DuelSelectionController(selection: selection);
+  final DuelEventMapper _eventMapper = const DuelEventMapper();
 
   // ══════════════════════════════════════════
   // 等待房间方法 (from RoomStore)
   // ══════════════════════════════════════════
 
-  void updateFromDuelink(RoomStage stage) {
-    this.stage = stage;
-    players = stage.players;
-    observerCount = stage.observerCount;
-    switch (stage) {
-      case RoomNotJoined():
-        //游戏结束或者离开房间后，重置房间状态
-        break;
-      case RoomInLobby():
-        selfType = stage.selfType;
-        isHost = stage.isHost;
-        roomOptions = stage.options;
-        break;
-      case RoomSelectingHand():
-        break;
-      case RoomHandResult():
-        myHandResult = stage.myHand;
-        opponentHandResult = stage.opponentHand;
-        break;
-      case RoomInDuel():
-        myHandResult = 0;
-        opponentHandResult = 0;
-        isFirstTurn = stage.isFirstTurn;
-        break;
-      default:
-        break;
+  DuelRoomState() {
+    unawaited(_loadPreferences());
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    autoHandEnabled = prefs.getBool(_autoHandPrefKey) ?? false;
+    autoTurnOrderEnabled = prefs.getBool(_autoTurnOrderPrefKey) ?? false;
+    notifyListeners();
+  }
+
+  bool get isSelfReady {
+    final mySlot = selfType.slot;
+    if (mySlot < 0 || mySlot > 1) {
+      return false;
     }
+    return players.any((player) => player.pos == mySlot && player.ready);
+  }
+
+  Future<void> setAutoHandEnabled(bool value) async {
+    if (isSelfReady && value != autoHandEnabled) {
+      return;
+    }
+    autoHandEnabled = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_autoHandPrefKey, value);
+    notifyListeners();
+  }
+
+  Future<void> setAutoTurnOrderEnabled(bool value) async {
+    if (isSelfReady && value != autoTurnOrderEnabled) {
+      return;
+    }
+    autoTurnOrderEnabled = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_autoTurnOrderPrefKey, value);
     notifyListeners();
   }
 
@@ -122,6 +193,16 @@ class DuelRoomState extends ChangeNotifier {
 
   void clearError() {
     errorMessage = null;
+    notifyListeners();
+  }
+
+  void ready(int handValue) {
+    stage = RoomReady();
+    notifyListeners();
+  }
+
+  void unready(int handValue) {
+    stage = RoomUnready();
     notifyListeners();
   }
 
@@ -276,12 +357,41 @@ class DuelRoomState extends ChangeNotifier {
   }
 
   void setSelect(SelectState select) {
-    currentSelect = select;
+    _selectionController.setSelect(select);
     notifyListeners();
   }
 
   void clearSelect() {
-    currentSelect = null;
+    _selectionController.clearSelect();
+    notifyListeners();
+  }
+
+  List<int> getZoneCodes(String zoneKey) {
+    switch (zoneKey) {
+      case 'self_grave':
+        return selfGraveCodes;
+      case 'opp_grave':
+        return opponentGraveCodes;
+      case 'self_removed':
+        return selfRemovedCodes;
+      case 'opp_removed':
+        return opponentRemovedCodes;
+      case 'self_extra':
+        return selfExtraCodes;
+      case 'opp_extra':
+        return opponentExtraCodes;
+      default:
+        return const [];
+    }
+  }
+
+  void inspectZone(String zoneKey) {
+    inspectedZoneKey = zoneKey;
+    notifyListeners();
+  }
+
+  void clearInspectedZone() {
+    inspectedZoneKey = null;
     notifyListeners();
   }
 
@@ -321,25 +431,8 @@ class DuelRoomState extends ChangeNotifier {
 
     // 决斗重置
     unbind();
-    fieldCards.clear();
-    selfHand.clear();
-    opponentHand.clear();
-    selfDeck = selfExtra = selfGrave = selfRemoved = 0;
-    oppDeck = oppExtra = oppGrave = oppRemoved = 0;
-    selfLp = opponentLp = 8000;
-    currentPlayer = 0;
-    phase = 0;
-    turnCount = 0;
-    currentSelect = null;
-    lastSummonKey = lastAttackFrom = lastAttackTo = null;
-    chains.clear();
-    myController = 0;
-    phases = [];
-    selectedIdleActions = [];
-    selectedBattleActions = [];
-    enableBp = false;
-    enableM2 = false;
-    enableEp = false;
+    board.reset();
+    selection.reset();
 
     notifyListeners();
   }
@@ -349,111 +442,153 @@ class DuelRoomState extends ChangeNotifier {
   // ══════════════════════════════════════════
 
   void _onMessage(YgoStocMsg msg) {
-    final gameMsg = msg.gameMsg;
-    if (gameMsg == null) return;
-
-    switch (gameMsg.func) {
-      case MSG_START:
-        _handleStart(gameMsg.innerMsg);
-        break;
-      case MSG_NEW_TURN:
-        _handleNewTurn(gameMsg.innerMsg);
-        break;
-      case MSG_NEW_PHASE:
-        _handleNewPhase(gameMsg.innerMsg);
-        break;
-      case MSG_DRAW:
-        _handleDraw(gameMsg.innerMsg);
-        break;
-      case MSG_UPDATE_DATA:
-        _handleUpdateData(gameMsg.innerMsg as MsgUpdateData);
-        break;
-      case MSG_UPDATE_CARD:
-        _handleUpdateCard(gameMsg.innerMsg as MsgUpdateCard);
-        break;
-      case MSG_RELOAD_FIELD:
-        _handleReloadField(gameMsg.innerMsg as MsgReloadField);
-        break;
-      case MSG_WAITING:
-        _handleWaiting(gameMsg.innerMsg as MsgWait);
-        break;
-      case MSG_MOVE:
-        _handleMove(gameMsg.innerMsg);
-        break;
-      case MSG_ATTACK:
-        _handleAttack(gameMsg.innerMsg);
-        break;
-      case MSG_DAMAGE:
-        _handleDamage(gameMsg.innerMsg);
-        break;
-      case MSG_PAY_LP_COST:
-        _handlePayLife(gameMsg.innerMsg);
-        break;
-      case MSG_SELECT_IDLE_CMD:
-        _handleSelectIdleCmd(gameMsg.innerMsg);
-        break;
-      case MSG_SELECT_BATTLE_CMD:
-        _handleSelectBattleCmd(gameMsg.innerMsg);
-        break;
-      case MSG_SELECT_CARD:
-      case MSG_SELECT_CHAIN:
-      case MSG_SELECT_EFFECTYN:
-      case MSG_SELECT_YES_NO:
-      case MSG_SELECT_PLACE:
-        _handleSelectGeneric(gameMsg.func, gameMsg.innerMsg);
-        break;
-      case MSG_SELECT_POSITION:
-        _handleSelectPosition(gameMsg.innerMsg as MsgSelectPosition);
-        break;
-      case MSG_FIELD_DISABLED:
-        _handleFieldDisabled(gameMsg.innerMsg as MsgFieldDisabled);
-        break;
-      case MSG_SELECT_TRIBUTE:
-        _handleSelectTribute(gameMsg.innerMsg as MsgSelectTribute);
-        break;
-      case MSG_SELECT_COUNTER:
-        _handleSelectCounter(gameMsg.innerMsg as MsgSelectCounter);
-        break;
-      case MSG_SELECT_SUM:
-        _handleSelectSum(gameMsg.innerMsg as MsgSelectSum);
-        break;
-      case MSG_SORT_CARD:
-        _handleSortCard(gameMsg.innerMsg as MsgSortCard);
-        break;
-      case MSG_CHAINING:
-        _handleChaining(gameMsg.innerMsg);
-        break;
-      case MSG_CHAIN_END:
-        _handleChainEnd(gameMsg.innerMsg);
-        break;
-      case MSG_SUMMONING:
-        _handleSummoning(gameMsg.innerMsg);
-        break;
-      case MSG_POS_CHANGE:
-        _handlePosChange(gameMsg.innerMsg);
-        break;
-      case MSG_BATTLE:
-        _handleBattle(gameMsg.innerMsg as MsgBattle);
-        break;
-      case MSG_SHUFFLE_HAND:
-        _handleShuffleHand(gameMsg.innerMsg);
-        break;
-      case MSG_SELECT_OPTION:
-        _handleSelectOption(gameMsg.innerMsg);
-        break;
-      case MSG_SELECT_UNSELECT_CARD:
-        _handleSelectUnselectCard(gameMsg.innerMsg);
-        break;
-      case MSG_SELECT_DISFIELD:
-        _handleSelectDisfield(gameMsg.innerMsg);
-        break;
-      case MSG_SET:
-        // _handleSet(gameMsg.innerMsg);
-        break;
+    switch (msg.protoId) {
+      case MSG_SHUFFLE_DECK:
+        console.log('Received shuffle deck message: $msg');
+        return;
       default:
-        console.log('Unhandled game message: ${gameMsg.func}');
+        break;
     }
+    final event = _eventMapper.map(msg);
+    if (event == null) return;
+    _onEvent(event);
     notifyListeners();
+  }
+
+  void _onEvent(DuelEvent event) {
+    switch (event) {
+      case DuelIgnoredEvent():
+        return;
+      case DuelFlowMessageEvent(:final func, :final innerMsg):
+        switch (func) {
+          case MSG_START:
+            _handleStart(innerMsg);
+            break;
+          case MSG_NEW_TURN:
+            _handleNewTurn(innerMsg);
+            break;
+          case MSG_NEW_PHASE:
+            _handleNewPhase(innerMsg);
+            break;
+          case MSG_WAITING:
+            _handleWaiting(innerMsg as MsgWait);
+            break;
+          case MSG_ATTACK:
+            _handleAttack(innerMsg);
+            break;
+          case MSG_DAMAGE:
+            _handleDamage(innerMsg);
+            break;
+          case MSG_PAY_LP_COST:
+            _handlePayLife(innerMsg);
+            break;
+          case MSG_CHAINING:
+            _handleChaining(innerMsg);
+            break;
+          case MSG_CHAIN_END:
+            _handleChainEnd(innerMsg);
+            break;
+          case MSG_SUMMONING:
+            _handleSummoning(innerMsg);
+            break;
+          case MSG_BATTLE:
+            _handleBattle(innerMsg as MsgBattle);
+            break;
+          case MSG_HINT:
+            final msg = innerMsg as MsgHint;
+            console.log(
+              'MSG_HINT received, but no handler implemented yet. $msg',
+            );
+            break;
+          case MSG_WIN:
+            final msg = innerMsg as MsgWin;
+            console.log(
+              'MSG_WIN received, but no handler implemented yet. $msg',
+            );
+            break;
+          default:
+            console.log('Unhandled flow event: $func');
+        }
+        return;
+      case DuelBoardMessageEvent(:final func, :final innerMsg):
+        switch (func) {
+          case MSG_DRAW:
+            _handleDraw(innerMsg);
+            break;
+          case MSG_UPDATE_DATA:
+            _handleUpdateData(innerMsg as MsgUpdateData);
+            break;
+          case MSG_UPDATE_CARD:
+            _handleUpdateCard(innerMsg as MsgUpdateCard);
+            break;
+          case MSG_RELOAD_FIELD:
+            _handleReloadField(innerMsg as MsgReloadField);
+            break;
+          case MSG_MOVE:
+            _handleMove(innerMsg);
+            break;
+          case MSG_FIELD_DISABLED:
+            _handleFieldDisabled(innerMsg as MsgFieldDisabled);
+            break;
+          case MSG_POS_CHANGE:
+            _handlePosChange(innerMsg);
+            break;
+          case MSG_SHUFFLE_HAND:
+            _handleShuffleHand(innerMsg);
+            break;
+          case MSG_SET:
+            final msg = innerMsg as MsgSet;
+            console.log(
+              'MSG_SET received, but no handler implemented yet. $msg',
+            );
+            break;
+          default:
+            console.log('Unhandled board event: $func');
+        }
+        return;
+      case DuelSelectionMessageEvent(:final func, :final innerMsg):
+        switch (func) {
+          case MSG_SELECT_IDLE_CMD:
+            _handleSelectIdleCmd(innerMsg);
+            break;
+          case MSG_SELECT_BATTLE_CMD:
+            _handleSelectBattleCmd(innerMsg);
+            break;
+          case MSG_SELECT_CARD:
+          case MSG_SELECT_CHAIN:
+          case MSG_SELECT_EFFECTYN:
+          case MSG_SELECT_YES_NO:
+          case MSG_SELECT_PLACE:
+            _handleSelectGeneric(func, innerMsg);
+            break;
+          case MSG_SELECT_POSITION:
+            _handleSelectPosition(innerMsg as MsgSelectPosition);
+            break;
+          case MSG_SELECT_TRIBUTE:
+            _handleSelectTribute(innerMsg as MsgSelectTribute);
+            break;
+          case MSG_SELECT_COUNTER:
+            _handleSelectCounter(innerMsg as MsgSelectCounter);
+            break;
+          case MSG_SELECT_SUM:
+            _handleSelectSum(innerMsg as MsgSelectSum);
+            break;
+          case MSG_SORT_CARD:
+            _handleSortCard(innerMsg as MsgSortCard);
+            break;
+          case MSG_SELECT_OPTION:
+            _handleSelectOption(innerMsg);
+            break;
+          case MSG_SELECT_UNSELECT_CARD:
+            _handleSelectUnselectCard(innerMsg);
+            break;
+          case MSG_SELECT_DISFIELD:
+            _handleSelectDisfield(innerMsg);
+            break;
+          default:
+            console.log('Unhandled selection event: $func');
+        }
+    }
   }
 
   void _handleStart(dynamic data) {
@@ -542,21 +677,7 @@ class DuelRoomState extends ChangeNotifier {
 
   void _handleDraw(dynamic data) {
     final msg = data as MsgDraw;
-    final isMyDraw = msg.player == myController;
-
-    for (final cardCode in msg.cards) {
-      if (isMyDraw) {
-        selfHand.add(cardCode);
-      } else {
-        opponentHand.add(cardCode);
-      }
-    }
-
-    if (isMyDraw) {
-      selfDeck -= msg.count;
-    } else {
-      oppDeck -= msg.count;
-    }
+    _boardController.applyDraw(msg);
     final name = players
         .firstWhere(
           (p) => p.pos == msg.player,
@@ -567,36 +688,11 @@ class DuelRoomState extends ChangeNotifier {
   }
 
   void _handleUpdateData(MsgUpdateData msg) {
-    for (final action in msg.actions) {
-      final location = action.location;
-      final code = action.code;
-      if (location == null || code == null) {
-        continue;
-      }
-      _applyUpdateAction(
-        controller: location.controller,
-        zone: location.location,
-        sequence: location.sequence,
-        position: location.position,
-        code: code,
-        action: action,
-      );
-    }
+    _boardController.applyUpdateData(msg);
   }
 
   void _handleUpdateCard(MsgUpdateCard msg) {
-    final action = msg.action;
-    if (action == null) {
-      return;
-    }
-    _applyUpdateAction(
-      controller: msg.player,
-      zone: msg.zone,
-      sequence: msg.sequence,
-      position: action.location?.position ?? 0,
-      code: action.code ?? 0,
-      action: action,
-    );
+    _boardController.applyUpdateCard(msg);
   }
 
   void _applyUpdateAction({
@@ -607,6 +703,40 @@ class DuelRoomState extends ChangeNotifier {
     required int code,
     required MsgUpdateAction action,
   }) {
+    if (zone & CARD_ZONE_HAND != 0) {
+      final hand = controller == myController ? selfHand : opponentHand;
+      while (hand.length <= sequence) {
+        hand.add(0);
+      }
+      if (code > 0) {
+        hand[sequence] = code;
+        if (controller == myController) {
+          unawaited(_ensureCardInfo(code));
+        }
+      }
+      return;
+    }
+
+    if (zone & CARD_ZONE_DECK != 0) {
+      _syncZoneCount(controller, zone, sequence);
+      return;
+    }
+
+    if (zone & CARD_ZONE_EXTRA != 0) {
+      _syncZoneCount(controller, zone, sequence, code: code);
+      return;
+    }
+
+    if (zone & CARD_ZONE_GRAVE != 0) {
+      _syncZoneCount(controller, zone, sequence, code: code);
+      return;
+    }
+
+    if (zone & CARD_ZONE_REMOVED != 0) {
+      _syncZoneCount(controller, zone, sequence, code: code);
+      return;
+    }
+
     if (zone & CARD_ZONE_ONFIELD != 0) {
       final key = '${controller}_${zone}_$sequence';
       final current = fieldCards[key];
@@ -632,72 +762,77 @@ class DuelRoomState extends ChangeNotifier {
     }
   }
 
-  void _handleReloadField(MsgReloadField msg) {
-    fieldCards.clear();
-    selfHand.clear();
-    opponentHand.clear();
-
-    for (final playerState in msg.players) {
-      final isSelf = playerState.player == myController;
+  void _syncZoneCount(int controller, int zone, int sequence, {int? code}) {
+    final nextCount = sequence + 1;
+    final isSelf = controller == myController;
+    if (zone & CARD_ZONE_DECK != 0) {
       if (isSelf) {
-        selfLp = playerState.lp;
+        selfDeck = selfDeck < nextCount ? nextCount : selfDeck;
       } else {
-        opponentLp = playerState.lp;
+        oppDeck = oppDeck < nextCount ? nextCount : oppDeck;
       }
-
-      int deck = 0, extra = 0, grave = 0, removed = 0, hand = 0;
-      for (final action in playerState.zoneActions) {
-        switch (action.zone) {
-          case CARD_ZONE_DECK:
-            deck++;
-            break;
-          case CARD_ZONE_EXTRA:
-            extra++;
-            break;
-          case CARD_ZONE_GRAVE:
-            grave++;
-            break;
-          case CARD_ZONE_REMOVED:
-            removed++;
-            break;
-          case CARD_ZONE_HAND:
-            hand++;
-            break;
-          default:
-            if (action.zone & CARD_ZONE_ONFIELD != 0) {
-              setFieldCard(
-                FieldCard(
-                  code: 0,
-                  controller: playerState.player,
-                  zone: action.zone,
-                  sequence: action.sequence,
-                  position: action.position ?? 0,
-                  overlayCount: action.overlayCount,
-                  disabled: false,
-                ),
-              );
-            }
-        }
-      }
-
+      return;
+    }
+    if (zone & CARD_ZONE_EXTRA != 0) {
+      _upsertZoneCode(
+        isSelf ? selfExtraCodes : opponentExtraCodes,
+        sequence,
+        code,
+      );
       if (isSelf) {
-        selfDeck = deck;
-        selfExtra = extra;
-        selfGrave = grave;
-        selfRemoved = removed;
-        selfHand
-          ..clear()
-          ..addAll(List<int>.filled(hand, 0));
+        selfExtra = selfExtra < nextCount ? nextCount : selfExtra;
       } else {
-        oppDeck = deck;
-        oppExtra = extra;
-        oppGrave = grave;
-        oppRemoved = removed;
-        opponentHand
-          ..clear()
-          ..addAll(List<int>.filled(hand, 0));
+        oppExtra = oppExtra < nextCount ? nextCount : oppExtra;
+      }
+      if (code != null && code > 0) {
+        unawaited(_ensureCardInfo(code));
+      }
+      return;
+    }
+    if (zone & CARD_ZONE_GRAVE != 0) {
+      _upsertZoneCode(
+        isSelf ? selfGraveCodes : opponentGraveCodes,
+        sequence,
+        code,
+      );
+      if (isSelf) {
+        selfGrave = selfGrave < nextCount ? nextCount : selfGrave;
+      } else {
+        oppGrave = oppGrave < nextCount ? nextCount : oppGrave;
+      }
+      if (code != null && code > 0) {
+        unawaited(_ensureCardInfo(code));
+      }
+      return;
+    }
+    if (zone & CARD_ZONE_REMOVED != 0) {
+      _upsertZoneCode(
+        isSelf ? selfRemovedCodes : opponentRemovedCodes,
+        sequence,
+        code,
+      );
+      if (isSelf) {
+        selfRemoved = selfRemoved < nextCount ? nextCount : selfRemoved;
+      } else {
+        oppRemoved = oppRemoved < nextCount ? nextCount : oppRemoved;
+      }
+      if (code != null && code > 0) {
+        unawaited(_ensureCardInfo(code));
       }
     }
+  }
+
+  void _upsertZoneCode(List<int> list, int sequence, int? code) {
+    while (list.length <= sequence) {
+      list.add(0);
+    }
+    if (code != null && code > 0) {
+      list[sequence] = code;
+    }
+  }
+
+  void _handleReloadField(MsgReloadField msg) {
+    _boardController.applyReloadField(msg);
   }
 
   void _handleWaiting(MsgWait msg) {
@@ -705,18 +840,7 @@ class DuelRoomState extends ChangeNotifier {
   }
 
   void _handleMove(dynamic data) {
-    final msg = data as MsgMove;
-    final from = msg.from;
-    final to = msg.to;
-
-    _removeCardFromLocation(from.controller, from.location, from.sequence);
-    _addCardToLocation(
-      msg.code,
-      to.controller,
-      to.location,
-      to.sequence,
-      to.position,
-    );
+    _boardController.applyMove(data as MsgMove);
   }
 
   void _removeCardFromLocation(int controller, int location, int sequence) {
@@ -820,23 +944,7 @@ class DuelRoomState extends ChangeNotifier {
     int sequence,
   ) async {
     await _ensureCardInfo(code);
-    final info = _cardInfoCache[code];
-    if (info == null) return;
-    final key = '${controller}_${location}_$sequence';
-    final card = fieldCards[key];
-    if (card == null || card.name != null) return;
-    fieldCards[key] = FieldCard(
-      code: card.code,
-      controller: card.controller,
-      zone: card.zone,
-      sequence: card.sequence,
-      position: card.position,
-      overlayCount: card.overlayCount,
-      disabled: card.disabled,
-      attack: info.attack >= 0 ? info.attack : null,
-      defense: info.defense >= 0 ? info.defense : null,
-      name: info.name,
-    );
+    _boardController.enrichFieldCard(code, controller, location, sequence);
     notifyListeners();
   }
 
@@ -893,66 +1001,11 @@ class DuelRoomState extends ChangeNotifier {
   }
 
   void _handleSelectIdleCmd(dynamic data) {
-    final msg = data as MsgSelectIdleCmd;
-    final actions = <IdleAction>[];
-
-    for (final group in msg.commandGroups) {
-      final type = group.type.index;
-      for (final option in group.options) {
-        actions.add(
-          IdleAction(
-            type: type,
-            sequence: option.response,
-            code: option.cardInfo.code,
-            controller: option.cardInfo.controller,
-            location: option.cardInfo.location,
-            locationSequence: option.cardInfo.sequence,
-            position: 0,
-          ),
-        );
-      }
-    }
-
-    selectedIdleActions = actions;
-    enableBp = msg.enableBp;
-    enableEp = msg.enableEp;
-    setSelect(
-      SelectState(type: SelectType.idleCmd, player: msg.player, min: 1, max: 1),
-    );
+    _selectionController.applyIdleCmd(data as MsgSelectIdleCmd);
   }
 
   void _handleSelectBattleCmd(dynamic data) {
-    final msg = data as MsgSelectBattleCmd;
-    final actions = <BattleAction>[];
-
-    for (final group in msg.commandGroups) {
-      final type = group.type.index;
-      for (final option in group.options) {
-        actions.add(
-          BattleAction(
-            type: type,
-            sequence: option.response,
-            attackerController: option.cardInfo.controller,
-            attackerLocation: option.cardInfo.location,
-            attackerSequence: option.cardInfo.sequence,
-            attackerPosition: 0,
-            directAttack: option.directAttackable,
-          ),
-        );
-      }
-    }
-
-    selectedBattleActions = actions;
-    enableM2 = msg.enableM2;
-    enableEp = msg.enableEp;
-    setSelect(
-      SelectState(
-        type: SelectType.battleCmd,
-        player: msg.player,
-        min: 1,
-        max: 1,
-      ),
-    );
+    _selectionController.applyBattleCmd(data as MsgSelectBattleCmd);
   }
 
   void _handleSelectGeneric(int func, dynamic data) {
@@ -978,258 +1031,48 @@ class DuelRoomState extends ChangeNotifier {
   }
 
   void _handleSelectPlace(MsgSelectPlace msg) {
-    setSelect(
-      SelectState(
-        type: SelectType.place,
-        player: msg.player,
-        min: msg.count,
-        max: msg.count,
-        cancelable: false,
-      ),
-    );
+    _selectionController.applySelectPlace(msg);
   }
 
   void _handleSelectCard(MsgSelectCard msg) {
-    final options = <SelectOption>[];
-    for (int i = 0; i < msg.count; i++) {
-      options.add(
-        SelectOption(
-          code: msg.codes[i],
-          controller: msg.locations[i].controller,
-          zone: msg.locations[i].location,
-          sequence: msg.locations[i].sequence,
-        ),
-      );
-    }
-
-    setSelect(
-      SelectState(
-        type: SelectType.card,
-        player: msg.player,
-        options: options,
-        min: msg.min,
-        max: msg.max,
-        cancelable: msg.cancelable != 0,
-      ),
-    );
+    _selectionController.applySelectCard(msg);
   }
 
   void _handleSelectChain(MsgSelectChain msg) {
-    final options = <SelectOption>[];
-    for (final chain in msg.chains) {
-      options.add(
-        SelectOption(
-          code: chain.code,
-          controller: chain.location.controller,
-          zone: chain.location.location,
-          sequence: chain.location.sequence,
-          label: '连锁${chain.effectDescription}',
-        ),
-      );
-    }
-
-    setSelect(
-      SelectState(
-        type: SelectType.chain,
-        player: msg.player,
-        options: options,
-        min: msg.forced ? 1 : 0,
-        max: 1,
-        cancelable: !msg.forced,
-      ),
-    );
+    _selectionController.applySelectChain(msg);
   }
 
   void _handleSelectEffectYn(MsgSelectEffectYn msg) {
-    setSelect(
-      SelectState(
-        type: SelectType.effectYn,
-        player: msg.player,
-        options: [
-          SelectOption(
-            code: msg.code,
-            controller: msg.location.controller,
-            zone: msg.location.location,
-            sequence: msg.location.sequence,
-          ),
-        ],
-        min: 1,
-        max: 1,
-        effectDescription: msg.effectDescription,
-      ),
-    );
+    _selectionController.applySelectEffectYn(msg);
   }
 
   void _handleSelectYesNo(MsgSelectYesNo msg) {
-    setSelect(
-      SelectState(
-        type: SelectType.yesNo,
-        player: msg.player,
-        min: 1,
-        max: 1,
-        effectDescription: msg.effectDescription,
-      ),
-    );
+    _selectionController.applySelectYesNo(msg);
   }
 
   void _handleSelectPosition(MsgSelectPosition msg) {
-    final options = <SelectOption>[];
-
-    for (final position in msg.availablePositions) {
-      String label;
-      switch (position) {
-        case CardPosition.faceupAttack:
-          label = '表侧攻击';
-          break;
-        case CardPosition.facedownAttack:
-          label = '里侧攻击';
-          break;
-        case CardPosition.faceupDefense:
-          label = '表侧守备';
-          break;
-        case CardPosition.facedownDefense:
-          label = '里侧守备';
-          break;
-        default:
-          label = position.name;
-      }
-      options.add(
-        SelectOption(code: msg.code, position: position.value, label: label),
-      );
-    }
-
-    setSelect(
-      SelectState(
-        type: SelectType.position,
-        player: msg.player,
-        options: options,
-        min: 1,
-        max: 1,
-      ),
-    );
+    _selectionController.applySelectPosition(msg);
   }
 
   void _handleFieldDisabled(MsgFieldDisabled msg) {
-    for (final action in msg.actions) {
-      final key = '${action.controller}_${action.zone}_${action.sequence}';
-      final current = fieldCards[key];
-      if (current == null) {
-        continue;
-      }
-      fieldCards[key] = FieldCard(
-        code: current.code,
-        controller: current.controller,
-        zone: current.zone,
-        sequence: current.sequence,
-        position: current.position,
-        overlayCount: current.overlayCount,
-        disabled: action.disabled,
-        attack: current.attack,
-        defense: current.defense,
-        name: current.name,
-      );
-    }
+    _boardController.applyFieldDisabled(msg);
     addLog('区域禁用状态已更新。');
   }
 
   void _handleSelectTribute(MsgSelectTribute msg) {
-    final options = <SelectOption>[];
-    for (int i = 0; i < msg.count; i++) {
-      options.add(
-        SelectOption(
-          code: msg.codes[i],
-          controller: msg.locations[i].controller,
-          zone: msg.locations[i].location,
-          sequence: msg.locations[i].sequence,
-          level: msg.levels[i],
-        ),
-      );
-    }
-
-    setSelect(
-      SelectState(
-        type: SelectType.tribute,
-        player: msg.player,
-        options: options,
-        min: msg.min,
-        max: msg.max,
-        cancelable: msg.cancelable != 0,
-      ),
-    );
+    _selectionController.applySelectTribute(msg);
   }
 
   void _handleSelectCounter(MsgSelectCounter msg) {
-    final options = <SelectOption>[];
-    for (int i = 0; i < msg.count; i++) {
-      options.add(
-        SelectOption(
-          code: msg.codes[i],
-          controller: msg.locations[i].controller,
-          zone: msg.locations[i].location,
-          sequence: msg.locations[i].sequence,
-          level: msg.counterCounts[i],
-        ),
-      );
-    }
-
-    setSelect(
-      SelectState(
-        type: SelectType.counter,
-        player: msg.player,
-        options: options,
-        min: msg.min,
-        max: msg.min,
-      ),
-    );
+    _selectionController.applySelectCounter(msg);
   }
 
   void _handleSelectSum(MsgSelectSum msg) {
-    final options = <SelectOption>[];
-    for (final card in [...msg.mustSelectCards, ...msg.selectableCards]) {
-      options.add(
-        SelectOption(
-          code: card.code,
-          controller: card.location.controller,
-          zone: card.location.location,
-          sequence: card.location.sequence,
-          level: card.level1,
-        ),
-      );
-    }
-
-    setSelect(
-      SelectState(
-        type: SelectType.sum,
-        player: msg.player,
-        options: options,
-        min: msg.min,
-        max: msg.max,
-      ),
-    );
+    _selectionController.applySelectSum(msg);
   }
 
   void _handleSortCard(MsgSortCard msg) {
-    final options = <SelectOption>[];
-    for (int i = 0; i < msg.count; i++) {
-      options.add(
-        SelectOption(
-          code: msg.codes[i],
-          controller: msg.locations[i].controller,
-          zone: msg.locations[i].location,
-          sequence: msg.locations[i].sequence,
-        ),
-      );
-    }
-
-    setSelect(
-      SelectState(
-        type: SelectType.sort,
-        player: msg.player,
-        options: options,
-        min: msg.count,
-        max: msg.count,
-      ),
-    );
+    _selectionController.applySortCard(msg);
   }
 
   void _handleChaining(dynamic data) {
@@ -1247,40 +1090,8 @@ class DuelRoomState extends ChangeNotifier {
   }
 
   void _handleBattle(MsgBattle msg) {
-    _updateBattleCardStats(
-      msg.attacker,
-      msg.attackerAttack,
-      msg.attackerDefense,
-    );
-    if (msg.hasDefender) {
-      _updateBattleCardStats(
-        msg.defender,
-        msg.defenderAttack,
-        msg.defenderDefense,
-      );
-    }
+    _boardController.applyBattle(msg);
     addLog('战斗结算。');
-  }
-
-  void _updateBattleCardStats(CardLocation location, int attack, int defense) {
-    final key =
-        '${location.controller}_${location.location}_${location.sequence}';
-    final current = fieldCards[key];
-    if (current == null) {
-      return;
-    }
-    fieldCards[key] = FieldCard(
-      code: current.code,
-      controller: current.controller,
-      zone: current.zone,
-      sequence: current.sequence,
-      position: current.position,
-      overlayCount: current.overlayCount,
-      disabled: current.disabled,
-      attack: attack,
-      defense: defense,
-      name: current.name,
-    );
   }
 
   void _handleChainEnd(dynamic data) {
@@ -1298,108 +1109,29 @@ class DuelRoomState extends ChangeNotifier {
 
   void _handlePosChange(dynamic data) {
     final msg = data as MsgPosChange;
+    _boardController.applyPosChange(msg);
     final key =
         '${msg.cardInfo.controller}_${msg.cardInfo.location}_${msg.cardInfo.sequence}';
     final card = fieldCards[key];
     if (card != null) {
-      fieldCards[key] = FieldCard(
-        code: card.code,
-        controller: card.controller,
-        zone: card.zone,
-        sequence: card.sequence,
-        position: msg.curPosition,
-        overlayCount: card.overlayCount,
-        disabled: card.disabled,
-        attack: card.attack,
-        defense: card.defense,
-        name: card.name,
-      );
       addLog('${card.name} 表示形式变更。');
     }
   }
 
   void _handleShuffleHand(dynamic data) {
-    final msg = data as MsgShuffleHand;
-    if (msg.player == myController) {
-      selfHand.clear();
-      selfHand.addAll(msg.cards);
-    } else {
-      opponentHand.clear();
-      opponentHand.addAll(List.filled(msg.count, 0));
-    }
+    _boardController.applyShuffleHand(data as MsgShuffleHand);
   }
 
   void _handleSelectOption(dynamic data) {
-    final msg = data as MsgSelectOption;
-    final options = <SelectOption>[];
-    for (final code in msg.codes) {
-      options.add(SelectOption(code: code));
-    }
-
-    setSelect(
-      SelectState(
-        type: SelectType.option,
-        player: msg.player,
-        options: options,
-        min: 1,
-        max: 1,
-      ),
-    );
+    _selectionController.applySelectOption(data as MsgSelectOption);
   }
 
   void _handleSelectUnselectCard(dynamic data) {
-    final msg = data as MsgSelectUnselectCard;
-    final options = <SelectOption>[];
-    for (final card in msg.selectableCards) {
-      options.add(
-        SelectOption(
-          code: card.code,
-          controller: card.location.controller,
-          zone: card.location.location,
-          sequence: card.location.sequence,
-        ),
-      );
-    }
-
-    setSelect(
-      SelectState(
-        type: SelectType.card,
-        player: msg.player,
-        options: options,
-        min: msg.min,
-        max: msg.max,
-        cancelable: msg.cancelable,
-      ),
-    );
+    _selectionController.applySelectUnselectCard(data as MsgSelectUnselectCard);
   }
 
   void _handleSelectDisfield(dynamic data) {
-    final msg = data as MsgSelectPlace;
-    final options = <SelectOption>[];
-    for (int bit = 0; bit < 32; bit++) {
-      if ((msg.field & (1 << bit)) == 0) continue;
-      options.add(
-        SelectOption(
-          code: 0,
-          controller: bit >= 16 ? 1 : 0,
-          zone: bit < 8 || (bit >= 16 && bit < 24)
-              ? CARD_ZONE_MZONE
-              : CARD_ZONE_SZONE,
-          sequence: bit % 8,
-        ),
-      );
-    }
-
-    setSelect(
-      SelectState(
-        type: SelectType.place,
-        player: msg.player,
-        options: options,
-        min: msg.count,
-        max: msg.count,
-        cancelable: false,
-      ),
-    );
+    _selectionController.applySelectDisfield(data as MsgSelectPlace);
   }
 
   @override

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart';
 import '../../stores/duel_room_state.dart';
+import '../shared/waiting_room.dart';
 import 'hand_result_display.dart' show DisplayStyle;
 
 export 'hand_result_display.dart' show DisplayStyle;
@@ -16,6 +17,8 @@ class ControlBar extends StatelessWidget {
   final VoidCallback onStart;
   final VoidCallback onToggleDisplay;
   final DisplayStyle displayStyle;
+  final ValueChanged<bool> onToggleAutoHand;
+  final ValueChanged<bool> onToggleAutoTurnOrder;
 
   const ControlBar({
     super.key,
@@ -29,7 +32,10 @@ class ControlBar extends StatelessWidget {
     required this.onStart,
     required this.onToggleDisplay,
     required this.displayStyle,
+    required this.onToggleAutoHand,
+    required this.onToggleAutoTurnOrder,
   });
+
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +49,25 @@ class ControlBar extends StatelessWidget {
         top: false,
         child: Row(
           children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                buildAutomationSwitch(
+                  label: '自动猜拳',
+                  value: state.autoHandEnabled,
+                  enabled: !state.isSelfReady,
+                  onChanged: onToggleAutoHand,
+                ),
+                buildAutomationSwitch(
+                  label: '自动随机先后手',
+                  value: state.autoTurnOrderEnabled,
+                  enabled: !state.isSelfReady,
+                  onChanged: onToggleAutoTurnOrder,
+                ),
+              ],
+            ),
+            const SizedBox(width: 8),
             IconButton(
               icon: Icon(
                 displayStyle == DisplayStyle.card
@@ -61,10 +86,15 @@ class ControlBar extends StatelessWidget {
               Expanded(
                 child: FilledButton.icon(
                   onPressed: onToggleReady,
-                  icon: Icon(isReady ? Icons.cancel : Icons.check_circle, size: 18),
+                  icon: Icon(
+                    isReady ? Icons.cancel : Icons.check_circle,
+                    size: 18,
+                  ),
                   label: Text(isReady ? '取消准备' : '准备'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: isReady ? Colors.blueGrey.shade600 : Colors.green.shade700,
+                    backgroundColor: isReady
+                        ? Colors.blueGrey.shade600
+                        : Colors.green.shade700,
                     foregroundColor: Colors.white,
                   ),
                 ),
@@ -94,7 +124,8 @@ class ControlBar extends StatelessWidget {
                   ),
                 ),
               ),
-            if (!isPlayer && state.selfType == SelfType.observer) const SizedBox(width: 8),
+            if (!isPlayer && state.selfType == SelfType.observer)
+              const SizedBox(width: 8),
             if (state.isHost)
               Expanded(
                 child: FilledButton.icon(

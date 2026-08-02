@@ -32,7 +32,8 @@ import 'types.dart';
 abstract class BaseDuelService implements IDuelService {
   final DuelConnection connection;
   final _messageController = StreamController<YgoStocMsg>.broadcast();
-  final _stateController = StreamController<RoomStage>.broadcast();
+  final _chatMessageController = StreamController<YgoStocMsg>.broadcast();
+  final _roomStageController = StreamController<RoomStage>.broadcast();
   RoomStage _roomStage = const RoomNotJoined();
   StreamSubscription? _connectionSub;
   ConnectionState _connState = ConnectionState.disconnected;
@@ -43,6 +44,8 @@ abstract class BaseDuelService implements IDuelService {
       _connState = state;
       if (state == ConnectionState.disconnected) {
         _connectionSub?.cancel();
+        _roomStage = const RoomNotJoined();
+        _roomStageController.add(_roomStage);
       }
     });
   }
@@ -61,7 +64,7 @@ abstract class BaseDuelService implements IDuelService {
     await _connectionSub?.cancel();
     await connection.disconnect();
     _roomStage = const RoomNotJoined();
-    _stateController.add(_roomStage);
+    _roomStageController.add(_roomStage);
   }
 
   // ── 消息处理 ──
@@ -69,28 +72,70 @@ abstract class BaseDuelService implements IDuelService {
   void _onServerMessage(YgoStocMsg stoc) {
     _messageController.add(stoc);
     _applyStoc(stoc);
+    switch (stoc.protoId) {
+      case STOC_CHAT:
+        _chatMessageController.add(stoc);
+        break;
+    }
   }
 
   void _applyStoc(YgoStocMsg stoc) {
     switch (stoc.protoId) {
-      case STOC_JOIN_GAME:      _onJoinGame(stoc.joinGame!); break;
-      case STOC_TYPE_CHANGE:    _onTypeChange(stoc.typeChange!); break;
-      case STOC_HS_PLAYER_ENTER: _onPlayerEnter(stoc.hsPlayerEnter!); break;
-      case STOC_HS_PLAYER_CHANGE: _onPlayerChange(stoc.hsPlayerChange!); break;
-      case STOC_HS_WATCH_CHANGE: _onWatchChange(stoc.hsWatchChange!); break;
-      case STOC_DUEL_START:     _onDuelStart(); break;
-      case STOC_SELECT_HAND:    _onSelectHand(); break;
-      case STOC_HAND_RESULT:    _onHandResult(stoc.handResult!); break;
-      case STOC_SELECT_TP:      _onSelectTp(); break;
-      case STOC_GAME_MSG:
-        if (stoc.gameMsg?.func == MSG_START) _onTpSelected(stoc.gameMsg?.innerMsg! as MsgStart);
+      case STOC_JOIN_GAME:
+        _onJoinGame(stoc.joinGame!);
+        _roomStageController.add(_roomStage);
         break;
-      case STOC_DUEL_END:       _onDuelEnd(); break;
-      case STOC_CHANGE_SIDE:    _onChangeSide(); break;
-      case STOC_WAITING_SIDE:   _onWaitingSide(); break;
+      case STOC_TYPE_CHANGE:
+        _onTypeChange(stoc.typeChange!);
+        _roomStageController.add(_roomStage);
+        break;
+      case STOC_HS_PLAYER_ENTER:
+        _onPlayerEnter(stoc.hsPlayerEnter!);
+        _roomStageController.add(_roomStage);
+        break;
+      case STOC_HS_PLAYER_CHANGE:
+        _onPlayerChange(stoc.hsPlayerChange!);
+        _roomStageController.add(_roomStage);
+        break;
+      case STOC_HS_WATCH_CHANGE:
+        _onWatchChange(stoc.hsWatchChange!);
+        _roomStageController.add(_roomStage);
+        break;
+      case STOC_DUEL_START:
+        _onDuelStart();
+        _roomStageController.add(_roomStage);
+        break;
+      case STOC_SELECT_HAND:
+        _onSelectHand();
+        _roomStageController.add(_roomStage);
+        break;
+      case STOC_HAND_RESULT:
+        _onHandResult(stoc.handResult!);
+        _roomStageController.add(_roomStage);
+        break;
+      case STOC_SELECT_TP:
+        _onSelectTp();
+        _roomStageController.add(_roomStage);
+        break;
+      case STOC_GAME_MSG:
+        if (stoc.gameMsg?.func == MSG_START) {
+          _onTpSelected(stoc.gameMsg?.innerMsg! as MsgStart);
+          _roomStageController.add(_roomStage);
+        }
+        break;
+      case STOC_DUEL_END:
+        _onDuelEnd();
+        _roomStageController.add(_roomStage);
+        break;
+      case STOC_CHANGE_SIDE:
+        _onChangeSide();
+        _roomStageController.add(_roomStage);
+        break;
+      case STOC_WAITING_SIDE:
+        _onWaitingSide();
+        _roomStageController.add(_roomStage);
+        break;
     }
-
-    _stateController.add(_roomStage);
   }
 
   // ── 状态转换 handler ──
@@ -102,7 +147,6 @@ abstract class BaseDuelService implements IDuelService {
   }
 
   void _onTypeChange(StocTypeChange m) {
-    console.log('RoomStage: TYPE_CHANGE → RoomInLobby self:${m.selfType} host:${m.isHost}');
     _roomStage = RoomInLobby(
       players: _playersOf(_roomStage),
       observerCount: _obsOf(_roomStage),
@@ -111,70 +155,68 @@ abstract class BaseDuelService implements IDuelService {
       options: _pendingOptions ?? const RoomOptions(),
     );
     _pendingOptions = null;
+    console.log('RoomStage: TYPE_CHANGE → RoomInLobby ${_roomStage}');
   }
 
   void _onPlayerEnter(StocHsPlayerEnter m) {
-    console.log('RoomStage: PLAYER_ENTER ${m.name} pos:${m.pos}');
     final updated = List<RoomPlayer>.from(_playersOf(_roomStage));
     updated.add(RoomPlayer(name: m.name, pos: m.pos));
     _setPlayers(updated);
+    console.log('RoomStage: PLAYER_ENTER ${_roomStage}');
   }
 
   void _onPlayerChange(StocHsPlayerChange m) {
-    console.log('RoomStage: PLAYER_CHANGE pos:${m.pos} state:${m.state}');
+    console.log('RoomStage: PLAYER_CHANGE pos:${m.pos} action:${m.state}');
     final updated = List<RoomPlayer>.from(_playersOf(_roomStage));
-    final isToObserver =
-        m.state == HS_PLAYER_STATE_TO_OBSERVER || m.state == 8;
-    final isLeave = m.state == HS_PLAYER_STATE_LEAVE || m.state == 11;
-    final isReady = m.state == HS_PLAYER_STATE_READY || m.state == 9;
-    final isNotReady = m.state == HS_PLAYER_STATE_NO_READY || m.state == 10;
 
-    // Support both the low-code constants used by local tests (1/2/3/4)
-    // and the high-code values emitted by the real online server (8/9/10/11).
-    if (isLeave || isToObserver) {
+    if (m.state == StocHsPlayerChangeState.leave || m.state == StocHsPlayerChangeState.toObserver) {
       updated.removeWhere((p) => p.pos == m.pos);
       _roomStage = _withPlayers(updated);
-      if (isToObserver) _roomStage = _withObs(_obsOf(_roomStage) + 1);
-    } else if (isReady || isNotReady) {
+      if (m.state == StocHsPlayerChangeState.toObserver) _roomStage = _withObs(_obsOf(_roomStage) + 1);
+    } else if (m.state == StocHsPlayerChangeState.ready || m.state == StocHsPlayerChangeState.notReady) {
       final idx = updated.indexWhere((p) => p.pos == m.pos);
-      if (idx >= 0) updated[idx] = updated[idx].copyWith(ready: isReady);
+      if (idx >= 0) updated[idx] = updated[idx].copyWith(ready: m.state == StocHsPlayerChangeState.ready);
       _setPlayers(updated);
-    } else if (m.state < 4) {
+    } else if (m.state == StocHsPlayerChangeState.move) {
       final idx = updated.indexWhere((p) => p.pos == m.pos);
       if (idx >= 0) updated[idx] = updated[idx].copyWith(pos: m.pos);
       _setPlayers(updated);
     }
+    console.log('RoomStage: PLAYER_CHANGE → ${_roomStage}');
   }
 
   void _onWatchChange(StocHsWatchChange m) {
-    console.log('RoomStage: WATCH_CHANGE → ${m.count}');
     _roomStage = _withObs(m.count);
+    console.log('RoomStage: WATCH_CHANGE → ${_roomStage}');
   }
 
   void _onSelectHand() {
-    console.log('RoomStage: SELECT_HAND → RoomSelectingHand');
     _roomStage = RoomSelectingHand(
       players: _playersOf(_roomStage),
       observerCount: _obsOf(_roomStage),
     );
+    console.log('RoomStage: SELECT_HAND → RoomSelectingHand ${_roomStage}');
   }
 
   void _onHandResult(StocHandResult m) {
-    console.log('RoomStage: HAND_RESULT → RoomHandResult');
     _roomStage = RoomHandResult(
       players: _playersOf(_roomStage),
       observerCount: _obsOf(_roomStage),
       myHand: m.meResult,
       opponentHand: m.opResult,
     );
+    console.log('RoomStage: HAND_RESULT → RoomHandResult ${_roomStage}');
   }
 
   void _onSelectTp() {
-    console.log('RoomStage: SELECT_TP → RoomSelectingTurn');
     // 如果还没进入 SelectingTurn（直接收到 SELECT_TP 的情况）
     if (_roomStage is! RoomSelectingTurn) {
-      _roomStage = RoomSelectingTurn(players: _playersOf(_roomStage), observerCount: _obsOf(_roomStage));
+      _roomStage = RoomSelectingTurn(
+        players: _playersOf(_roomStage),
+        observerCount: _obsOf(_roomStage),
+      );
     }
+    console.log('RoomStage: SELECT_TP → RoomSelectingTurn ${_roomStage}');
   }
 
   void _onTpSelected(MsgStart gameMsg) {
@@ -184,30 +226,31 @@ abstract class BaseDuelService implements IDuelService {
       observerCount: _obsOf(_roomStage),
       isFirstTurn: gameMsg.isFirst,
     );
+    console.log('RoomStage: tp selected → RoomInDuel ${_roomStage}');
   }
 
   void _onDuelStart() {
-    console.log('RoomStage: DUEL_START → RoomStartDuel');
     _roomStage = RoomStartDuel(
       players: _playersOf(_roomStage),
       observerCount: _obsOf(_roomStage),
     );
+    console.log('RoomStage: DUEL_START → RoomStartDuel ${_roomStage}');
   }
 
   void _onDuelEnd() {
-    console.log('RoomStage: DUEL_END → RoomDuelEnded');
     _roomStage = RoomDuelEnded(
       players: _playersOf(_roomStage),
       observerCount: _obsOf(_roomStage),
     );
+    console.log('RoomStage: DUEL_END → RoomDuelEnded ${_roomStage}');
   }
 
   void _onChangeSide() {
-    console.log('RoomStage: CHANGE_SIDE → RoomSideDecking');
     _roomStage = RoomSideDecking(
       players: _playersOf(_roomStage),
       observerCount: _obsOf(_roomStage),
     );
+    console.log('RoomStage: CHANGE_SIDE → RoomSideDecking ${_roomStage}');
   }
 
   void _onWaitingSide() {
@@ -226,37 +269,107 @@ abstract class BaseDuelService implements IDuelService {
 
   RoomStage _withPlayers(List<RoomPlayer> players) {
     return switch (_roomStage) {
-      RoomNotJoined()       => RoomNotJoined(),
+      RoomNotJoined() => RoomNotJoined(),
       RoomInLobby(:final selfType, :final isHost, :final options) =>
-        RoomInLobby(players: players, observerCount: _obsOf(_roomStage),
-            selfType: selfType, isHost: isHost, options: options),
-      RoomStartDuel()          => RoomStartDuel(players: players, observerCount: _obsOf(_roomStage)),
-      RoomSelectingHand()   => RoomSelectingHand(players: players, observerCount: _obsOf(_roomStage)),
-      RoomHandResult(:final myHand, :final opponentHand) => RoomHandResult(players: players, observerCount: _obsOf(_roomStage), myHand: myHand, opponentHand: opponentHand),
-      RoomSelectingTurn() => RoomSelectingTurn(players: players, observerCount: _obsOf(_roomStage)),
-      RoomInDuel(:final isFirstTurn) =>
-        RoomInDuel(players: players, observerCount: _obsOf(_roomStage), isFirstTurn: isFirstTurn),
-      RoomDuelEnded()       => RoomDuelEnded(players: players, observerCount: _obsOf(_roomStage)),
-      RoomSideDecking()     => RoomSideDecking(players: players, observerCount: _obsOf(_roomStage)),
+        RoomInLobby(
+          players: players,
+          observerCount: _obsOf(_roomStage),
+          selfType: selfType,
+          isHost: isHost,
+          options: options,
+        ),
+      RoomReady() => RoomReady(
+        players: players,
+        observerCount: _obsOf(_roomStage),
+      ),
+      RoomUnready() => RoomUnready(
+        players: players,
+        observerCount: _obsOf(_roomStage),
+      ),
+      RoomStartDuel() => RoomStartDuel(
+        players: players,
+        observerCount: _obsOf(_roomStage),
+      ),
+      RoomSelectingHand() => RoomSelectingHand(
+        players: players,
+        observerCount: _obsOf(_roomStage),
+      ),
+      RoomHandResult(:final myHand, :final opponentHand) => RoomHandResult(
+        players: players,
+        observerCount: _obsOf(_roomStage),
+        myHand: myHand,
+        opponentHand: opponentHand,
+      ),
+      RoomSelectingTurn() => RoomSelectingTurn(
+        players: players,
+        observerCount: _obsOf(_roomStage),
+      ),
+      RoomInDuel(:final isFirstTurn) => RoomInDuel(
+        players: players,
+        observerCount: _obsOf(_roomStage),
+        isFirstTurn: isFirstTurn,
+      ),
+      RoomDuelEnded() => RoomDuelEnded(
+        players: players,
+        observerCount: _obsOf(_roomStage),
+      ),
+      RoomSideDecking() => RoomSideDecking(
+        players: players,
+        observerCount: _obsOf(_roomStage),
+      ),
     };
   }
 
   RoomStage _withObs(int count) {
     return switch (_roomStage) {
-      RoomNotJoined()       => RoomNotJoined(),
+      RoomNotJoined() => RoomNotJoined(),
       RoomInLobby(:final selfType, :final isHost, :final options) =>
-        RoomInLobby(players: _playersOf(_roomStage), observerCount: count,
-            selfType: selfType, isHost: isHost, options: options),
-      RoomStartDuel()          => RoomStartDuel(players: _playersOf(_roomStage), observerCount: count),
-      RoomSelectingHand()   => RoomSelectingHand(players: _playersOf(_roomStage), observerCount: count),
-      RoomHandResult(:final myHand, :final opponentHand) =>
-          RoomHandResult(players: _playersOf(_roomStage), observerCount: count,
-              myHand: myHand, opponentHand: opponentHand),
-      RoomSelectingTurn() => RoomSelectingTurn(players: _playersOf(_roomStage), observerCount: count),
-      RoomInDuel(:final isFirstTurn) =>
-        RoomInDuel(players: _playersOf(_roomStage), observerCount: count, isFirstTurn: isFirstTurn),
-      RoomDuelEnded()       => RoomDuelEnded(players: _playersOf(_roomStage), observerCount: count),
-      RoomSideDecking()     => RoomSideDecking(players: _playersOf(_roomStage), observerCount: count),
+        RoomInLobby(
+          players: _playersOf(_roomStage),
+          observerCount: count,
+          selfType: selfType,
+          isHost: isHost,
+          options: options,
+        ),
+      RoomReady() => RoomReady(
+        players: _playersOf(_roomStage),
+        observerCount: count,
+      ),
+      RoomUnready() => RoomUnready(
+        players: _playersOf(_roomStage),
+        observerCount: count,
+      ),
+      RoomStartDuel() => RoomStartDuel(
+        players: _playersOf(_roomStage),
+        observerCount: count,
+      ),
+      RoomSelectingHand() => RoomSelectingHand(
+        players: _playersOf(_roomStage),
+        observerCount: count,
+      ),
+      RoomHandResult(:final myHand, :final opponentHand) => RoomHandResult(
+        players: _playersOf(_roomStage),
+        observerCount: count,
+        myHand: myHand,
+        opponentHand: opponentHand,
+      ),
+      RoomSelectingTurn() => RoomSelectingTurn(
+        players: _playersOf(_roomStage),
+        observerCount: count,
+      ),
+      RoomInDuel(:final isFirstTurn) => RoomInDuel(
+        players: _playersOf(_roomStage),
+        observerCount: count,
+        isFirstTurn: isFirstTurn,
+      ),
+      RoomDuelEnded() => RoomDuelEnded(
+        players: _playersOf(_roomStage),
+        observerCount: count,
+      ),
+      RoomSideDecking() => RoomSideDecking(
+        players: _playersOf(_roomStage),
+        observerCount: count,
+      ),
     };
   }
 
@@ -274,33 +387,52 @@ abstract class BaseDuelService implements IDuelService {
 
   @override
   void enterRoom(String password) {
-    _send(YgoCtosMsg.joinGame(
-      CtosJoinGame(version: 4962, gameId: 0, passwd: password),
-    ));
+    _send(
+      YgoCtosMsg.joinGame(
+        CtosJoinGame(version: 4962, gameId: 0, passwd: password),
+      ),
+    );
   }
 
   @override
   void submitDeck(Uint8List mainDeck, Uint8List extraDeck) {
     final mainCards = _bytesToInts(mainDeck);
     final extraCards = _bytesToInts(extraDeck);
-    _send(YgoCtosMsg.updateDeck(
-      CtosUpdateDeck(mainDeck: mainCards, extraDeck: extraCards, sideDeck: []),
-    ));
+    _send(
+      YgoCtosMsg.updateDeck(
+        CtosUpdateDeck(
+          mainDeck: mainCards,
+          extraDeck: extraCards,
+          sideDeck: [],
+        ),
+      ),
+    );
   }
 
   static List<int> _bytesToInts(Uint8List bytes) {
     final bd = ByteData.view(bytes.buffer, bytes.offsetInBytes);
-    return List.generate(bytes.length ~/ 4, (i) => bd.getInt32(i * 4, Endian.little));
+    return List.generate(
+      bytes.length ~/ 4,
+      (i) => bd.getInt32(i * 4, Endian.little),
+    );
   }
 
-  @override void ready()             => _send(YgoCtosMsg.hsReady());
-  @override void unready()           => _send(YgoCtosMsg.hsNotReady());
-  @override void startDuel()         => _send(YgoCtosMsg.hsStart());
-  @override void kickPlayer(int pos) => _send(YgoCtosMsg.hsKick(pos));
-  @override void becomeObserver()    => _send(YgoCtosMsg.hsToObserver());
-  @override void becomeDuelist()     => _send(YgoCtosMsg.hsToDuelist());
-  @override void confirmTime()       => _send(YgoCtosMsg.timeConfirm());
-  @override void surrender()         => _send(YgoCtosMsg.surrender());
+  @override
+  void ready() => _send(YgoCtosMsg.hsReady());
+  @override
+  void unready() => _send(YgoCtosMsg.hsNotReady());
+  @override
+  void startDuel() => _send(YgoCtosMsg.hsStart());
+  @override
+  void kickPlayer(int pos) => _send(YgoCtosMsg.hsKick(pos));
+  @override
+  void becomeObserver() => _send(YgoCtosMsg.hsToObserver());
+  @override
+  void becomeDuelist() => _send(YgoCtosMsg.hsToDuelist());
+  @override
+  void confirmTime() => _send(YgoCtosMsg.timeConfirm());
+  @override
+  void surrender() => _send(YgoCtosMsg.surrender());
 
   @override
   void sendChat(String message) =>
@@ -320,7 +452,7 @@ abstract class BaseDuelService implements IDuelService {
         observerCount: _obsOf(_roomStage),
         isFirstTurn: goFirst,
       );
-      _stateController.add(_roomStage);
+      _roomStageController.add(_roomStage);
     }
   }
 
@@ -330,7 +462,8 @@ abstract class BaseDuelService implements IDuelService {
 
   @override
   Stream<YgoStocMsg> get onServerMessage => _messageController.stream;
-
   @override
-  Stream<RoomStage> get onRoomStageChange => _stateController.stream;
+  Stream<YgoStocMsg> get onChatServerMessage => _chatMessageController.stream;
+  @override
+  Stream<RoomStage> get onRoomStageChange => _roomStageController.stream;
 }

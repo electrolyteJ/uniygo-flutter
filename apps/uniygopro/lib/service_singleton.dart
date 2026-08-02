@@ -5,7 +5,6 @@ import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 
 class ServiceSingleton {
 
-  late OnlineDuelService duelService;
   late CardService cardService;
 
   ServiceSingleton._();
@@ -13,8 +12,7 @@ class ServiceSingleton {
   static final ServiceSingleton instance = ServiceSingleton._();
 
   void registerService() {
-    registerAllServices();
-    duelService = ServiceFactory.create<OnlineDuelService>();
+
     cardService = ServiceFactory.create<CardService>();
   }
 }

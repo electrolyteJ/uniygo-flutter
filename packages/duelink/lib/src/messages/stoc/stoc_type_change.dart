@@ -18,7 +18,7 @@ class StocTypeChange {
   final int _selfType;
   const StocTypeChange({required this.isHost, required this._selfType});
 
-  get selfType => SelfType.fromValue(_selfType);
+  SelfType get selfType => SelfType.fromValue(_selfType);
   int get protoId => STOC_TYPE_CHANGE;
 
   Uint8List encode() {

@@ -1,23 +1,19 @@
 import 'dart:async';
 import 'dart:developer' as console;
+import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:duelink_online/duelink_online.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:duelink/duelink.dart';
-import 'package:uniygopro/service_singleton.dart';
+import 'package:service_loader/service_loader.dart';
+import 'package:uniygopro/pages/duel_field_page.dart';
+import 'package:uniygopro/pages/waiting_room_page.dart';
 import '../stores/duel_room_state.dart';
 import '../stores/match_store.dart';
 import '../services/deck_service.dart';
-import '../widgets/ready_room/player_panel.dart';
-import '../widgets/ready_room/room_info_panel.dart';
-import '../widgets/ready_room/chat_panel.dart';
-import '../widgets/ready_room/control_bar.dart';
-import '../widgets/duel_room/duel_overlay.dart';
-import '../widgets/playmat/playmat.dart';
-import '../widgets/duel_room/chain_indicator.dart';
-import '../widgets/ready_room/hand_result_display.dart';
 
 class DuelRoomPage extends StatefulWidget {
   const DuelRoomPage({super.key});
@@ -26,45 +22,75 @@ class DuelRoomPage extends StatefulWidget {
 }
 
 class _DuelRoomPageState extends State<DuelRoomPage> {
-  final IDuelService _duelService = ServiceSingleton.instance.duelService;
+  final IDuelService _duelService = ServiceFactory.create<OnlineDuelService>();
   final _chatCtrl = TextEditingController();
   final _chatScrollCtrl = ScrollController();
   StreamSubscription<YgoStocMsg>? _msgSub;
-  DisplayStyle _displayStyle = DisplayStyle.card;
+  StreamSubscription<YgoStocMsg>? _chatMsgSub;
+
   late final DuelRoomState state;
 
   @override
   void initState() {
     super.initState();
-    _loadDecks();
+    state = context.read<DuelRoomState>();
+    state.loadDecks();
     _connect();
   }
-
-  Future<void> _loadDecks() async {
-    state = context.read<DuelRoomState>();
-    await state.loadDecks();
-  }
-
+  final Random random = Random();
   Future<void> _connect() async {
     final match = context.read<MatchStore>();
     final state = context.read<DuelRoomState>();
     _duelService.onRoomStageChange.listen((roomStage) {
-      console.log('Room state changed: $roomStage players=${roomStage.players} observers=${roomStage.observerCount}');
-      state.updateFromDuelink(roomStage);
-      if (roomStage is RoomInDuel) {
-        state.bind(_duelService);
-      }else if (roomStage is RoomDuelEnded) {
-        state.unbind();
-        Navigator.of(context).pop();
-        context.go('/');
+      state.players = roomStage.players;
+      state.observerCount = roomStage.observerCount;
+      state.stage = roomStage;
+      switch (roomStage) {
+        case RoomNotJoined():
+          //游戏结束或者离开房间后，重置房间状态
+          break;
+        case RoomInLobby():
+          state.selfType = roomStage.selfType;
+          state.isHost = roomStage.isHost;
+          state.roomOptions = roomStage.options;
+          break;
+        case RoomSelectingHand():
+          if (state.autoHandEnabled) {
+            final timer = Timer(const Duration(milliseconds: 700), () {
+              state.opponentHandResult = 0;
+              final hands = HandType.values
+                  .where((hand) => hand != HandType.unknown)
+                  .toList();
+              _sendHand(hands[random.nextInt(hands.length)]);
+            });
+          }
+          break;
+        case RoomHandResult():
+          state.myHandResult = roomStage.myHand;
+          state.opponentHandResult = roomStage.opponentHand;
+          break;
+        case RoomSelectingTurn():
+          if (state.autoTurnOrderEnabled) {
+            _sendTp(random.nextBool());
+          }
+          break;
+        case RoomInDuel():
+          state.bind(_duelService);
+          state.myHandResult = 0;
+          state.opponentHandResult = 0;
+          state.isFirstTurn = roomStage.isFirstTurn;
+          break;
+        case RoomDuelEnded():
+          // state.unbind();
+          context.go('/');
+          break;
+        default:
+          break;
       }
+      state.notifyListeners();
     });
 
-    _msgSub = _duelService.onServerMessage.listen((msg) {
-      if (msg.selectTp != null) {
-        console.log('Received selectTp message: ${msg.selectTp}');
-        state.enableTurnOrderSelection();
-      }
+    _chatMsgSub = _duelService.onChatServerMessage.listen((msg) {
       if (msg.chat != null) {
         final chat = msg.chat!;
         final player = state.players.where((p) => p.pos == chat.player).toList();
@@ -81,6 +107,13 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
             );
           }
         });
+      }
+    });
+    _msgSub = _duelService.onServerMessage.listen((msg) {
+      console.log('Received server message: $msg');
+      if (msg.selectTp != null) {
+        console.log('Received selectTp message: ${msg.selectTp}');
+        state.enableTurnOrderSelection();
       }
       if (msg.errorMsg != null) {
         final err = msg.errorMsg!;
@@ -103,14 +136,12 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
   void _sendHand(HandType hand) {
     console.log('Sending hand result: $hand');
     _duelService.chooseHand(hand);
-    final state = context.read<DuelRoomState>();
     state.setHandResult(hand.value);
   }
 
   void _sendTp(bool first) {
     console.log('Sending TP result: ${first ? 'first' : 'second'}');
     _duelService.chooseTurnOrder(first);
-    final state = context.read<DuelRoomState>();
     state.setTpResult(first);
   }
 
@@ -168,6 +199,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     }
     return bytes;
   }
+
   String _roomTitle(DuelRoomState state, MatchStore match) {
     final modeName = switch (state.roomOptions?.mode) {
       RoomMode.single => '单局',
@@ -208,7 +240,6 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
   Widget build(BuildContext context) {
     final state = context.watch<DuelRoomState>();
     final match = context.watch<MatchStore>();
-
     if (state.errorMessage != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -224,9 +255,21 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     }
 
     return Scaffold(
-      backgroundColor: state.stage is RoomInDuel ? Colors.brown.shade900 : Colors.blueGrey.shade900,
+      backgroundColor: state.stage is RoomInDuel
+          ? Colors.brown.shade900
+          : Colors.blueGrey.shade900,
       appBar: state.stage is RoomInDuel ? null : _buildAppBar(state, match) as PreferredSizeWidget?,
-      body: state.stage is RoomInDuel ? _buildDuelView(state) : _buildReadyRoomView(state, match),
+      body: state.stage is RoomInDuel
+          ? DuelFieldPage(state: state)
+          : WaitingRoomPage(state: state, match: match, onSendHand: _sendHand, onSendTp: _sendTp, onKick: (int slot) {
+        _duelService.kickPlayer(slot);
+      }, chatCtrl: _chatCtrl, chatScrollCtrl: _chatScrollCtrl, onSend: _sendChat, onToggleReady: _toggleReady, onSwitchToObserver: () {
+        _duelService.becomeObserver();
+      }, onSwitchToDuelist: () {
+        _duelService.becomeDuelist();
+      }, onStart: () {
+        _duelService.startDuel();
+      },),
     );
   }
 
@@ -245,169 +288,11 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     );
   }
 
-  Widget _buildReadyRoomView(DuelRoomState state, MatchStore match) {
-    final opts = state.roomOptions;
-    final mySlotVal = state.selfType.slot;
-    final isPlayer = mySlotVal >= 0 && mySlotVal <= 1;
-    final isReady = isPlayer &&
-        state.players.where((p) => p.pos == mySlotVal).any((p) => p.ready);
-
-    return Column(
-      children: [
-        Expanded(
-          child: Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: PlayerPanel(
-                  state: state,
-                  match: match,
-                  mySlot: mySlotVal,
-                  onSendHand: _sendHand,
-                  onSendTp: _sendTp,
-                  onKick: (slot) => _duelService.kickPlayer(slot),
-                  displayStyle: _displayStyle,
-                ),
-              ),
-              Expanded(
-                flex: 4,
-                child: Column(
-                  children: [
-                    if (opts != null) RoomInfoPanel(opts: opts),
-                    Expanded(
-                      child: ChatPanel(
-                        state: state,
-                        chatCtrl: _chatCtrl,
-                        chatScrollCtrl: _chatScrollCtrl,
-                        onSend: _sendChat,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (_displayStyle == DisplayStyle.statusBar &&
-            (state.stage is RoomSelectingHand ||
-             state.stage is RoomHandResult ||
-             state.stage is RoomSelectingTurn)) ...[
-          _buildStatusBarResult(state),
-        ],
-        ControlBar(
-          state: state,
-          mySlot: mySlotVal,
-          isPlayer: isPlayer,
-          isReady: isReady,
-          onToggleReady: _toggleReady,
-          onSwitchToObserver: () => _duelService.becomeObserver(),
-          onSwitchToDuelist: () => _duelService.becomeDuelist(),
-          onStart: () => _duelService.startDuel(),
-          onToggleDisplay: () {
-            setState(() {
-              _displayStyle = _displayStyle == DisplayStyle.card
-                  ? DisplayStyle.statusBar
-                  : DisplayStyle.card;
-            });
-          },
-          displayStyle: _displayStyle,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatusBarResult(DuelRoomState state) {
-    final mySlotVal = state.selfType.slot;
-    final myPlayer = state.players.where((p) => p.pos == mySlotVal).toList();
-    final myName = myPlayer.isNotEmpty ? myPlayer.first.name : '我';
-
-    final opSlot = mySlotVal == 0 ? 1 : 0;
-    final opPlayer = state.players.where((p) => p.pos == opSlot).toList();
-    final opName = opPlayer.isNotEmpty ? opPlayer.first.name : '对手';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: HandResultDisplay(
-        myHandResult: state.myHandResult,
-        opponentHandResult: state.opponentHandResult,
-        isFirstTurn: state.isFirstTurn,
-        stage: state.stage,
-        style: DisplayStyle.statusBar,
-        myName: myName,
-        opponentName: opName,
-      ),
-    );
-  }
-
-  Widget _buildDuelView(DuelRoomState state) {
-    return _buildFieldRenderer(state);
-  }
-
-  Widget _buildFieldRenderer(DuelRoomState state) {
-    return SafeArea(
-      child: Stack(children: [
-        Playmat(duel: state),
-        if (state.isWaitingForInput) DuelOverlay(state: state),
-        if (state.chains.isNotEmpty)
-          Positioned(
-            top: 100,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: ChainIndicator(chainCount: state.chains.length),
-            ),
-          ),
-        Positioned(
-          top: 8,
-          left: 8,
-          child: _buildBackButton(),
-        ),
-      ]),
-    );
-  }
-
-  Widget _buildBackButton() {
-    return Material(
-      color: Colors.black54,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () => _confirmBack(),
-        child: const Padding(
-          padding: EdgeInsets.all(8),
-          child: Icon(Icons.arrow_back, color: Colors.white, size: 24),
-        ),
-      ),
-    );
-  }
-
-  void _confirmBack() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('退出决斗'),
-        content: const Text('确定要退出当前决斗吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              context.go('/');
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('退出'),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   void dispose() {
     _msgSub?.cancel();
+    _chatMsgSub?.cancel();
     _chatCtrl.dispose();
     _chatScrollCtrl.dispose();
     _duelService.surrender();

@@ -7,7 +7,8 @@ import 'room_player.dart';
 /// 在整个加入房间后的所有状态间持续追踪。
 ///
 /// ```text
-/// NotJoined → InLobby → StartDuel → SelectingHand → HandResult → SelectingTurn
+/// NotJoined → InLobby → Ready <-→ Unready
+/// → StartDuel(点击开始决斗) → SelectingHand → HandResult → SelectingTurn
 ///  → InDuel →        DuelEnded → SideDecking
 ///      ↑___________________↓
 /// ```
@@ -53,6 +54,23 @@ class RoomInLobby extends RoomStage {
   @override String toString() => 'RoomInLobby(self:$selfType host:$isHost)';
 }
 
+class RoomReady extends RoomStage {
+  const RoomReady({
+    super.players = const [],
+    super.observerCount = 0,
+  });
+
+  @override String toString() => 'RoomReady';
+}
+
+class RoomUnready extends RoomStage {
+  const RoomUnready({
+    super.players = const [],
+    super.observerCount = 0,
+  });
+
+  @override String toString() => 'RoomUnready';
+}
 /// 决斗开始。
 ///
 class RoomStartDuel extends RoomStage {

@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 
 class HandSelect extends StatelessWidget {
   final void Function(HandType) onSendHand;
-  const HandSelect({required this.onSendHand});
+  final bool enabled;
+
+  const HandSelect({super.key, required this.onSendHand, this.enabled = true});
 
   @override
   Widget build(BuildContext context) {
@@ -36,10 +38,13 @@ class HandSelect extends StatelessWidget {
 
   Widget _handButton(HandType hand, String emoji, String label, void Function(HandType) onTap) {
     return GestureDetector(
-      onTap: () => onTap(hand),
+      onTap: enabled ? () => onTap(hand) : null,
       child: Column(
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 28)),
+          Opacity(
+            opacity: enabled ? 1 : 0.45,
+            child: Text(emoji, style: const TextStyle(fontSize: 28)),
+          ),
           const SizedBox(height: 4),
           Text(label, style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 12)),
         ],

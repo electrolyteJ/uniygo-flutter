@@ -1,0 +1,60 @@
+// ── 加入房间 ──
+
+import 'package:duelink/duelink.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:uniygopro/widgets/create_room/password_field.dart';
+
+import '../../config/servers.dart';
+import '../../stores/match_store.dart';
+import '../shared/create_room.dart';
+
+class JoinRoomForm extends StatefulWidget {
+  final GameServer server;
+  final DuelEnvironment env;
+  const JoinRoomForm({required this.server, required this.env});
+
+  @override
+  State<JoinRoomForm> createState() => _JoinRoomFormState();
+}
+
+class _JoinRoomFormState extends State<JoinRoomForm> {
+  final _pwCtrl = TextEditingController();
+  bool _connecting = false;
+  String? _error;
+
+  @override
+  void dispose() { _pwCtrl.dispose(); super.dispose(); }
+
+  Future<void> _join(BuildContext context) async {
+    final pw = _pwCtrl.text.trim();
+    if (pw.isEmpty) { setState(() => _error = '请输入房间密码'); return; }
+    setState(() { _connecting = true; _error = null; });
+
+    final matchStore = context.read<MatchStore>();
+    final server = widget.server;
+    final env = widget.env;
+
+    final password = env.useEncodedPassword
+        ? RoomPassword.encodeJoin(roomId: pw, secret: 0)
+        : pw;
+    matchStore.selectServer(server, env, password);
+    Navigator.of(context).pop();
+    if (context.mounted) context.go('/duel-room');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const SizedBox(height: 8),
+        PasswordField(controller: _pwCtrl, label: '房间密码', icon: Icons.lock, onSubmitted: (_) => _join(context)),
+        if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 13))),
+        const SizedBox(height: 16),
+        connectButton(label: '加入房间', connecting: _connecting, onPressed: () => _join(context)),
+      ]),
+    );
+  }
+}

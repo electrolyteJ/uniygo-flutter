@@ -18,33 +18,18 @@ import '../../protocol/buffer_io.dart';
 /// 参考 neos-ts 的 stocHsPlayerChange.ts 定义。
 class StocHsPlayerChange {
   final int pos;
-  /// MOVE=0, READY=1, NO_READY=2, LEAVE=3, TO_OBSERVER=4
-  final int state;
-  const StocHsPlayerChange({required this.pos, required this.state});
+  int _state = -1;
 
-  StocHsPlayerChangeState get stateValue {
-    switch (state) {
-      case 0:
-        return StocHsPlayerChangeState.move;
-      case 1:
-        return StocHsPlayerChangeState.ready;
-      case 2:
-        return StocHsPlayerChangeState.notReady;
-      case 3:
-        return StocHsPlayerChangeState.leave;
-      case 4:
-        return StocHsPlayerChangeState.toObserver;
-      default:
-        return StocHsPlayerChangeState.unknown;
-    }
-  }
+  StocHsPlayerChangeState get state =>
+      StocHsPlayerChangeState.fromValue(_state);
 
-  bool get isReady => stateValue == StocHsPlayerChangeState.ready;
+  StocHsPlayerChange({required this.pos, required this._state});
+
   int get protoId => STOC_HS_PLAYER_CHANGE;
 
   Uint8List encode() {
     final w = BufferWriter();
-    w.writeUint8(((pos & 0xf) << 4) | (state & 0xf));
+    w.writeUint8(((pos & 0xf) << 4) | (_state & 0xf));
     return w.toBytes();
   }
 
@@ -54,7 +39,7 @@ class StocHsPlayerChange {
   }
 
   @override
-  String toString() => 'StocHsPlayerChange(pos:$pos state:$state)';
+  String toString() => 'StocHsPlayerChange(pos:$pos action:${_state})';
 }
 
 enum StocHsPlayerChangeState {
@@ -63,5 +48,26 @@ enum StocHsPlayerChangeState {
   ready,
   notReady,
   leave,
-  toObserver,
+  toObserver;
+
+  static StocHsPlayerChangeState fromValue(int action) {
+    switch (action) {
+      case HS_PLAYER_STATE_MOVE:
+        return StocHsPlayerChangeState.move;
+      case HS_PLAYER_STATE_READY:
+      case 9:
+        return StocHsPlayerChangeState.ready;
+      case HS_PLAYER_STATE_NO_READY:
+      case 10:
+        return StocHsPlayerChangeState.notReady;
+      case HS_PLAYER_STATE_LEAVE:
+      case 11:
+        return StocHsPlayerChangeState.leave;
+      case HS_PLAYER_STATE_TO_OBSERVER:
+      case 8:
+        return StocHsPlayerChangeState.toObserver;
+      default:
+        return StocHsPlayerChangeState.unknown;
+    }
+  }
 }

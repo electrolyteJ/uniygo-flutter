@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:ygo_card/ygo_card.dart';
-
 import '../../service_singleton.dart';
 
 class CardImage extends StatelessWidget {

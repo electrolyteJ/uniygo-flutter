@@ -105,7 +105,7 @@ abstract class IDuelService implements IService {
 
   /// 服务端消息流（包含所有 [ygo_stoc_msg.YgoStocMsg]）。
   Stream<YgoStocMsg> get onServerMessage;
-
+  Stream<YgoStocMsg> get onChatServerMessage;
   /// 房间状态变化流（经过状态机解析后的高层语义）。
   Stream<RoomStage> get onRoomStageChange;
 }

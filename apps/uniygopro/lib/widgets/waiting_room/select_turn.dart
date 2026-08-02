@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 class TpSelect extends StatelessWidget {
   final void Function(bool) onSendTp;
+  final bool enabled;
 
-  const TpSelect({required this.onSendTp});
+  const TpSelect({super.key, required this.onSendTp, this.enabled = true});
 
   @override
   Widget build(BuildContext context) {
@@ -29,13 +30,13 @@ class TpSelect extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               FilledButton(
-                onPressed: () => onSendTp(true),
+                onPressed: enabled ? () => onSendTp(true) : null,
                 style: FilledButton.styleFrom(backgroundColor: Colors.teal),
                 child: const Text('先攻'),
               ),
               const SizedBox(width: 16),
               FilledButton(
-                onPressed: () => onSendTp(false),
+                onPressed: enabled ? () => onSendTp(false) : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: Colors.deepOrange,
                 ),
