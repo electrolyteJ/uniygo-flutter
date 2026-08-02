@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart';
 import 'package:provider/provider.dart';
 import '../../stores/duel_board_store.dart';
-import '../../stores/duel_selection_store.dart';
 
-class PhaseBar extends StatefulWidget {
+class PhaseBar extends StatelessWidget {
   final Set<int> tappablePhaseCodes;
   final ValueChanged<int>? onPhaseTap;
 
@@ -14,21 +13,6 @@ class PhaseBar extends StatefulWidget {
     this.tappablePhaseCodes = const <int>{},
     this.onPhaseTap,
   });
-
-  @override
-  State<PhaseBar> createState() => _PhaseBarState();
-}
-
-class _PhaseBarState extends State<PhaseBar> {
-  late final DuelBoardStore boardState;
-  late final DuelSelectionStore selectionState;
-
-  @override
-  void initState() {
-    super.initState();
-    boardState = context.read<DuelBoardStore>();
-    selectionState = context.read<DuelSelectionStore>();
-  }
 
   static const _phases = [
     {'code': PHASE_DRAW, 'activeMask': PHASE_DRAW, 'name': 'DP'},
@@ -50,8 +34,9 @@ class _PhaseBarState extends State<PhaseBar> {
 
   @override
   Widget build(BuildContext context) {
-    final tappablePhaseCodes = widget.tappablePhaseCodes;
-    final onPhaseTap = widget.onPhaseTap;
+    final boardState = context.watch<DuelBoardStore>();
+    final tappablePhaseCodes = this.tappablePhaseCodes;
+    final onPhaseTap = this.onPhaseTap;
     final isMyTurn = boardState.currentPlayer == boardState.myController;
     final currentPhase = boardState.phase;
     const panelBorder = Color(0x5900F0FF); // rgba(0, 240, 255, 0.35)
@@ -75,7 +60,7 @@ class _PhaseBarState extends State<PhaseBar> {
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00F0FF).withOpacity(0.25),
+                color: const Color(0xFF00F0FF).withValues(alpha: 0.25),
                 blurRadius: 16,
                 offset: const Offset(0, 2),
               ),
@@ -95,8 +80,8 @@ class _PhaseBarState extends State<PhaseBar> {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          const Color(0xFF00F0FF).withOpacity(0.3),
-                          const Color(0xFF0064C8).withOpacity(0.1),
+                          const Color(0xFF00F0FF).withValues(alpha: 0.3),
+                          const Color(0xFF0064C8).withValues(alpha: 0.1),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(4),
@@ -141,7 +126,7 @@ class _PhaseBarState extends State<PhaseBar> {
                         ? SystemMouseCursors.click
                         : SystemMouseCursors.basic,
                     child: GestureDetector(
-                      onTap: isTappable ? () => onPhaseTap?.call(code) : null,
+                      onTap: isTappable ? () => onPhaseTap(code) : null,
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 250),
                         margin: const EdgeInsets.symmetric(horizontal: 3),
@@ -152,8 +137,8 @@ class _PhaseBarState extends State<PhaseBar> {
                         decoration: BoxDecoration(
                           color: isActive
                               ? null
-                              : Colors.white.withOpacity(
-                                  isTappable ? 0.08 : 0.03,
+                              : Colors.white.withValues(
+                                  alpha: isTappable ? 0.08 : 0.03,
                                 ),
                           gradient: isActive
                               ? const LinearGradient(
@@ -165,8 +150,8 @@ class _PhaseBarState extends State<PhaseBar> {
                               : isTappable
                               ? LinearGradient(
                                   colors: [
-                                    const Color(0xFF00F0FF).withOpacity(0.16),
-                                    const Color(0xFF0077FF).withOpacity(0.08),
+                                    const Color(0xFF00F0FF).withValues(alpha: 0.16),
+                                    const Color(0xFF0077FF).withValues(alpha: 0.08),
                                   ],
                                 )
                               : null,
@@ -175,15 +160,15 @@ class _PhaseBarState extends State<PhaseBar> {
                             color: isActive
                                 ? Colors.white
                                 : isTappable
-                                ? const Color(0xFF00F0FF).withOpacity(0.65)
-                                : Colors.white.withOpacity(0.08),
+                                ? const Color(0xFF00F0FF).withValues(alpha: 0.65)
+                                : Colors.white.withValues(alpha: 0.08),
                           ),
                           boxShadow: isActive
                               ? [
                                   BoxShadow(
                                     color: const Color(
                                       0xFF00F0FF,
-                                    ).withOpacity(0.6),
+                                    ).withValues(alpha: 0.6),
                                     blurRadius: 14,
                                   ),
                                 ]
@@ -192,7 +177,7 @@ class _PhaseBarState extends State<PhaseBar> {
                                   BoxShadow(
                                     color: const Color(
                                       0xFF00F0FF,
-                                    ).withOpacity(0.18),
+                                    ).withValues(alpha: 0.18),
                                     blurRadius: 12,
                                   ),
                                 ]

@@ -6,7 +6,6 @@ import 'package:ygo_card/card_info.dart';
 import '../../models/IdleAction.dart';
 import '../../models/SelectState.dart';
 import '../../stores/duel_board_store.dart';
-import '../../stores/duel_chat_store.dart';
 import '../../stores/duel_room_state.dart';
 import '../../stores/duel_selection_store.dart';
 import '../../stores/duel_ui_store.dart';
@@ -28,10 +27,8 @@ class Playmat extends StatefulWidget {
 }
 
 class _PlaymatState extends State<Playmat> {
-  late final DuelRoomState duel;
   late final DuelBoardStore boardState;
   late final DuelSelectionStore selectionState;
-  late final DuelChatStore chatState;
   late final DuelUiStore uiState;
   static const int _locationHand = 0x02;
   int? _inspectedCardCode;
@@ -44,10 +41,8 @@ class _PlaymatState extends State<Playmat> {
   @override
   void initState() {
     super.initState();
-    duel = context.read<DuelRoomState>();
     boardState = context.read<DuelBoardStore>();
     selectionState = context.read<DuelSelectionStore>();
-    chatState = context.read<DuelChatStore>();
     uiState = context.read<DuelUiStore>();
     _flameGame = DuelFlameGame(
       boardState: boardState,
@@ -295,6 +290,10 @@ class _PlaymatState extends State<Playmat> {
 
   @override
   Widget build(BuildContext context) {
+    final duelState = context.watch<DuelRoomState>();
+    final boardState = context.watch<DuelBoardStore>();
+    final selectionState = context.watch<DuelSelectionStore>();
+    final uiState = context.watch<DuelUiStore>();
     final isMyTurn = boardState.currentPlayer == boardState.myController;
     final zoneBrowserKey = _openZoneBrowserKey;
     final zoneBrowserCodes = zoneBrowserKey == null
@@ -411,7 +410,7 @@ class _PlaymatState extends State<Playmat> {
                           Positioned(
                             top: 14,
                             right: 16,
-                            child: DuelLogDrawer(logs: duel.duelLogs),
+                            child: DuelLogDrawer(logs: duelState.duelLogs),
                           ),
 
                           // 屏幕中央连锁显示 (matches .chain-stack-indicator)
@@ -471,10 +470,10 @@ class _PlaymatState extends State<Playmat> {
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.28),
+                                  color: Colors.black.withValues(alpha: 0.28),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: Colors.white.withOpacity(0.08),
+                                    color: Colors.white.withValues(alpha: 0.08),
                                   ),
                                 ),
                                 child: Text(

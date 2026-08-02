@@ -2,9 +2,7 @@ import 'package:duelink/duelink.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
-import '../stores/duel_chat_store.dart';
 import '../stores/waiting_room_store.dart';
-import '../stores/match_store.dart';
 import '../widgets/waiting_room/chat_panel.dart';
 import '../widgets/waiting_room/control_bar.dart';
 import '../widgets/waiting_room/hand_result_display.dart';
@@ -12,66 +10,19 @@ import '../widgets/waiting_room/player_panel.dart';
 import '../widgets/waiting_room/room_info_panel.dart';
 
 class WaitingRoomPage extends StatefulWidget {
-  final MatchStore match;
-  final DisplayStyle _displayStyle = DisplayStyle.card;
-  final void Function(HandType) onSendHand;
-  final void Function(bool) onSendTp;
-  final void Function(int) onKick;
-  final TextEditingController chatCtrl;
-  final ScrollController chatScrollCtrl;
-  final VoidCallback onSend;
-  final VoidCallback onSwitchToObserver;
-  final VoidCallback onSwitchToDuelist;
-  final VoidCallback onStart;
-  final ValueChanged<bool> onToggleAutoHand;
-  final ValueChanged<bool> onToggleAutoTurnOrder;
-
-  const WaitingRoomPage({
-    super.key,
-    required this.match,
-    required this.onSendHand,
-    required this.onSendTp,
-    required this.onKick,
-    required this.chatCtrl,
-    required this.chatScrollCtrl,
-    required this.onSend,
-    required this.onSwitchToObserver,
-    required this.onSwitchToDuelist,
-    required this.onStart,
-    required this.onToggleAutoHand,
-    required this.onToggleAutoTurnOrder,
-  });
+  const WaitingRoomPage({super.key});
 
   @override
   State<WaitingRoomPage> createState() => _WaitingRoomPageState();
 }
 
 class _WaitingRoomPageState extends State<WaitingRoomPage> {
-  late final WaitingRoomStore waitingRoomStore;
-  late final DuelChatStore chatState;
-
-  @override
-  void initState() {
-    super.initState();
-    waitingRoomStore = context.read<WaitingRoomStore>();
-    chatState = context.read<DuelChatStore>();
-  }
+  DisplayStyle _displayStyle = DisplayStyle.card;
 
   @override
   Widget build(BuildContext context) {
-    final match = widget.match;
-    final onSendHand = widget.onSendHand;
-    final onSendTp = widget.onSendTp;
-    final onKick = widget.onKick;
-    final chatCtrl = widget.chatCtrl;
-    final chatScrollCtrl = widget.chatScrollCtrl;
-    final onSend = widget.onSend;
-    final onSwitchToObserver = widget.onSwitchToObserver;
-    final onSwitchToDuelist = widget.onSwitchToDuelist;
-    final onStart = widget.onStart;
-    final onToggleAutoHand = widget.onToggleAutoHand;
-    final onToggleAutoTurnOrder = widget.onToggleAutoTurnOrder;
-    final _displayStyle = widget._displayStyle;
+    final waitingRoomStore = context.watch<WaitingRoomStore>();
+
     final opts = waitingRoomStore.roomOptions;
     final mySlotVal = waitingRoomStore.selfType.slot;
     final isPlayer = mySlotVal >= 0 && mySlotVal <= 1;
@@ -80,7 +31,6 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
         waitingRoomStore.players
             .where((p) => p.pos == mySlotVal)
             .any((p) => p.ready);
-
     return Column(
       children: [
         Expanded(
@@ -89,12 +39,7 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
               Expanded(
                 flex: 3,
                 child: PlayerPanel(
-                  waitingRoomStore: waitingRoomStore,
-                  match: match,
                   mySlot: mySlotVal,
-                  onSendHand: onSendHand,
-                  onSendTp: onSendTp,
-                  onKick: onKick,
                   displayStyle: _displayStyle,
                 ),
               ),
@@ -103,14 +48,7 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
                 child: Column(
                   children: [
                     if (opts != null) RoomInfoPanel(opts: opts),
-                    Expanded(
-                      child: ChatPanel(
-                        chatState: chatState,
-                        chatCtrl: chatCtrl,
-                        chatScrollCtrl: chatScrollCtrl,
-                        onSend: onSend,
-                      ),
-                    ),
+                    Expanded(child: ChatPanel()),
                   ],
                 ),
               ),
@@ -124,24 +62,17 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
           _buildStatusBarResult(waitingRoomStore),
         ],
         ControlBar(
-          waitingRoomStore: waitingRoomStore,
           mySlot: mySlotVal,
           isPlayer: isPlayer,
           isReady: isReady,
-          onToggleReady: () => waitingRoomStore.toggleReady(context, mounted),
-          onSwitchToObserver: onSwitchToObserver,
-          onSwitchToDuelist: onSwitchToDuelist,
-          onStart: onStart,
-          onToggleDisplay: () {
-            // setState(() {
-            //   _displayStyle = _displayStyle == DisplayStyle.card
-            //       ? DisplayStyle.statusBar
-            //       : DisplayStyle.card;
-            // });
-          },
           displayStyle: _displayStyle,
-          onToggleAutoHand: onToggleAutoHand,
-          onToggleAutoTurnOrder: (value) => onToggleAutoTurnOrder(value),
+          onToggleDisplay: () {
+            setState(() {
+              _displayStyle = _displayStyle == DisplayStyle.card
+                  ? DisplayStyle.statusBar
+                  : DisplayStyle.card;
+            });
+          },
         ),
       ],
     );

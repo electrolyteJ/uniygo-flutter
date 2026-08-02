@@ -7,7 +7,6 @@ import 'package:duelink/duelink.dart';
 import 'package:duelink_online/duelink_online.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
 import 'package:service_loader/service_loader.dart';
 import 'package:uniygopro/pages/duel_field_page.dart';
 import 'package:uniygopro/pages/waiting_room_page.dart';
@@ -19,8 +18,8 @@ import '../stores/duel_selection_store.dart';
 import '../stores/duel_ui_store.dart';
 import '../stores/match_store.dart';
 import '../models/duel_event.dart';
-import '../models/DuelPhase.dart';
 import '../eventbus/duel_event_mapper.dart';
+import '../widgets/shared/duel_room.dart';
 
 
 class DuelRoomPage extends StatefulWidget {
@@ -32,11 +31,10 @@ class DuelRoomPage extends StatefulWidget {
 
 class _DuelRoomPageState extends State<DuelRoomPage> {
   final IDuelService _duelService = ServiceFactory.create<OnlineDuelService>();
-  final _chatCtrl = TextEditingController();
-  final _chatScrollCtrl = ScrollController();
+
   StreamSubscription<RoomStage>? _roomStageSub;
   StreamSubscription<YgoStocMsg>? _msgSub;
-  StreamSubscription<YgoStocMsg>? _chatMsgSub;
+
 
   late final DuelRoomState duelRoomState;
   late final DuelChatStore duelChatStore;
@@ -54,6 +52,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     waitingRoomStore = context.read<WaitingRoomStore>();
     waitingRoomStore.bind(_duelService);
     duelChatStore = context.read<DuelChatStore>();
+    duelChatStore.bind(_duelService);
     duelBoardStore = context.read<DuelBoardStore>();
     duelBoardStore.bind(_duelService);
     selectionStore = context.read<DuelSelectionStore>();
@@ -66,7 +65,6 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
   final Random random = Random();
 
   Future<void> _connect() async {
-
     _roomStageSub = _duelService.onRoomStageChange.listen((roomStage) {
       waitingRoomStore.players = roomStage.players;
       waitingRoomStore.observerCount = roomStage.observerCount;
@@ -74,6 +72,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
       switch (roomStage) {
         case RoomNotJoined():
           //游戏结束或者离开房间后，重置房间状态
+          backHome(context);
           break;
         case RoomInLobby():
           waitingRoomStore.selfType = roomStage.selfType;
@@ -87,7 +86,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
               final hands = HandType.values
                   .where((hand) => hand != HandType.unknown)
                   .toList();
-              _sendHand(hands[random.nextInt(hands.length)]);
+              waitingRoomStore.sendHand(hands[random.nextInt(hands.length)]);
             });
           }
           break;
@@ -97,48 +96,24 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
           break;
         case RoomSelectingTurn():
           if (waitingRoomStore.autoTurnOrderEnabled) {
-            _sendTp(random.nextBool());
+            waitingRoomStore.sendTp(random.nextBool());
           }
           break;
         case RoomInDuel():
-          // duelRoomState.bind(_duelService);
           waitingRoomStore.myHandResult = 0;
           waitingRoomStore.opponentHandResult = 0;
           waitingRoomStore.isFirstTurn = roomStage.isFirstTurn;
           break;
         case RoomDuelEnded():
-          backhome();
+          backHome(context);
           break;
         default:
           break;
       }
       waitingRoomStore.markChanged();
+      duelRoomState.markChanged();
     });
 
-    _chatMsgSub = _duelService.onChatServerMessage.listen((msg) {
-      if (msg.chat != null) {
-        final chat = msg.chat!;
-        final player = waitingRoomStore.players
-            .where((p) => p.pos == chat.player)
-            .toList();
-        final name = chat.player < 0
-            ? 'System'
-            : (player.isNotEmpty ? player.first.name : '[${chat.player}]');
-        duelChatStore.addChat(chat.player, name, chat.message);
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_chatScrollCtrl.hasClients) {
-            _chatScrollCtrl.animateTo(
-              _chatScrollCtrl.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOut,
-            );
-          }
-        });
-      }
-      duelChatStore.markChanged();
-
-    });
     _msgSub = _duelService.onServerMessage.listen((msg) {
       console.log('Received server message: $msg');
       _onMessage(msg);
@@ -179,7 +154,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     if (event == null) return;
     _onEvent(event);
     duelRoomState.markChanged();
-    waitingRoomStore.markChanged();
+    // waitingRoomStore.notifyListeners();
     duelBoardStore.markChanged();
     selectionStore.markChanged();
     uiStore.markChanged();
@@ -214,7 +189,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
             break;
           case MSG_CHAINING:
             final name = duelBoardStore.handleChaining(innerMsg);
-            addLog('连锁发动 ${name}。');
+            addLog('连锁发动 $name。');
             break;
           case MSG_CHAIN_END:
             _handleChainEnd(innerMsg);
@@ -434,7 +409,6 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
   }
 
 
-
   void _handleReloadField(MsgReloadField msg) {
     duelBoardStore.applyReloadField(msg);
   }
@@ -446,9 +420,6 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
   void _handleMove(dynamic data) {
     duelBoardStore.applyMove(data as MsgMove);
   }
-
-
-
 
 
   void _handleAttack(dynamic data) {
@@ -604,27 +575,6 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     selectionStore.applySelectDisfield(data as MsgSelectPlace);
   }
 
-
-  void _sendHand(HandType hand) {
-    console.log('Sending hand result: $hand');
-    _duelService.chooseHand(hand);
-    waitingRoomStore.setHandResult(hand.value);
-  }
-
-  void _sendTp(bool first) {
-    console.log('Sending TP result: ${first ? 'first' : 'second'}');
-    _duelService.chooseTurnOrder(first);
-    waitingRoomStore.setTpResult(first);
-  }
-
-  void _sendChat() {
-    final text = _chatCtrl.text.trim();
-    if (text.isEmpty) return;
-    _duelService.sendChat(text);
-    _chatCtrl.clear();
-  }
-
-
   String _roomTitle(WaitingRoomStore waitingRoomStore, MatchStore match) {
     final modeName = switch (waitingRoomStore.roomOptions?.mode) {
       RoomMode.single => '单局',
@@ -663,7 +613,8 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
 
   @override
   Widget build(BuildContext context) {
-    final match = context.watch<MatchStore>();
+    final waitingRoomStore = context.watch<WaitingRoomStore>();
+    final matchRoomStore = context.watch<MatchStore>();
     if (waitingRoomStore.errorMessage != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -684,42 +635,20 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
           : Colors.blueGrey.shade900,
       appBar: waitingRoomStore.stage is RoomInDuel
           ? null
-          : _buildAppBar() as PreferredSizeWidget?,
-      body: waitingRoomStore.stage is RoomInDuel
-          ? DuelFieldPage()
-          : WaitingRoomPage(
-              match: match,
-              onSendHand: _sendHand,
-              onSendTp: _sendTp,
-              onKick: (int slot) {
-                _duelService.kickPlayer(slot);
-              },
-              chatCtrl: _chatCtrl,
-              chatScrollCtrl: _chatScrollCtrl,
-              onSend: _sendChat,
-              onSwitchToObserver: () {
-                _duelService.becomeObserver();
-              },
-              onSwitchToDuelist: () {
-                _duelService.becomeDuelist();
-              },
-              onStart: () {
-                _duelService.startDuel();
-              },
-              onToggleAutoHand: (value) =>
-                  waitingRoomStore.setAutoHandEnabled(value),
-              onToggleAutoTurnOrder: (value) =>
-                  waitingRoomStore.setAutoTurnOrderEnabled(value),
-            ),
+          : _buildAppBar(waitingRoomStore, matchRoomStore) as PreferredSizeWidget?,
+      body: waitingRoomStore.stage is RoomInDuel ? DuelFieldPage() : WaitingRoomPage(),
     );
   }
 
-  Widget _buildAppBar() {
+  Widget _buildAppBar(
+    WaitingRoomStore waitingRoomStore,
+    MatchStore matchRoomStore,
+  ) {
     return AppBar(
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
         onPressed: () {
-          backhome();
+          backHomeDialog(context: context, title: '退出房间', content: '是否确认退出当前房间？');
         },
       ),
       title: Text(_roomTitle(waitingRoomStore, matchRoomStore)),
@@ -727,29 +656,15 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
       foregroundColor: Colors.white,
     );
   }
-  void backhome(){
-    duelRoomState.reset();
-    waitingRoomStore.reset();
-    duelBoardStore.reset();
-    selectionStore.reset();
-    duelChatStore.reset();
-    uiStore.reset();
-    matchRoomStore.reset();
-    context.go('/');
-  }
 
   @override
   void dispose() {
     if (_duelService.connectionState == duel.ConnectionState.connected) {
       _duelService.surrender();
     }
-    _duelService.surrender();
     _duelService.disconnect();
-    _chatCtrl.dispose();
-    _chatScrollCtrl.dispose();
     _roomStageSub?.cancel();
     _msgSub?.cancel();
-    _chatMsgSub?.cancel();
     super.dispose();
     console.log('DuelRoomPage disposed and disconnected from server.');
   }

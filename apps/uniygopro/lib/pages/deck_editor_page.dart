@@ -272,23 +272,13 @@ class _DeckNameInput extends StatefulWidget {
 }
 
 class _DeckNameInputState extends State<_DeckNameInput> {
-  late TextEditingController _controller;
+  late final TextEditingController _controller;
   bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
-    final store = context.read<DeckEditorStore>();
-    _controller = TextEditingController(text: store.editingDeck.deckName);
-  }
-
-  @override
-  void didUpdateWidget(_DeckNameInput oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final store = context.read<DeckEditorStore>();
-    if (store.editingDeck.deckName != _controller.text && !_isEditing) {
-      _controller.text = store.editingDeck.deckName;
-    }
+    _controller = TextEditingController();
   }
 
   @override
@@ -300,6 +290,14 @@ class _DeckNameInputState extends State<_DeckNameInput> {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<DeckEditorStore>();
+    final deckName = store.editingDeck.deckName;
+    if (!_isEditing && _controller.text != deckName) {
+      _controller.value = _controller.value.copyWith(
+        text: deckName,
+        selection: TextSelection.collapsed(offset: deckName.length),
+        composing: TextRange.empty,
+      );
+    }
     
     return GestureDetector(
       onTap: () {
@@ -330,17 +328,15 @@ class _DeckNameInputState extends State<_DeckNameInput> {
                 ),
                 onSubmitted: (value) {
                   final name = value.trim();
-                  if (name.isNotEmpty && name != store.editingDeck.deckName) {
-                    store.editingDeck.deckName = name;
-                    store.markDirty();
+                  if (name.isNotEmpty && name != deckName) {
+                    store.renameEditingDeck(name);
                   }
                   setState(() => _isEditing = false);
                 },
                 onTapOutside: (_) {
                   final name = _controller.text.trim();
-                  if (name.isNotEmpty && name != store.editingDeck.deckName) {
-                    store.editingDeck.deckName = name;
-                    store.markDirty();
+                  if (name.isNotEmpty && name != deckName) {
+                    store.renameEditingDeck(name);
                   }
                   setState(() => _isEditing = false);
                 },
@@ -353,9 +349,9 @@ class _DeckNameInputState extends State<_DeckNameInput> {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                store.editingDeck.deckName.isEmpty
+                deckName.isEmpty
                     ? '未命名卡组'
-                    : store.editingDeck.deckName,
+                    : deckName,
                 style: const TextStyle(fontSize: 16),
               ),
             ),
@@ -518,13 +514,13 @@ class _AppBarActions extends StatelessWidget {
               final deckService = DeckService();
               final deck = await deckService.importFromYdk(content, '导入的卡组');
               if (deck != null && dialogContext.mounted) {
-                store.editingDeck.reset(
-                  deck.deckName,
-                  deck.main,
-                  deck.extra,
-                  deck.side,
+                store.replaceEditingDeck(
+                  deckName: deck.deckName,
+                  main: deck.main,
+                  extra: deck.extra,
+                  side: deck.side,
+                  markDirty: true,
                 );
-                store.markDirty();
                 Navigator.pop(dialogContext);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(

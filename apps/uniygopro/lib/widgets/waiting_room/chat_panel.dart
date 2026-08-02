@@ -1,19 +1,59 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:uniygopro/stores/waiting_room_store.dart';
 import '../../stores/duel_chat_store.dart';
 
-class ChatPanel extends StatelessWidget {
-  final DuelChatStore chatState;
-  final TextEditingController chatCtrl;
-  final ScrollController chatScrollCtrl;
-  final VoidCallback onSend;
+class ChatPanel extends StatefulWidget {
+  const ChatPanel({super.key});
 
-  const ChatPanel({
-    super.key,
-    required this.chatState,
-    required this.chatCtrl,
-    required this.chatScrollCtrl,
-    required this.onSend,
-  });
+  @override
+  State<ChatPanel> createState() => _ChatPanelState();
+}
+
+class _ChatPanelState extends State<ChatPanel> {
+  late final TextEditingController chatCtrl;
+  late final ScrollController chatScrollCtrl;
+  late final DuelChatStore duelChatStore;
+
+  @override
+  void initState() {
+    super.initState();
+    chatCtrl = TextEditingController();
+    chatScrollCtrl = ScrollController();
+    duelChatStore = context.read<DuelChatStore>();
+    final waitingRoomStore = context.read<WaitingRoomStore>();
+    duelChatStore.bindChatServerMessages((msg) {
+      if (msg.chat != null) {
+        final chat = msg.chat!;
+        final player = waitingRoomStore.players
+            .where((p) => p.pos == chat.player)
+            .toList();
+        final name = chat.player < 0
+            ? 'System'
+            : (player.isNotEmpty ? player.first.name : '[${chat.player}]');
+        duelChatStore.addChat(chat.player, name, chat.message);
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (chatScrollCtrl.hasClients) {
+            chatScrollCtrl.animateTo(
+              chatScrollCtrl.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
+      duelChatStore.markChanged();
+    });
+  }
+
+  @override
+  void dispose() {
+    chatCtrl.dispose();
+    chatScrollCtrl.dispose();
+    duelChatStore.reset();
+    super.dispose();
+  }
 
   Color _chatColor(int playerIndex) {
     switch (playerIndex) {
@@ -30,6 +70,7 @@ class ChatPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final duelChatStore = context.watch<DuelChatStore>();
     return Container(
       color: Colors.blueGrey.shade900,
       child: Column(
@@ -55,9 +96,9 @@ class ChatPanel extends StatelessWidget {
             child: ListView.builder(
               controller: chatScrollCtrl,
               padding: const EdgeInsets.all(8),
-              itemCount: chatState.chatMessages.length,
+              itemCount: duelChatStore.chatMessages.length,
               itemBuilder: (ctx, i) {
-                final msg = chatState.chatMessages[i];
+                final msg = duelChatStore.chatMessages[i];
                 final color = _chatColor(msg.playerIndex);
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
@@ -107,14 +148,20 @@ class ChatPanel extends StatelessWidget {
                         borderSide: BorderSide.none,
                       ),
                     ),
-                    onSubmitted: (_) => onSend(),
+                    onSubmitted: (_) {
+                      duelChatStore.sendChat(chatCtrl.text);
+                      chatCtrl.clear();
+                    },
                   ),
                 ),
                 const SizedBox(width: 6),
                 IconButton(
                   icon: const Icon(Icons.send, size: 20),
                   color: Colors.amber,
-                  onPressed: onSend,
+                  onPressed: () {
+                    duelChatStore.sendChat(chatCtrl.text);
+                    chatCtrl.clear();
+                  },
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),

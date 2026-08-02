@@ -2,8 +2,6 @@ import 'dart:developer' as console;
 
 import 'package:flutter/foundation.dart';
 import 'package:ygo_card/card_info.dart';
-import 'package:ygo_card/ygo_card.dart';
-import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 import '../models/deck_model.dart';
 import '../service_singleton.dart';
 import '../services/deck_service.dart';
@@ -112,7 +110,7 @@ class DeckEditorStore extends ChangeNotifier {
       final deck = await _deckService.loadDeck(deckName);
 
       if (deck != null) {
-        _editingDeck.reset(
+        _replaceEditingDeck(
           deck.deckName,
           deck.main,
           deck.extra,
@@ -158,7 +156,7 @@ class DeckEditorStore extends ChangeNotifier {
       _decks.removeWhere((d) => d.deckName == name);
       if (_currentDeck?.deckName == name) {
         _currentDeck = null;
-        _editingDeck.reset('', [], [], []);
+        _replaceEditingDeck('', [], [], []);
       }
       notifyListeners();
     } else {
@@ -379,6 +377,29 @@ class DeckEditorStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 更新当前编辑卡组名称，并标记为未保存。
+  void renameEditingDeck(String deckName) {
+    if (deckName == _editingDeck.deckName) {
+      return;
+    }
+    _editingDeck.deckName = deckName;
+    _editingDeck.isDirty = true;
+    notifyListeners();
+  }
+
+  /// 用指定内容替换当前编辑卡组。
+  void replaceEditingDeck({
+    required String deckName,
+    required List<CardInfo> main,
+    required List<CardInfo> extra,
+    required List<CardInfo> side,
+    bool markDirty = false,
+  }) {
+    _replaceEditingDeck(deckName, main, extra, side);
+    _editingDeck.isDirty = markDirty;
+    notifyListeners();
+  }
+
   /// 清除错误信息
   void clearError() {
     _errorMessage = null;
@@ -389,6 +410,15 @@ class DeckEditorStore extends ChangeNotifier {
   void markDirty() {
     _editingDeck.isDirty = true;
     notifyListeners();
+  }
+
+  void _replaceEditingDeck(
+    String deckName,
+    List<CardInfo> main,
+    List<CardInfo> extra,
+    List<CardInfo> side,
+  ) {
+    _editingDeck.reset(deckName, main, extra, side);
   }
 
   /// 获取卡牌的禁限状态描述

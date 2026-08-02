@@ -53,6 +53,7 @@ class WaitingRoomStore extends ChangeNotifier {
 
   /// 清空与当前房间会话相关的临时状态。
   void reset() {
+    console.log('WaitingRoomStore.reset()');
     // 等待房间重置
     stage = const RoomNotJoined();
     selfType = SelfType.unknown;
@@ -114,17 +115,40 @@ class WaitingRoomStore extends ChangeNotifier {
     stage = RoomUnready();
     notifyListeners();
   }
-
+  void sendHand(HandType hand) {
+    console.log('Sending hand result: $hand');
+    _duelService?.chooseHand(hand);
+    setHandResult(hand.value);
+  }
   void setHandResult(int handValue) {
     stage = RoomSelectingHand();
     myHandResult = handValue;
     notifyListeners();
   }
-
+  void sendTp(bool first) {
+    console.log('Sending TP result: ${first ? 'first' : 'second'}');
+    _duelService?.chooseTurnOrder(first);
+    setTpResult(first);
+  }
   void setTpResult(bool first) {
     stage = RoomInDuel(isFirstTurn: first);
     isFirstTurn = first;
     notifyListeners();
+  }
+
+  void kickPlayer(int pos) {
+    _duelService?.kickPlayer(pos);
+  }
+  void becomeObserver(){
+    _duelService?.becomeObserver();
+  }
+
+  void becomeDuelist(){
+    _duelService?.becomeDuelist();
+  }
+
+  void startDuel() {
+    _duelService?.startDuel();
   }
 
   Future<void> loadDecks() async {
@@ -152,7 +176,7 @@ class WaitingRoomStore extends ChangeNotifier {
   }
 
   /// 准备按钮入口：未准备时提交卡组并 ready，已准备时取消 ready。
-  Future<void> toggleReady(BuildContext context, bool mounted) async {
+  Future<void> toggleReady(BuildContext context) async {
     final isReady = players
         .where((p) => p.pos == selfType.slot)
         .any((p) => p.ready);
@@ -173,14 +197,15 @@ class WaitingRoomStore extends ChangeNotifier {
       final deck = await deckService.loadDeck(deckName);
       console.log('loadDeck: $deckName -> $deck');
       if (deck == null || deck.main.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('卡组为空或加载失败'),
-              backgroundColor: Colors.red,
-            ),
-          );
+        if (!context.mounted) {
+          return;
         }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('卡组为空或加载失败'),
+            backgroundColor: Colors.red,
+          ),
+        );
         return;
       }
       final mainBytes = _deckToBytes(deck.main.map((c) => c.code).toList());

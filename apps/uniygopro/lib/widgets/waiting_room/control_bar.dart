@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart';
+import 'package:provider/provider.dart';
 import '../../stores/waiting_room_store.dart';
 import '../shared/waiting_room.dart';
 import 'hand_result_display.dart' show DisplayStyle;
@@ -7,37 +8,24 @@ import 'hand_result_display.dart' show DisplayStyle;
 export 'hand_result_display.dart' show DisplayStyle;
 
 class ControlBar extends StatelessWidget {
-  final WaitingRoomStore waitingRoomStore;
   final int mySlot;
   final bool isPlayer;
   final bool isReady;
-  final VoidCallback onToggleReady;
-  final VoidCallback onSwitchToObserver;
-  final VoidCallback onSwitchToDuelist;
-  final VoidCallback onStart;
   final VoidCallback onToggleDisplay;
   final DisplayStyle displayStyle;
-  final ValueChanged<bool> onToggleAutoHand;
-  final ValueChanged<bool> onToggleAutoTurnOrder;
 
   const ControlBar({
     super.key,
-    required this.waitingRoomStore,
     required this.mySlot,
     required this.isPlayer,
     required this.isReady,
-    required this.onToggleReady,
-    required this.onSwitchToObserver,
-    required this.onSwitchToDuelist,
-    required this.onStart,
     required this.onToggleDisplay,
     required this.displayStyle,
-    required this.onToggleAutoHand,
-    required this.onToggleAutoTurnOrder,
   });
 
   @override
   Widget build(BuildContext context) {
+    final waitingRoomStore = context.watch<WaitingRoomStore>();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -56,13 +44,16 @@ class ControlBar extends StatelessWidget {
                   label: '自动猜拳',
                   value: waitingRoomStore.autoHandEnabled,
                   enabled: !waitingRoomStore.isSelfReady,
-                  onChanged: onToggleAutoHand,
+                  onChanged: (value) =>
+                      waitingRoomStore.setAutoHandEnabled(value),
                 ),
+
                 buildAutomationSwitch(
                   label: '自动随机先后手',
                   value: waitingRoomStore.autoTurnOrderEnabled,
                   enabled: !waitingRoomStore.isSelfReady,
-                  onChanged: onToggleAutoTurnOrder,
+                  onChanged: (value) =>
+                      waitingRoomStore.setAutoTurnOrderEnabled(value),
                 ),
               ],
             ),
@@ -84,7 +75,7 @@ class ControlBar extends StatelessWidget {
             if (isPlayer)
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: onToggleReady,
+                  onPressed: () => waitingRoomStore.toggleReady(context),
                   icon: Icon(
                     isReady ? Icons.cancel : Icons.check_circle,
                     size: 18,
@@ -102,7 +93,7 @@ class ControlBar extends StatelessWidget {
             if (isPlayer)
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: onSwitchToObserver,
+                  onPressed: () => waitingRoomStore.becomeObserver(),
                   icon: const Icon(Icons.visibility, size: 18),
                   label: const Text('观战'),
                   style: OutlinedButton.styleFrom(
@@ -114,7 +105,7 @@ class ControlBar extends StatelessWidget {
             if (!isPlayer && waitingRoomStore.selfType == SelfType.observer)
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: onSwitchToDuelist,
+                  onPressed: () => waitingRoomStore.becomeDuelist(),
                   icon: const Icon(Icons.person_add, size: 18),
                   label: const Text('加入对战'),
                   style: OutlinedButton.styleFrom(
@@ -128,7 +119,7 @@ class ControlBar extends StatelessWidget {
             if (waitingRoomStore.isHost)
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: onStart,
+                  onPressed: () => waitingRoomStore.startDuel(),
                   icon: const Icon(Icons.play_arrow, size: 18),
                   label: const Text('开始决斗'),
                   style: FilledButton.styleFrom(

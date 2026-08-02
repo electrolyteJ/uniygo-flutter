@@ -2,7 +2,6 @@
 // Match Join Sheet
 // ────────────────────────────────────────────────────────────
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -14,7 +13,10 @@ import '../shared/create_room.dart';
 
 class MatchJoinSheet extends StatefulWidget {
   final GameServer server;
-  const MatchJoinSheet({required this.server});
+  const MatchJoinSheet({
+    super.key,
+    required this.server,
+  });
 
   @override
   State<MatchJoinSheet> createState() => _MatchJoinSheetState();
@@ -41,7 +43,7 @@ class _MatchJoinSheetState extends State<MatchJoinSheet> {
         arena: arena, username: _usernameCtrl.text.trim(), secret: _passwordCtrl.text.trim(),
       );
       matchStore.setMatchResult(result.address, result.port, result.password);
-      matchStore.username = _usernameCtrl.text.trim();
+      matchStore.setUsername(_usernameCtrl.text.trim());
       if (context.mounted) context.go('/duel-room');
     } catch (e) {
       if (mounted) { setState(() { _connecting = false; _error = '匹配失败: $e'; }); matchStore.stopSearching(); }

@@ -15,7 +15,6 @@ class DeckEditPanel extends StatefulWidget {
 class _DeckEditPanelState extends State<DeckEditPanel>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final TextEditingController _nameController = TextEditingController();
 
   // ── 撤销/重做历史 ──
   final List<_DeckSnapshot> _undoStack = [];
@@ -26,21 +25,12 @@ class _DeckEditPanelState extends State<DeckEditPanel>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _syncNameFromStore();
-    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _nameController.dispose();
     super.dispose();
-  }
-
-  void _syncNameFromStore() {
-    final store = context.read<DeckEditorStore>();
-    _nameController.text = store.editingDeck.deckName;
   }
 
   void _pushSnapshot() {
@@ -66,7 +56,7 @@ class _DeckEditPanelState extends State<DeckEditPanel>
       ),
       child: Column(
         children: [
-          _buildTabBar(),
+          _buildTabBar(deck),
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -83,7 +73,7 @@ class _DeckEditPanelState extends State<DeckEditPanel>
     );
   }
 
-  Widget _buildTabBar() {
+  Widget _buildTabBar(EditingDeck deck) {
     return Container(
       decoration: const BoxDecoration(
         border: Border(
@@ -93,9 +83,9 @@ class _DeckEditPanelState extends State<DeckEditPanel>
       child: TabBar(
         controller: _tabController,
         tabs: [
-          Tab(text: '主卡组 (${_getCurrentDeck().mainCount})'),
-          Tab(text: '额外 (${_getCurrentDeck().extraCount})'),
-          Tab(text: '备牌 (${_getCurrentDeck().sideCount})'),
+          Tab(text: '主卡组 (${deck.mainCount})'),
+          Tab(text: '额外 (${deck.extraCount})'),
+          Tab(text: '备牌 (${deck.sideCount})'),
         ],
         labelColor: const Color(0xFFFFB300),
         unselectedLabelColor: Colors.white.withValues(alpha: 0.5),
@@ -103,11 +93,6 @@ class _DeckEditPanelState extends State<DeckEditPanel>
         indicatorSize: TabBarIndicatorSize.label,
       ),
     );
-  }
-
-  EditingDeck _getCurrentDeck() {
-    final store = context.read<DeckEditorStore>();
-    return store.editingDeck;
   }
 
   Widget _buildActionBar(DeckEditorStore store, EditingDeck deck) {

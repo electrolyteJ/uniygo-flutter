@@ -36,3 +36,5 @@ class MsgNewPhase {
   @override
   String toString() => 'MsgNewPhase(phase:$phase)';
 }
+
+enum DuelPhase { idle, dp, sp, m1, bp, m2, ep }

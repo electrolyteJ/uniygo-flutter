@@ -2,50 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/SelectState.dart';
 import '../../stores/duel_selection_store.dart';
-import '../../stores/duel_room_state.dart';
 import 'select_menu.dart';
 import 'battle_select_menu.dart';
 import 'card_selector.dart';
 import 'position_selector.dart';
 import 'yes_no_dialog.dart';
 
-class DuelOverlay extends StatefulWidget {
+class DuelOverlay extends StatelessWidget {
   const DuelOverlay({super.key});
 
   @override
-  State<DuelOverlay> createState() => _DuelOverlayState();
-}
-
-class _DuelOverlayState extends State<DuelOverlay> {
-  late final DuelSelectionStore selectionState;
-
-  @override
-  void initState() {
-    super.initState();
-    selectionState = context.read<DuelSelectionStore>();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final selectionState = context.watch<DuelSelectionStore>();
     final select = selectionState.currentSelect;
     if (select == null) return const SizedBox.shrink();
 
     return Positioned.fill(
       child: Container(
-        color: Colors.black.withOpacity(0.65),
+        color: Colors.black.withValues(alpha: 0.65),
         child: Center(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: _buildSelectWidget(select),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: _buildSelectWidget(select, selectionState),
+              ),
             ),
           ),
-        ),
       ),
     );
   }
 
-  Widget _buildSelectWidget(SelectState select) {
+  Widget _buildSelectWidget(SelectState select, DuelSelectionStore selectionState) {
     switch (select.type) {
       case SelectType.idleCmd:
         return SelectMenu(

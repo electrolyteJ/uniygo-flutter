@@ -29,6 +29,23 @@ class MatchStore extends ChangeNotifier {
   /// 创建房间时的规则参数
   RoomOptions? roomOptions;
 
+  /// 配置创建房间流程中需要跨页面传递的房间信息。
+  void configureCreatedRoom({
+    required RoomOptions roomOptions,
+    required String roomName,
+  }) {
+    this.roomOptions = roomOptions;
+    this.roomName = roomName;
+    isHost = true;
+    notifyListeners();
+  }
+
+  /// 更新匹配或手动进房时使用的玩家名。
+  void setUsername(String username) {
+    this.username = username;
+    notifyListeners();
+  }
+
   void startSearching(String arena) {
     this.arena = arena;
     isSearching = true;

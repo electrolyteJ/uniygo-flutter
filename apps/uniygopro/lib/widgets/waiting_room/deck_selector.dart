@@ -61,8 +61,7 @@ class DeckSelector extends StatelessWidget {
                 }).toList(),
                 onChanged: (value) {
                   if (value != null) {
-                    waitingRoomStore.selectedDeckName = value;
-                    waitingRoomStore.markChanged();
+                    waitingRoomStore.selectDeck(value);
                   }
                 },
               ),

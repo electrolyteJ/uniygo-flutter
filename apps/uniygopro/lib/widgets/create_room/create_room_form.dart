@@ -2,7 +2,6 @@
 // ── 创建房间 ──
 
 import 'package:duelink/duelink.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:uniygopro/widgets/create_room/password_field.dart';
 import 'package:go_router/go_router.dart';
@@ -14,7 +13,11 @@ import '../shared/create_room.dart';
 class CreateRoomForm extends StatefulWidget {
   final GameServer server;
   final DuelEnvironment env;
-  const CreateRoomForm({required this.server, required this.env});
+  const CreateRoomForm({
+    super.key,
+    required this.server,
+    required this.env,
+  });
 
   @override
   State<CreateRoomForm> createState() => _CreateRoomFormState();
@@ -50,9 +53,10 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
     );
 
     final matchStore = context.read<MatchStore>();
-    matchStore.roomOptions = options;
-    matchStore.roomName = _nameCtrl.text.trim();
-    matchStore.isHost = true;
+    matchStore.configureCreatedRoom(
+      roomOptions: options,
+      roomName: _nameCtrl.text.trim(),
+    );
 
     final env = widget.env;
     String password;

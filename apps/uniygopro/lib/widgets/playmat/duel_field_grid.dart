@@ -2,43 +2,35 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uniygopro/stores/duel_board_store.dart';
 import '../../models/FieldCard.dart';
-import '../../stores/duel_room_state.dart';
 import 'field_card_slot.dart';
 
-class DuelFieldGrid extends StatefulWidget {
+class DuelFieldGrid extends StatelessWidget {
   final Function(FieldCard? card, int? code)? onCardSelect;
 
   const DuelFieldGrid({super.key, this.onCardSelect});
 
-  @override
-  State<DuelFieldGrid> createState() => _DuelFieldGridState();
-}
-
-class _DuelFieldGridState extends State<DuelFieldGrid> {
-  late final DuelBoardStore boardStore;
-
-  @override
-  void initState() {
-    super.initState();
-    boardStore = context.read<DuelBoardStore>();
-  }
-
-  FieldCard? _getCard(int controller, int zone, int sequence) {
+  FieldCard? _getCard(
+    DuelBoardStore boardStore,
+    int controller,
+    int zone,
+    int sequence,
+  ) {
     return boardStore.fieldCards['${controller}_${zone}_$sequence'];
   }
 
   @override
   Widget build(BuildContext context) {
-    final onCardSelect = widget.onCardSelect;
+    final boardStore = context.watch<DuelBoardStore>();
+    final onCardSelect = this.onCardSelect;
     return Center(
       child: SingleChildScrollView(
         child: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: const Color(0xFF0D141E).withOpacity(0.85),
+            color: const Color(0xFF0D141E).withValues(alpha: 0.85),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: Colors.cyan.shade900.withOpacity(0.4),
+              color: Colors.cyan.shade900.withValues(alpha: 0.4),
               width: 1.5,
             ),
             boxShadow: const [
@@ -55,7 +47,7 @@ class _DuelFieldGridState extends State<DuelFieldGrid> {
                   _buildDeckSlot('EX', boardStore.oppExtra, isExtra: true),
                   const SizedBox(width: 8),
                   ...List.generate(5, (i) {
-                    final card = _getCard(1, 8, 4 - i); // 镜像次序
+                    final card = _getCard(boardStore, 1, 8, 4 - i); // 镜像次序
                     return FieldCardSlot(
                       card: card,
                       label: 'S/T ${5 - i}',
@@ -63,7 +55,11 @@ class _DuelFieldGridState extends State<DuelFieldGrid> {
                     );
                   }),
                   const SizedBox(width: 8),
-                  _buildZoneSlot(_getCard(1, 8, 5), '场地', isMonster: false),
+                  _buildZoneSlot(
+                    _getCard(boardStore, 1, 8, 5),
+                    '场地',
+                    isMonster: false,
+                  ),
                 ],
               ),
 
@@ -80,7 +76,7 @@ class _DuelFieldGridState extends State<DuelFieldGrid> {
                   ),
                   const SizedBox(width: 8),
                   ...List.generate(5, (i) {
-                    final card = _getCard(1, 4, 4 - i); // 镜像次序
+                    final card = _getCard(boardStore, 1, 4, 4 - i); // 镜像次序
                     return FieldCardSlot(
                       card: card,
                       label: 'M ${5 - i}',
@@ -105,21 +101,25 @@ class _DuelFieldGridState extends State<DuelFieldGrid> {
                 children: [
                   const SizedBox(width: 56),
                   FieldCardSlot(
-                    card: _getCard(1, 4, 5) ?? _getCard(0, 4, 5),
+                    card: _getCard(boardStore, 1, 4, 5) ??
+                        _getCard(boardStore, 0, 4, 5),
                     label: 'EMZ 1',
                     isMonster: true,
                     onTap: () {
-                      final c = _getCard(1, 4, 5) ?? _getCard(0, 4, 5);
+                      final c = _getCard(boardStore, 1, 4, 5) ??
+                          _getCard(boardStore, 0, 4, 5);
                       onCardSelect?.call(c, c?.code);
                     },
                   ),
                   const SizedBox(width: 90),
                   FieldCardSlot(
-                    card: _getCard(1, 4, 6) ?? _getCard(0, 4, 6),
+                    card: _getCard(boardStore, 1, 4, 6) ??
+                        _getCard(boardStore, 0, 4, 6),
                     label: 'EMZ 2',
                     isMonster: true,
                     onTap: () {
-                      final c = _getCard(1, 4, 6) ?? _getCard(0, 4, 6);
+                      final c = _getCard(boardStore, 1, 4, 6) ??
+                          _getCard(boardStore, 0, 4, 6);
                       onCardSelect?.call(c, c?.code);
                     },
                   ),
@@ -140,7 +140,7 @@ class _DuelFieldGridState extends State<DuelFieldGrid> {
                   ),
                   const SizedBox(width: 8),
                   ...List.generate(5, (i) {
-                    final card = _getCard(0, 4, i);
+                    final card = _getCard(boardStore, 0, 4, i);
                     return FieldCardSlot(
                       card: card,
                       label: 'M ${i + 1}',
@@ -163,10 +163,14 @@ class _DuelFieldGridState extends State<DuelFieldGrid> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildZoneSlot(_getCard(0, 8, 5), '场地', isMonster: false),
+                  _buildZoneSlot(
+                    _getCard(boardStore, 0, 8, 5),
+                    '场地',
+                    isMonster: false,
+                  ),
                   const SizedBox(width: 8),
                   ...List.generate(5, (i) {
-                    final card = _getCard(0, 8, i);
+                    final card = _getCard(boardStore, 0, 8, i);
                     return FieldCardSlot(
                       card: card,
                       label: 'S/T ${i + 1}',
@@ -189,7 +193,7 @@ class _DuelFieldGridState extends State<DuelFieldGrid> {
     String label, {
     required bool isMonster,
   }) {
-    final onCardSelect = widget.onCardSelect;
+    final onCardSelect = this.onCardSelect;
     return FieldCardSlot(
       card: card,
       label: label,
@@ -205,8 +209,8 @@ class _DuelFieldGridState extends State<DuelFieldGrid> {
       margin: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: isExtra
-            ? Colors.purple.shade900.withOpacity(0.3)
-            : Colors.blue.shade900.withOpacity(0.3),
+            ? Colors.purple.shade900.withValues(alpha: 0.3)
+            : Colors.blue.shade900.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
           color: isExtra ? Colors.purpleAccent : Colors.cyanAccent,
@@ -244,9 +248,9 @@ class _DuelFieldGridState extends State<DuelFieldGrid> {
       height: 64,
       margin: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withOpacity(0.5), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

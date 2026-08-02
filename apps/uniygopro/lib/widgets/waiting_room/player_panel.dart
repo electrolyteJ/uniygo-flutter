@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart';
+import 'package:provider/provider.dart';
 import '../../stores/waiting_room_store.dart';
-import '../../stores/match_store.dart';
 import 'hand_result_display.dart';
 import 'playerslot.dart';
 import 'select_hand.dart';
@@ -9,27 +9,18 @@ import 'select_turn.dart';
 import 'deck_selector.dart';
 
 class PlayerPanel extends StatelessWidget {
-  final WaitingRoomStore waitingRoomStore;
-  final MatchStore match;
   final int mySlot;
-  final void Function(HandType) onSendHand;
-  final void Function(bool) onSendTp;
-  final void Function(int) onKick;
   final DisplayStyle displayStyle;
 
   const PlayerPanel({
     super.key,
-    required this.waitingRoomStore,
-    required this.match,
     required this.mySlot,
-    required this.onSendHand,
-    required this.onSendTp,
-    required this.onKick,
     required this.displayStyle,
   });
 
   @override
   Widget build(BuildContext context) {
+    final waitingRoomStore = context.watch<WaitingRoomStore>();
     final showCardResults =
         displayStyle == DisplayStyle.card &&
         (waitingRoomStore.stage is RoomSelectingHand ||
@@ -64,7 +55,7 @@ class PlayerPanel extends StatelessWidget {
                         ? waitingRoomStore.isHost
                         : (waitingRoomStore.isHost ? false : true)) &&
                     item.pos != mySlot,
-                onKick: () => onKick(item.pos),
+                onKick: () => waitingRoomStore.kickPlayer(item.pos),
                 displayStyle: displayStyle,
               ),
             ),
@@ -74,12 +65,12 @@ class PlayerPanel extends StatelessWidget {
           const SizedBox(height: 12),
           if (waitingRoomStore.stage is RoomSelectingHand)
             HandSelect(
-              onSendHand: onSendHand,
+              onSendHand: waitingRoomStore.sendHand,
               enabled: !waitingRoomStore.autoHandEnabled,
             ),
           if (waitingRoomStore.stage is RoomSelectingTurn)
             TpSelect(
-              onSendTp: onSendTp,
+              onSendTp: waitingRoomStore.sendTp,
               enabled: !waitingRoomStore.autoTurnOrderEnabled,
             ),
           const SizedBox(height: 12),

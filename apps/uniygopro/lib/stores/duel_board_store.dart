@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:ygo_card/card_info.dart' as pkg;
 
 import '../models/ChainLink.dart';
-import '../models/DuelPhase.dart';
 import '../models/FieldCard.dart';
 import '../service_singleton.dart';
 
