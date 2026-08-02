@@ -22,17 +22,16 @@ import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 
 export 'src/env_config.dart';
 
-
 /// 生产环境卡片服务工厂。
 ///
 /// [CardService] 需要 [EnvConfig] 构造参数，无法直接无参构造，
 /// 因此以顶层函数形式标注 [ServiceRegister]。
 @ServiceRegister(CardService)
 CardService createMyCardCardService() {
-  return CardService(config: EnvConfig.production);
+  final cardService = CardService(config: EnvConfig.production);
+  cardService.predownloadDatabase();
+  return cardService;
 }
-
-
 
 class CardService extends BaseCardService {
   CardService({required EnvConfig config}) : super(config: config);

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import '../stores/match_store.dart';
-import '../services/match_service.dart';
+import '../../stores/match_store.dart';
+import '../../services/match_service.dart';
 
 class MatchPage extends StatefulWidget {
   const MatchPage({super.key});

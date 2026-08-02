@@ -26,8 +26,8 @@ import 'stoc/stoc_game_msg.dart';
 /// 参考 neos-ts 中 ocgAdapter/stoc/ 目录下的各个 STOC 消息定义。
 
 class YgoStocMsg {
-  final StocJoinGame? joinGame;
   final StocChat? chat;
+  final StocJoinGame? joinGame;
   final StocHsPlayerEnter? hsPlayerEnter;
   final StocTypeChange? typeChange;
   final StocHsPlayerChange? hsPlayerChange;

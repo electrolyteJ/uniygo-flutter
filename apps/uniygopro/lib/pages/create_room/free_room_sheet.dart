@@ -6,11 +6,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../config/servers.dart';
-import '../../pages/home_page.dart';
-import '../shared/create_room.dart';
-import 'create_room_form.dart';
-import 'env_selector.dart';
-import 'join_room_form.dart';
+import '../home_page.dart';
+import '../../widgets/shared/create_room.dart';
+import '../../widgets/create_room/create_room_form.dart';
+import '../../widgets/create_room/env_selector.dart';
+import '../../widgets/create_room/join_room_form.dart';
 
 class FreeRoomSheet extends StatefulWidget {
   final GameServer server;

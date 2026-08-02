@@ -3,11 +3,12 @@ import 'dart:developer' as console;
 
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
+import 'package:service_loader/service_loader.dart';
 import 'package:ygo_card/card_info.dart' as pkg;
+import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 
 import '../models/ChainLink.dart';
 import '../models/FieldCard.dart';
-import '../service_singleton.dart';
 
 /// 对局战场状态仓库。
 ///
@@ -46,6 +47,8 @@ class DuelBoardStore extends ChangeNotifier {
   String? lastAttackFrom;
   String? lastAttackTo;
   IDuelService? _service;
+  String? errorMessage;
+  final cardService = ServiceFactory.create<CardService>();
   /// 卡片信息缓存：code → CardInfo（从本地 SQLite 查询）
   final Map<int, pkg.CardInfo> _cardInfoCache = {};
 
@@ -56,7 +59,7 @@ class DuelBoardStore extends ChangeNotifier {
   Future<void> ensureCardInfo(int code) async {
     if (_cardInfoCache.containsKey(code)) return;
     try {
-      final info = await ServiceSingleton.instance.cardService.getCard(code);
+      final info = await cardService.getCard(code);
       if (info != null) {
         _cardInfoCache[code] = info;
       }
@@ -87,6 +90,7 @@ class DuelBoardStore extends ChangeNotifier {
     lastSummonKey = null;
     lastAttackFrom = null;
     lastAttackTo = null;
+    errorMessage = null;
     notifyListeners();
   }
 
@@ -879,5 +883,44 @@ class DuelBoardStore extends ChangeNotifier {
 
   void bind(IDuelService duelService) {
     _service = duelService;
+  }
+
+  String getCardImageUrl(int code) {
+    return cardService.getCardImageUrl(code);
+  }
+
+  void setError(int type, int code) {
+    errorMessage = _errorMessage(type, code);
+    notifyListeners();
+  }
+
+  String _errorMessage(int type, int code) {
+    switch (type) {
+      case 1:
+        return '连接已断开';
+      case 2:
+        return '你已经被踢出房间';
+      case 3:
+        return '错误: $code';
+      case 4:
+        return '卡组无效 (错误码: $code)';
+      case 5:
+        return '卡组数量不正确 (错误码: $code)';
+      case 6:
+        return '主卡组需要至少40张';
+      case 7:
+        return '额外卡组不能超过15张';
+      case 8:
+        return '副卡组不能超过15张';
+      case 9:
+        return '禁限卡表不匹配';
+      default:
+        return '服务器错误: type=$type code=$code';
+    }
+  }
+
+  void clearError() {
+    errorMessage = null;
+    notifyListeners();
   }
 }

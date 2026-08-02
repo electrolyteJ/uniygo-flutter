@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 class CyberButton extends StatefulWidget {
   final String label;
@@ -26,7 +27,7 @@ class _CyberButtonState extends State<CyberButton> {
   Widget build(BuildContext context) {
     const cyanGlow = Color(0xFF00F0FF);
     const blueGradientEnd = Color(0xFF0077B6);
-    
+
     final gradient = widget.isPrimary
         ? LinearGradient(
             colors: _isHovered
@@ -37,8 +38,8 @@ class _CyberButtonState extends State<CyberButton> {
           )
         : null;
 
-    final borderColor = widget.isPrimary 
-        ? cyanGlow 
+    final borderColor = widget.isPrimary
+        ? cyanGlow
         : (_isHovered ? Colors.white : Colors.white.withOpacity(0.2));
 
     return MouseRegion(
@@ -49,7 +50,8 @@ class _CyberButtonState extends State<CyberButton> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           width: widget.width,
-          transform: Matrix4.identity()..translate(0.0, _isHovered ? -2.0 : 0.0, 0.0),
+          transform: Matrix4.identity()
+            ..translate(0.0, _isHovered ? -2.0 : 0.0, 0.0),
           decoration: BoxDecoration(
             gradient: gradient,
             color: widget.isPrimary ? null : Colors.white.withOpacity(0.06),
@@ -68,12 +70,17 @@ class _CyberButtonState extends State<CyberButton> {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 10,
+                ),
                 child: Center(
                   child: Text(
                     widget.label,
                     style: TextStyle(
-                      color: (widget.isPrimary || _isHovered) ? Colors.white : const Color(0xFF8B9BB4),
+                      color: (widget.isPrimary || _isHovered)
+                          ? Colors.white
+                          : const Color(0xFF8B9BB4),
                       fontFamily: 'Orbitron',
                       fontWeight: FontWeight.w800,
                       fontSize: 12,
@@ -88,3 +95,21 @@ class _CyberButtonState extends State<CyberButton> {
     );
   }
 }
+
+@Preview(
+  name: 'CyberButton primary',
+  size: Size(200, 60),
+  brightness: Brightness.dark,
+)
+Widget cyberButtonPrimaryPreview() =>
+    const CyberButton(label: '召唤', onTap: _noop);
+
+@Preview(
+  name: 'CyberButton secondary',
+  size: Size(200, 60),
+  brightness: Brightness.dark,
+)
+Widget cyberButtonSecondaryPreview() =>
+    const CyberButton(label: '取消', isPrimary: false, onTap: _noop);
+
+void _noop() {}

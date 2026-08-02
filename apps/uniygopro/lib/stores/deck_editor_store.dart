@@ -1,7 +1,9 @@
 import 'dart:developer' as console;
 
 import 'package:flutter/foundation.dart';
+import 'package:service_loader/service_loader.dart';
 import 'package:ygo_card/card_info.dart';
+import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 import '../models/deck_model.dart';
 import '../service_singleton.dart';
 import '../services/deck_service.dart';
@@ -47,7 +49,7 @@ class DeckEditorStore extends ChangeNotifier {
   Map<int, int> get banlist => _banlist;
   bool get banlistLoaded => _banlistLoaded;
   String get addTargetZone => _addTargetZone;
-
+  final cardService = ServiceFactory.create<CardService>();
   // ── 初始化 ──
 
   /// 初始化卡牌数据库
@@ -59,7 +61,7 @@ class DeckEditorStore extends ChangeNotifier {
   Future<void> _loadBanlist() async {
     try {
       console.log('加载禁限卡表中...', name: 'DeckEditorStore');
-      final lflist = await ServiceSingleton.instance.cardService.fetchLflist();
+      final lflist = await cardService.fetchLflist();
       _banlist = {};
       for (final entry in lflist.entries) {
         _banlist[entry.code] = entry.limit;
@@ -203,7 +205,7 @@ class DeckEditorStore extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _searchResults = await ServiceSingleton.instance.cardService.searchCombined(
+      _searchResults = await cardService.searchCombined(
         query: query.isNotEmpty ? query : null,
         cardType: _filter.cardType,
         attribute: _filter.attribute,

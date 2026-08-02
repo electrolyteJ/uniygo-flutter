@@ -1,7 +1,5 @@
 import 'dart:async';
 import 'dart:developer' as console;
-import 'dart:math';
-
 import 'package:duelink/duelink.dart' as duel;
 import 'package:duelink/duelink.dart';
 import 'package:duelink_online/duelink_online.dart';
@@ -32,9 +30,8 @@ class DuelRoomPage extends StatefulWidget {
 class _DuelRoomPageState extends State<DuelRoomPage> {
   final IDuelService _duelService = ServiceFactory.create<OnlineDuelService>();
 
-  StreamSubscription<RoomStage>? _roomStageSub;
-  StreamSubscription<YgoStocMsg>? _msgSub;
 
+  StreamSubscription<YgoStocMsg>? _msgSub;
 
   late final DuelRoomState duelRoomState;
   late final DuelChatStore duelChatStore;
@@ -62,68 +59,14 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     _connect();
   }
 
-  final Random random = Random();
-
   Future<void> _connect() async {
-    _roomStageSub = _duelService.onRoomStageChange.listen((roomStage) {
-      waitingRoomStore.players = roomStage.players;
-      waitingRoomStore.observerCount = roomStage.observerCount;
-      waitingRoomStore.stage = roomStage;
-      switch (roomStage) {
-        case RoomNotJoined():
-          //游戏结束或者离开房间后，重置房间状态
-          backHome(context);
-          break;
-        case RoomInLobby():
-          waitingRoomStore.selfType = roomStage.selfType;
-          waitingRoomStore.isHost = roomStage.isHost;
-          waitingRoomStore.roomOptions = roomStage.options;
-          break;
-        case RoomSelectingHand():
-          if (waitingRoomStore.autoHandEnabled) {
-            Timer(const Duration(milliseconds: 700), () {
-              waitingRoomStore.opponentHandResult = 0;
-              final hands = HandType.values
-                  .where((hand) => hand != HandType.unknown)
-                  .toList();
-              waitingRoomStore.sendHand(hands[random.nextInt(hands.length)]);
-            });
-          }
-          break;
-        case RoomHandResult():
-          waitingRoomStore.myHandResult = roomStage.myHand;
-          waitingRoomStore.opponentHandResult = roomStage.opponentHand;
-          break;
-        case RoomSelectingTurn():
-          if (waitingRoomStore.autoTurnOrderEnabled) {
-            waitingRoomStore.sendTp(random.nextBool());
-          }
-          break;
-        case RoomInDuel():
-          waitingRoomStore.myHandResult = 0;
-          waitingRoomStore.opponentHandResult = 0;
-          waitingRoomStore.isFirstTurn = roomStage.isFirstTurn;
-          break;
-        case RoomDuelEnded():
-          backHome(context);
-          break;
-        default:
-          break;
-      }
-      waitingRoomStore.markChanged();
-      duelRoomState.markChanged();
-    });
-
+    waitingRoomStore.bindRoomStageChange(context);
     _msgSub = _duelService.onServerMessage.listen((msg) {
       console.log('Received server message: $msg');
       _onMessage(msg);
-      if (msg.selectTp != null) {
-        console.log('Received selectTp message: ${msg.selectTp}');
-        waitingRoomStore.enableTurnOrderSelection();
-      }
       if (msg.errorMsg != null) {
         final err = msg.errorMsg!;
-        waitingRoomStore.setError(_errorMessage(err.errorType, err.errorCode));
+        duelBoardStore.setError(err.errorType, err.errorCode);
       }
     });
 
@@ -586,45 +529,20 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     return '$modeName房间';
   }
 
-  String _errorMessage(int type, int code) {
-    switch (type) {
-      case 1:
-        return '连接已断开';
-      case 2:
-        return '你已经被踢出房间';
-      case 3:
-        return '错误: $code';
-      case 4:
-        return '卡组无效 (错误码: $code)';
-      case 5:
-        return '卡组数量不正确 (错误码: $code)';
-      case 6:
-        return '主卡组需要至少40张';
-      case 7:
-        return '额外卡组不能超过15张';
-      case 8:
-        return '副卡组不能超过15张';
-      case 9:
-        return '禁限卡表不匹配';
-      default:
-        return '服务器错误: type=$type code=$code';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final waitingRoomStore = context.watch<WaitingRoomStore>();
     final matchRoomStore = context.watch<MatchStore>();
-    if (waitingRoomStore.errorMessage != null) {
+    if (duelBoardStore.errorMessage != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(waitingRoomStore.errorMessage!),
+              content: Text(duelBoardStore.errorMessage!),
               backgroundColor: Colors.red.shade700,
             ),
           );
-          waitingRoomStore.clearError();
+          duelBoardStore.clearError();
         }
       });
     }
@@ -663,7 +581,6 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
       _duelService.surrender();
     }
     _duelService.disconnect();
-    _roomStageSub?.cancel();
     _msgSub?.cancel();
     super.dispose();
     console.log('DuelRoomPage disposed and disconnected from server.');

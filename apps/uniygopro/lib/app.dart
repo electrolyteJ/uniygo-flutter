@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uniygopro/pages/create_room/match_page.dart';
 import 'pages/home_page.dart';
-import 'pages/match_page.dart';
 import 'pages/duel_room_page.dart';
 import 'pages/side_page.dart';
 import 'pages/deck_editor_page.dart';

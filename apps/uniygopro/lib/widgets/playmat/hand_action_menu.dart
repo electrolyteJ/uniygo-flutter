@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 import 'cyber_button.dart';
 
@@ -70,3 +71,18 @@ class HandActionMenu extends StatelessWidget {
     );
   }
 }
+
+@Preview(
+  name: 'HandActionMenu',
+  size: Size(240, 200),
+  brightness: Brightness.dark,
+)
+Widget handActionMenuPreview() => HandActionMenu(
+  actions: const [
+    HandActionMenuEntry(label: '攻击', onTap: _noop),
+    HandActionMenuEntry(label: '守备表示', onTap: _noop),
+    HandActionMenuEntry(label: '发动效果', onTap: _noop),
+  ],
+);
+
+void _noop() {}

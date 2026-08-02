@@ -115,22 +115,33 @@ abstract class BaseDuelService implements IDuelService {
         _onSelectTp();
         _roomStageController.add(_roomStage);
         break;
-      case STOC_GAME_MSG:
-        if (stoc.gameMsg?.func == MSG_START) {
-          _onTpSelected(stoc.gameMsg?.innerMsg! as MsgStart);
-          _roomStageController.add(_roomStage);
-        }
+      case STOC_DECK_COUNT:
+        final deckCount = stoc.deckCount;
+        console.log('RoomStage: DECK_COUNT → ${deckCount?.meMain} / ${deckCount
+            ?.meExtra} ${deckCount?.meSide} vs ${deckCount
+            ?.opMain} / ${deckCount?.opExtra} ${deckCount?.opSide}');
         break;
-      case STOC_DUEL_END:
-        _onDuelEnd();
-        _roomStageController.add(_roomStage);
-        break;
+
       case STOC_CHANGE_SIDE:
         _onChangeSide();
         _roomStageController.add(_roomStage);
         break;
       case STOC_WAITING_SIDE:
         _onWaitingSide();
+        _roomStageController.add(_roomStage);
+        break;
+      case STOC_GAME_MSG:
+        if (stoc.gameMsg?.func == MSG_START) {
+          _onTpSelected(stoc.gameMsg?.innerMsg! as MsgStart);
+          _roomStageController.add(_roomStage);
+        }
+        break;
+      case STOC_TIME_LIMIT:
+        final timeLimit = stoc.timeLimit;
+        console.log('TIME_LIMIT → ${timeLimit?.player} / ${timeLimit?.leftTime}');
+        break;
+      case STOC_DUEL_END:
+        _onDuelEnd();
         _roomStageController.add(_roomStage);
         break;
     }
@@ -142,6 +153,7 @@ abstract class BaseDuelService implements IDuelService {
     console.log('RoomStage: JOIN_GAME → accumulating options');
     // 累积 options，等待 TypeChange 合并后生成 InLobby
     _pendingOptions = m.toRoomOptions();
+    _roomStage = RoomJoined();
   }
 
   void _onTypeChange(StocTypeChange m) {
@@ -160,7 +172,7 @@ abstract class BaseDuelService implements IDuelService {
     final updated = List<RoomPlayer>.from(_playersOf(_roomStage));
     updated.add(RoomPlayer(name: m.name, pos: m.pos));
     _setPlayers(updated);
-    console.log('RoomStage: PLAYER_ENTER ${_roomStage}');
+    console.log('RoomStage: PLAYER_ENTER ${_roomStage} pos:${m.pos} name:${m.name}');
   }
 
   void _onPlayerChange(StocHsPlayerChange m) {
@@ -268,6 +280,7 @@ abstract class BaseDuelService implements IDuelService {
   RoomStage _withPlayers(List<RoomPlayer> players) {
     return switch (_roomStage) {
       RoomNotJoined() => RoomNotJoined(),
+      RoomJoined() => RoomJoined(),
       RoomInLobby(:final selfType, :final isHost, :final options) =>
         RoomInLobby(
           players: players,
@@ -321,6 +334,7 @@ abstract class BaseDuelService implements IDuelService {
   RoomStage _withObs(int count) {
     return switch (_roomStage) {
       RoomNotJoined() => RoomNotJoined(),
+      RoomJoined() => RoomJoined(),
       RoomInLobby(:final selfType, :final isHost, :final options) =>
         RoomInLobby(
           players: _playersOf(_roomStage),

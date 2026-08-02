@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 class PasswordField extends StatefulWidget {
   final TextEditingController controller;
@@ -54,3 +55,20 @@ class _PasswordFieldState extends State<PasswordField> {
     );
   }
 }
+
+@Preview(
+  name: 'PasswordField',
+  size: Size(320, 80),
+  brightness: Brightness.dark,
+)
+Widget passwordFieldPreview() => Padding(
+  padding: const EdgeInsets.all(16),
+  child: PasswordField(
+    controller: _controller,
+    label: '房间密码',
+    hintText: '输入密码',
+    icon: Icons.lock,
+  ),
+);
+
+final _controller = TextEditingController();

@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 class PlayerStatusCard extends StatelessWidget {
   final String name;
@@ -35,7 +36,9 @@ class PlayerStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     const cyanGlow = Color(0xFF00F0FF);
     const crimsonGlow = Color(0xFFFF0055);
-    final borderColor = isSelf ? cyanGlow.withOpacity(0.4) : crimsonGlow.withOpacity(0.5);
+    final borderColor = isSelf
+        ? cyanGlow.withOpacity(0.4)
+        : crimsonGlow.withOpacity(0.5);
     final shadowColor = isSelf ? cyanGlow : crimsonGlow;
 
     return ClipRRect(
@@ -66,11 +69,14 @@ class PlayerStatusCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
-                    colors: isSelf 
-                      ? [const Color(0xFFFFD700), const Color(0xFFFF9800)]
-                      : [const Color(0xFF00F0FF), const Color(0xFF0077FF)],
+                    colors: isSelf
+                        ? [const Color(0xFFFFD700), const Color(0xFFFF9800)]
+                        : [const Color(0xFF00F0FF), const Color(0xFF0077FF)],
                   ),
-                  border: Border.all(color: isSelf ? Colors.amber : cyanGlow, width: 1.5),
+                  border: Border.all(
+                    color: isSelf ? Colors.amber : cyanGlow,
+                    width: 1.5,
+                  ),
                 ),
                 alignment: Alignment.center,
                 child: Text(
@@ -143,7 +149,10 @@ class PlayerStatusCard extends StatelessWidget {
           TextSpan(text: '$label:'),
           TextSpan(
             text: '$count',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),
@@ -152,3 +161,35 @@ class PlayerStatusCard extends StatelessWidget {
     return GestureDetector(onTap: onTap, child: child);
   }
 }
+
+@Preview(
+  name: 'PlayerStatusCard self',
+  size: Size(300, 50),
+  brightness: Brightness.dark,
+)
+Widget playerStatusCardSelfPreview() => const PlayerStatusCard(
+  name: 'Player',
+  lp: 7200,
+  isSelf: true,
+  isActiveTurn: true,
+  deckCount: 35,
+  extraCount: 8,
+  graveCount: 3,
+  removedCount: 1,
+);
+
+@Preview(
+  name: 'PlayerStatusCard opponent',
+  size: Size(300, 50),
+  brightness: Brightness.dark,
+)
+Widget playerStatusCardOpponentPreview() => const PlayerStatusCard(
+  name: 'Rival',
+  lp: 5100,
+  isSelf: false,
+  isActiveTurn: false,
+  deckCount: 40,
+  extraCount: 10,
+  graveCount: 5,
+  removedCount: 0,
+);

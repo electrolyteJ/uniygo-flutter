@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as console;
+import 'dart:math';
 
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/deck_model.dart';
 import '../services/deck_service.dart';
+import '../widgets/shared/duel_room.dart';
 
 /// 等待房间状态仓库。
 ///
@@ -31,13 +33,14 @@ class WaitingRoomStore extends ChangeNotifier {
   int? opponentHandResult;
   bool? isFirstTurn;
   RoomOptions? roomOptions;
-  String? errorMessage;
+
   String? selectedDeckName;
   List<DeckMeta> availableDecks = [];
   bool autoHandEnabled = false;
   bool autoTurnOrderEnabled = false;
   IDuelService? _duelService;
-
+  final Random random = Random();
+  StreamSubscription<RoomStage>? _roomStageSub;
   /// 当前自己对应的决斗位是否已经准备。
   bool get isSelfReady {
     final mySlot = selfType.slot;
@@ -56,6 +59,7 @@ class WaitingRoomStore extends ChangeNotifier {
     console.log('WaitingRoomStore.reset()');
     // 等待房间重置
     stage = const RoomNotJoined();
+    _roomStageSub?.cancel();
     selfType = SelfType.unknown;
     isHost = false;
     players = [];
@@ -64,7 +68,6 @@ class WaitingRoomStore extends ChangeNotifier {
     opponentHandResult = null;
     isFirstTurn = null;
     roomOptions = null;
-    errorMessage = null;
     notifyListeners();
   }
 
@@ -96,15 +99,7 @@ class WaitingRoomStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setError(String message) {
-    errorMessage = message;
-    notifyListeners();
-  }
 
-  void clearError() {
-    errorMessage = null;
-    notifyListeners();
-  }
 
   void ready(int handValue) {
     stage = RoomReady();
@@ -225,10 +220,57 @@ class WaitingRoomStore extends ChangeNotifier {
     return bytes;
   }
 
-  void enableTurnOrderSelection() {
-    // if (stage is RoomSelectingHand) {
-    //   stage = RoomSelectingTurn(myHand: myHandResult, opponentHand: opponentHandResult);
-    // }
-    notifyListeners();
+  void bindRoomStageChange(BuildContext context) {
+    _roomStageSub = _duelService?.onRoomStageChange.listen((roomStage) {
+      players = roomStage.players;
+      observerCount = roomStage.observerCount;
+      stage = roomStage;
+      switch (roomStage) {
+        case RoomNotJoined():
+        //游戏结束或者离开房间后，重置房间状态
+          backHome(context);
+          break;
+        case RoomJoined():
+          break;
+        case RoomInLobby():
+          selfType = roomStage.selfType;
+          isHost = roomStage.isHost;
+          roomOptions = roomStage.options;
+          break;
+        case RoomSelectingHand():
+          if (autoHandEnabled) {
+            Timer(const Duration(milliseconds: 700), () {
+              opponentHandResult = 0;
+              final hands = HandType.values
+                  .where((hand) => hand != HandType.unknown)
+                  .toList();
+              sendHand(hands[random.nextInt(hands.length)]);
+            });
+          }
+          break;
+        case RoomHandResult():
+          myHandResult = roomStage.myHand;
+          opponentHandResult = roomStage.opponentHand;
+          break;
+        case RoomSelectingTurn():
+          if (autoTurnOrderEnabled) {
+            sendTp(random.nextBool());
+          }
+          break;
+        case RoomInDuel():
+          myHandResult = 0;
+          opponentHandResult = 0;
+          isFirstTurn = roomStage.isFirstTurn;
+          break;
+        case RoomDuelEnded():
+          backHome(context);
+          break;
+        default:
+          break;
+      }
+      notifyListeners();
+    });
+
   }
+
 }

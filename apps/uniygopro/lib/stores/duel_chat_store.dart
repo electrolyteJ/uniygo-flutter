@@ -17,8 +17,12 @@ class DuelChatStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void reset() {
+  void cancelChat() {
     _chatMsgSub?.cancel();
+  }
+
+  void reset() {
+
     chatMessages = [];
     notifyListeners();
   }
@@ -45,9 +49,9 @@ class DuelChatStore extends ChangeNotifier {
   }
 
   void bindChatServerMessages(
-      void onData(YgoStocMsg event)?, {
+      void Function(YgoStocMsg event)? onData, {
         Function? onError,
-        void onDone()?,
+        void Function()? onDone,
         bool? cancelOnError,
       }) {
     _chatMsgSub = _duelService?.onChatServerMessage.listen(

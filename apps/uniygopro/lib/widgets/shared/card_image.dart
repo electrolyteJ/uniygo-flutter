@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:uniygopro/stores/duel_board_store.dart';
 import '../../service_singleton.dart';
 
 class CardImage extends StatelessWidget {
@@ -10,7 +12,8 @@ class CardImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = ServiceSingleton.instance.cardService.getCardImageUrl(code);
+    final duelBoardStore = context.read<DuelBoardStore>(); // Ensure the widget rebuilds when the code changes
+    final url = duelBoardStore.getCardImageUrl(code);
     return Container(
       width: width,
       height: height,

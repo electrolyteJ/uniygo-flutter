@@ -51,7 +51,7 @@ class _ChatPanelState extends State<ChatPanel> {
   void dispose() {
     chatCtrl.dispose();
     chatScrollCtrl.dispose();
-    duelChatStore.reset();
+    duelChatStore?.cancelChat();
     super.dispose();
   }
 

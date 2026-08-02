@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 import '../../models/FieldCard.dart';
 import '../shared/card_image.dart';
 
@@ -42,7 +43,12 @@ class FieldCardSlot extends StatelessWidget {
               width: isSelectable || isSelected ? 2 : 1,
             ),
             boxShadow: isSelectable
-                ? [BoxShadow(color: Colors.amberAccent.withOpacity(0.4), blurRadius: 6)]
+                ? [
+                    BoxShadow(
+                      color: Colors.amberAccent.withOpacity(0.4),
+                      blurRadius: 6,
+                    ),
+                  ]
                 : [],
           ),
           child: Center(
@@ -77,17 +83,32 @@ class FieldCardSlot extends StatelessWidget {
             color: isSelected
                 ? Colors.cyanAccent
                 : (isSelectable
-                    ? Colors.amberAccent
-                    : (isDisabled ? Colors.redAccent : Colors.white30)),
+                      ? Colors.amberAccent
+                      : (isDisabled ? Colors.redAccent : Colors.white30)),
             width: isSelected || isSelectable ? 2.0 : 1.0,
           ),
           boxShadow: isSelected
-              ? [BoxShadow(color: Colors.cyanAccent.withOpacity(0.6), blurRadius: 8)]
+              ? [
+                  BoxShadow(
+                    color: Colors.cyanAccent.withOpacity(0.6),
+                    blurRadius: 8,
+                  ),
+                ]
               : (isSelectable
-                  ? [BoxShadow(color: Colors.amber.withOpacity(0.5), blurRadius: 6)]
-                  : (isDisabled
-                      ? [BoxShadow(color: Colors.redAccent.withOpacity(0.35), blurRadius: 6)]
-                      : [])),
+                    ? [
+                        BoxShadow(
+                          color: Colors.amber.withOpacity(0.5),
+                          blurRadius: 6,
+                        ),
+                      ]
+                    : (isDisabled
+                          ? [
+                              BoxShadow(
+                                color: Colors.redAccent.withOpacity(0.35),
+                                blurRadius: 6,
+                              ),
+                            ]
+                          : [])),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(3),
@@ -102,27 +123,44 @@ class FieldCardSlot extends StatelessWidget {
                     fit: StackFit.expand,
                     children: [
                       isFaceUp
-                          ? CardImage(code: card!.code, width: slotWidth, height: slotHeight)
+                          ? CardImage(
+                              code: card!.code,
+                              width: slotWidth,
+                              height: slotHeight,
+                            )
                           : Container(
                               width: slotWidth,
                               height: slotHeight,
                               decoration: BoxDecoration(
                                 color: Colors.brown.shade800,
                                 borderRadius: BorderRadius.circular(3),
-                                border: Border.all(color: Colors.amber.shade900),
+                                border: Border.all(
+                                  color: Colors.amber.shade900,
+                                ),
                               ),
                               child: const Center(
-                                child: Icon(Icons.shield_outlined, color: Colors.amber, size: 16),
+                                child: Icon(
+                                  Icons.shield_outlined,
+                                  color: Colors.amber,
+                                  size: 16,
+                                ),
                               ),
                             ),
                       if (isDisabled)
                         Container(
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.38),
-                            border: Border.all(color: Colors.redAccent, width: 1.5),
+                            border: Border.all(
+                              color: Colors.redAccent,
+                              width: 1.5,
+                            ),
                           ),
                           child: const Center(
-                            child: Icon(Icons.block, color: Colors.redAccent, size: 18),
+                            child: Icon(
+                              Icons.block,
+                              color: Colors.redAccent,
+                              size: 18,
+                            ),
                           ),
                         ),
                     ],
@@ -137,12 +175,19 @@ class FieldCardSlot extends StatelessWidget {
                   left: 0,
                   right: 0,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 2,
+                      vertical: 1,
+                    ),
                     color: Colors.black45,
                     child: Text(
                       card!.name!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 7, color: Colors.white, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 7,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -155,14 +200,21 @@ class FieldCardSlot extends StatelessWidget {
                   top: 1,
                   right: 1,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 2,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black87,
                       borderRadius: BorderRadius.circular(2),
                     ),
                     child: Text(
                       '${card!.attack}',
-                      style: const TextStyle(fontSize: 7, color: Colors.redAccent, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 7,
+                        color: Colors.redAccent,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -180,7 +232,11 @@ class FieldCardSlot extends StatelessWidget {
                     ),
                     child: Text(
                       '${card!.overlayCount}',
-                      style: const TextStyle(fontSize: 7, color: Colors.white, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 7,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -191,3 +247,19 @@ class FieldCardSlot extends StatelessWidget {
     );
   }
 }
+
+@Preview(
+  name: 'FieldCardSlot empty monster',
+  size: Size(64, 90),
+  brightness: Brightness.dark,
+)
+Widget fieldCardSlotMonsterPreview() =>
+    const FieldCardSlot(label: 'M1', isMonster: true);
+
+@Preview(
+  name: 'FieldCardSlot empty spell',
+  size: Size(56, 76),
+  brightness: Brightness.dark,
+)
+Widget fieldCardSlotSpellPreview() =>
+    const FieldCardSlot(label: 'S1', isSelectable: true);

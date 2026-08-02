@@ -28,7 +28,7 @@ class BaseCardService implements ICardService {
     required this.config,
     this.timeout = const Duration(seconds: 30),
   }) {
-    predownloadDatabase();
+    // predownloadDatabase();
   }
 
   Future<File> _dbPath() async{
