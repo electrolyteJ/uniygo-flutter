@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart';
-import '../../stores/duel_room_state.dart';
+import '../../stores/waiting_room_store.dart';
 import '../../stores/match_store.dart';
 import 'hand_result_display.dart';
 import 'playerslot.dart';
@@ -9,7 +9,7 @@ import 'select_turn.dart';
 import 'deck_selector.dart';
 
 class PlayerPanel extends StatelessWidget {
-  final DuelRoomState state;
+  final WaitingRoomStore waitingRoomStore;
   final MatchStore match;
   final int mySlot;
   final void Function(HandType) onSendHand;
@@ -19,7 +19,7 @@ class PlayerPanel extends StatelessWidget {
 
   const PlayerPanel({
     super.key,
-    required this.state,
+    required this.waitingRoomStore,
     required this.match,
     required this.mySlot,
     required this.onSendHand,
@@ -32,9 +32,9 @@ class PlayerPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final showCardResults =
         displayStyle == DisplayStyle.card &&
-        (state.stage is RoomSelectingHand ||
-            state.stage is RoomHandResult ||
-            state.stage is RoomSelectingTurn);
+        (waitingRoomStore.stage is RoomSelectingHand ||
+            waitingRoomStore.stage is RoomHandResult ||
+            waitingRoomStore.stage is RoomSelectingTurn);
     return Container(
       color: Colors.blueGrey.shade800,
       padding: const EdgeInsets.all(12),
@@ -45,24 +45,24 @@ class PlayerPanel extends StatelessWidget {
             '玩家',
             style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 13),
           ),
-          ...state.players.map(
+          ...waitingRoomStore.players.map(
             (item) => Container(
               margin: EdgeInsets.only(top: 8),
               child: PlayerSlot(
                 player: item,
                 placeholder: '玩家 ${item.pos + 1}',
                 handResult: item.pos == mySlot
-                    ? state.myHandResult
-                    : state.opponentHandResult,
+                    ? waitingRoomStore.myHandResult
+                    : waitingRoomStore.opponentHandResult,
                 showResult: showCardResults,
                 isHostSlot: item.pos == mySlot
-                    ? state.isHost
-                    : (state.isHost ? false : true),
+                    ? waitingRoomStore.isHost
+                    : (waitingRoomStore.isHost ? false : true),
                 isMe: item.pos == mySlot,
                 canKick:
                     !(item.pos == mySlot
-                        ? state.isHost
-                        : (state.isHost ? false : true)) &&
+                        ? waitingRoomStore.isHost
+                        : (waitingRoomStore.isHost ? false : true)) &&
                     item.pos != mySlot,
                 onKick: () => onKick(item.pos),
                 displayStyle: displayStyle,
@@ -70,12 +70,18 @@ class PlayerPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          DeckSelector(state: state, mySlot: mySlot),
+          DeckSelector(waitingRoomStore: waitingRoomStore, mySlot: mySlot),
           const SizedBox(height: 12),
-          if (state.stage is RoomSelectingHand)
-            HandSelect(onSendHand: onSendHand, enabled: !state.autoHandEnabled),
-          if (state.stage is RoomSelectingTurn)
-            TpSelect(onSendTp: onSendTp, enabled: !state.autoTurnOrderEnabled),
+          if (waitingRoomStore.stage is RoomSelectingHand)
+            HandSelect(
+              onSendHand: onSendHand,
+              enabled: !waitingRoomStore.autoHandEnabled,
+            ),
+          if (waitingRoomStore.stage is RoomSelectingTurn)
+            TpSelect(
+              onSendTp: onSendTp,
+              enabled: !waitingRoomStore.autoTurnOrderEnabled,
+            ),
           const SizedBox(height: 12),
           Divider(color: Colors.blueGrey.shade600, height: 1),
           const SizedBox(height: 8),
@@ -84,7 +90,7 @@ class PlayerPanel extends StatelessWidget {
               Icon(Icons.visibility, size: 16, color: Colors.blueGrey.shade400),
               const SizedBox(width: 6),
               Text(
-                '观战: ${state.observerCount}人',
+                '观战: ${waitingRoomStore.observerCount}人',
                 style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 13),
               ),
             ],

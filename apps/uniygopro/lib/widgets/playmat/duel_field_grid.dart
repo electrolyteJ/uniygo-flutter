@@ -1,24 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:uniygopro/stores/duel_board_store.dart';
 import '../../models/FieldCard.dart';
 import '../../stores/duel_room_state.dart';
 import 'field_card_slot.dart';
 
-class DuelFieldGrid extends StatelessWidget {
-  final DuelRoomState duel;
+class DuelFieldGrid extends StatefulWidget {
   final Function(FieldCard? card, int? code)? onCardSelect;
 
-  const DuelFieldGrid({
-    super.key,
-    required this.duel,
-    this.onCardSelect,
-  });
+  const DuelFieldGrid({super.key, this.onCardSelect});
+
+  @override
+  State<DuelFieldGrid> createState() => _DuelFieldGridState();
+}
+
+class _DuelFieldGridState extends State<DuelFieldGrid> {
+  late final DuelBoardStore boardStore;
+
+  @override
+  void initState() {
+    super.initState();
+    boardStore = context.read<DuelBoardStore>();
+  }
 
   FieldCard? _getCard(int controller, int zone, int sequence) {
-    return duel.fieldCards['${controller}_${zone}_$sequence'];
+    return boardStore.fieldCards['${controller}_${zone}_$sequence'];
   }
 
   @override
   Widget build(BuildContext context) {
+    final onCardSelect = widget.onCardSelect;
     return Center(
       child: SingleChildScrollView(
         child: Container(
@@ -26,7 +37,10 @@ class DuelFieldGrid extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFF0D141E).withOpacity(0.85),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.cyan.shade900.withOpacity(0.4), width: 1.5),
+            border: Border.all(
+              color: Colors.cyan.shade900.withOpacity(0.4),
+              width: 1.5,
+            ),
             boxShadow: const [
               BoxShadow(color: Colors.black45, blurRadius: 15, spreadRadius: 2),
             ],
@@ -38,7 +52,7 @@ class DuelFieldGrid extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildDeckSlot('EX', duel.oppExtra, isExtra: true),
+                  _buildDeckSlot('EX', boardStore.oppExtra, isExtra: true),
                   const SizedBox(width: 8),
                   ...List.generate(5, (i) {
                     final card = _getCard(1, 8, 4 - i); // 镜像次序
@@ -59,7 +73,11 @@ class DuelFieldGrid extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildCountSlot('除外', duel.oppRemoved, Colors.deepOrangeAccent),
+                  _buildCountSlot(
+                    '除外',
+                    boardStore.oppRemoved,
+                    Colors.deepOrangeAccent,
+                  ),
                   const SizedBox(width: 8),
                   ...List.generate(5, (i) {
                     final card = _getCard(1, 4, 4 - i); // 镜像次序
@@ -71,7 +89,11 @@ class DuelFieldGrid extends StatelessWidget {
                     );
                   }),
                   const SizedBox(width: 8),
-                  _buildCountSlot('墓地', duel.oppGrave, Colors.grey.shade400),
+                  _buildCountSlot(
+                    '墓地',
+                    boardStore.oppGrave,
+                    Colors.grey.shade400,
+                  ),
                 ],
               ),
 
@@ -111,7 +133,11 @@ class DuelFieldGrid extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildCountSlot('墓地', duel.selfGrave, Colors.grey.shade400),
+                  _buildCountSlot(
+                    '墓地',
+                    boardStore.selfGrave,
+                    Colors.grey.shade400,
+                  ),
                   const SizedBox(width: 8),
                   ...List.generate(5, (i) {
                     final card = _getCard(0, 4, i);
@@ -123,7 +149,11 @@ class DuelFieldGrid extends StatelessWidget {
                     );
                   }),
                   const SizedBox(width: 8),
-                  _buildCountSlot('除外', duel.selfRemoved, Colors.deepOrangeAccent),
+                  _buildCountSlot(
+                    '除外',
+                    boardStore.selfRemoved,
+                    Colors.deepOrangeAccent,
+                  ),
                 ],
               ),
 
@@ -144,7 +174,7 @@ class DuelFieldGrid extends StatelessWidget {
                     );
                   }),
                   const SizedBox(width: 8),
-                  _buildDeckSlot('DECK', duel.selfDeck, isExtra: false),
+                  _buildDeckSlot('DECK', boardStore.selfDeck, isExtra: false),
                 ],
               ),
             ],
@@ -154,7 +184,12 @@ class DuelFieldGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildZoneSlot(FieldCard? card, String label, {required bool isMonster}) {
+  Widget _buildZoneSlot(
+    FieldCard? card,
+    String label, {
+    required bool isMonster,
+  }) {
+    final onCardSelect = widget.onCardSelect;
     return FieldCardSlot(
       card: card,
       label: label,
@@ -169,9 +204,14 @@ class DuelFieldGrid extends StatelessWidget {
       height: 64,
       margin: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: isExtra ? Colors.purple.shade900.withOpacity(0.3) : Colors.blue.shade900.withOpacity(0.3),
+        color: isExtra
+            ? Colors.purple.shade900.withOpacity(0.3)
+            : Colors.blue.shade900.withOpacity(0.3),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: isExtra ? Colors.purpleAccent : Colors.cyanAccent, width: 1),
+        border: Border.all(
+          color: isExtra ? Colors.purpleAccent : Colors.cyanAccent,
+          width: 1,
+        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -187,7 +227,11 @@ class DuelFieldGrid extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             '$count',
-            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
@@ -209,12 +253,20 @@ class DuelFieldGrid extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: color,
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             '$count',
-            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),

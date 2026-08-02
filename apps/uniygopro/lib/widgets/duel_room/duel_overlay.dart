@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/SelectState.dart';
+import '../../stores/duel_selection_store.dart';
 import '../../stores/duel_room_state.dart';
 import 'select_menu.dart';
 import 'battle_select_menu.dart';
@@ -7,13 +9,25 @@ import 'card_selector.dart';
 import 'position_selector.dart';
 import 'yes_no_dialog.dart';
 
-class DuelOverlay extends StatelessWidget {
-  final DuelRoomState state;
-  const DuelOverlay({super.key, required this.state});
+class DuelOverlay extends StatefulWidget {
+  const DuelOverlay({super.key});
+
+  @override
+  State<DuelOverlay> createState() => _DuelOverlayState();
+}
+
+class _DuelOverlayState extends State<DuelOverlay> {
+  late final DuelSelectionStore selectionState;
+
+  @override
+  void initState() {
+    super.initState();
+    selectionState = context.read<DuelSelectionStore>();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final select = state.currentSelect;
+    final select = selectionState.currentSelect;
     if (select == null) return const SizedBox.shrink();
 
     return Positioned.fill(
@@ -35,73 +49,80 @@ class DuelOverlay extends StatelessWidget {
     switch (select.type) {
       case SelectType.idleCmd:
         return SelectMenu(
-          actions: state.selectedIdleActions,
-          onSelect: (action) => state.respondIdleCmd(action.sequence),
+          actions: selectionState.selectedIdleActions,
+          onSelect: (action) => selectionState.respondIdleCmd(action.sequence),
         );
       case SelectType.battleCmd:
         return BattleSelectMenu(
-          actions: state.selectedBattleActions,
-          onSelect: (action) => state.respondBattleCmd(action.sequence),
+          actions: selectionState.selectedBattleActions,
+          onSelect: (action) =>
+              selectionState.respondBattleCmd(action.sequence),
         );
       case SelectType.card:
       case SelectType.tribute:
         return CardSelector(
           select: select,
-          onSelect: (sequences) => state.respondSelectCard(sequences),
-          onCancel: () => state.respondSelectCard([]),
+          onSelect: (sequences) => selectionState.respondSelectCard(sequences),
+          onCancel: () => selectionState.respondSelectCard([]),
         );
       case SelectType.chain:
         return CardSelector(
           select: select,
-          onSelect: (sequences) => state.respondSelectChain(sequences.isNotEmpty ? sequences.first : -1),
-          onCancel: () => state.respondSelectChain(-1),
+          onSelect: (sequences) => selectionState.respondSelectChain(
+            sequences.isNotEmpty ? sequences.first : -1,
+          ),
+          onCancel: () => selectionState.respondSelectChain(-1),
         );
       case SelectType.position:
         return PositionSelector(
           select: select,
-          onSelect: (position) => state.respondSelectPosition(position),
+          onSelect: (position) =>
+              selectionState.respondSelectPosition(position),
         );
       case SelectType.effectYn:
         return YesNoDialog(
           message: '是否发动效果？',
-          onYes: () => state.respondSelectEffectYn(true),
-          onNo: () => state.respondSelectEffectYn(false),
+          onYes: () => selectionState.respondSelectEffectYn(true),
+          onNo: () => selectionState.respondSelectEffectYn(false),
         );
       case SelectType.yesNo:
         return YesNoDialog(
           message: '是否执行？',
-          onYes: () => state.respondSelectYesNo(true),
-          onNo: () => state.respondSelectYesNo(false),
+          onYes: () => selectionState.respondSelectYesNo(true),
+          onNo: () => selectionState.respondSelectYesNo(false),
         );
       case SelectType.option:
         return CardSelector(
           select: select,
-          onSelect: (sequences) => state.respondSelectOption(sequences.isNotEmpty ? sequences.first : 0),
-          onCancel: () => state.respondSelectOption(0),
+          onSelect: (sequences) => selectionState.respondSelectOption(
+            sequences.isNotEmpty ? sequences.first : 0,
+          ),
+          onCancel: () => selectionState.respondSelectOption(0),
         );
       case SelectType.place:
         return CardSelector(
           select: select,
-          onSelect: (sequences) => state.respondSelectCard(sequences),
-          onCancel: () => state.respondSelectCard([]),
+          onSelect: (sequences) => selectionState.respondSelectCard(sequences),
+          onCancel: () => selectionState.respondSelectCard([]),
         );
       case SelectType.sum:
         return CardSelector(
           select: select,
-          onSelect: (sequences) => state.respondSelectSum(sequences),
-          onCancel: () => state.respondSelectSum([]),
+          onSelect: (sequences) => selectionState.respondSelectSum(sequences),
+          onCancel: () => selectionState.respondSelectSum([]),
         );
       case SelectType.counter:
         return CardSelector(
           select: select,
-          onSelect: (sequences) => state.respondSelectCounter(sequences),
-          onCancel: () => state.respondSelectCounter([]),
+          onSelect: (sequences) =>
+              selectionState.respondSelectCounter(sequences),
+          onCancel: () => selectionState.respondSelectCounter([]),
         );
       case SelectType.sort:
         return CardSelector(
           select: select,
-          onSelect: (sequences) => state.respondSortCard(sequences),
-          onCancel: () => state.respondSortCard([]),
+          onSelect: (sequences) => selectionState.respondSortCard(sequences),
+          onCancel: () => selectionState.respondSortCard([]),
         );
     }
   }

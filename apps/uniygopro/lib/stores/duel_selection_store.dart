@@ -1,23 +1,129 @@
-import 'package:duelink/duelink.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/BattleAction.dart';
 import '../models/IdleAction.dart';
 import '../models/SelectState.dart';
-import '../models/duel_selection_state.dart';
+import 'package:duelink/duelink.dart';
 
-class DuelSelectionController {
-  final DuelSelectionState selection;
+/// 对局选择态仓库。
+///
+/// 负责维护服务端下发的当前选择题、可执行行动，以及把 UI 的选择
+/// 重新编码成对应的对局响应消息。
+class DuelSelectionStore extends ChangeNotifier {
+  List<IdleAction> selectedIdleActions = [];
+  List<BattleAction> selectedBattleActions = [];
+  bool enableBp = false;
+  bool enableM2 = false;
+  bool enableEp = false;
+  SelectState? currentSelect;
 
-  DuelSelectionController({required this.selection});
+  bool get isWaitingForInput => currentSelect != null;
+  IDuelService? _duelService;
 
+  /// 清空当前选择上下文，供离开房间或新对局开始时使用。
+  void reset() {
+    selectedIdleActions = [];
+    selectedBattleActions = [];
+    enableBp = false;
+    enableM2 = false;
+    enableEp = false;
+    currentSelect = null;
+    notifyListeners();
+  }
+
+  /// 供页面在批量字段赋值后显式触发刷新。
+  void markChanged() {
+    notifyListeners();
+  }
+
+  /// 记录当前等待玩家处理的选择请求。
   void setSelect(SelectState select) {
-    selection.currentSelect = select;
+    currentSelect = select;
+    notifyListeners();
   }
 
+  /// 清除当前选择请求。
   void clearSelect() {
-    selection.currentSelect = null;
+    currentSelect = null;
+    notifyListeners();
   }
 
+  void respondIdleCmd(int sequence) {
+    _duelService?.playGameResponse(CtosGameMsgResponse.selectIdleCmd(sequence));
+    clearSelect();
+  }
+
+  void respondBattleCmd(int sequence) {
+    _duelService?.playGameResponse(
+      CtosGameMsgResponse.selectBattleCmd(sequence),
+    );
+    clearSelect();
+  }
+
+  void respondSelectCard(List<int> sequences) {
+    _duelService?.playGameResponse(CtosGameMsgResponse.selectMulti(sequences));
+    clearSelect();
+  }
+
+  void respondSelectChain(int sequence) {
+    _duelService?.playGameResponse(CtosGameMsgResponse.selectSingle(sequence));
+    clearSelect();
+  }
+
+  void respondSelectEffectYn(bool yes) {
+    _duelService?.playGameResponse(
+      CtosGameMsgResponse.selectEffectYn(yes ? 1 : 0),
+    );
+    clearSelect();
+  }
+
+  void respondSelectYesNo(bool yes) {
+    _duelService?.playGameResponse(
+      CtosGameMsgResponse.selectEffectYn(yes ? 1 : 0),
+    );
+    clearSelect();
+  }
+
+  void respondSelectPosition(int position) {
+    _duelService?.playGameResponse(CtosGameMsgResponse.selectPosition(position));
+    clearSelect();
+  }
+
+  void respondSelectOption(int sequence) {
+    _duelService?.playGameResponse(CtosGameMsgResponse.selectOption(sequence));
+    clearSelect();
+  }
+
+  void respondSelectPlace(int player, int zone, int sequence) {
+    _duelService?.playGameResponse(
+      CtosGameMsgResponse.selectPlace(
+        CtosSelectPlace(player: player, zone: zone, sequence: sequence),
+      ),
+    );
+    clearSelect();
+  }
+
+  void respondSelectTribute(List<int> sequences) {
+    _duelService?.playGameResponse(CtosGameMsgResponse.selectMulti(sequences));
+    clearSelect();
+  }
+
+  void respondSelectCounter(List<int> values) {
+    _duelService?.playGameResponse(CtosGameMsgResponse.selectCounter(values));
+    clearSelect();
+  }
+
+  void respondSelectSum(List<int> sequences) {
+    _duelService?.playGameResponse(CtosGameMsgResponse.selectMulti(sequences));
+    clearSelect();
+  }
+
+  void respondSortCard(List<int> indices) {
+    _duelService?.playGameResponse(CtosGameMsgResponse.sortCard(indices));
+    clearSelect();
+  }
+
+  /// 把手牌/场上可执行行动整理成 idle command 菜单。
   void applyIdleCmd(MsgSelectIdleCmd msg) {
     final actions = <IdleAction>[];
     for (final group in msg.commandGroups) {
@@ -36,10 +142,10 @@ class DuelSelectionController {
         );
       }
     }
-    selection.selectedIdleActions = actions;
-    selection.enableBp = msg.enableBp;
-    selection.enableEp = msg.enableEp;
-    selection.currentSelect = SelectState(
+    selectedIdleActions = actions;
+    enableBp = msg.enableBp;
+    enableEp = msg.enableEp;
+    currentSelect = SelectState(
       type: SelectType.idleCmd,
       player: msg.player,
       min: 1,
@@ -47,6 +153,7 @@ class DuelSelectionController {
     );
   }
 
+  /// 把战斗阶段可执行行动整理成 battle command 菜单。
   void applyBattleCmd(MsgSelectBattleCmd msg) {
     final actions = <BattleAction>[];
     for (final group in msg.commandGroups) {
@@ -65,10 +172,10 @@ class DuelSelectionController {
         );
       }
     }
-    selection.selectedBattleActions = actions;
-    selection.enableM2 = msg.enableM2;
-    selection.enableEp = msg.enableEp;
-    selection.currentSelect = SelectState(
+    selectedBattleActions = actions;
+    enableM2 = msg.enableM2;
+    enableEp = msg.enableEp;
+    currentSelect = SelectState(
       type: SelectType.battleCmd,
       player: msg.player,
       min: 1,
@@ -88,7 +195,7 @@ class DuelSelectionController {
         ),
       );
     }
-    selection.currentSelect = SelectState(
+    currentSelect = SelectState(
       type: SelectType.card,
       player: msg.player,
       options: options,
@@ -111,7 +218,7 @@ class DuelSelectionController {
         ),
       );
     }
-    selection.currentSelect = SelectState(
+    currentSelect = SelectState(
       type: SelectType.chain,
       player: msg.player,
       options: options,
@@ -122,7 +229,7 @@ class DuelSelectionController {
   }
 
   void applySelectEffectYn(MsgSelectEffectYn msg) {
-    selection.currentSelect = SelectState(
+    currentSelect = SelectState(
       type: SelectType.effectYn,
       player: msg.player,
       options: [
@@ -140,7 +247,7 @@ class DuelSelectionController {
   }
 
   void applySelectYesNo(MsgSelectYesNo msg) {
-    selection.currentSelect = SelectState(
+    currentSelect = SelectState(
       type: SelectType.yesNo,
       player: msg.player,
       min: 1,
@@ -150,7 +257,7 @@ class DuelSelectionController {
   }
 
   void applySelectPlace(MsgSelectPlace msg) {
-    selection.currentSelect = SelectState(
+    currentSelect = SelectState(
       type: SelectType.place,
       player: msg.player,
       min: msg.count,
@@ -179,9 +286,11 @@ class DuelSelectionController {
         default:
           label = position.name;
       }
-      options.add(SelectOption(code: msg.code, position: position.value, label: label));
+      options.add(
+        SelectOption(code: msg.code, position: position.value, label: label),
+      );
     }
-    selection.currentSelect = SelectState(
+    currentSelect = SelectState(
       type: SelectType.position,
       player: msg.player,
       options: options,
@@ -203,7 +312,7 @@ class DuelSelectionController {
         ),
       );
     }
-    selection.currentSelect = SelectState(
+    currentSelect = SelectState(
       type: SelectType.tribute,
       player: msg.player,
       options: options,
@@ -226,7 +335,7 @@ class DuelSelectionController {
         ),
       );
     }
-    selection.currentSelect = SelectState(
+    currentSelect = SelectState(
       type: SelectType.counter,
       player: msg.player,
       options: options,
@@ -248,7 +357,7 @@ class DuelSelectionController {
         ),
       );
     }
-    selection.currentSelect = SelectState(
+    currentSelect = SelectState(
       type: SelectType.sum,
       player: msg.player,
       options: options,
@@ -269,7 +378,7 @@ class DuelSelectionController {
         ),
       );
     }
-    selection.currentSelect = SelectState(
+    currentSelect = SelectState(
       type: SelectType.sort,
       player: msg.player,
       options: options,
@@ -279,7 +388,7 @@ class DuelSelectionController {
   }
 
   void applySelectOption(MsgSelectOption msg) {
-    selection.currentSelect = SelectState(
+    currentSelect = SelectState(
       type: SelectType.option,
       player: msg.player,
       options: msg.codes.map((code) => SelectOption(code: code)).toList(),
@@ -300,7 +409,7 @@ class DuelSelectionController {
         ),
       );
     }
-    selection.currentSelect = SelectState(
+    currentSelect = SelectState(
       type: SelectType.card,
       player: msg.player,
       options: options,
@@ -318,12 +427,14 @@ class DuelSelectionController {
         SelectOption(
           code: 0,
           controller: bit >= 16 ? 1 : 0,
-          zone: bit < 8 || (bit >= 16 && bit < 24) ? CARD_ZONE_MZONE : CARD_ZONE_SZONE,
+          zone: bit < 8 || (bit >= 16 && bit < 24)
+              ? CARD_ZONE_MZONE
+              : CARD_ZONE_SZONE,
           sequence: bit % 8,
         ),
       );
     }
-    selection.currentSelect = SelectState(
+    currentSelect = SelectState(
       type: SelectType.place,
       player: msg.player,
       options: options,
@@ -331,5 +442,9 @@ class DuelSelectionController {
       max: msg.count,
       cancelable: false,
     );
+  }
+
+  void bind(IDuelService duelService) {
+    _duelService = duelService;
   }
 }

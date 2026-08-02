@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
-import '../../stores/duel_room_state.dart';
+import '../../stores/waiting_room_store.dart';
 
 class DeckSelector extends StatelessWidget {
-  final DuelRoomState state;
+  final WaitingRoomStore waitingRoomStore;
   final int mySlot;
-  const DeckSelector({super.key, required this.state, required this.mySlot});
+  const DeckSelector({super.key, required this.waitingRoomStore, required this.mySlot});
 
   @override
   Widget build(BuildContext context) {
     final isPlayer = mySlot >= 0 && mySlot <= 1;
     if (!isPlayer) return const SizedBox.shrink();
 
-    final decks = state.availableDecks;
-    final selected = state.selectedDeckName;
+    final decks = waitingRoomStore.availableDecks;
+    final selected = waitingRoomStore.selectedDeckName;
 
     return Container(
       padding: const EdgeInsets.all(10),
@@ -27,7 +27,10 @@ class DeckSelector extends StatelessWidget {
             children: [
               Icon(Icons.style, size: 14, color: Colors.blueGrey.shade400),
               const SizedBox(width: 6),
-              Text('卡组', style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 13)),
+              Text(
+                '卡组',
+                style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 13),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -58,7 +61,8 @@ class DeckSelector extends StatelessWidget {
                 }).toList(),
                 onChanged: (value) {
                   if (value != null) {
-                    state.selectDeck(value);
+                    waitingRoomStore.selectedDeckName = value;
+                    waitingRoomStore.markChanged();
                   }
                 },
               ),

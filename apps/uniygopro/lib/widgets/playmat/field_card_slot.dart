@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../models/FieldCard.dart';
-import '../../stores/duel_room_state.dart';
 import '../shared/card_image.dart';
 
 class FieldCardSlot extends StatelessWidget {

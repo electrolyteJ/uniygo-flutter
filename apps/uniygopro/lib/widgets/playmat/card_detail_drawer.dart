@@ -6,12 +6,16 @@ import '../shared/card_image.dart';
 class CardDetailDrawer extends StatelessWidget {
   final CardInfo? cardInfo;
   final int? cardCode;
+  final String? titleOverride;
+  final List<String>? extraLines;
   final VoidCallback? onClose;
 
   const CardDetailDrawer({
     super.key,
     this.cardInfo,
     this.cardCode,
+    this.titleOverride,
+    this.extraLines,
     this.onClose,
   });
 
@@ -103,7 +107,9 @@ class CardDetailDrawer extends StatelessWidget {
 
                       // Card Title
                       Text(
-                        cardInfo?.name ?? (cardCode != null ? 'Card #$cardCode' : 'Unknown'),
+                        titleOverride ??
+                            cardInfo?.name ??
+                            (cardCode != null ? 'Card #$cardCode' : 'Unknown'),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 15,
@@ -114,7 +120,38 @@ class CardDetailDrawer extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
 
-                      if (cardInfo != null) ...[
+                      if (extraLines != null && extraLines!.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.white.withOpacity(0.08)),
+                          ),
+                          constraints: const BoxConstraints(maxHeight: 220),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: extraLines!
+                                  .map(
+                                    (line) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 6),
+                                      child: Text(
+                                        line,
+                                        style: const TextStyle(
+                                          color: Color(0xFF8B9BB4),
+                                          fontSize: 11,
+                                          height: 1.5,
+                                          fontFamily: 'Noto Sans SC',
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        ),
+                      ] else if (cardInfo != null) ...[
                         // Badges
                         Wrap(
                           spacing: 4,

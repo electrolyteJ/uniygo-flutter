@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart';
-import '../../stores/duel_room_state.dart';
+import '../../stores/waiting_room_store.dart';
 import '../shared/waiting_room.dart';
 import 'hand_result_display.dart' show DisplayStyle;
 
 export 'hand_result_display.dart' show DisplayStyle;
 
 class ControlBar extends StatelessWidget {
-  final DuelRoomState state;
+  final WaitingRoomStore waitingRoomStore;
   final int mySlot;
   final bool isPlayer;
   final bool isReady;
@@ -22,7 +22,7 @@ class ControlBar extends StatelessWidget {
 
   const ControlBar({
     super.key,
-    required this.state,
+    required this.waitingRoomStore,
     required this.mySlot,
     required this.isPlayer,
     required this.isReady,
@@ -35,7 +35,6 @@ class ControlBar extends StatelessWidget {
     required this.onToggleAutoHand,
     required this.onToggleAutoTurnOrder,
   });
-
 
   @override
   Widget build(BuildContext context) {
@@ -55,14 +54,14 @@ class ControlBar extends StatelessWidget {
               children: [
                 buildAutomationSwitch(
                   label: '自动猜拳',
-                  value: state.autoHandEnabled,
-                  enabled: !state.isSelfReady,
+                  value: waitingRoomStore.autoHandEnabled,
+                  enabled: !waitingRoomStore.isSelfReady,
                   onChanged: onToggleAutoHand,
                 ),
                 buildAutomationSwitch(
                   label: '自动随机先后手',
-                  value: state.autoTurnOrderEnabled,
-                  enabled: !state.isSelfReady,
+                  value: waitingRoomStore.autoTurnOrderEnabled,
+                  enabled: !waitingRoomStore.isSelfReady,
                   onChanged: onToggleAutoTurnOrder,
                 ),
               ],
@@ -112,7 +111,7 @@ class ControlBar extends StatelessWidget {
                   ),
                 ),
               ),
-            if (!isPlayer && state.selfType == SelfType.observer)
+            if (!isPlayer && waitingRoomStore.selfType == SelfType.observer)
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: onSwitchToDuelist,
@@ -124,9 +123,9 @@ class ControlBar extends StatelessWidget {
                   ),
                 ),
               ),
-            if (!isPlayer && state.selfType == SelfType.observer)
+            if (!isPlayer && waitingRoomStore.selfType == SelfType.observer)
               const SizedBox(width: 8),
-            if (state.isHost)
+            if (waitingRoomStore.isHost)
               Expanded(
                 child: FilledButton.icon(
                   onPressed: onStart,

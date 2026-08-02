@@ -8,6 +8,10 @@ import '../models/deck_model.dart';
 import '../service_singleton.dart';
 import '../services/deck_service.dart';
 
+/// 卡组编辑器状态仓库。
+///
+/// 负责卡组列表加载、当前编辑中的卡组、卡片搜索筛选、
+/// 禁限卡表校验，以及编辑页本身的加载/错误/UI 状态。
 class DeckEditorStore extends ChangeNotifier {
   final DeckService _deckService = DeckService();
   // ── 卡组数据 ──

@@ -1,31 +1,60 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:uniygopro/stores/waiting_room_store.dart';
 
+import '../stores/duel_board_store.dart';
+import '../stores/duel_chat_store.dart';
+import '../stores/duel_selection_store.dart';
+import '../stores/duel_ui_store.dart';
 import '../stores/duel_room_state.dart';
+import '../stores/match_store.dart';
 import '../widgets/duel_room/chain_indicator.dart';
 import '../widgets/duel_room/duel_overlay.dart';
 import '../widgets/playmat/playmat.dart';
 
-class DuelFieldPage extends StatelessWidget {
-  final DuelRoomState state;
+class DuelFieldPage extends StatefulWidget {
+  const DuelFieldPage({super.key});
 
-  const DuelFieldPage({super.key, required this.state});
+  @override
+  State<DuelFieldPage> createState() => _DuelFieldPageState();
+}
+
+class _DuelFieldPageState extends State<DuelFieldPage> {
+  late final DuelRoomState controller;
+  late final WaitingRoomStore waitingRoomStore;
+  late final DuelBoardStore boardState;
+  late final DuelSelectionStore selectionState;
+  late final DuelChatStore chatState;
+  late final DuelUiStore uiState;
+  late final MatchStore matchRoomStore;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = context.read<DuelRoomState>();
+    waitingRoomStore = context.read<WaitingRoomStore>();
+    boardState = context.read<DuelBoardStore>();
+    selectionState = context.read<DuelSelectionStore>();
+    chatState = context.read<DuelChatStore>();
+    uiState = context.read<DuelUiStore>();
+    matchRoomStore = context.read<MatchStore>();
+  }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Stack(
         children: [
-          Playmat(duel: state),
-          if (state.isWaitingForInput) DuelOverlay(state: state),
-          if (state.chains.isNotEmpty)
+          Playmat(),
+          if (selectionState.isWaitingForInput) DuelOverlay(),
+          if (boardState.chains.isNotEmpty)
             Positioned(
               top: 100,
               left: 0,
               right: 0,
               child: Center(
-                child: ChainIndicator(chainCount: state.chains.length),
+                child: ChainIndicator(chainCount: boardState.chains.length),
               ),
             ),
           Positioned(top: 8, left: 8, child: _buildBackButton(context)),
@@ -62,7 +91,13 @@ class DuelFieldPage extends StatelessWidget {
           ),
           TextButton(
             onPressed: () {
-              state.reset();
+              controller.reset();
+              waitingRoomStore.reset();
+              boardState.reset();
+              selectionState.reset();
+              chatState.reset();
+              uiState.reset();
+              matchRoomStore.reset();
               Navigator.of(ctx).pop();
               context.go('/');
             },

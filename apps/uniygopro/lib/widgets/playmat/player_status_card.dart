@@ -11,6 +11,9 @@ class PlayerStatusCard extends StatelessWidget {
   final int extraCount;
   final int graveCount;
   final int removedCount;
+  final VoidCallback? onExtraTap;
+  final VoidCallback? onGraveTap;
+  final VoidCallback? onRemovedTap;
 
   const PlayerStatusCard({
     super.key,
@@ -23,6 +26,9 @@ class PlayerStatusCard extends StatelessWidget {
     required this.extraCount,
     required this.graveCount,
     required this.removedCount,
+    this.onExtraTap,
+    this.onGraveTap,
+    this.onRemovedTap,
   });
 
   @override
@@ -110,9 +116,11 @@ class PlayerStatusCard extends StatelessWidget {
                   children: [
                     _buildCountText('D', deckCount),
                     const SizedBox(width: 6),
-                    _buildCountText('EX', extraCount),
+                    _buildCountText('EX', extraCount, onTap: onExtraTap),
                     const SizedBox(width: 6),
-                    _buildCountText('GY', graveCount),
+                    _buildCountText('GY', graveCount, onTap: onGraveTap),
+                    const SizedBox(width: 6),
+                    _buildCountText('RM', removedCount, onTap: onRemovedTap),
                   ],
                 ),
               ),
@@ -123,15 +131,24 @@ class PlayerStatusCard extends StatelessWidget {
     );
   }
 
-  Widget _buildCountText(String label, int count) {
-    return RichText(
+  Widget _buildCountText(String label, int count, {VoidCallback? onTap}) {
+    final child = RichText(
       text: TextSpan(
-        style: const TextStyle(color: Color(0xFF8B9BB4), fontSize: 10, fontFamily: 'Orbitron'),
+        style: const TextStyle(
+          color: Color(0xFF8B9BB4),
+          fontSize: 10,
+          fontFamily: 'Orbitron',
+        ),
         children: [
           TextSpan(text: '$label:'),
-          TextSpan(text: '$count', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+          TextSpan(
+            text: '$count',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          ),
         ],
       ),
     );
+    if (onTap == null) return child;
+    return GestureDetector(onTap: onTap, child: child);
   }
 }

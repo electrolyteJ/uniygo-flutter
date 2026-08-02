@@ -2,6 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:duelink/duelink.dart';
 import '../config/servers.dart';
 
+/// 匹配与建房上下文仓库。
+///
+/// 负责保存当前选择的服务器、环境、房间名、连接地址、
+/// 匹配结果以及玩家身份等会在页面间流转的信息。
 class MatchStore extends ChangeNotifier {
   bool isSearching = false;
   String? arena;

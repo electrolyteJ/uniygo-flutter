@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import '../../stores/duel_room_state.dart';
+import '../../stores/duel_chat_store.dart';
 
 class ChatPanel extends StatelessWidget {
-  final DuelRoomState state;
+  final DuelChatStore chatState;
   final TextEditingController chatCtrl;
   final ScrollController chatScrollCtrl;
   final VoidCallback onSend;
 
   const ChatPanel({
     super.key,
-    required this.state,
+    required this.chatState,
     required this.chatCtrl,
     required this.chatScrollCtrl,
     required this.onSend,
@@ -41,7 +41,13 @@ class ChatPanel extends StatelessWidget {
               children: [
                 Icon(Icons.chat, size: 14, color: Colors.blueGrey.shade400),
                 const SizedBox(width: 6),
-                Text('聊天', style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 13)),
+                Text(
+                  '聊天',
+                  style: TextStyle(
+                    color: Colors.blueGrey.shade300,
+                    fontSize: 13,
+                  ),
+                ),
               ],
             ),
           ),
@@ -49,19 +55,25 @@ class ChatPanel extends StatelessWidget {
             child: ListView.builder(
               controller: chatScrollCtrl,
               padding: const EdgeInsets.all(8),
-              itemCount: state.chatMessages.length,
+              itemCount: chatState.chatMessages.length,
               itemBuilder: (ctx, i) {
-                final msg = state.chatMessages[i];
+                final msg = chatState.chatMessages[i];
                 final color = _chatColor(msg.playerIndex);
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
                   child: RichText(
                     text: TextSpan(
-                      style: TextStyle(color: Colors.blueGrey.shade200, fontSize: 13),
+                      style: TextStyle(
+                        color: Colors.blueGrey.shade200,
+                        fontSize: 13,
+                      ),
                       children: [
                         TextSpan(
                           text: '${msg.name}: ',
-                          style: TextStyle(color: color, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: color,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         TextSpan(text: msg.message),
                       ],
@@ -84,7 +96,10 @@ class ChatPanel extends StatelessWidget {
                       hintText: '输入消息...',
                       hintStyle: TextStyle(color: Colors.blueGrey.shade500),
                       isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
                       filled: true,
                       fillColor: Colors.blueGrey.shade700,
                       border: OutlineInputBorder(

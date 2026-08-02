@@ -1,25 +1,59 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../stores/duel_room_state.dart';
+import 'package:duelink/duelink.dart';
+import 'package:provider/provider.dart';
+import '../../stores/duel_board_store.dart';
+import '../../stores/duel_selection_store.dart';
 
-class PhaseBar extends StatelessWidget {
-  final DuelRoomState duel;
+class PhaseBar extends StatefulWidget {
+  final Set<int> tappablePhaseCodes;
+  final ValueChanged<int>? onPhaseTap;
 
-  const PhaseBar({super.key, required this.duel});
+  const PhaseBar({
+    super.key,
+    this.tappablePhaseCodes = const <int>{},
+    this.onPhaseTap,
+  });
+
+  @override
+  State<PhaseBar> createState() => _PhaseBarState();
+}
+
+class _PhaseBarState extends State<PhaseBar> {
+  late final DuelBoardStore boardState;
+  late final DuelSelectionStore selectionState;
+
+  @override
+  void initState() {
+    super.initState();
+    boardState = context.read<DuelBoardStore>();
+    selectionState = context.read<DuelSelectionStore>();
+  }
 
   static const _phases = [
-    {'code': 0x01, 'name': 'DP'},
-    {'code': 0x02, 'name': 'SP'},
-    {'code': 0x04, 'name': 'MAIN 1'},
-    {'code': 0x08, 'name': 'BATTLE'},
-    {'code': 0x10, 'name': 'MAIN 2'},
-    {'code': 0x20, 'name': 'END'},
+    {'code': PHASE_DRAW, 'activeMask': PHASE_DRAW, 'name': 'DP'},
+    {'code': PHASE_STANDBY, 'activeMask': PHASE_STANDBY, 'name': 'SP'},
+    {'code': PHASE_MAIN1, 'activeMask': PHASE_MAIN1, 'name': 'MAIN 1'},
+    {
+      'code': PHASE_BATTLE_START,
+      'activeMask':
+          PHASE_BATTLE_START |
+          PHASE_BATTLE_STEP |
+          PHASE_DAMAGE |
+          PHASE_DAMAGE_CAL |
+          PHASE_BATTLE,
+      'name': 'BATTLE',
+    },
+    {'code': PHASE_MAIN2, 'activeMask': PHASE_MAIN2, 'name': 'MAIN 2'},
+    {'code': PHASE_END, 'activeMask': PHASE_END, 'name': 'END'},
   ];
 
   @override
   Widget build(BuildContext context) {
-    final isMyTurn = duel.currentPlayer == duel.myController;
-    final currentPhase = duel.phase;
+    final tappablePhaseCodes = widget.tappablePhaseCodes;
+    final onPhaseTap = widget.onPhaseTap;
+    final isMyTurn = boardState.currentPlayer == boardState.myController;
+    final currentPhase = boardState.phase;
     const panelBorder = Color(0x5900F0FF); // rgba(0, 240, 255, 0.35)
 
     return ClipRect(
@@ -54,7 +88,10 @@ class PhaseBar extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
@@ -66,7 +103,7 @@ class PhaseBar extends StatelessWidget {
                       border: Border.all(color: const Color(0xFF00F0FF)),
                     ),
                     child: Text(
-                      'TURN ${duel.turnCount} - ${isMyTurn ? 'YOUR TURN' : 'OPPONENT'}',
+                      'TURN ${boardState.turnCount} - ${isMyTurn ? 'YOUR TURN' : 'OPPONENT'}',
                       style: const TextStyle(
                         color: Color(0xFF00F0FF),
                         fontSize: 11,
@@ -93,38 +130,87 @@ class PhaseBar extends StatelessWidget {
               Row(
                 children: _phases.map((p) {
                   final code = p['code'] as int;
+                  final activeMask = p['activeMask'] as int;
                   final name = p['name'] as String;
-                  final isActive = (currentPhase & code) != 0;
+                  final isActive = (currentPhase & activeMask) != 0;
+                  final isTappable =
+                      tappablePhaseCodes.contains(code) && onPhaseTap != null;
 
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: isActive ? null : Colors.white.withOpacity(0.03),
-                      gradient: isActive
-                          ? const LinearGradient(colors: [Color(0xFF00F0FF), Color(0xFF0077FF)])
-                          : null,
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(
-                        color: isActive ? Colors.white : Colors.white.withOpacity(0.08),
-                      ),
-                      boxShadow: isActive
-                          ? [
-                              BoxShadow(
-                                color: const Color(0xFF00F0FF).withOpacity(0.6),
-                                blurRadius: 14,
-                              )
-                            ]
-                          : [],
-                    ),
-                    child: Text(
-                      name,
-                      style: TextStyle(
-                        color: isActive ? Colors.white : const Color(0xFF8B9BB4),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        fontFamily: 'Orbitron',
+                  return MouseRegion(
+                    cursor: isTappable
+                        ? SystemMouseCursors.click
+                        : SystemMouseCursors.basic,
+                    child: GestureDetector(
+                      onTap: isTappable ? () => onPhaseTap?.call(code) : null,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? null
+                              : Colors.white.withOpacity(
+                                  isTappable ? 0.08 : 0.03,
+                                ),
+                          gradient: isActive
+                              ? const LinearGradient(
+                                  colors: [
+                                    Color(0xFF00F0FF),
+                                    Color(0xFF0077FF),
+                                  ],
+                                )
+                              : isTappable
+                              ? LinearGradient(
+                                  colors: [
+                                    const Color(0xFF00F0FF).withOpacity(0.16),
+                                    const Color(0xFF0077FF).withOpacity(0.08),
+                                  ],
+                                )
+                              : null,
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(
+                            color: isActive
+                                ? Colors.white
+                                : isTappable
+                                ? const Color(0xFF00F0FF).withOpacity(0.65)
+                                : Colors.white.withOpacity(0.08),
+                          ),
+                          boxShadow: isActive
+                              ? [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF00F0FF,
+                                    ).withOpacity(0.6),
+                                    blurRadius: 14,
+                                  ),
+                                ]
+                              : isTappable
+                              ? [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF00F0FF,
+                                    ).withOpacity(0.18),
+                                    blurRadius: 12,
+                                  ),
+                                ]
+                              : [],
+                        ),
+                        child: Text(
+                          name,
+                          style: TextStyle(
+                            color: isActive
+                                ? Colors.white
+                                : isTappable
+                                ? const Color(0xFFD7F9FF)
+                                : const Color(0xFF8B9BB4),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Orbitron',
+                          ),
+                        ),
                       ),
                     ),
                   );
