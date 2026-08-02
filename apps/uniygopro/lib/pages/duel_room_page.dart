@@ -2,11 +2,12 @@ import 'dart:async';
 import 'dart:developer' as console;
 import 'dart:math';
 
+import 'package:duelink/duelink.dart' as duel;
+import 'package:duelink/duelink.dart';
 import 'package:duelink_online/duelink_online.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import 'package:duelink/duelink.dart';
 import 'package:service_loader/service_loader.dart';
 import 'package:uniygopro/pages/duel_field_page.dart';
 import 'package:uniygopro/pages/waiting_room_page.dart';
@@ -106,15 +107,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
           waitingRoomStore.isFirstTurn = roomStage.isFirstTurn;
           break;
         case RoomDuelEnded():
-          // state.unbind();
-          duelRoomState.reset();
-          waitingRoomStore.reset();
-          duelBoardStore.reset();
-          selectionStore.reset();
-          duelChatStore.reset();
-          uiStore.reset();
-          matchRoomStore.reset();
-          context.go('/');
+          backhome();
           break;
         default:
           break;
@@ -726,15 +719,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
         onPressed: () {
-          duelRoomState.reset();
-          waitingRoomStore.reset();
-          duelBoardStore.reset();
-          selectionStore.reset();
-          duelChatStore.reset();
-          uiStore.reset();
-          matchRoomStore.reset();
-          _duelService.disconnect();
-          context.go('/');
+          backhome();
         },
       ),
       title: Text(_roomTitle(waitingRoomStore, matchRoomStore)),
@@ -742,16 +727,30 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
       foregroundColor: Colors.white,
     );
   }
+  void backhome(){
+    duelRoomState.reset();
+    waitingRoomStore.reset();
+    duelBoardStore.reset();
+    selectionStore.reset();
+    duelChatStore.reset();
+    uiStore.reset();
+    matchRoomStore.reset();
+    context.go('/');
+  }
 
   @override
   void dispose() {
+    if (_duelService.connectionState == duel.ConnectionState.connected) {
+      _duelService.surrender();
+    }
+    _duelService.surrender();
+    _duelService.disconnect();
+    _chatCtrl.dispose();
+    _chatScrollCtrl.dispose();
     _roomStageSub?.cancel();
     _msgSub?.cancel();
     _chatMsgSub?.cancel();
-    _chatCtrl.dispose();
-    _chatScrollCtrl.dispose();
-    _duelService.surrender();
-    _duelService.disconnect();
     super.dispose();
+    console.log('DuelRoomPage disposed and disconnected from server.');
   }
 }

@@ -4,7 +4,6 @@ import 'dart:typed_data';
 
 import '../duelink.dart';
 import 'constants.dart';
-import 'iduel_service.dart';
 import 'messages/ctos/ctos_chat.dart';
 import 'messages/ctos/ctos_game_msg_response.dart';
 import 'messages/ctos/ctos_hand_result.dart';
@@ -44,6 +43,7 @@ abstract class BaseDuelService implements IDuelService {
       _connState = state;
       if (state == ConnectionState.disconnected) {
         _connectionSub?.cancel();
+        console.log('RoomStage: Disconnected → RoomNotJoined)');
         _roomStage = const RoomNotJoined();
         _roomStageController.add(_roomStage);
       }
@@ -63,8 +63,6 @@ abstract class BaseDuelService implements IDuelService {
   Future<void> disconnect() async {
     await _connectionSub?.cancel();
     await connection.disconnect();
-    _roomStage = const RoomNotJoined();
-    _roomStageController.add(_roomStage);
   }
 
   // ── 消息处理 ──
@@ -452,6 +450,7 @@ abstract class BaseDuelService implements IDuelService {
         observerCount: _obsOf(_roomStage),
         isFirstTurn: goFirst,
       );
+      console.log('RoomStage RoomSelectingTurn ${_roomStage}');
       _roomStageController.add(_roomStage);
     }
   }

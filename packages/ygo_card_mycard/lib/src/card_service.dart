@@ -20,7 +20,7 @@ import 'package:ygo_card/ygo_card_deck_exception.dart';
 /// 封装 [CardApiClient]，提供高层级的卡片数据获取能力。
 /// 管理 CDN 配置，支持多环境切换。
 class BaseCardService implements ICardService {
-  http.Client _client = http.Client();
+  final http.Client _client = http.Client();
   EnvConfig config;
   final Duration timeout;
   CardDao? _cardDao;
@@ -302,9 +302,19 @@ class BaseCardService implements ICardService {
   @override
   Future<CardInfo?> getCard(int code) async {
     if (_cardDao == null) {
-      throw Exception('CardService not initialized. Call initDatabase() first.');
+      final File file;
+      if (envType == EnvType.staging) {
+        file = await _test_dbPath();
+      } else {
+        file = await _dbPath();
+      }
+      await initDatabase(file.path);
+      _cardDao = CardDatabase.instance.dao;
     }
-    // _cardDao ??= await initDatabase();
+    if (_cardDao == null) {
+      throw Exception(
+          'CardService not initialized. Call initDatabase() first.');
+    }
     final result = await _cardDao!.getCard(code);
     if (result == null) return null;
     // console.log('searchCards: found ${result} results for "$code ${envType}"');
@@ -314,7 +324,18 @@ class BaseCardService implements ICardService {
   @override
   Future<List<CardInfo>> searchCards(String keyword) async {
     if (_cardDao == null) {
-      throw Exception('CardService not initialized. Call initDatabase() first.');
+      final File file;
+      if (envType == EnvType.staging) {
+        file = await _test_dbPath();
+      } else {
+        file = await _dbPath();
+      }
+      await initDatabase(file.path);
+      _cardDao = CardDatabase.instance.dao;
+    }
+    if (_cardDao == null) {
+      throw Exception(
+          'CardService not initialized. Call initDatabase() first.');
     }
     final results = await _cardDao!.searchByName(keyword);
     // console.log('searchCards: found ${results.length} results for "$keyword ${envType}"');
@@ -330,7 +351,18 @@ class BaseCardService implements ICardService {
     int maxResults = 100,
   }) async {
     if (_cardDao == null) {
-      throw Exception('CardService not initialized. Call initDatabase() first.');
+      final File file;
+      if (envType == EnvType.staging) {
+        file = await _test_dbPath();
+      } else {
+        file = await _dbPath();
+      }
+      await initDatabase(file.path);
+      _cardDao = CardDatabase.instance.dao;
+    }
+    if (_cardDao == null) {
+      throw Exception(
+          'CardService not initialized. Call initDatabase() first.');
     }
     // _cardDao ??= await initDatabase();
     final dbCards = await _cardDao!.searchCombined(

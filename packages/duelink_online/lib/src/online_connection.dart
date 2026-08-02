@@ -50,7 +50,21 @@ class OnlineConnection implements DuelConnection {
   }
 
   @override
-  void send(YgoCtosMsg msg) => _channel?.sink.add(encodeCtos(msg));
+  void send(YgoCtosMsg msg) {
+    if (_state != ConnectionState.connected || _channel == null) {
+      console.log(
+        'Ignoring send while connection state is $_state: $msg',
+      );
+      return;
+    }
+    try {
+      _channel!.sink.add(encodeCtos(msg));
+    } on StateError catch (e) {
+      console.log('Ignoring send on closed socket: $e');
+      _state = ConnectionState.disconnected;
+      _stateController.add(_state);
+    }
+  }
 
   @override
   Stream<YgoStocMsg> get messages => _msgCtrl.stream;
@@ -58,6 +72,7 @@ class OnlineConnection implements DuelConnection {
   @override
   Future<void> disconnect() async {
     await _channel?.sink.close();
+    _channel = null;
     _state = ConnectionState.disconnected;
     _stateController.add(_state);
   }
