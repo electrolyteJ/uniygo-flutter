@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../stores/deck_editor_store.dart';
+import '../../pages/deck_editor/deck_editor_store.dart';
 import '../../models/deck_model.dart';
 
 class CardSearchBar extends StatefulWidget {

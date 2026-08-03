@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import '../../constants.dart';
+import '../../model/hand_type.dart';
 import '../../protocol/buffer_io.dart';
-import '../../types.dart';
 
 /// CTOS_HAND_RESULT (3)
 ///
@@ -21,7 +21,7 @@ class CtosHandResult {
   int get protoId => CTOS_HAND_RESULT;
 
   /// 语义化的猜拳结果枚举，避免上层直接判断 `1/2/3`。
-  HandType get handValue => HandType.fromValue(hand);
+  HandType get handValue => HandType.of(hand);
 
   bool get isScissors => handValue == HandType.scissors;
 

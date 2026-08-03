@@ -9,6 +9,16 @@ enum DuelRule {
 
   final int value;
   const DuelRule(this.value);
+  static DuelRule of(int v) {
+    switch (v) {
+      case 3:
+        return DuelRule.mr3;
+      case 4:
+        return DuelRule.mr4;
+      default:
+        return DuelRule.mr2020;
+    }
+  }
 }
 
 /// 对战模式
@@ -19,6 +29,17 @@ enum RoomMode {
 
   final int value;
   const RoomMode(this.value);
+
+  static RoomMode of(int v) {
+    switch (v) {
+      case 1:
+        return RoomMode.match;
+      case 2:
+        return RoomMode.tag;
+      default:
+        return RoomMode.single;
+    }
+  }
 }
 
 /// 房间创建规则参数。
@@ -26,8 +47,7 @@ enum RoomMode {
 /// 对应 ygopro 协议 HostInfo，对齐 neos-ts Options 接口。
 class RoomOptions {
   /// 禁限卡表 ID（0=默认）
-  final int lflist;
-
+  final int lfTableHash;
   /// 卡片允许: 0=OCG, 1=TCG, 2=OT混, 3=自制卡, 4=专有卡禁止, 5=所有卡片
   final int rule;
 
@@ -59,7 +79,7 @@ class RoomOptions {
   final bool autoDeath;
 
   const RoomOptions({
-    this.lflist = 0,
+    this.lfTableHash = 0,
     this.rule = 0,
     this.mode = RoomMode.match,
     this.duelRule = DuelRule.mr2020,
@@ -75,7 +95,7 @@ class RoomOptions {
   /// 编码为 20 字节 HostInfo 结构体（用于 ygopro LAN 模式）
   Uint8List encode() {
     final w = BufferWriter();
-    w.writeUint32(lflist);
+    w.writeUint32(lfTableHash);
     w.writeUint8(rule);
     w.writeUint8(mode.value);
     w.writeUint8(duelRule.value);
@@ -94,10 +114,10 @@ class RoomOptions {
   factory RoomOptions.decode(Uint8List data) {
     final r = BufferReader(data);
     return RoomOptions(
-      lflist: r.readUint32(),
+      lfTableHash: r.readUint32(),
       rule: r.readUint8(),
-      mode: _readMode(r.readUint8()),
-      duelRule: _readDuelRule(r.readUint8()),
+      mode: RoomMode.of(r.readUint8()),
+      duelRule: DuelRule.of(r.readUint8()),
       noCheckDeck: r.readUint8() != 0,
       noShuffleDeck: r.readUint8() != 0,
       startLp: _skipThenRead(r),
@@ -112,27 +132,6 @@ class RoomOptions {
     return r.readInt32();
   }
 
-  static RoomMode _readMode(int v) {
-    switch (v) {
-      case 1:
-        return RoomMode.match;
-      case 2:
-        return RoomMode.tag;
-      default:
-        return RoomMode.single;
-    }
-  }
-
-  static DuelRule _readDuelRule(int v) {
-    switch (v) {
-      case 3:
-        return DuelRule.mr3;
-      case 4:
-        return DuelRule.mr4;
-      default:
-        return DuelRule.mr2020;
-    }
-  }
 
   RoomOptions copyWith({
     int? lflist,
@@ -148,7 +147,7 @@ class RoomOptions {
     bool? autoDeath,
   }) {
     return RoomOptions(
-      lflist: lflist ?? this.lflist,
+      lfTableHash: lflist ?? this.lfTableHash,
       rule: rule ?? this.rule,
       mode: mode ?? this.mode,
       duelRule: duelRule ?? this.duelRule,
@@ -164,5 +163,5 @@ class RoomOptions {
 
   @override
   String toString() =>
-      'RoomOptions(lp:$startLp hand:$startHand draw:$drawCount rule:$rule mode:${mode.value} duelRule:${duelRule.value} noCheck:$noCheckDeck noShuf:$noShuffleDeck time:$timeLimit)';
+      'RoomOptions(禁限卡表:$lfTableHash ${autoDeath ? "40分钟自动超时" : ""}  lp:$startLp hand:$startHand draw:$drawCount rule:$rule mode:${mode.value} duelRule:${duelRule.value} noCheck:$noCheckDeck noShuf:$noShuffleDeck time:$timeLimit)';
 }

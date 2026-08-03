@@ -1,31 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart';
-import 'package:provider/provider.dart';
-import '../../stores/waiting_room_store.dart';
 import '../shared/waiting_room.dart';
 import 'hand_result_display.dart' show DisplayStyle;
 
 export 'hand_result_display.dart' show DisplayStyle;
 
 class ControlBar extends StatelessWidget {
-  final int mySlot;
-  final bool isPlayer;
-  final bool isReady;
-  final VoidCallback onToggleDisplay;
+  final bool isHost;
+  final PlayerType selfType;
+  final bool isSelfReady;
+  final bool autoHandEnabled;
+  final bool autoTurnOrderEnabled;
   final DisplayStyle displayStyle;
+  final VoidCallback onToggleDisplay;
+  final ValueChanged<BuildContext> toggleReady;
+  final ValueChanged<bool> onToggleAutoHand;
+  final ValueChanged<bool> onToggleAutoTurnOrder;
+  final VoidCallback onStartDuel;
+  final VoidCallback onBecomeDuelist;
+  final VoidCallback onBecomeObserver;
+
 
   const ControlBar({
     super.key,
-    required this.mySlot,
-    required this.isPlayer,
-    required this.isReady,
-    required this.onToggleDisplay,
+    required this.isHost,
+    required this.selfType,
+    required this.isSelfReady,
+    required this.autoHandEnabled,
+    required this.autoTurnOrderEnabled,
     required this.displayStyle,
+    required this.onToggleDisplay,
+    required this.toggleReady,
+    required this.onToggleAutoHand,
+    required this.onToggleAutoTurnOrder,
+    required this.onStartDuel,
+    required this.onBecomeDuelist,
+    required this.onBecomeObserver,
   });
 
   @override
   Widget build(BuildContext context) {
-    final waitingRoomStore = context.watch<WaitingRoomStore>();
+    final isPlayer =
+        selfType == PlayerType.player1 || selfType == PlayerType.player2;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -42,18 +58,17 @@ class ControlBar extends StatelessWidget {
               children: [
                 buildAutomationSwitch(
                   label: '自动猜拳',
-                  value: waitingRoomStore.autoHandEnabled,
-                  enabled: !waitingRoomStore.isSelfReady,
-                  onChanged: (value) =>
-                      waitingRoomStore.setAutoHandEnabled(value),
+                  value: autoHandEnabled,
+                  enabled: !isSelfReady,
+                  onChanged: (value) => onToggleAutoHand(value),
                 ),
 
                 buildAutomationSwitch(
                   label: '自动随机先后手',
-                  value: waitingRoomStore.autoTurnOrderEnabled,
-                  enabled: !waitingRoomStore.isSelfReady,
+                  value: autoTurnOrderEnabled,
+                  enabled: !isSelfReady,
                   onChanged: (value) =>
-                      waitingRoomStore.setAutoTurnOrderEnabled(value),
+                      onToggleAutoTurnOrder(value),
                 ),
               ],
             ),
@@ -75,17 +90,19 @@ class ControlBar extends StatelessWidget {
             if (isPlayer)
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: () => waitingRoomStore.toggleReady(context),
+                  onPressed: () => toggleReady(context),
                   icon: Icon(
-                    isReady ? Icons.cancel : Icons.check_circle,
+                    isSelfReady ? Icons.cancel : Icons.check_circle,
                     size: 18,
                   ),
-                  label: Text(isReady ? '取消准备' : '准备'),
+                  label: Text(isSelfReady ? '取消准备' : '准备'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: isReady
+                    backgroundColor: isSelfReady
                         ? Colors.blueGrey.shade600
                         : Colors.green.shade700,
                     foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.blueGrey.shade700,
+                    disabledForegroundColor: Colors.blueGrey.shade500,
                   ),
                 ),
               ),
@@ -93,7 +110,7 @@ class ControlBar extends StatelessWidget {
             if (isPlayer)
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => waitingRoomStore.becomeObserver(),
+                  onPressed: onBecomeObserver,
                   icon: const Icon(Icons.visibility, size: 18),
                   label: const Text('观战'),
                   style: OutlinedButton.styleFrom(
@@ -102,10 +119,10 @@ class ControlBar extends StatelessWidget {
                   ),
                 ),
               ),
-            if (!isPlayer && waitingRoomStore.selfType == SelfType.observer)
+            if (selfType == PlayerType.observer)
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => waitingRoomStore.becomeDuelist(),
+                  onPressed: onBecomeDuelist,
                   icon: const Icon(Icons.person_add, size: 18),
                   label: const Text('加入对战'),
                   style: OutlinedButton.styleFrom(
@@ -114,12 +131,11 @@ class ControlBar extends StatelessWidget {
                   ),
                 ),
               ),
-            if (!isPlayer && waitingRoomStore.selfType == SelfType.observer)
-              const SizedBox(width: 8),
-            if (waitingRoomStore.isHost)
+            if (selfType == PlayerType.observer) const SizedBox(width: 8),
+            if (isHost)
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: () => waitingRoomStore.startDuel(),
+                  onPressed: onStartDuel,
                   icon: const Icon(Icons.play_arrow, size: 18),
                   label: const Text('开始决斗'),
                   style: FilledButton.styleFrom(

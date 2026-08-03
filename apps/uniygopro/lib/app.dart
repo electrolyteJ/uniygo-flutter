@@ -1,18 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:uniygopro/pages/create_room/match_page.dart';
-import 'pages/home_page.dart';
-import 'pages/duel_room_page.dart';
-import 'pages/side_page.dart';
-import 'pages/deck_editor_page.dart';
 
+import 'package:uniygopro/config_route.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
 class UniygoproApp extends StatelessWidget {
   const UniygoproApp({super.key});
+
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'uniygopro',
+      localizationsDelegates: [
+        AppLocalizations.delegate, // Add this line
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: [
+        Locale('en'), // English
+        Locale('es'), // Spanish
+      ],
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueGrey),
@@ -32,19 +40,9 @@ class UniygoproApp extends StatelessWidget {
         useMaterial3: true,
       ),
       themeMode: ThemeMode.dark,
-      routerConfig: _router,
+      routerConfig: router,
     );
   }
 }
 
-final _router = GoRouter(
-  initialLocation: '/',
-  routes: [
-    GoRoute(path: '/', builder: (_, _) => const HomePage()),
-    GoRoute(path: '/match', builder: (_, _) => const MatchPage()),
-    GoRoute(path: '/duel-room', builder: (_, _) => const DuelRoomPage()),
-    GoRoute(path: '/side', builder: (_, _) => const SidePage()),
-    GoRoute(
-        path: '/deck-editor', builder: (_, _) => const DeckEditorPage()),
-  ],
-);
+

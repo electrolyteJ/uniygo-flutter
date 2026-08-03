@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 import '../../constants.dart';
-import '../../model/room_stage.dart';
+import '../../model/player.dart';
 import '../../protocol/buffer_io.dart';
 
 /// STOC_TYPE_CHANGE (19)
@@ -18,7 +18,7 @@ class StocTypeChange {
   final int _selfType;
   const StocTypeChange({required this.isHost, required this._selfType});
 
-  SelfType get selfType => SelfType.fromValue(_selfType);
+  PlayerType get selfType => PlayerType.of(_selfType);
   int get protoId => STOC_TYPE_CHANGE;
 
   Uint8List encode() {

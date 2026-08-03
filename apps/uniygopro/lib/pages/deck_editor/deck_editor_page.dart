@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../stores/deck_editor_store.dart';
-import '../services/deck_service.dart';
-import '../widgets/deck_editor/deck_list_panel.dart';
-import '../widgets/deck_editor/deck_edit_panel.dart';
-import '../widgets/deck_editor/card_search_bar.dart';
-import '../widgets/deck_editor/card_grid_view.dart';
-import '../widgets/deck_editor/card_list_view.dart';
+import 'deck_editor_store.dart';
+import '../../services/deck_service.dart';
+import '../../widgets/deck_editor/deck_list_panel.dart';
+import '../../widgets/deck_editor/deck_edit_panel.dart';
+import '../../widgets/deck_editor/card_search_bar.dart';
+import '../../widgets/deck_editor/card_grid_view.dart';
+import '../../widgets/deck_editor/card_list_view.dart';
 
 class DeckEditorPage extends StatefulWidget {
   const DeckEditorPage({super.key});

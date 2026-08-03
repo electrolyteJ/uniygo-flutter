@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import '../../constants.dart';
+import '../../model/card.dart';
 import '../../protocol/buffer_io.dart';
-import '../../types.dart';
 
 /// CTOS_RESPONSE (1)
 ///
@@ -44,7 +44,7 @@ class CtosSelectPlace {
   CardZone get zoneValue => zoneEnum;
 
   /// [zoneValue] 的别名，便于与其他协议结构保持一致。
-  CardZone get zoneEnum => CardZone.fromNumber(zone);
+  CardZone get zoneEnum => CardZone.of(zone);
 }
 
 class CtosGameMsgResponse {
@@ -113,7 +113,7 @@ class CtosGameMsgResponse {
 
   /// 语义化的表示形式枚举。
   CardPosition? get cardPosition =>
-      selectPositionPos == null ? null : CardPosition.fromNumber(selectPositionPos!);
+      selectPositionPos == null ? null : CardPosition.of(selectPositionPos!);
 
   /// [cardPosition] 的别名，便于与其他 message 的 helper getter 保持一致。
   CardPosition? get positionValue =>

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import '../../constants.dart';
+import '../../model/player.dart';
 import '../../protocol/buffer_io.dart';
 
 /// STOC_HS_PLAYER_CHANGE (33)
@@ -20,8 +21,7 @@ class StocHsPlayerChange {
   final int pos;
   int _state = -1;
 
-  StocHsPlayerChangeState get state =>
-      StocHsPlayerChangeState.fromValue(_state);
+  PlayerChange get state => PlayerChange.of(_state);
 
   StocHsPlayerChange({required this.pos, required this._state});
 
@@ -42,32 +42,3 @@ class StocHsPlayerChange {
   String toString() => 'StocHsPlayerChange(pos:$pos action:${_state})';
 }
 
-enum StocHsPlayerChangeState {
-  unknown,
-  move,
-  ready,
-  notReady,
-  leave,
-  toObserver;
-
-  static StocHsPlayerChangeState fromValue(int action) {
-    switch (action) {
-      case HS_PLAYER_STATE_MOVE:
-        return StocHsPlayerChangeState.move;
-      case HS_PLAYER_STATE_READY:
-      case 9:
-        return StocHsPlayerChangeState.ready;
-      case HS_PLAYER_STATE_NO_READY:
-      case 10:
-        return StocHsPlayerChangeState.notReady;
-      case HS_PLAYER_STATE_LEAVE:
-      case 11:
-        return StocHsPlayerChangeState.leave;
-      case HS_PLAYER_STATE_TO_OBSERVER:
-      case 8:
-        return StocHsPlayerChangeState.toObserver;
-      default:
-        return StocHsPlayerChangeState.unknown;
-    }
-  }
-}

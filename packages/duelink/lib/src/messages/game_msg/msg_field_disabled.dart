@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
+import '../../../duelink.dart';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
-import '../../types.dart';
 
 /// MSG_FIELD_DISABLED (0x38) — 区域禁用通知
 ///
@@ -92,5 +92,5 @@ class MsgFieldDisabledAction {
     required this.disabled,
   });
 
-  CardZone get zoneEnum => CardZone.fromNumber(zone);
+  CardZone get zoneEnum => CardZone.of(zone);
 }

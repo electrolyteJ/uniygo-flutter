@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:uniygopro/stores/side_store.dart';
+import 'package:uniygopro/pages/side/side_store.dart';
 
 void main() {
   test('SideStore state transitions', () {

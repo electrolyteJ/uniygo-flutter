@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 import '../constants.dart';
-import '../types.dart';
+import '../model/card.dart';
 
 /// 二进制缓冲区顺序读写工具。
 ///
@@ -264,7 +264,7 @@ class CardLocation {
   CardZone get zone => zoneEnum;
 
   /// 语义化的区域枚举，适合大多数消费场景。
-  CardZone get zoneEnum => CardZone.fromNumber(location);
+  CardZone get zoneEnum => CardZone.of(location);
 
   /// 原始协议中的 position 数字值。
   ///
@@ -278,7 +278,7 @@ class CardLocation {
   CardPosition get cardPosition => positionEnum;
 
   /// 语义化的表示形式枚举，适合 UI/规则判断。
-  CardPosition get positionEnum => CardPosition.fromNumber(position);
+  CardPosition get positionEnum => CardPosition.of(position);
 
   @override
   bool operator ==(Object other) =>
@@ -321,7 +321,7 @@ class CardShortLocation {
   CardZone get zone => zoneEnum;
 
   /// 语义化的区域枚举，适合大多数消费场景。
-  CardZone get zoneEnum => CardZone.fromNumber(location);
+  CardZone get zoneEnum => CardZone.of(location);
 
   @override
   bool operator ==(Object other) =>
@@ -360,7 +360,7 @@ class CardInfo {
   CardZone get zone => zoneEnum;
 
   /// 语义化的区域枚举，适合大多数消费场景。
-  CardZone get zoneEnum => CardZone.fromNumber(location);
+  CardZone get zoneEnum => CardZone.of(location);
 
   @override
   bool operator ==(Object other) =>

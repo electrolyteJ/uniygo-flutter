@@ -4,9 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:service_loader/service_loader.dart';
 import 'package:ygo_card/card_info.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
-import '../models/deck_model.dart';
-import '../service_singleton.dart';
-import '../services/deck_service.dart';
+import '../../models/deck_model.dart';
+import '../../service_singleton.dart';
+import '../../services/deck_service.dart';
 
 /// 卡组编辑器状态仓库。
 ///
@@ -25,10 +25,6 @@ class DeckEditorStore extends ChangeNotifier {
   List<CardInfo> _searchResults = [];
   bool _isGridView = true;
 
-  // ── 禁限卡表 ──
-  Map<int, int> _banlist = {}; // code → 限制等级 (0=准限, 1=限制, 2=准限, 3=禁止)
-  bool _banlistLoaded = false;
-
   // ── 添加卡牌目标区域 ──
   String _addTargetZone = 'main'; // main, extra, side
 
@@ -46,32 +42,12 @@ class DeckEditorStore extends ChangeNotifier {
   bool get isGridView => _isGridView;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  Map<int, int> get banlist => _banlist;
-  bool get banlistLoaded => _banlistLoaded;
   String get addTargetZone => _addTargetZone;
   final cardService = ServiceFactory.create<CardService>();
   // ── 初始化 ──
 
   /// 初始化卡牌数据库
   Future<void> initialize() async {
-    await _loadBanlist();
-  }
-
-  /// 加载禁限卡表
-  Future<void> _loadBanlist() async {
-    try {
-      console.log('加载禁限卡表中...', name: 'DeckEditorStore');
-      final lflist = await cardService.fetchLflist();
-      _banlist = {};
-      for (final entry in lflist.entries) {
-        _banlist[entry.code] = entry.limit;
-      }
-      _banlistLoaded = true;
-    } catch (e) {
-      console.log('加载禁限卡表失败: $e', name: 'DeckEditorStore');
-      // 禁限卡表加载失败不影响使用
-      _banlistLoaded = false;
-    }
   }
 
   // ── 卡组操作 ──
@@ -244,14 +220,14 @@ class DeckEditorStore extends ChangeNotifier {
   // ── 卡牌操作 ──
 
   /// 添加卡牌到卡组（自动根据卡牌类型选择目标区域）
-  bool addCard(CardInfo card, {String? targetZone}) {
+  Future<bool> addCard(CardInfo card, {String? targetZone}) async{
     final zone = targetZone ?? _autoSelectZone(card);
     final result = _canAddCard(zone, card);
-    if (!result.$1) {
-      _errorMessage = result.$2;
-      notifyListeners();
-      return false;
-    }
+    // if (!result.$1) {
+    //   _errorMessage = result.$2;
+    //   notifyListeners();
+    //   return false;
+    // }
 
     switch (zone) {
       case 'main':
@@ -297,7 +273,7 @@ class DeckEditorStore extends ChangeNotifier {
   }
 
   /// 检查是否可以添加卡牌
-  (bool, String?) _canAddCard(String type, CardInfo card) {
+  Future<(bool, String?)> _canAddCard(String type, CardInfo card) async{
     // 检查卡组数量限制
     switch (type) {
       case 'main':
@@ -331,18 +307,15 @@ class DeckEditorStore extends ChangeNotifier {
     if (sameNameCount >= 3) {
       return (false, '同名卡最多3张');
     }
-
-    // 检查禁限卡表
-    if (_banlistLoaded && _banlist.containsKey(card.code)) {
-      final limit = _banlist[card.code]!;
-      final currentCount = sameNameCount;
-      if (limit == 3 && currentCount >= 1) {
-        return (false, '${card.name} 已禁止');
-      } else if (limit == 2 && currentCount >= 2) {
-        return (false, '${card.name} 已限制 (最多2张)');
-      } else if (limit == 1 && currentCount >= 2) {
-        return (false, '${card.name} 已准限制 (最多2张)');
-      }
+    var lflist =await cardService.getLfTable(-1);
+    var lfInfo = lflist?.getLimit(card.code);
+    final currentCount = sameNameCount;
+    if (lfInfo == 3 && currentCount >= 1) {
+      return (false, '${card.name} 已禁止');
+    } else if (lfInfo == 2 && currentCount >= 2) {
+      return (false, '${card.name} 已限制 (最多2张)');
+    } else if (lfInfo == 1 && currentCount >= 2) {
+      return (false, '${card.name} 已准限制 (最多2张)');
     }
 
     return (true, null);
@@ -425,17 +398,19 @@ class DeckEditorStore extends ChangeNotifier {
 
   /// 获取卡牌的禁限状态描述
   String? getBanlistStatus(CardInfo card) {
-    if (!_banlistLoaded || !_banlist.containsKey(card.code)) return null;
-    final limit = _banlist[card.code]!;
-    switch (limit) {
-      case 3:
-        return '禁止';
-      case 2:
-        return '限制';
-      case 1:
-        return '准限制';
-      default:
-        return null;
-    }
+    // if (!_banlistLoaded || !_banlist.containsKey(card.code)) return null;
+    // final limit = _banlist[card.code]!;
+    // switch (limit) {
+    //   case 3:
+    //     return '禁止';
+    //   case 2:
+    //     return '限制';
+    //   case 1:
+    //     return '准限制';
+    //   default:
+    //     return null;
+    // }
+
+    return null;
   }
 }

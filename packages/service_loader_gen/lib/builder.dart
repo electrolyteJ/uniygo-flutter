@@ -12,15 +12,18 @@ import 'package:yaml/yaml.dart';
 import 'src/registration.dart';
 
 /// build.yaml 的 builder_factories 入口。
-Builder serviceRegisterBuilder(BuilderOptions options) =>
-    ServiceRegisterBuilder();
+Builder serviceBuilder(BuilderOptions options) =>
+    ServiceBuilder();
 
-/// 扫描当前包及其直接依赖包 `lib/**` 下标注了 [ServiceRegister] 的
+/// 扫描当前包及其直接依赖包 `lib/**` 下标注了 [Service] 的
 /// 类/顶层函数，生成 `lib/service_loader.registrations.g.dart`，其中包含
 /// `registerAllServices()` 函数。
 ///
 /// - 标注在类上 → 生成 `() => ClassName()`，要求类可无参构造。
 /// - 标注在顶层函数上 → 直接以该函数作为服务工厂。
+///
+/// 同时扫描 [OnServiceRegister] 标注的顶层函数，在
+/// `registerAllServices()` 体开头调用它们。
 ///
 /// 直接在生成注册代码的主包（应用）内完成全部扫描与生成：除了本包
 /// `lib/`，还会扫描所有声明了 `service_loader` 依赖的直接依赖包，
@@ -29,7 +32,7 @@ Builder serviceRegisterBuilder(BuilderOptions options) =>
 /// 使用独立 [AnalysisContextCollection] 扫描源码，而不是
 /// `buildStep.resolver`：后者无法解析引用了本包生成物的库，会导致这类
 /// 库被当作未解析而漏掉注册。
-class ServiceRegisterBuilder implements Builder {
+class ServiceBuilder implements Builder {
   static const _outputName = 'service_loader.registrations.g.dart';
   static final _formatter = DartFormatter(
     languageVersion: Version.parse(Platform.version.split(' ').first),
@@ -56,22 +59,28 @@ class ServiceRegisterBuilder implements Builder {
       includedPaths: [for (final dir in libDirs) dir.absolute.path],
     );
     final registrations = <String, ServiceRegistration>{};
+    final onServiceRegisterHooks = <OnServiceRegisterHook>[];
 
     for (final libDir in libDirs) {
       for (final file in libDir.listSync(recursive: true).whereType<File>()) {
         if (!file.path.endsWith('.dart') || _isGenerated(file.path)) continue;
         final library = await _resolveLibrary(collection, file);
         if (library == null) continue;
-        for (final registration
-            in ServiceRegistrationCollector().collect(library)) {
+        final collector = ServiceRegistrationCollector();
+        for (final registration in collector.collect(library)) {
           registrations[
             '${registration.libraryUri}|${registration.service}'
           ] = registration;
         }
+        onServiceRegisterHooks
+            .addAll(collector.collectOnServiceRegisterHooks(library));
       }
     }
 
-    final output = renderRegisterAllServices(registrations.values.toList());
+    final output = renderRegisterAllServices(
+      registrations.values.toList(),
+      onServiceRegisterHooks: onServiceRegisterHooks,
+    );
     await buildStep.writeAsString(
       buildStep.allowedOutputs.first,
       _format(output),
@@ -100,7 +109,7 @@ class ServiceRegisterBuilder implements Builder {
 
   /// 直接依赖中声明了 `service_loader` 或 `service_loader_gen` 的包名。
   ///
-  /// 只有这类包才可能标注 [ServiceRegister]，过滤后可避免扫描
+  /// 只有这类包才可能标注 [Service]，过滤后可避免扫描
   /// provider/flame 等无关依赖的大体积 lib。
   Future<List<String>> _serviceDependencies(
     BuildStep buildStep,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:service_loader/service_loader.dart';
 import 'package:ygo_card/card_info.dart';
-import 'package:ygo_card/lflist_info.dart';
+import 'package:ygo_card/lf_table.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 import '../service/script_service.dart';
 import '../summon/summon_inline.dart';
@@ -26,7 +26,7 @@ class _CardListPageState extends State<CardListPage> {
   CardInfo? _selectedCard;
   bool _isLoading = true;
   String _errorMessage = '';
-  LflistInfo? _lflist;
+  LfTable? _lflist;
   CardInfo? _summoningCard;
   bool _showInlineSummon = false;
   @override
@@ -44,7 +44,7 @@ class _CardListPageState extends State<CardListPage> {
     });
 
     try {
-      _lflist = await _cardService.fetchLflist();
+      _lflist = await _cardService.getLfTable(-1);
       await _scriptService.init();
       _cards = await _cardService.searchCards('');
       await _preloadEffects();

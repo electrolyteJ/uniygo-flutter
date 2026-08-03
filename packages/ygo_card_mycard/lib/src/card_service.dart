@@ -1,46 +1,100 @@
 import 'dart:developer' as console;
 import 'dart:io';
-import 'dart:typed_data';
-
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:ygo_card/card_info.dart';
-import 'package:ygo_card/lflist_info.dart';
+import 'package:ygo_card/lf_table.dart';
 import 'package:ygo_card/ygo_card.dart';
 import 'package:ygo_card_mycard/src/card_dao.dart';
 import 'card_database.dart';
+import 'parse_lf_table.dart';
+import 'deck_validator.dart';
 import 'env_config.dart';
 import 'dart:convert';
+import 'httper.dart';
 
-import 'package:ygo_card/ygo_card_deck_exception.dart';
 
+Future<File> _dbPath() async {
+  final path = '${(await getApplicationDocumentsDirectory()).path}/cards.cdb';
+  final file = File(path);
+  return file;
+}
+
+Future<File> _test_dbPath() async {
+  final path =
+      '${(await getApplicationDocumentsDirectory()).path}/test_cards.cdb';
+  final file = File(path);
+  return file;
+}
+bool _banlistLoaded = false;
+
+/// 下载完整的 cards.cdb 数据库文件到本地。
+///
+/// 同时下载生产环境和 staging 环境的数据库。已存在且非空的文件会跳过下载。
+/// 完成后初始化 SQLite 数据库连接。
+Future<void> preDownloadDatabase() async {
+  final productionFile = await _dbPath();
+  console.log('Checking database file at ${productionFile.path}');
+  if (!await productionFile.exists() || await productionFile.length() == 0) {
+    final response = await fetch(EnvConfig.production.cardDatabaseUrl);
+    final bodyBytes = response.bodyBytes;
+    console.log('Database file not found, downloading...');
+    if (bodyBytes.isNotEmpty) {
+      console.log('Database downloaded, saving to ${productionFile.path}');
+      await productionFile.writeAsBytes(bodyBytes);
+    } else {
+      throw Exception('HTTP error');
+    }
+  }
+  await initDatabase(productionFile.path);
+
+  final stagingFile = await _test_dbPath();
+  console.log('Checking test database file at ${stagingFile.path}');
+  if (!await stagingFile.exists() || await stagingFile.length() == 0) {
+    final response = await fetch(EnvConfig.staging.cardDatabaseUrl);
+    final bodyBytes = response.bodyBytes;
+    console.log('Database file not found, downloading...');
+    if (bodyBytes.isNotEmpty) {
+      console.log('Database downloaded, saving to ${stagingFile.path}');
+      await stagingFile.writeAsBytes(bodyBytes);
+    } else {
+      throw Exception('HTTP error');
+    }
+  }
+}
+
+/// 加载禁限卡表到模块级缓存。
+///
+/// 应在应用启动时调用一次。后续 [BaseCardService.validateDeck] 会
+/// 自动使用缓存数据，无需每个实例重复加载。
+///
+/// 同时建立 [lflistHashToName] 映射，用于将服务端返回的 hash 值
+/// 转换为可读禁限卡表名称。
+Future<void> preloadBanlist() async {
+  if (_banlistLoaded) return;
+  try {
+    console.log('加载禁限卡表中...', name: 'DuelRoomStore');
+    final raw = await fetch(EnvConfig.production.lflistUrl);
+    parseLflistConf(raw.body);
+    _banlistLoaded = true;
+  } catch (e) {
+    console.log('加载禁限卡表失败: $e', name: 'DuelRoomStore');
+    _banlistLoaded = false;
+  }
+}
+
+// =============================================================================
+// BaseCardService
+// =============================================================================
 
 /// 卡片资源服务
 ///
 /// 封装 [CardApiClient]，提供高层级的卡片数据获取能力。
 /// 管理 CDN 配置，支持多环境切换。
 class BaseCardService implements ICardService {
-  final http.Client _client = http.Client();
   EnvConfig config;
-  final Duration timeout;
   CardDao? _cardDao;
-  BaseCardService({
-    required this.config,
-    this.timeout = const Duration(seconds: 30),
-  }) {
-    // predownloadDatabase();
-  }
 
-  Future<File> _dbPath() async{
-    final path = '${(await getApplicationDocumentsDirectory()).path}/cards.cdb';
-    final file = File(path);
-    return file;
-  }
-  Future<File> _test_dbPath() async {
-    final path = '${(await getApplicationDocumentsDirectory()).path}/test_cards.cdb';
-    final file = File(path);
-    return file;
-  }
+  BaseCardService({required this.config});
 
   @override
   get envType => config.type;
@@ -64,84 +118,34 @@ class BaseCardService implements ICardService {
     }
   }
 
-
-  void predownloadDatabase() {
-    /// 下载完整的 cards.cdb 数据库文件
-    ///
-    /// 返回 SQLite 格式的字节数据，调用方可使用 sqflite 等库打开。
-    ///
-    _dbPath().then((file) async {
-      console.log('Checking database file at ${file.path}');
-      if (!await file.exists() || await file.length() == 0) {
-        final bodyBytes = await fetchCardDatabase(
-            EnvConfig.production.cardDatabaseUrl);
-        console.log('Database file not found, downloading...');
-        if (bodyBytes.isNotEmpty) {
-          console.log('Database downloaded, saving to ${file.path}');
-          await file.writeAsBytes(bodyBytes);
-        } else {
-          throw Exception('HTTP error');
-        }
-      }
-      await initDatabase(file.path);
-      _cardDao = CardDatabase.instance.dao;
-    });
-    _test_dbPath().then((file) async {
-      console.log('Checking test database file at ${file.path}');
-      if (!await file.exists() || await file.length() == 0) {
-        final bodyBytes = await fetchCardDatabase(
-            EnvConfig.staging.cardDatabaseUrl);
-        final file = await _test_dbPath();
-        console.log('Database file not found, downloading...');
-        if (bodyBytes.isNotEmpty) {
-          await file.writeAsBytes(bodyBytes);
-          console.log('Database downloaded, saving to ${file.path}');
-        } else {
-          throw Exception('HTTP error');
-        }
-      }
-    });
-
-
-  }
-
-  // ---------------------------------------------------------------------------
-  // 核心静态资源
-  // ---------------------------------------------------------------------------
-
-  /// 下载卡牌数据库 (cards.cdb) 原始字节
-  ///
-  /// 返回 SQLite 格式的数据库文件字节。
-  Future<Uint8List> fetchCardDatabase(String cardDatabaseUrl) async {
-    try {
-      final uri = Uri.parse(cardDatabaseUrl);
-      final response = await _client.get(uri).timeout(timeout);
-      _ensureSuccess(response);
-      return response.bodyBytes;
-    } on YgoCardDeckException {
-      rethrow;
-    } catch (e) {
-      throw _mapError(e);
+  @override
+  List<String> validateDeck(
+    List<CardInfo> main,
+    List<CardInfo> extra,
+    List<CardInfo> side,
+  ) {
+    if (!_banlistLoaded) {
+      throw Exception('Banlist not loaded. Call preloadBanlist() first.');
     }
+    // 默认使用第一个卡表（当前最新 OCG 表）
+    final lfInfos = lflistHashToTable.isNotEmpty ? lflistHashToTable.values.first.lfInfos : <int, LfInfo>{};
+    final validator = DeckValidator(lfInfos: lfInfos);
+    final result = validator.validate(main, extra, side);
+    return result;
   }
 
   // ---------------------------------------------------------------------------
   // 禁限卡表
   // ---------------------------------------------------------------------------
 
-  /// 获取标准禁限卡表
-  /// 获取禁限卡表
-  Future<LflistInfo> fetchLflist() async {
-    try {
-      final uri = Uri.parse(config.lflistUrl);
-      final response = await _client.get(uri).timeout(timeout);
-      _ensureSuccess(response);
-      return LflistInfo.parse(response.body);
-    } on YgoCardDeckException {
-      rethrow;
-    } catch (e) {
-      throw _mapError(e);
-    }
+  @override
+  Future<Map<int,LfTable>> getAllLfTable() async {
+      throw Exception('Not implemented');
+  }
+
+  @override
+  Future<LfTable?> getLfTable(int hash) async {
+    return getLflist(hash);
   }
 
   // ---------------------------------------------------------------------------
@@ -153,89 +157,9 @@ class BaseCardService implements ICardService {
   ///
   /// 按键值对格式返回: key=value 每行一个。
   Future<Map<String, String>> fetchStrings() async {
-    try {
-      final uri = Uri.parse(config.stringsUrl);
-      final response = await _client.get(uri).timeout(timeout);
-      _ensureSuccess(response);
-      return _parseStrings(response.body);
-    } on YgoCardDeckException {
-      rethrow;
-    } catch (e) {
-      throw _mapError(e);
-    }
+    final response = await fetch(config.stringsUrl);
+    return _parseStrings(response.body);
   }
-
-  // ---------------------------------------------------------------------------
-  // 先行卡
-  // ---------------------------------------------------------------------------
-
-  /// 获取先行卡/预发布卡列表
-  /// 获取先行卡数据 (test-release.json)
-  ///
-  /// 路径: /ygopro-super-pre/data/test-release.json
-  /// 返回卡牌列表，注意先行卡的数据结构可能与完整卡牌不同。
-  Future<List<CardInfo>> fetchPreReleaseCards() async {
-    try {
-      final uri = Uri.parse(config.stagingCards!);
-      final response = await _client.get(uri).timeout(timeout);
-      _ensureSuccess(response);
-      final list = jsonDecode(response.body);
-      if (list is! List) return [];
-      return list
-          .map((e) => CardInfo.fromJson(e as Map<String, dynamic>))
-          .toList();
-    } on YgoCardDeckException {
-      rethrow;
-    } catch (e) {
-      throw _mapError(e);
-    }
-  }
-
-  /// 获取先行卡版本号
-  /// 获取先行卡版本号
-  ///
-  /// 路径: /ygopro-super-pre/data/version.txt
-  Future<String> fetchPreReleaseVersion() async {
-    try {
-      final uri = Uri.parse(config.stagingVersion!);
-      final response = await _client.get(uri).timeout(timeout);
-      _ensureSuccess(response);
-      return response.body.trim();
-    } on YgoCardDeckException {
-      rethrow;
-    } catch (e) {
-      throw _mapError(e);
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // 卡图
-  // ---------------------------------------------------------------------------
-  /// 获取正式卡图 URL
-  // ---------------------------------------------------------------------------
-  // 卡图
-  // ---------------------------------------------------------------------------
-
-  String getCardImageUrl(int code) => config.getCardImageUrl(code);
-  /// 下载卡图
-  @override
-  Future<Uint8List> downloadCardImage(int code) => _fetchBinary(getCardImageUrl(code));
-  // ---------------------------------------------------------------------------
-  // 内部工具
-  // ---------------------------------------------------------------------------
-
-  Future<Uint8List> _fetchBinary(String url) async {
-    try {
-      final response = await _client.get(Uri.parse(url)).timeout(timeout);
-      _ensureSuccess(response);
-      return response.bodyBytes;
-    } on YgoCardDeckException {
-      rethrow;
-    } catch (e) {
-      throw _mapError(e);
-    }
-  }
-
   Map<String, String> _parseStrings(String content) {
     final map = <String, String>{};
     for (final line in const LineSplitter().convert(content)) {
@@ -250,54 +174,46 @@ class BaseCardService implements ICardService {
     }
     return map;
   }
+  // ---------------------------------------------------------------------------
+  // 先行卡
+  // ---------------------------------------------------------------------------
 
-  void _ensureSuccess(http.Response response) {
-    if (response.statusCode >= 200 && response.statusCode < 300) return;
-    if (response.statusCode == 401 || response.statusCode == 403) {
-      throw YgoCardDeckException(
-        type: YgoCardDeckErrorType.unauthorized,
-        message: 'Unauthorized',
-        statusCode: response.statusCode,
-      );
-    }
-    if (response.statusCode == 404) {
-      throw YgoCardDeckException(
-        type: YgoCardDeckErrorType.notFound,
-        message: 'Resource not found',
-        statusCode: response.statusCode,
-      );
-    }
-    if (response.statusCode >= 500) {
-      throw YgoCardDeckException(
-        type: YgoCardDeckErrorType.serverError,
-        message: 'Server error',
-        statusCode: response.statusCode,
-      );
-    }
-    throw YgoCardDeckException(
-      type: YgoCardDeckErrorType.clientError,
-      message: 'HTTP ${response.statusCode}',
-      statusCode: response.statusCode,
-    );
+  /// 获取先行卡/预发布卡列表
+  /// 获取先行卡数据 (test-release.json)
+  ///
+  /// 路径: /ygopro-super-pre/data/test-release.json
+  /// 返回卡牌列表，注意先行卡的数据结构可能与完整卡牌不同。
+  Future<List<CardInfo>> fetchPreReleaseCards() async {
+    final cards = config.stagingCards;
+    if (cards == null) return [];
+    final response = await fetch(cards);
+    final list = jsonDecode(response.body);
+    if (list is! List) return [];
+    return list
+        .map((e) => CardInfo.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
-  YgoCardDeckException _mapError(Object e) {
-    if (e is YgoCardDeckException) return e;
-    if (e is http.ClientException) {
-      return YgoCardDeckException(
-        type: YgoCardDeckErrorType.networkError,
-        message: e.message,
-        cause: e,
-      );
-    }
-    return YgoCardDeckException(
-      type: YgoCardDeckErrorType.unknown,
-      message: e.toString(),
-      cause: e,
-    );
+  /// 获取先行卡版本号
+  /// 获取先行卡版本号
+  ///
+  /// 路径: /ygopro-super-pre/data/version.txt
+  Future<String> fetchPreReleaseVersion() async {
+    final version = config.stagingVersion;
+    if (version == null) return '';
+    final response = await fetch(version);
+    return response.body.trim();
   }
 
+  // ---------------------------------------------------------------------------
+  // 卡图
+  // ---------------------------------------------------------------------------
+  /// 获取正式卡图 URL
+  // ---------------------------------------------------------------------------
+  // 卡图
+  // ---------------------------------------------------------------------------
 
+  String getCardImageUrl(int code) => config.getCardImageUrl(code);
 
   @override
   Future<CardInfo?> getCard(int code) async {
@@ -313,11 +229,11 @@ class BaseCardService implements ICardService {
     }
     if (_cardDao == null) {
       throw Exception(
-          'CardService not initialized. Call initDatabase() first.');
+        'CardService not initialized. Call initDatabase() first.',
+      );
     }
     final result = await _cardDao!.getCard(code);
     if (result == null) return null;
-    // console.log('searchCards: found ${result} results for "$code ${envType}"');
     return toPackageCard(result);
   }
 
@@ -335,10 +251,10 @@ class BaseCardService implements ICardService {
     }
     if (_cardDao == null) {
       throw Exception(
-          'CardService not initialized. Call initDatabase() first.');
+        'CardService not initialized. Call initDatabase() first.',
+      );
     }
     final results = await _cardDao!.searchByName(keyword);
-    // console.log('searchCards: found ${results.length} results for "$keyword ${envType}"');
     return results.map(toPackageCard).toList();
   }
 
@@ -362,9 +278,9 @@ class BaseCardService implements ICardService {
     }
     if (_cardDao == null) {
       throw Exception(
-          'CardService not initialized. Call initDatabase() first.');
+        'CardService not initialized. Call initDatabase() first.',
+      );
     }
-    // _cardDao ??= await initDatabase();
     final dbCards = await _cardDao!.searchCombined(
       query: query,
       cardType: cardType,
@@ -372,7 +288,6 @@ class BaseCardService implements ICardService {
       race: race,
       maxResults: maxResults,
     );
-    // console.log('searchCards: found ${dbCards.length} results for "$query ${envType}"');
     return dbCards.map(toPackageCard).toList();
   }
 }

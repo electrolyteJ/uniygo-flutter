@@ -1,9 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:duelink/duelink.dart';
-import 'package:uniygopro/stores/duel_room_state.dart';
-import 'package:uniygopro/stores/match_store.dart';
-import 'package:uniygopro/stores/side_store.dart';
+import 'package:uniygopro/pages/create_room/match_store.dart';
+import 'package:uniygopro/pages/side/side_store.dart';
 import 'package:uniygopro/app.dart';
 
 void main() {

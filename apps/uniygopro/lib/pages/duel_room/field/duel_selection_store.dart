@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 
-import '../models/BattleAction.dart';
-import '../models/IdleAction.dart';
-import '../models/SelectState.dart';
+import '../../../models/BattleAction.dart';
+import '../../../models/IdleAction.dart';
+import '../../../models/SelectState.dart';
 import 'package:duelink/duelink.dart';
 
 /// 对局选择态仓库。

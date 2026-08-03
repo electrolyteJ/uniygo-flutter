@@ -5,10 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:ygo_card/card_info.dart';
 import '../../models/IdleAction.dart';
 import '../../models/SelectState.dart';
-import '../../stores/duel_board_store.dart';
-import '../../stores/duel_room_state.dart';
-import '../../stores/duel_selection_store.dart';
-import '../../stores/duel_ui_store.dart';
+import '../../pages/duel_room/duel_room_store.dart';
+import '../../pages/duel_room/field/duel_board_store.dart';
+import '../../pages/duel_room/field/duel_selection_store.dart';
+import '../../pages/duel_room/field/duel_ui_store.dart';
 import 'card_detail_drawer.dart';
 import 'chain_stack_overlay.dart';
 import 'duel_log_drawer.dart';
@@ -197,31 +197,31 @@ class _PlaymatState extends State<Playmat> {
         .toList();
   }
 
-  Set<int> _tappablePhaseCodes() {
+  Set<DuelPhase> _tappablePhaseCodes() {
     final board = boardState;
     final selection = selectionState;
     final select = selection.currentSelect;
     if (select == null || select.player != board.myController) {
-      return const <int>{};
+      return const <DuelPhase>{};
     }
 
     switch (select.type) {
       case SelectType.idleCmd:
         return {
-          if (selection.enableBp) PHASE_BATTLE_START,
-          if (selection.enableEp) PHASE_END,
+          if (selection.enableBp) DuelPhase.bp,
+          if (selection.enableEp) DuelPhase.ep,
         };
       case SelectType.battleCmd:
         return {
-          if (selection.enableM2) PHASE_MAIN2,
-          if (selection.enableEp) PHASE_END,
+          if (selection.enableM2) DuelPhase.m2,
+          if (selection.enableEp) DuelPhase.ep,
         };
       default:
-        return const <int>{};
+        return const <DuelPhase>{};
     }
   }
 
-  void _handlePhaseTap(int phaseCode) {
+  void _handlePhaseTap(DuelPhase phaseCode) {
     final board = boardState;
     final selection = selectionState;
     final select = selection.currentSelect;
@@ -230,9 +230,9 @@ class _PlaymatState extends State<Playmat> {
     }
 
     if (select.type == SelectType.idleCmd) {
-      if (phaseCode == PHASE_BATTLE_START && selection.enableBp) {
+      if (phaseCode == DuelPhase.bp && selection.enableBp) {
         selectionState.respondIdleCmd(6);
-      } else if (phaseCode == PHASE_END && selection.enableEp) {
+      } else if (phaseCode == DuelPhase.ep && selection.enableEp) {
         selectionState.respondIdleCmd(7);
       }
       _clearHandSelection();
@@ -240,9 +240,9 @@ class _PlaymatState extends State<Playmat> {
     }
 
     if (select.type == SelectType.battleCmd) {
-      if (phaseCode == PHASE_MAIN2 && selection.enableM2) {
+      if (phaseCode == DuelPhase.m2 && selection.enableM2) {
         selectionState.respondBattleCmd(2);
-      } else if (phaseCode == PHASE_END && selection.enableEp) {
+      } else if (phaseCode == DuelPhase.ep && selection.enableEp) {
         selectionState.respondBattleCmd(3);
       }
       _clearHandSelection();
@@ -290,7 +290,7 @@ class _PlaymatState extends State<Playmat> {
 
   @override
   Widget build(BuildContext context) {
-    final duelState = context.watch<DuelRoomState>();
+    final duelState = context.watch<DuelRoomStore>();
     final boardState = context.watch<DuelBoardStore>();
     final selectionState = context.watch<DuelSelectionStore>();
     final uiState = context.watch<DuelUiStore>();

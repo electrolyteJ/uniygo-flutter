@@ -19,10 +19,11 @@ import 'messages/stoc/stoc_hs_player_enter.dart';
 import 'messages/stoc/stoc_hs_watch_change.dart';
 import 'messages/stoc/stoc_join_game.dart';
 import 'messages/stoc/stoc_type_change.dart';
+import 'model/duel_phase.dart';
+import 'model/hand_type.dart';
 import 'model/room_options.dart';
-import 'model/room_player.dart';
+import 'model/player.dart';
 import 'model/room_stage.dart';
-import 'types.dart';
 
 /// 决斗服务共享实现 — 房间状态机 + 所有 send 方法。
 ///
@@ -33,6 +34,7 @@ abstract class BaseDuelService implements IDuelService {
   final _messageController = StreamController<YgoStocMsg>.broadcast();
   final _chatMessageController = StreamController<YgoStocMsg>.broadcast();
   final _roomStageController = StreamController<RoomStage>.broadcast();
+  final _duelPhaseController = StreamController<DuelPhase>.broadcast();
   RoomStage _roomStage = const RoomNotJoined();
   StreamSubscription? _connectionSub;
   ConnectionState _connState = ConnectionState.disconnected;
@@ -43,7 +45,7 @@ abstract class BaseDuelService implements IDuelService {
       _connState = state;
       if (state == ConnectionState.disconnected) {
         _connectionSub?.cancel();
-        console.log('RoomStage: Disconnected → RoomNotJoined)');
+        console.log('RoomStage: Disconnected → RoomNotJoined');
         _roomStage = const RoomNotJoined();
         _roomStageController.add(_roomStage);
       }
@@ -61,6 +63,7 @@ abstract class BaseDuelService implements IDuelService {
 
   @override
   Future<void> disconnect() async {
+    console.log('Disconnecting...');
     await _connectionSub?.cancel();
     await connection.disconnect();
   }
@@ -72,7 +75,17 @@ abstract class BaseDuelService implements IDuelService {
     _applyStoc(stoc);
     switch (stoc.protoId) {
       case STOC_CHAT:
+        console.log('Chat: ${stoc.chat?.player} ${stoc.chat?.message}');
         _chatMessageController.add(stoc);
+        break;
+      case STOC_GAME_MSG:
+        final gameMsg = stoc.gameMsg;
+        if (gameMsg?.func == MSG_NEW_PHASE) {
+          final phaseMsg = gameMsg?.innerMsg as MsgNewPhase;
+          final phase = DuelPhase.of(phaseMsg.rawPhase);
+          console.log('DuelPhase: $phase / ${phaseMsg.rawPhase}');
+          _duelPhaseController.add(phase);
+        }
         break;
     }
   }
@@ -117,9 +130,9 @@ abstract class BaseDuelService implements IDuelService {
         break;
       case STOC_DECK_COUNT:
         final deckCount = stoc.deckCount;
-        console.log('RoomStage: DECK_COUNT → ${deckCount?.meMain} / ${deckCount
-            ?.meExtra} ${deckCount?.meSide} vs ${deckCount
-            ?.opMain} / ${deckCount?.opExtra} ${deckCount?.opSide}');
+        console.log(
+          'RoomStage: DECK_COUNT → ${deckCount?.meMain} / ${deckCount?.meExtra} ${deckCount?.meSide} vs ${deckCount?.opMain} / ${deckCount?.opExtra} ${deckCount?.opSide}',
+        );
         break;
 
       case STOC_CHANGE_SIDE:
@@ -138,7 +151,9 @@ abstract class BaseDuelService implements IDuelService {
         break;
       case STOC_TIME_LIMIT:
         final timeLimit = stoc.timeLimit;
-        console.log('TIME_LIMIT → ${timeLimit?.player} / ${timeLimit?.leftTime}');
+        console.log(
+          'TIME_LIMIT → ${timeLimit?.player} / ${timeLimit?.leftTime}',
+        );
         break;
       case STOC_DUEL_END:
         _onDuelEnd();
@@ -169,35 +184,45 @@ abstract class BaseDuelService implements IDuelService {
   }
 
   void _onPlayerEnter(StocHsPlayerEnter m) {
-    final updated = List<RoomPlayer>.from(_playersOf(_roomStage));
-    updated.add(RoomPlayer(name: m.name, pos: m.pos));
+    final updated = List<PlayerInfo>.from(_playersOf(_roomStage));
+    updated.add(PlayerInfo(name: m.name, pos: m.pos));
     _setPlayers(updated);
-    console.log('RoomStage: PLAYER_ENTER ${_roomStage} pos:${m.pos} name:${m.name}');
+    console.log(
+      'RoomStage: PLAYER_ENTER ${_roomStage} pos:${m.pos} name:${m.name}',
+    );
   }
 
   void _onPlayerChange(StocHsPlayerChange m) {
     console.log('RoomStage: PLAYER_CHANGE pos:${m.pos} action:${m.state}');
-    final updated = List<RoomPlayer>.from(_playersOf(_roomStage));
+    final updated = List<PlayerInfo>.from(_playersOf(_roomStage));
 
-    if (m.state == StocHsPlayerChangeState.leave || m.state == StocHsPlayerChangeState.toObserver) {
+    if (m.state == PlayerChange.leave ||
+        m.state == PlayerChange.toObserver) {
       updated.removeWhere((p) => p.pos == m.pos);
       _roomStage = _withPlayers(updated);
-      if (m.state == StocHsPlayerChangeState.toObserver) _roomStage = _withObs(_obsOf(_roomStage) + 1);
-    } else if (m.state == StocHsPlayerChangeState.ready || m.state == StocHsPlayerChangeState.notReady) {
+      if (m.state == PlayerChange.toObserver) {
+        _roomStage = _withObs(_obsOf(_roomStage) + 1);
+      }
+    } else if (m.state == PlayerChange.ready ||
+        m.state == PlayerChange.notReady) {
       final idx = updated.indexWhere((p) => p.pos == m.pos);
-      if (idx >= 0) updated[idx] = updated[idx].copyWith(ready: m.state == StocHsPlayerChangeState.ready);
+      if (idx >= 0) {
+        updated[idx] = updated[idx].copyWith(
+          ready: m.state == PlayerChange.ready,
+        );
+      }
       _setPlayers(updated);
-    } else if (m.state == StocHsPlayerChangeState.move) {
+    } else if (m.state == PlayerChange.move) {
       final idx = updated.indexWhere((p) => p.pos == m.pos);
       if (idx >= 0) updated[idx] = updated[idx].copyWith(pos: m.pos);
       _setPlayers(updated);
     }
-    console.log('RoomStage: PLAYER_CHANGE → ${_roomStage}');
+    console.log('RoomStage: PLAYER_CHANGE → $_roomStage');
   }
 
   void _onWatchChange(StocHsWatchChange m) {
     _roomStage = _withObs(m.count);
-    console.log('RoomStage: WATCH_CHANGE → ${_roomStage}');
+    console.log('RoomStage: WATCH_CHANGE → $_roomStage');
   }
 
   void _onSelectHand() {
@@ -270,14 +295,15 @@ abstract class BaseDuelService implements IDuelService {
 
   // ── 辅助 ──
 
-  static List<RoomPlayer> _playersOf(RoomStage s) => s.players;
+  static List<PlayerInfo> _playersOf(RoomStage s) => s.players;
+
   static int _obsOf(RoomStage s) => s.observerCount;
 
-  void _setPlayers(List<RoomPlayer> players) {
+  void _setPlayers(List<PlayerInfo> players) {
     _roomStage = _withPlayers(players);
   }
 
-  RoomStage _withPlayers(List<RoomPlayer> players) {
+  RoomStage _withPlayers(List<PlayerInfo> players) {
     return switch (_roomStage) {
       RoomNotJoined() => RoomNotJoined(),
       RoomJoined() => RoomJoined(),
@@ -289,14 +315,6 @@ abstract class BaseDuelService implements IDuelService {
           isHost: isHost,
           options: options,
         ),
-      RoomReady() => RoomReady(
-        players: players,
-        observerCount: _obsOf(_roomStage),
-      ),
-      RoomUnready() => RoomUnready(
-        players: players,
-        observerCount: _obsOf(_roomStage),
-      ),
       RoomStartDuel() => RoomStartDuel(
         players: players,
         observerCount: _obsOf(_roomStage),
@@ -343,14 +361,6 @@ abstract class BaseDuelService implements IDuelService {
           isHost: isHost,
           options: options,
         ),
-      RoomReady() => RoomReady(
-        players: _playersOf(_roomStage),
-        observerCount: count,
-      ),
-      RoomUnready() => RoomUnready(
-        players: _playersOf(_roomStage),
-        observerCount: count,
-      ),
       RoomStartDuel() => RoomStartDuel(
         players: _playersOf(_roomStage),
         observerCount: count,
@@ -431,18 +441,25 @@ abstract class BaseDuelService implements IDuelService {
 
   @override
   void ready() => _send(YgoCtosMsg.hsReady());
+
   @override
   void unready() => _send(YgoCtosMsg.hsNotReady());
+
   @override
   void startDuel() => _send(YgoCtosMsg.hsStart());
+
   @override
   void kickPlayer(int pos) => _send(YgoCtosMsg.hsKick(pos));
+
   @override
   void becomeObserver() => _send(YgoCtosMsg.hsToObserver());
+
   @override
   void becomeDuelist() => _send(YgoCtosMsg.hsToDuelist());
+
   @override
   void confirmTime() => _send(YgoCtosMsg.timeConfirm());
+
   @override
   void surrender() => _send(YgoCtosMsg.surrender());
 
@@ -475,8 +492,13 @@ abstract class BaseDuelService implements IDuelService {
 
   @override
   Stream<YgoStocMsg> get onServerMessage => _messageController.stream;
+
   @override
   Stream<YgoStocMsg> get onChatServerMessage => _chatMessageController.stream;
+
   @override
   Stream<RoomStage> get onRoomStageChange => _roomStageController.stream;
+
+  @override
+  Stream<DuelPhase> get onDuelPhaseMessage => _duelPhaseController.stream;
 }

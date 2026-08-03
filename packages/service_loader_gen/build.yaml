@@ -1,7 +1,7 @@
 builders:
-  service_loader_register:
+  service_loader:
     import: "package:service_loader_gen/builder.dart"
-    builder_factories: ["serviceRegisterBuilder"]
+    builder_factories: ["serviceBuilder"]
     build_extensions:
       "$lib$": ["service_loader.registrations.g.dart"]
     auto_apply: dependents

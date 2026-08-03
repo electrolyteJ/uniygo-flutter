@@ -1,19 +1,30 @@
 import 'package:flutter/material.dart';
-import '../../stores/waiting_room_store.dart';
+
+import '../../models/deck_model.dart';
 
 class DeckSelector extends StatelessWidget {
-  final WaitingRoomStore waitingRoomStore;
+  final bool enabled;
+  final List<DeckMeta> decks;
+  final String? selectedDeckName;
   final int mySlot;
-  const DeckSelector({super.key, required this.waitingRoomStore, required this.mySlot});
+  final ValueChanged<String?>? onSelectDeck;
+  final List<String>? invalidationResult;
+
+  const DeckSelector({
+    super.key,
+    this.enabled = true,
+    required this.decks,
+    required this.selectedDeckName,
+    required this.mySlot,
+    required this.onSelectDeck,
+    this.invalidationResult,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final invalid = invalidationResult?.isNotEmpty == true;
     final isPlayer = mySlot >= 0 && mySlot <= 1;
     if (!isPlayer) return const SizedBox.shrink();
-
-    final decks = waitingRoomStore.availableDecks;
-    final selected = waitingRoomStore.selectedDeckName;
-
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -48,7 +59,7 @@ class DeckSelector extends StatelessWidget {
                 border: Border.all(color: Colors.blueGrey.shade600),
               ),
               child: DropdownButton<String>(
-                value: selected,
+                value: selectedDeckName,
                 isExpanded: true,
                 underline: const SizedBox.shrink(),
                 dropdownColor: Colors.blueGrey.shade800,
@@ -59,22 +70,80 @@ class DeckSelector extends StatelessWidget {
                     child: Text(d.deckName),
                   );
                 }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    waitingRoomStore.selectDeck(value);
-                  }
-                },
+                onChanged: enabled ? onSelectDeck : null,
               ),
             ),
-          if (selected != null && decks.any((d) => d.deckName == selected))
+          if (selectedDeckName != null &&
+              decks.any((d) => d.deckName == selectedDeckName))
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
                 () {
-                  final deck = decks.firstWhere((d) => d.deckName == selected);
+                  final deck = decks.firstWhere(
+                    (d) => d.deckName == selectedDeckName,
+                  );
                   return '主: ${deck.mainCount}  额: ${deck.extraCount}  副: ${deck.sideCount}';
                 }(),
                 style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 11),
+              ),
+            ),
+          if (invalid)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade900.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.red.shade700),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.warning_amber, size: 14,
+                            color: Colors.red.shade400),
+                        const SizedBox(width: 4),
+                        Text(
+                          '卡组不合规',
+                          style: TextStyle(
+                            color: Colors.red.shade400,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    ...invalidationResult!.map((e) => Padding(
+                      padding: const EdgeInsets.only(top: 2, left: 18),
+                      child: Text(
+                        '• $e',
+                        style: TextStyle(
+                          color: Colors.red.shade300,
+                          fontSize: 11,
+                        ),
+                      ),
+                    )),
+                  ],
+                ),
+              ),
+            ),
+          if (!invalid)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, size: 14, color: Colors.green.shade400),
+                  const SizedBox(width: 4),
+                  Text(
+                    '卡组合规',
+                    style: TextStyle(
+                      color: Colors.green.shade400,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             ),
         ],

@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:duelink/duelink.dart';
+import 'package:uniygopro/pages/duel_room/duel_room_store.dart';
+import 'package:uniygopro/pages/duel_room/field/duel_board_store.dart';
+import 'package:uniygopro/pages/duel_room/field/duel_ui_store.dart';
 import 'package:uniygopro/service_loader.registrations.g.dart';
 import 'package:uniygopro/service_singleton.dart';
-import 'package:uniygopro/stores/duel_board_store.dart';
-import 'package:uniygopro/stores/duel_chat_store.dart';
-import 'package:uniygopro/stores/waiting_room_store.dart';
-import 'package:uniygopro/stores/deck_editor_store.dart';
-import 'package:uniygopro/stores/duel_selection_store.dart';
-import 'package:uniygopro/stores/duel_room_state.dart';
-import 'package:uniygopro/stores/duel_ui_store.dart';
+import 'package:uniygopro/pages/duel_room/waiting/duel_chat_store.dart';
+import 'package:uniygopro/pages/deck_editor/deck_editor_store.dart';
+import 'package:uniygopro/pages/duel_room/field/duel_selection_store.dart';
 import 'app.dart';
-import 'stores/match_store.dart';
-import 'stores/side_store.dart';
+import 'pages/create_room/match_store.dart';
+import 'pages/side/side_store.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,13 +22,12 @@ void main() async {
   final selectionStore = DuelSelectionStore();
   final uiStore = DuelUiStore();
   final chatStore = DuelChatStore();
-  final duelRoomState = DuelRoomState();
+  final duelRoomStore = DuelRoomStore();
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => MatchStore()),
-        ChangeNotifierProvider.value(value: duelRoomState),
-        ChangeNotifierProvider.value(value: WaitingRoomStore()),
+        ChangeNotifierProvider.value(value: duelRoomStore),
         ChangeNotifierProvider.value(value: boardStore),
         ChangeNotifierProvider.value(value: selectionStore),
         ChangeNotifierProvider.value(value: uiStore),

@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../stores/duel_board_store.dart';
-import '../../stores/duel_chat_store.dart';
-import '../../stores/duel_room_state.dart';
-import '../../stores/duel_selection_store.dart';
-import '../../stores/duel_ui_store.dart';
-import '../../stores/match_store.dart';
-import '../../stores/waiting_room_store.dart';
+import '../../pages/duel_room/field/duel_board_store.dart';
+import '../../pages/duel_room/waiting/duel_chat_store.dart';
+import '../../pages/duel_room/duel_room_store.dart';
+import '../../pages/duel_room/field/duel_selection_store.dart';
+import '../../pages/duel_room/field/duel_ui_store.dart';
+import '../../pages/create_room/match_store.dart';
 
 Widget buildBackButton(BuildContext context) {
   return Material(
@@ -55,15 +54,13 @@ void backHomeDialog({
 }
 
 void backHome(BuildContext context) {
-  final duelRoomState = context.read<DuelRoomState>();
-  final waitingRoomStore = context.read<WaitingRoomStore>();
+  final duelRoomState = context.read<DuelRoomStore>();
   final duelBoardStore = context.read<DuelBoardStore>();
   final selectionStore = context.read<DuelSelectionStore>();
   final duelChatStore = context.read<DuelChatStore>();
   final uiStore = context.read<DuelUiStore>();
   final matchRoomStore = context.read<MatchStore>();
   duelRoomState.reset();
-  waitingRoomStore.reset();
   duelBoardStore.reset();
   selectionStore.reset();
   duelChatStore.reset();

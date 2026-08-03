@@ -1,33 +1,28 @@
 import 'dart:async';
 import 'dart:developer' as console;
-import 'dart:math';
-
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:service_loader/service_loader.dart';
+import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:ygo_card/lf_table.dart';
+import 'package:ygo_card_mycard/ygo_card_mycard.dart';
+import 'package:ygo_card_mycard/src/deck_validator.dart';
 
-import '../models/deck_model.dart';
-import '../services/deck_service.dart';
-import '../widgets/shared/duel_room.dart';
+import '../../models/deck_model.dart';
+import '../../services/deck_service.dart';
+import '../../widgets/shared/duel_room.dart';
 
-/// 等待房间状态仓库。
-///
-/// 负责维护大厅阶段、玩家列表、准备状态、自动猜拳/先后手配置，
-/// 以及准备时要提交的卡组信息。
-class WaitingRoomStore extends ChangeNotifier {
+/// 决斗房间状态仓库。
+class DuelRoomStore extends ChangeNotifier {
   static const _autoHandPrefKey = 'duel.auto_hand_enabled';
   static const _autoTurnOrderPrefKey = 'duel.auto_turn_order_enabled';
-
-  WaitingRoomStore() {
-    loadDecks();
-    unawaited(_loadPreferences());
-  }
-
+  List<String> duelLogs = [];
   RoomStage stage = const RoomNotJoined();
-  SelfType selfType = SelfType.unknown;
+  PlayerType selfType = PlayerType.unknown;
   bool isHost = false;
-  List<RoomPlayer> players = [];
+  List<PlayerInfo> players = [];
   int observerCount = 0;
   int? myHandResult;
   int? opponentHandResult;
@@ -39,28 +34,55 @@ class WaitingRoomStore extends ChangeNotifier {
   bool autoHandEnabled = false;
   bool autoTurnOrderEnabled = false;
   IDuelService? _duelService;
+  final cardService = ServiceFactory.create<CardService>();
   final Random random = Random();
   StreamSubscription<RoomStage>? _roomStageSub;
+
+  // ── 卡组校验 ──
+  List<String>? invalidationDeckResult;
+
+  PlayerInfo? get selfPlayer {
+    final mySlotVal = selfType.slot;
+    final myPlayer = players
+        .firstWhere(
+      (p) => p.pos == mySlotVal,
+      orElse: () => PlayerInfo(name: '', pos: PlayerType.unknown.slot));
+    return myPlayer;
+  }
+
   /// 当前自己对应的决斗位是否已经准备。
   bool get isSelfReady {
     final mySlot = selfType.slot;
     if (mySlot < 0 || mySlot > 1) {
       return false;
     }
-    return players.any((player) => player.pos == mySlot && player.ready);
+    return players
+        .where((p) => p.pos == selfType.slot)
+        .any((p) => p.ready);
+  }
+
+  DuelRoomStore() {
+    loadDecks();
+    unawaited(_loadPreferences());
   }
 
   void markChanged() {
     notifyListeners();
   }
 
+  @override
+  void dispose() {
+    super.dispose();
+    console.log('DuelRoomStore.dispose()');
+  }
+
   /// 清空与当前房间会话相关的临时状态。
   void reset() {
-    console.log('WaitingRoomStore.reset()');
+    console.log('DuelRoomStore.reset()');
     // 等待房间重置
     stage = const RoomNotJoined();
     _roomStageSub?.cancel();
-    selfType = SelfType.unknown;
+    selfType = PlayerType.unknown;
     isHost = false;
     players = [];
     observerCount = 0;
@@ -68,6 +90,8 @@ class WaitingRoomStore extends ChangeNotifier {
     opponentHandResult = null;
     isFirstTurn = null;
     roomOptions = null;
+    invalidationDeckResult = null;
+    selectedDeckName = availableDecks.first.deckName;
     notifyListeners();
   }
 
@@ -98,47 +122,31 @@ class WaitingRoomStore extends ChangeNotifier {
     await prefs.setBool(_autoTurnOrderPrefKey, value);
     notifyListeners();
   }
-
-
-
-  void ready(int handValue) {
-    stage = RoomReady();
-    notifyListeners();
-  }
-
-  void unready(int handValue) {
-    stage = RoomUnready();
-    notifyListeners();
-  }
   void sendHand(HandType hand) {
     console.log('Sending hand result: $hand');
-    _duelService?.chooseHand(hand);
-    setHandResult(hand.value);
-  }
-  void setHandResult(int handValue) {
     stage = RoomSelectingHand();
-    myHandResult = handValue;
+    myHandResult = hand.value;
+    _duelService?.chooseHand(hand);
     notifyListeners();
   }
+
   void sendTp(bool first) {
     console.log('Sending TP result: ${first ? 'first' : 'second'}');
-    _duelService?.chooseTurnOrder(first);
-    setTpResult(first);
-  }
-  void setTpResult(bool first) {
     stage = RoomInDuel(isFirstTurn: first);
     isFirstTurn = first;
+    _duelService?.chooseTurnOrder(first);
     notifyListeners();
   }
 
   void kickPlayer(int pos) {
     _duelService?.kickPlayer(pos);
   }
-  void becomeObserver(){
+
+  void becomeObserver() {
     _duelService?.becomeObserver();
   }
 
-  void becomeDuelist(){
+  void becomeDuelist() {
     _duelService?.becomeDuelist();
   }
 
@@ -161,9 +169,37 @@ class WaitingRoomStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void selectDeck(String deckName) {
+  Future<EditingDeck?> selectDeck(BuildContext context, String? deckName) async {
+    if (deckName == null) {
+      return null;
+    }
     selectedDeckName = deckName;
+    final deckService = DeckService();
+    final deck = await deckService.loadDeck(deckName);
+    console.log('loadDeck: $deckName -> $deck');
+    if (deck == null || deck.main.isEmpty) {
+      return null;
+    }
+    // ── 禁限卡表校验 ──
+    if (roomOptions?.noCheckDeck == false) {
+      final lflistHash = roomOptions!.lfTableHash;
+      final lfTable =await cardService.getLfTable(lflistHash);
+      if (lfTable !=null) {
+        final validator = DeckValidator(lfInfos: lfTable.lfInfos);
+        invalidationDeckResult = validator.validate(deck.main, deck.extra, deck.side);
+      } else {
+        // 服务端指定了卡表但客户端未加载该表，跳过校验
+        invalidationDeckResult = null;
+      }
+      if (invalidationDeckResult?.isNotEmpty == true) {
+        notifyListeners();
+        return null;
+      }
+    } else {
+      invalidationDeckResult = null;
+    }
     notifyListeners();
+    return deck;
   }
 
   void bind(IDuelService duelService) {
@@ -172,25 +208,25 @@ class WaitingRoomStore extends ChangeNotifier {
 
   /// 准备按钮入口：未准备时提交卡组并 ready，已准备时取消 ready。
   Future<void> toggleReady(BuildContext context) async {
-    final isReady = players
-        .where((p) => p.pos == selfType.slot)
-        .any((p) => p.ready);
-    if (isReady) {
+    if (isSelfReady) {
       _duelService?.unready();
     } else {
-      final deckName = selectedDeckName;
-      if (deckName == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('请先选择卡组'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+      if (invalidationDeckResult?.isNotEmpty == true) {
+        // 卡组未通过校验，不允许准备
+        // 展示第一个违规原因
+        if (context.mounted) {
+          final firstError = invalidationDeckResult!.first;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('卡组不合规: $firstError'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
         return;
       }
-      final deckService = DeckService();
-      final deck = await deckService.loadDeck(deckName);
-      console.log('loadDeck: $deckName -> $deck');
+      final deck = await selectDeck(context, selectedDeckName);
       if (deck == null || deck.main.isEmpty) {
         if (!context.mounted) {
           return;
@@ -225,9 +261,10 @@ class WaitingRoomStore extends ChangeNotifier {
       players = roomStage.players;
       observerCount = roomStage.observerCount;
       stage = roomStage;
+      console.log('Room stage changed: $roomStage');
       switch (roomStage) {
         case RoomNotJoined():
-        //游戏结束或者离开房间后，重置房间状态
+          //游戏结束或者离开房间后，重置房间状态
           backHome(context);
           break;
         case RoomJoined():
@@ -270,7 +307,8 @@ class WaitingRoomStore extends ChangeNotifier {
       }
       notifyListeners();
     });
-
   }
-
+  Future<LfTable?> getLfTable(int hash) async {
+    return cardService.getLfTable(hash);
+  }
 }

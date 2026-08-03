@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/SelectState.dart';
-import '../../stores/duel_selection_store.dart';
+import '../../pages/duel_room/field/duel_selection_store.dart';
 import 'select_menu.dart';
 import 'battle_select_menu.dart';
 import 'card_selector.dart';

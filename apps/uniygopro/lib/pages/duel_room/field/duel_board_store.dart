@@ -7,8 +7,8 @@ import 'package:service_loader/service_loader.dart';
 import 'package:ygo_card/card_info.dart' as pkg;
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 
-import '../models/ChainLink.dart';
-import '../models/FieldCard.dart';
+import '../../../models/ChainLink.dart';
+import '../../../models/FieldCard.dart';
 
 /// 对局战场状态仓库。
 ///
@@ -37,11 +37,10 @@ class DuelBoardStore extends ChangeNotifier {
   int selfLp = 8000;
   int opponentLp = 8000;
   int currentPlayer = 0;
-  int phase = 0;
+  DuelPhase phase = DuelPhase.idle;
   int turnCount = 0;
   int myController = 0;
 
-  List<DuelPhase> phases = [];
   List<ChainLink> chains = [];
   String? lastSummonKey;
   String? lastAttackFrom;
@@ -82,10 +81,9 @@ class DuelBoardStore extends ChangeNotifier {
     oppDeck = oppExtra = oppGrave = oppRemoved = 0;
     selfLp = opponentLp = 8000;
     currentPlayer = 0;
-    phase = 0;
+    phase = DuelPhase.idle;
     turnCount = 0;
     myController = 0;
-    phases = [];
     chains = [];
     lastSummonKey = null;
     lastAttackFrom = null;

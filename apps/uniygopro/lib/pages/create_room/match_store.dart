@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:duelink/duelink.dart';
-import '../config/servers.dart';
+import '../../config/servers.dart';
 
 /// 匹配与建房上下文仓库。
 ///

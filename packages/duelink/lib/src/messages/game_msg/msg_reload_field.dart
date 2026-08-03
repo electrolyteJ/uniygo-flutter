@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
+import '../../../duelink.dart';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
-import '../../types.dart';
 
 /// MSG_RELOAD_FIELD (0xA2) — 断线重连/全场刷新。
 ///
@@ -143,7 +143,7 @@ class MsgReloadFieldZoneAction {
   CardZone get zoneValue => zoneEnum;
 
   /// 语义化的区域枚举，适合大多数消费场景。
-  CardZone get zoneEnum => CardZone.fromNumber(zone);
+  CardZone get zoneEnum => CardZone.of(zone);
 
   /// 原始协议中的表示形式数字值；当该区域没有 position 概念时为 null。
   int? get rawPosition => position;
@@ -155,6 +155,6 @@ class MsgReloadFieldZoneAction {
   CardPosition? get cardPosition => positionEnum;
 
   CardPosition? get positionEnum =>
-      position == null ? null : CardPosition.fromNumber(position!);
+      position == null ? null : CardPosition.of(position!);
   bool get hasOverlay => overlayCount > 0;
 }

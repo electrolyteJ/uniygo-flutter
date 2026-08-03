@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
+import '../../../duelink.dart';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
-import '../../types.dart';
 
 /// MSG_SELECT_POSITION (0x13) — 选择表示形式交互
 ///

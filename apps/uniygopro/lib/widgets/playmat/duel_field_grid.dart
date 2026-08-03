@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:uniygopro/stores/duel_board_store.dart';
 import '../../models/FieldCard.dart';
+import '../../pages/duel_room/field/duel_board_store.dart';
 import 'field_card_slot.dart';
 
 class DuelFieldGrid extends StatelessWidget {

@@ -8,12 +8,22 @@ interface class IService {}
 ///
 /// [service] 为服务类型，作为注册表的唯一 key。同一类型重复注册会抛
 /// [StateError]。
-class ServiceRegister {
+class Service {
   final Type service;
-  const ServiceRegister(this.service);
+  const Service(this.service);
 }
 
-/// 服务工厂注册表 — 按服务类型（[ServiceRegister.service]）索引。
+/// 服务注册完成回调注解。
+///
+/// 标注在无参顶层函数上。`service_loader_gen` 生成器会在编译期收集所有
+/// 标注了 [OnServiceRegister] 的函数，并在 `registerAllServices()` 的
+/// 开头按发现顺序依次调用它们。
+///
+/// 常用于在服务注册前执行初始化逻辑（如预加载配置、设置环境等）。
+class OnServiceRegister{
+  const OnServiceRegister();
+}
+/// 服务工厂注册表 — 按服务类型（[Service.service]）索引。
 ///
 /// 通过泛型方法保证 key 与工厂函数返回类型一致：
 /// - [register] 注册 `T` 的工厂函数
@@ -28,7 +38,7 @@ class ServiceFactory {
     if (_registry.containsKey(T)) {
       throw StateError(
         'Service type $T is already registered. '
-        'Check for duplicate @ServiceRegister annotations across the packages '
+        'Check for duplicate @Service annotations across the packages '
         'whose registerAllServices() is being called.',
       );
     }

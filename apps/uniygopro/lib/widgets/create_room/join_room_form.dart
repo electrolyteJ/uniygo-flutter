@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:uniygopro/widgets/create_room/password_field.dart';
 
 import '../../config/servers.dart';
-import '../../stores/match_store.dart';
+import '../../pages/create_room/match_store.dart';
 import '../shared/create_room.dart';
 
 class JoinRoomForm extends StatefulWidget {

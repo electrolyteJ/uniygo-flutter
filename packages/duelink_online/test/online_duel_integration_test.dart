@@ -276,7 +276,7 @@ void main() {
     final pw = RoomPassword.encodeCreate(options: o, roomId: rid);
     await join(alice, aN, pw);
     await waitUntil(aS, alice.onRoomStageChange,
-        (s) => s is RoomInLobby && s.selfType == SelfType.player1);
+        (s) => s is RoomInLobby && s.selfType == PlayerType.player1);
     await join(bob, bN, pw);
     await waitUntil(bS, bob.onRoomStageChange, (s) => s.players.length >= 2);
     await waitUntil(aS, alice.onRoomStageChange, (s) => s.players.length >= 2);

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:uniygopro/stores/waiting_room_store.dart';
-import '../../stores/duel_chat_store.dart';
+import '../../pages/duel_room/waiting/duel_chat_store.dart';
+import '../../pages/duel_room/duel_room_store.dart';
 
 class ChatPanel extends StatefulWidget {
   const ChatPanel({super.key});
@@ -21,11 +21,11 @@ class _ChatPanelState extends State<ChatPanel> {
     chatCtrl = TextEditingController();
     chatScrollCtrl = ScrollController();
     duelChatStore = context.read<DuelChatStore>();
-    final waitingRoomStore = context.read<WaitingRoomStore>();
+    final duelRoomStore = context.read<DuelRoomStore>();
     duelChatStore.bindChatServerMessages((msg) {
       if (msg.chat != null) {
         final chat = msg.chat!;
-        final player = waitingRoomStore.players
+        final player = duelRoomStore.players
             .where((p) => p.pos == chat.player)
             .toList();
         final name = chat.player < 0

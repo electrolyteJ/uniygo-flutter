@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:uniygopro/stores/deck_editor_store.dart';
+import 'package:uniygopro/pages/deck_editor/deck_editor_store.dart';
 import 'package:ygo_card/card_info.dart';
 
 void main() {

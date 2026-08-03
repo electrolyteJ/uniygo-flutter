@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../models/SelectState.dart';
-import '../../stores/duel_room_state.dart';
 
 class CardSelector extends StatefulWidget {
   final SelectState select;

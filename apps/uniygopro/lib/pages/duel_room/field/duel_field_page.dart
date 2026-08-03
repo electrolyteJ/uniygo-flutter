@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../stores/duel_board_store.dart';
-import '../stores/duel_selection_store.dart';
-import '../widgets/duel_room/chain_indicator.dart';
-import '../widgets/duel_room/duel_overlay.dart';
-import '../widgets/playmat/playmat.dart';
-import '../widgets/shared/duel_room.dart';
+import 'duel_board_store.dart';
+import 'duel_selection_store.dart';
+import '../../../widgets/duel_room/chain_indicator.dart';
+import '../../../widgets/duel_room/duel_overlay.dart';
+import '../../../widgets/playmat/playmat.dart';
+import '../../../widgets/shared/duel_room.dart';
 
 class DuelFieldPage extends StatefulWidget {
   const DuelFieldPage({super.key});

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ygo_card/card_info.dart';
-import '../../stores/deck_editor_store.dart';
+import '../../pages/deck_editor/deck_editor_store.dart';
 
 /// 卡牌详情弹窗
 /// 支持显示卡牌完整信息、禁限状态、添加到卡组

@@ -1,5 +1,5 @@
 import 'room_options.dart';
-import 'room_player.dart';
+import 'player.dart';
 
 /// 房间生命周期状态机。
 ///
@@ -7,7 +7,7 @@ import 'room_player.dart';
 /// 在整个加入房间后的所有状态间持续追踪。
 ///
 /// ```text
-/// NotJoined → Joined → InLobby → Ready <-→ Unready
+/// NotJoined → Joined → InLobby(准备/未准备，踢人、切换角色) →
 /// → StartDuel(点击开始决斗) → SelectingHand → HandResult → SelectingTurn
 ///  → InDuel →        DuelEnded → SideDecking
 ///      ↑___________________↓
@@ -15,7 +15,7 @@ import 'room_player.dart';
 
 sealed class RoomStage {
   /// 房间内玩家列表（含座位号和准备状态）。
-  final List<RoomPlayer> players;
+  final List<PlayerInfo> players;
   /// 当前观战人数。
   final int observerCount;
 
@@ -42,7 +42,7 @@ class RoomJoined extends RoomStage {
 /// 触发条件：收到 [STOC_JOIN_GAME] + [STOC_TYPE_CHANGE]。
 class RoomInLobby extends RoomStage {
   /// 自身玩家类型。
-  final SelfType selfType;
+  final PlayerType selfType;
   /// 是否为房主。
   final bool isHost;
   /// 房间配置参数（[STOC_JOIN_GAME] payload）。
@@ -56,26 +56,9 @@ class RoomInLobby extends RoomStage {
     required this.options,
   });
 
-  @override String toString() => 'RoomInLobby(self:$selfType host:$isHost)';
+  @override String toString() => 'RoomInLobby(self:$selfType host:$isHost) ${options}';
 }
 
-class RoomReady extends RoomStage {
-  const RoomReady({
-    super.players = const [],
-    super.observerCount = 0,
-  });
-
-  @override String toString() => 'RoomReady';
-}
-
-class RoomUnready extends RoomStage {
-  const RoomUnready({
-    super.players = const [],
-    super.observerCount = 0,
-  });
-
-  @override String toString() => 'RoomUnready';
-}
 /// 决斗开始。
 ///
 class RoomStartDuel extends RoomStage {
@@ -166,30 +149,4 @@ class RoomSideDecking extends RoomStage {
   });
 
   @override String toString() => 'RoomSideDecking';
-}
-
-// ─── 辅助枚举 ───────────────────────────────────────────
-
-/// 玩家在房间中的身份。
-enum SelfType {
-  unknown(-1),
-  player1(0),
-  player2(1),
-  observer(7);
-  final int slot;
-
-  const SelfType(this.slot);
-
-  static SelfType fromValue(int value) {
-    switch (value) {
-      case 0:
-        return SelfType.player1;
-      case 1:
-        return SelfType.player2;
-      case 7:
-        return SelfType.observer;
-      default:
-        return SelfType.unknown;
-    }
-  }
 }

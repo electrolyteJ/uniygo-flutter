@@ -1,0 +1,36 @@
+{
+  "helloWorldOn": "Hello World on {date}",
+  "@helloWorldOn": {
+    "description": "A message with a date parameter",
+    "placeholders": {
+      "date": {
+        "type": "DateTime",
+        "format": "yMd"
+      }
+    }
+  },
+  "phase_dp": "Draw Phase",
+  "@phase_dp": {
+    "description": "Draw Phase"
+  },
+  "phase_sp": "Standby Phase",
+  "@phase_sp": {
+    "description": "Standby Phase"
+  },
+  "phase_m1": "Main Phase 1",
+  "@phase_m1": {
+    "description": "Main Phase 1"
+  },
+  "phase_bp": "Battle Phase",
+  "@phase_bp": {
+    "description": "Battle Phase"
+  },
+  "phase_m2": "Main Phase 2",
+  "@phase_m2": {
+    "description": "Main Phase 2"
+  },
+  "phase_ep": "End Phase",
+  "@phase_ep": {
+    "description": "End Phase"
+  }
+}

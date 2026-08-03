@@ -48,7 +48,7 @@ class StocJoinGame {
   });
 
   RoomOptions toRoomOptions() => RoomOptions(
-    lflist: lflist,
+    lfTableHash: lflist,
     rule: rule,
     mode: mode,
     duelRule: duelRule,

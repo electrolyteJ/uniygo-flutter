@@ -1,5 +1,5 @@
 name: service_loader_gen
-description: "service_loader 的编译时代码生成器，根据 @ServiceRegister 注解自动生成注册函数。"
+description: "service_loader 的编译时代码生成器，根据 @Service 和 @OnServiceRegister 注解自动生成注册函数。"
 version: 0.0.1
 resolution: workspace
 publish_to: none

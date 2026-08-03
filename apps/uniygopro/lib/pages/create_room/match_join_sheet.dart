@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:uniygopro/widgets/create_room/password_field.dart';
 import '../../config/servers.dart';
 import '../../services/match_service.dart';
-import '../../stores/match_store.dart';
+import 'match_store.dart';
 import '../../widgets/shared/create_room.dart';
 
 class MatchJoinSheet extends StatefulWidget {

@@ -149,7 +149,7 @@ class AiConnection implements DuelConnection {
       mode: RoomMode.single, noCheckDeck: true, noShuffleDeck: true,
     );
     _emit(YgoStocMsg.joinGame(StocJoinGame(
-      lflist: options.lflist, rule: options.rule,
+      lflist: options.lfTableHash, rule: options.rule,
       mode: options.mode, duelRule: options.duelRule,
       noCheckDeck: options.noCheckDeck, noShuffleDeck: options.noShuffleDeck,
       startLp: options.startLp, startHand: options.startHand,

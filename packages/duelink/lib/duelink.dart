@@ -1,11 +1,10 @@
 library duelink;
 
 export 'src/base_duel_service.dart' show BaseDuelService;
-export 'src/model/room_player.dart';
+export 'src/model/player.dart';
 export 'src/model/room_options.dart';
 export 'src/model/room_password.dart';
 export 'src/model/room_stage.dart';
-export 'src/types.dart';
 export 'src/constants.dart';
 export 'src/protocol/packet.dart';
 export 'src/protocol/adapter.dart';
@@ -119,7 +118,9 @@ export 'src/messages/game_msg/msg_missed_effect.dart';
 export 'src/messages/game_msg/msg_update_data.dart';
 export 'src/messages/game_msg/msg_update_card.dart';
 export 'src/messages/game_msg/msg_unimplemented.dart';
-
+export 'src/model/duel_phase.dart';
+export 'src/model/hand_type.dart';
+export 'src/model/card.dart';
 import 'dart:typed_data';
 
 import 'package:service_loader/service_loader.dart';
@@ -228,6 +229,7 @@ abstract class IDuelService implements IService {
 
   /// 房间状态变化流（经过状态机解析后的高层语义）。
   Stream<RoomStage> get onRoomStageChange;
+  Stream<DuelPhase> get onDuelPhaseMessage;
 }
 
 /// 网络连接状态。

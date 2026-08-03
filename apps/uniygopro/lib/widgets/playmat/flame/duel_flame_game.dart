@@ -3,7 +3,7 @@ import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import '../../../models/FieldCard.dart';
-import '../../../stores/duel_board_store.dart';
+import '../../../pages/duel_room/field/duel_board_store.dart';
 import 'board_mesh_component.dart';
 import 'card_slot_3d.dart';
 import 'chain_indicator.dart';

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../models/ChainLink.dart';
-import '../../stores/duel_room_state.dart';
 
 class ChainStackOverlay extends StatelessWidget {
   final List<ChainLink> chains;

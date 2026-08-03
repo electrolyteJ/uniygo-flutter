@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart';
+import 'package:ygo_card/lf_table.dart';
 
 class RoomInfoPanel extends StatelessWidget {
   final RoomOptions opts;
-  const RoomInfoPanel({super.key, required this.opts});
+  final LfTable? lfTable;
+
+  const RoomInfoPanel({super.key, required this.opts, this.lfTable});
 
   @override
   Widget build(BuildContext context) {
@@ -42,9 +45,12 @@ class RoomInfoPanel extends StatelessWidget {
           _infoRow(Icons.gavel, duelRuleStr),
           _infoRow(Icons.favorite, 'LP: ${opts.startLp}  手牌: ${opts.startHand}  抽卡: ${opts.drawCount}'),
           _infoRow(Icons.timer, opts.timeLimit > 0 ? '限时: ${opts.timeLimit}秒' : '无时间限制'),
-          if (opts.noCheckDeck || opts.noShuffleDeck)
-            _infoRow(Icons.warning_amber,
-                [if (opts.noCheckDeck) '不检查卡组', if (opts.noShuffleDeck) '不切洗'].join(' · ')),
+          if (opts.autoDeath)
+            _infoRow(Icons.alarm, '40分钟自动超时'),
+
+          _infoRow(Icons.list_alt, '禁限卡表: ${lfTable?.name ?? "未知"}'),
+          _infoRow(Icons.check_circle, '检查卡组: ${opts.noCheckDeck ? "否" : "是"}'),
+          _infoRow(Icons.shuffle, '切洗卡组: ${opts.noShuffleDeck ? "否" : "是"}'),
         ],
       ),
     );

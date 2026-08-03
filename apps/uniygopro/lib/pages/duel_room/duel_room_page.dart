@@ -6,18 +6,18 @@ import 'package:duelink_online/duelink_online.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:service_loader/service_loader.dart';
-import 'package:uniygopro/pages/duel_field_page.dart';
-import 'package:uniygopro/pages/waiting_room_page.dart';
-import '../stores/duel_board_store.dart';
-import '../stores/duel_chat_store.dart';
-import '../stores/waiting_room_store.dart';
-import '../stores/duel_room_state.dart';
-import '../stores/duel_selection_store.dart';
-import '../stores/duel_ui_store.dart';
-import '../stores/match_store.dart';
-import '../models/duel_event.dart';
-import '../eventbus/duel_event_mapper.dart';
-import '../widgets/shared/duel_room.dart';
+import 'package:uniygopro/pages/duel_room/field/duel_field_page.dart';
+import 'package:uniygopro/pages/duel_room/waiting/waiting_room_page.dart';
+import '../../constants.dart';
+import 'field/duel_board_store.dart';
+import 'waiting/duel_chat_store.dart';
+import 'duel_room_store.dart';
+import 'field/duel_selection_store.dart';
+import 'field/duel_ui_store.dart';
+import '../create_room/match_store.dart';
+import '../../models/duel_event.dart';
+import '../../eventbus/duel_event_mapper.dart';
+import '../../widgets/shared/duel_room.dart';
 
 
 class DuelRoomPage extends StatefulWidget {
@@ -33,9 +33,8 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
 
   StreamSubscription<YgoStocMsg>? _msgSub;
 
-  late final DuelRoomState duelRoomState;
+  late final DuelRoomStore duelRoomStore;
   late final DuelChatStore duelChatStore;
-  late final WaitingRoomStore waitingRoomStore;
   late final DuelBoardStore duelBoardStore;
   late final DuelSelectionStore selectionStore;
   late final DuelUiStore uiStore;
@@ -44,10 +43,8 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
   @override
   void initState() {
     super.initState();
-    duelRoomState = context.read<DuelRoomState>();
-    duelRoomState.bind(_duelService);
-    waitingRoomStore = context.read<WaitingRoomStore>();
-    waitingRoomStore.bind(_duelService);
+    duelRoomStore = context.read<DuelRoomStore>();
+    duelRoomStore.bind(_duelService);
     duelChatStore = context.read<DuelChatStore>();
     duelChatStore.bind(_duelService);
     duelBoardStore = context.read<DuelBoardStore>();
@@ -60,7 +57,11 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
   }
 
   Future<void> _connect() async {
-    waitingRoomStore.bindRoomStageChange(context);
+    duelRoomStore.bindRoomStageChange(context);
+    _duelService.onDuelPhaseMessage.listen((phase) {
+      _handleNewPhase(phase);
+
+    });
     _msgSub = _duelService.onServerMessage.listen((msg) {
       console.log('Received server message: $msg');
       _onMessage(msg);
@@ -96,8 +97,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     final event = _eventMapper.map(msg);
     if (event == null) return;
     _onEvent(event);
-    duelRoomState.markChanged();
-    // waitingRoomStore.notifyListeners();
+    duelRoomStore.markChanged();
     duelBoardStore.markChanged();
     selectionStore.markChanged();
     uiStore.markChanged();
@@ -114,9 +114,6 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
             break;
           case MSG_NEW_TURN:
             _handleNewTurn(innerMsg);
-            break;
-          case MSG_NEW_PHASE:
-            _handleNewPhase(innerMsg);
             break;
           case MSG_WAITING:
             _handleWaiting(innerMsg as MsgWait);
@@ -242,8 +239,8 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     }
   }
   void addLog(String log) {
-    duelRoomState.duelLogs.add(log);
-    duelRoomState.markChanged();
+    duelRoomStore.duelLogs.add(log);
+    duelRoomStore.markChanged();
   }
 
 
@@ -265,7 +262,6 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     duelBoardStore.fieldCards.clear();
 
     duelBoardStore.turnCount = 1;
-    duelBoardStore.phases = [];
     addLog('决斗开始。');
   }
 
@@ -273,71 +269,42 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     final msg = data as MsgNewTurn;
     duelBoardStore.currentPlayer = msg.player;
     duelBoardStore.turnCount++;
-    duelBoardStore.phases = [];
-    final name = waitingRoomStore.players
+    final name = duelRoomStore.players
         .firstWhere(
           (p) => p.pos == msg.player,
-      orElse: () => RoomPlayer(name: '玩家${msg.player}', pos: msg.player),
+      orElse: () => PlayerInfo(name: '玩家${msg.player}', pos: msg.player),
     )
         .name;
     addLog('$name 的回合。');
   }
 
-  void _handleNewPhase(dynamic data) {
-    final msg = data as MsgNewPhase;
-    duelBoardStore.phase = msg.phase;
-
-    String phaseName = '';
-    DuelPhase duelPhase;
-    switch (msg.phase) {
-      case PHASE_DRAW:
-        duelPhase = DuelPhase.dp;
-        phaseName = '抽卡阶段';
-        break;
-      case PHASE_STANDBY:
-        duelPhase = DuelPhase.sp;
-        phaseName = '准备阶段';
-        break;
-      case PHASE_MAIN1:
-        duelPhase = DuelPhase.m1;
-        phaseName = '主要阶段 1';
+  void _handleNewPhase(DuelPhase duelPhase) {
+    duelBoardStore.phase = duelPhase;
+    final phaseName = getDuelPhaseText(context, duelPhase);
+    switch (duelPhase) {
+      case DuelPhase.m1:
         selectionStore.enableBp = true;
         selectionStore.enableM2 = false;
         selectionStore.enableEp = true;
         break;
-      case PHASE_BATTLE_START:
-      case PHASE_BATTLE_STEP:
-      case PHASE_DAMAGE:
-      case PHASE_DAMAGE_CAL:
-      case PHASE_BATTLE:
-        duelPhase = DuelPhase.bp;
-        phaseName = '战斗阶段';
-        break;
-      case PHASE_MAIN2:
-        duelPhase = DuelPhase.m2;
-        phaseName = '主要阶段 2';
+      case DuelPhase.m2:
         selectionStore.enableBp = false;
         selectionStore.enableM2 = false;
         selectionStore.enableEp = true;
         break;
-      case PHASE_END:
-        duelPhase = DuelPhase.ep;
-        phaseName = '结束阶段';
-        break;
       default:
-        duelPhase = DuelPhase.idle;
+        break;
     }
-    duelBoardStore.phases.add(duelPhase);
-    if (phaseName.isNotEmpty) addLog('$phaseName 开始。');
+    if (phaseName?.isNotEmpty == true) addLog('$phaseName 开始。');
   }
 
   void _handleDraw(dynamic data) {
     final msg = data as MsgDraw;
     duelBoardStore.applyDraw(msg);
-    final name = waitingRoomStore.players
+    final name = duelRoomStore.players
         .firstWhere(
           (p) => p.pos == msg.player,
-      orElse: () => RoomPlayer(name: '玩家${msg.player}', pos: msg.player),
+      orElse: () => PlayerInfo(name: '玩家${msg.player}', pos: msg.player),
     )
         .name;
     addLog('$name 抽了 ${msg.count} 张卡。');
@@ -392,10 +359,10 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     } else {
       duelBoardStore.opponentLp -= msg.value;
     }
-    final name = waitingRoomStore.players
+    final name = duelRoomStore.players
         .firstWhere(
           (p) => p.pos == msg.player,
-      orElse: () => RoomPlayer(name: '玩家${msg.player}', pos: msg.player),
+      orElse: () => PlayerInfo(name: '玩家${msg.player}', pos: msg.player),
     )
         .name;
     addLog('$name 受到 ${msg.value} 点伤害。');
@@ -408,10 +375,10 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     } else {
       duelBoardStore.opponentLp -= msg.value;
     }
-    final name = waitingRoomStore.players
+    final name = duelRoomStore.players
         .firstWhere(
           (p) => p.pos == msg.player,
-      orElse: () => RoomPlayer(name: '玩家${msg.player}', pos: msg.player),
+      orElse: () => PlayerInfo(name: '玩家${msg.player}', pos: msg.player),
     )
         .name;
     addLog('$name 支付了 ${msg.value} 点生命值。');
@@ -518,8 +485,8 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     selectionStore.applySelectDisfield(data as MsgSelectPlace);
   }
 
-  String _roomTitle(WaitingRoomStore waitingRoomStore, MatchStore match) {
-    final modeName = switch (waitingRoomStore.roomOptions?.mode) {
+  String _roomTitle(DuelRoomStore duelRoomStore, MatchStore match) {
+    final modeName = switch (duelRoomStore.roomOptions?.mode) {
       RoomMode.single => '单局',
       RoomMode.match => '比赛',
       RoomMode.tag => '双打',
@@ -531,7 +498,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
 
   @override
   Widget build(BuildContext context) {
-    final waitingRoomStore = context.watch<WaitingRoomStore>();
+    final duel = context.watch<DuelRoomStore>();
     final matchRoomStore = context.watch<MatchStore>();
     if (duelBoardStore.errorMessage != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -546,20 +513,20 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
         }
       });
     }
-
+    console.log('DuelRoomPage build, current stage: ${duel.stage}');
     return Scaffold(
-      backgroundColor: waitingRoomStore.stage is RoomInDuel
+      backgroundColor: duel.stage is RoomInDuel
           ? Colors.brown.shade900
           : Colors.blueGrey.shade900,
-      appBar: waitingRoomStore.stage is RoomInDuel
+      appBar: duel.stage is RoomInDuel
           ? null
-          : _buildAppBar(waitingRoomStore, matchRoomStore) as PreferredSizeWidget?,
-      body: waitingRoomStore.stage is RoomInDuel ? DuelFieldPage() : WaitingRoomPage(),
+          : _buildAppBar(duelRoomStore, matchRoomStore) as PreferredSizeWidget?,
+      body: duel.stage is RoomInDuel ? DuelFieldPage() : WaitingRoomPage(),
     );
   }
 
   Widget _buildAppBar(
-    WaitingRoomStore waitingRoomStore,
+    DuelRoomStore duelRoomStore,
     MatchStore matchRoomStore,
   ) {
     return AppBar(
@@ -569,7 +536,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
           backHomeDialog(context: context, title: '退出房间', content: '是否确认退出当前房间？');
         },
       ),
-      title: Text(_roomTitle(waitingRoomStore, matchRoomStore)),
+      title: Text(_roomTitle(duelRoomStore, matchRoomStore)),
       backgroundColor: Colors.blueGrey.shade800,
       foregroundColor: Colors.white,
     );

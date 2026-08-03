@@ -2,35 +2,20 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart';
 import 'package:provider/provider.dart';
-import '../../stores/duel_board_store.dart';
+import '../../constants.dart';
+import '../../pages/duel_room/field/duel_board_store.dart';
 
 class PhaseBar extends StatelessWidget {
-  final Set<int> tappablePhaseCodes;
-  final ValueChanged<int>? onPhaseTap;
+  final Set<DuelPhase> tappablePhaseCodes;
+  final ValueChanged<DuelPhase>? onPhaseTap;
 
   const PhaseBar({
     super.key,
-    this.tappablePhaseCodes = const <int>{},
+    this.tappablePhaseCodes = const <DuelPhase>{},
     this.onPhaseTap,
   });
 
-  static const _phases = [
-    {'code': PHASE_DRAW, 'activeMask': PHASE_DRAW, 'name': 'DP'},
-    {'code': PHASE_STANDBY, 'activeMask': PHASE_STANDBY, 'name': 'SP'},
-    {'code': PHASE_MAIN1, 'activeMask': PHASE_MAIN1, 'name': 'MAIN 1'},
-    {
-      'code': PHASE_BATTLE_START,
-      'activeMask':
-          PHASE_BATTLE_START |
-          PHASE_BATTLE_STEP |
-          PHASE_DAMAGE |
-          PHASE_DAMAGE_CAL |
-          PHASE_BATTLE,
-      'name': 'BATTLE',
-    },
-    {'code': PHASE_MAIN2, 'activeMask': PHASE_MAIN2, 'name': 'MAIN 2'},
-    {'code': PHASE_END, 'activeMask': PHASE_END, 'name': 'END'},
-  ];
+
 
   @override
   Widget build(BuildContext context) {
@@ -113,11 +98,10 @@ class PhaseBar extends StatelessWidget {
 
               // Phase Tracker
               Row(
-                children: _phases.map((p) {
-                  final code = p['code'] as int;
-                  final activeMask = p['activeMask'] as int;
-                  final name = p['name'] as String;
-                  final isActive = (currentPhase & activeMask) != 0;
+                children: DUEL_PHASES.expand((phaseMap) => phaseMap.entries).map((p) {
+                  final code = p.key;
+                  final name = p.value;
+                  final isActive = currentPhase == code;
                   final isTappable =
                       tappablePhaseCodes.contains(code) && onPhaseTap != null;
 

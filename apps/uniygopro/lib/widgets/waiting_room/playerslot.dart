@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'hand_result_display.dart';
 
 class PlayerSlot extends StatelessWidget {
-  final RoomPlayer? player;
+  final PlayerInfo? player;
   final String placeholder;
   final int? handResult;
   final bool showResult;

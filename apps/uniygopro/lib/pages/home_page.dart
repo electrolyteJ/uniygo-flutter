@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../config/servers.dart';
-import '../stores/match_store.dart';
+import 'create_room/match_store.dart';
 import 'create_room/free_room_sheet.dart';
 import 'create_room/match_join_sheet.dart';
 

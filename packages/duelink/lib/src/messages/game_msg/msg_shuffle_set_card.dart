@@ -1,7 +1,7 @@
 import 'dart:typed_data';
+import '../../../duelink.dart';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
-import '../../types.dart';
 
 /// MSG_SHUFFLE_SET_CARD (0x24) — 盖放卡位置随机交换通知
 ///
@@ -42,7 +42,7 @@ class MsgShuffleSetCard {
   CardZone get zoneValue => zoneEnum;
 
   /// 语义化的区域枚举，适合大多数消费场景。
-  CardZone get zoneEnum => CardZone.fromNumber(zone);
+  CardZone get zoneEnum => CardZone.of(zone);
 
   int get funcId => MSG_SHUFFLE_SET_CARD;
 

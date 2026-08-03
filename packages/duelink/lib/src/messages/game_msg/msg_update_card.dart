@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
+import '../../../duelink.dart';
 import '../../constants.dart';
 import '../../protocol/buffer_io.dart';
-import '../../types.dart';
 import 'msg_update_data.dart';
 
 /// MSG_UPDATE_CARD (0x07) — 单张卡牌数据更新通知。
@@ -42,7 +42,7 @@ class MsgUpdateCard {
   CardZone get zoneValue => zoneEnum;
 
   /// 语义化的区域枚举，适合大多数业务/UI 场景。
-  CardZone get zoneEnum => CardZone.fromNumber(zone);
+  CardZone get zoneEnum => CardZone.of(zone);
 
   int get funcId => MSG_UPDATE_CARD;
 
