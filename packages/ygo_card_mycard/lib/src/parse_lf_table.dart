@@ -45,7 +45,7 @@ void parseLflistConf(String content) {
     if (parts.length < 2) continue;
     final code = int.tryParse(parts[0]);
     final limit = int.tryParse(parts[1]);
-    final name = parts[2];
+    final name = parts.length > 2 ? parts[2].replaceAll(RegExp(r'^--'), '') : '';
     if (code == null || limit == null) continue;
     currentInfos.add(LfInfo(code: code, limit: LfType.of(limit), name: name));
   }

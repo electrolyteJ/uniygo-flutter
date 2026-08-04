@@ -1,12 +1,16 @@
-import 'dart:developer' as console;
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:service_loader/service_loader.dart';
 import 'package:ygo_card/card_info.dart';
+import 'package:ygo_card/lf_table.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
+import 'package:ygo_card_mycard/src/deck_validator.dart';
+import 'package:ygo_deck/deck_info.dart';
 import '../../models/deck_model.dart';
-import '../../service_singleton.dart';
 import '../../services/deck_service.dart';
+import 'deck_editor_session.dart';
 
 /// 卡组编辑器状态仓库。
 ///
@@ -15,15 +19,18 @@ import '../../services/deck_service.dart';
 class DeckEditorStore extends ChangeNotifier {
   final DeckService _deckService = DeckService();
   // ── 卡组数据 ──
-  List<DeckMeta> _decks = [];
-  DeckMeta? _currentDeck;
+  List<DeckInfo> _decks = [];
+  DeckInfo? _currentDeck;
   final EditingDeck _editingDeck = EditingDeck(deckName: '');
 
   // ── 搜索状态 ──
   String _searchQuery = '';
-  CardFilter _filter = const CardFilter();
+  CardFilter _filter = const CardFilter(env: 0);
   List<CardInfo> _searchResults = [];
   bool _isGridView = true;
+  List<LfTable> _availableBanlists = [];
+  int? _selectedBanlistHash;
+  bool _isLoadingBanlists = false;
 
   // ── 添加卡牌目标区域 ──
   String _addTargetZone = 'main'; // main, extra, side
@@ -31,10 +38,12 @@ class DeckEditorStore extends ChangeNotifier {
   // ── UI 状态 ──
   bool _isLoading = false;
   String? _errorMessage;
+  DeckEditorRouteArgs? _routeArgs;
+  DeckEditorSaveResult? _lastSaveResult;
 
   // ── Getters ──
-  List<DeckMeta> get decks => _decks;
-  DeckMeta? get currentDeck => _currentDeck;
+  List<DeckInfo> get decks => _decks;
+  DeckInfo? get currentDeck => _currentDeck;
   EditingDeck get editingDeck => _editingDeck;
   String get searchQuery => _searchQuery;
   CardFilter get filter => _filter;
@@ -43,11 +52,30 @@ class DeckEditorStore extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String get addTargetZone => _addTargetZone;
+  List<LfTable> get availableBanlists => _availableBanlists;
+  int get currentEnvironmentCode => _filter.env ?? 0;
+  bool get isLoadingBanlists => _isLoadingBanlists;
+  int? get selectedBanlistHash => _selectedBanlistHash;
+  LfTable? get selectedBanlist {
+    for (final table in _availableBanlists) {
+      if (table.hash == _selectedBanlistHash) {
+        return table;
+      }
+    }
+    return null;
+  }
+
+  DeckEditorRouteArgs? get routeArgs => _routeArgs;
+  DeckEditorSaveResult? get lastSaveResult => _lastSaveResult;
+  bool get isWaitingRoomSession => _routeArgs?.isWaitingRoomSession ?? false;
+  bool get lockDeckSelection => _routeArgs?.lockDeckSelection ?? false;
+  bool get lockDeckName => _routeArgs?.lockDeckName ?? false;
   final cardService = ServiceFactory.create<CardService>();
   // ── 初始化 ──
 
   /// 初始化卡牌数据库
   Future<void> initialize() async {
+    await _loadBanlistsForCurrentEnvironment();
   }
 
   // ── 卡组操作 ──
@@ -59,13 +87,9 @@ class DeckEditorStore extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 加载内置卡组
       final builtinDecks = await _deckService.loadBuiltinDecks();
-      // 加载用户保存的卡组
       final userDecks = await _deckService.loadDeckList();
-
-      // 合并，内置卡组排在前面
-      _decks = [...builtinDecks, ...userDecks];
+      _decks = _mergeDecks(builtinDecks, userDecks);
     } catch (e) {
       _errorMessage = '加载卡组列表失败: $e';
     } finally {
@@ -76,7 +100,11 @@ class DeckEditorStore extends ChangeNotifier {
 
   /// 选择卡组
   Future<void> selectDeck(String deckName) async {
-
+    if (lockDeckSelection &&
+        _currentDeck != null &&
+        _currentDeck!.deckName != deckName) {
+      return;
+    }
     if (_editingDeck.isDirty) {
       // TODO: 提示保存
     }
@@ -85,18 +113,21 @@ class DeckEditorStore extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final deck = await _deckService.loadDeck(deckName);
+      final deckInfo = await _deckService.loadDeck(deckName);
 
-      if (deck != null) {
+      if (deckInfo != null) {
+        final mainCards = await _resolveCards(deckInfo.mainDeck);
+        final extraCards = await _resolveCards(deckInfo.extraDeck);
+        final sideCards = await _resolveCards(deckInfo.sideDeck);
         _replaceEditingDeck(
-          deck.deckName,
-          deck.main,
-          deck.extra,
-          deck.side,
+          deckInfo.deckName,
+          mainCards,
+          extraCards,
+          sideCards,
         );
         _currentDeck = _decks.firstWhere(
           (d) => d.deckName == deckName,
-          orElse: () => deck.toMeta(),
+          orElse: () => deckInfo,
         );
       }
     } catch (e) {
@@ -115,11 +146,11 @@ class DeckEditorStore extends ChangeNotifier {
       return;
     }
 
-    final newDeck = EditingDeck(deckName: name);
+    final newDeck = DeckInfo(deckName: name);
     final success = await _deckService.saveDeck(newDeck);
 
     if (success) {
-      _decks.add(newDeck.toMeta());
+      _decks.add(newDeck);
       selectDeck(name);
     } else {
       _errorMessage = '创建卡组失败';
@@ -144,30 +175,57 @@ class DeckEditorStore extends ChangeNotifier {
   }
 
   /// 保存卡组
-  Future<void> saveDeck() async {
-    if (!_editingDeck.isDirty) return;
+  Future<DeckEditorSaveResult> saveDeck() async {
+    if (!_editingDeck.isDirty) {
+      return const DeckEditorSaveResult(saved: false);
+    }
 
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
 
     try {
-      final success = await _deckService.saveDeck(_editingDeck);
+      final deckInfo = _toDeckInfo();
+      final success = await _deckService.saveDeck(deckInfo);
       if (success) {
+        final validationErrors = await _validateForCurrentSession(deckInfo);
         _editingDeck.isDirty = false;
-        // 更新元数据列表
         final index = _decks.indexWhere(
           (d) => d.deckName == _editingDeck.deckName,
         );
         if (index >= 0) {
-          _decks[index] = _editingDeck.toMeta();
+          _decks[index] = deckInfo;
+        } else {
+          _decks.add(deckInfo);
         }
+        _currentDeck = deckInfo;
+        _lastSaveResult = DeckEditorSaveResult(
+          saved: true,
+          validationErrors: validationErrors,
+        );
       } else {
         _errorMessage = '保存卡组失败';
+        _lastSaveResult = const DeckEditorSaveResult(saved: false);
       }
     } catch (e) {
       _errorMessage = '保存卡组失败: $e';
+      _lastSaveResult = const DeckEditorSaveResult(saved: false);
     } finally {
       _isLoading = false;
+      notifyListeners();
+    }
+    return _lastSaveResult ?? const DeckEditorSaveResult(saved: false);
+  }
+
+  /// 从 YDK 格式导入卡组
+  Future<void> importDeckFromYdk(String content, String deckName) async {
+    final deckInfo = await _deckService.importFromYdk(content, deckName);
+    if (deckInfo != null) {
+      final mainCards = await _resolveCards(deckInfo.mainDeck);
+      final extraCards = await _resolveCards(deckInfo.extraDeck);
+      final sideCards = await _resolveCards(deckInfo.sideDeck);
+      _replaceEditingDeck(deckInfo.deckName, mainCards, extraCards, sideCards);
+      _editingDeck.isDirty = true;
       notifyListeners();
     }
   }
@@ -181,6 +239,7 @@ class DeckEditorStore extends ChangeNotifier {
     notifyListeners();
 
     try {
+      await _applyEnvironment();
       _searchResults = await cardService.searchCombined(
         query: query.isNotEmpty ? query : null,
         cardType: _filter.cardType,
@@ -203,6 +262,31 @@ class DeckEditorStore extends ChangeNotifier {
     searchCards(_searchQuery);
   }
 
+  void resetSearchFilters() {
+    _filter = CardFilter(env: currentEnvironmentCode);
+    searchCards(_searchQuery);
+  }
+
+  Future<void> setEnvironment(int env) async {
+    if (currentEnvironmentCode == env) {
+      return;
+    }
+    _filter = _filter.copyWith(env: env);
+    _searchResults = [];
+    notifyListeners();
+    await _loadBanlistsForCurrentEnvironment();
+    if (_searchQuery.isNotEmpty) {
+      await searchCards(_searchQuery);
+    } else {
+      notifyListeners();
+    }
+  }
+
+  void selectBanlist(int? hash) {
+    _selectedBanlistHash = hash;
+    notifyListeners();
+  }
+
   /// 切换视图模式
   void toggleViewMode() {
     _isGridView = !_isGridView;
@@ -220,15 +304,15 @@ class DeckEditorStore extends ChangeNotifier {
   // ── 卡牌操作 ──
 
   /// 添加卡牌到卡组（自动根据卡牌类型选择目标区域）
-  Future<bool> addCard(CardInfo card, {String? targetZone}) async{
+  Future<bool> addCard(CardInfo card, {String? targetZone}) async {
     final zone = targetZone ?? _autoSelectZone(card);
-    final result = _canAddCard(zone, card);
-    // if (!result.$1) {
-    //   _errorMessage = result.$2;
-    //   notifyListeners();
-    //   return false;
-    // }
+    final result = await _canAddCard(zone, card);
 
+    if (!result.$1) {
+      _errorMessage = result.$2;
+      notifyListeners();
+      return false;
+    }
     switch (zone) {
       case 'main':
         _editingDeck.main.add(card);
@@ -273,8 +357,7 @@ class DeckEditorStore extends ChangeNotifier {
   }
 
   /// 检查是否可以添加卡牌
-  Future<(bool, String?)> _canAddCard(String type, CardInfo card) async{
-    // 检查卡组数量限制
+  Future<(bool, String?)> _canAddCard(String type, CardInfo card) async {
     switch (type) {
       case 'main':
         if (_editingDeck.mainCount >= 60) {
@@ -285,7 +368,6 @@ class DeckEditorStore extends ChangeNotifier {
         if (_editingDeck.extraCount >= 15) {
           return (false, '额外卡组已满 (最多15张)');
         }
-        // 检查是否为额外卡组怪兽
         if (!card.isFusion && !card.isSynchro && !card.isXyz && !card.isLink) {
           return (false, '额外卡组只能放入融合/同调/XYZ/连接怪兽');
         }
@@ -297,7 +379,6 @@ class DeckEditorStore extends ChangeNotifier {
         break;
     }
 
-    // 检查同名卡数量
     final allCards = [
       ..._editingDeck.main,
       ..._editingDeck.extra,
@@ -307,14 +388,14 @@ class DeckEditorStore extends ChangeNotifier {
     if (sameNameCount >= 3) {
       return (false, '同名卡最多3张');
     }
-    var lflist =await cardService.getLfTable(-1);
-    var lfInfo = lflist?.getLimit(card.code);
+    final lflist = selectedBanlist;
+    final lfInfo = lflist?.getLimit(card.code);
     final currentCount = sameNameCount;
-    if (lfInfo == 3 && currentCount >= 1) {
+    if (lfInfo == LfType.forbidden) {
       return (false, '${card.name} 已禁止');
-    } else if (lfInfo == 2 && currentCount >= 2) {
-      return (false, '${card.name} 已限制 (最多2张)');
-    } else if (lfInfo == 1 && currentCount >= 2) {
+    } else if (lfInfo == LfType.limited && currentCount >= 1) {
+      return (false, '${card.name} 已限制 (最多1张)');
+    } else if (lfInfo == LfType.semiLimited && currentCount >= 2) {
       return (false, '${card.name} 已准限制 (最多2张)');
     }
 
@@ -354,6 +435,9 @@ class DeckEditorStore extends ChangeNotifier {
 
   /// 更新当前编辑卡组名称，并标记为未保存。
   void renameEditingDeck(String deckName) {
+    if (lockDeckName) {
+      return;
+    }
     if (deckName == _editingDeck.deckName) {
       return;
     }
@@ -381,11 +465,39 @@ class DeckEditorStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> configureSession(DeckEditorRouteArgs? args) async {
+    _routeArgs = args;
+    _lastSaveResult = null;
+    _errorMessage = null;
+    if (args?.validationContext != null) {
+      _selectedBanlistHash = args!.validationContext!.lfTableHash;
+    }
+    await _loadBanlistsForCurrentEnvironment(
+      preferredHash: _selectedBanlistHash,
+    );
+
+    final deckName = args?.initialDeckName;
+    if (deckName != null && deckName.isNotEmpty) {
+      _currentDeck = null;
+      await selectDeck(deckName);
+    }
+
+    notifyListeners();
+  }
+
   /// 标记为脏（需要保存），通知监听者
   void markDirty() {
     _editingDeck.isDirty = true;
     notifyListeners();
   }
+
+  /// 转换为 DeckInfo（用于导出/保存）
+  DeckInfo toDeckInfo() => _toDeckInfo();
+
+  /// 导出为 YDK 格式
+  String exportToYdk() => _deckService.exportToYdk(_toDeckInfo());
+
+  String getCardImageUrl(int code) => cardService.getCardImageUrl(code);
 
   void _replaceEditingDeck(
     String deckName,
@@ -398,19 +510,180 @@ class DeckEditorStore extends ChangeNotifier {
 
   /// 获取卡牌的禁限状态描述
   String? getBanlistStatus(CardInfo card) {
-    // if (!_banlistLoaded || !_banlist.containsKey(card.code)) return null;
-    // final limit = _banlist[card.code]!;
-    // switch (limit) {
-    //   case 3:
-    //     return '禁止';
-    //   case 2:
-    //     return '限制';
-    //   case 1:
-    //     return '准限制';
-    //   default:
-    //     return null;
-    // }
+    final table = selectedBanlist;
+    if (table == null) {
+      return null;
+    }
+    final status = table.getLimitText(card.code);
+    return status == '无限制' ? null : status;
+  }
 
-    return null;
+  // ── DeckInfo ↔ CardInfo 转换 ──
+
+  DeckInfo _toDeckInfo() {
+    return DeckInfo(
+      deckName: _editingDeck.deckName,
+      mainDeck: _groupCards(_editingDeck.main),
+      extraDeck: _groupCards(_editingDeck.extra),
+      sideDeck: _groupCards(_editingDeck.side),
+    );
+  }
+
+  List<DeckCard> _groupCards(List<CardInfo> cards) {
+    final grouped = <int, int>{};
+    for (final c in cards) {
+      grouped[c.code] = (grouped[c.code] ?? 0) + 1;
+    }
+    return grouped.entries
+        .map((e) => DeckCard(code: e.key, count: e.value))
+        .toList();
+  }
+
+  Future<List<CardInfo>> _resolveCards(List<DeckCard> deckCards) async {
+    final result = <CardInfo>[];
+    for (final dc in deckCards) {
+      final card = await cardService.getCard(dc.code);
+      if (card != null) {
+        for (var i = 0; i < dc.count; i++) {
+          result.add(card);
+        }
+      }
+    }
+    return result;
+  }
+
+  List<DeckInfo> _mergeDecks(
+    List<DeckInfo> builtinDecks,
+    List<DeckInfo> userDecks,
+  ) {
+    final merged = <String, DeckInfo>{};
+    for (final deck in builtinDecks) {
+      merged[deck.deckName] = deck;
+    }
+    for (final deck in userDecks) {
+      merged[deck.deckName] = deck;
+    }
+    return merged.values.toList();
+  }
+
+  Future<List<String>?> _validateForCurrentSession(DeckInfo deckInfo) async {
+    final validationContext = _routeArgs?.validationContext;
+    if (validationContext != null && validationContext.noCheckDeck) {
+      return null;
+    }
+
+    final lfTable = await _resolveActiveValidationLfTable();
+    if (lfTable == null) {
+      return null;
+    }
+
+    final main = await _resolveCards(deckInfo.mainDeck);
+    final extra = await _resolveCards(deckInfo.extraDeck);
+    final side = await _resolveCards(deckInfo.sideDeck);
+    final validator = DeckValidator(lfInfos: lfTable.lfInfos);
+    return validator.validate(main, extra, side);
+  }
+
+  Future<void> _applyEnvironment() async {
+    cardService.envType = currentEnvironmentCode == 1
+        ? EnvType.env408
+        : EnvType.production;
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+  }
+
+  Future<void> _loadBanlistsForCurrentEnvironment({int? preferredHash}) async {
+    _isLoadingBanlists = true;
+    notifyListeners();
+    try {
+      final envConfig = currentEnvironmentCode == 1
+          ? EnvConfig.env408
+          : EnvConfig.production;
+      final response = await http.get(Uri.parse(envConfig.lflistUrl));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+      parseLflistConf(utf8.decode(response.bodyBytes));
+      _availableBanlists = lflistHashToTable.values.toList()
+        ..sort(_compareBanlistsByDateDesc);
+      final targetHash = preferredHash ?? _selectedBanlistHash;
+      if (targetHash != null &&
+          _availableBanlists.any((table) => table.hash == targetHash)) {
+        _selectedBanlistHash = targetHash;
+      } else {
+        _selectedBanlistHash = _availableBanlists.isEmpty
+            ? null
+            : _availableBanlists.first.hash;
+      }
+      await _applyEnvironment();
+    } catch (e) {
+      _availableBanlists = [];
+      _selectedBanlistHash = null;
+      _errorMessage = '加载禁限卡表失败: $e';
+    } finally {
+      _isLoadingBanlists = false;
+      notifyListeners();
+    }
+  }
+
+  Future<LfTable?> _resolveActiveValidationLfTable() async {
+    if (_selectedBanlistHash != null) {
+      for (final table in _availableBanlists) {
+        if (table.hash == _selectedBanlistHash) {
+          return table;
+        }
+      }
+      return cardService.getLfTable(_selectedBanlistHash!);
+    }
+
+    final validationContext = _routeArgs?.validationContext;
+    if (validationContext == null) {
+      return null;
+    }
+    return cardService.getLfTable(validationContext.lfTableHash);
+  }
+
+  int _compareBanlistsByDateDesc(LfTable a, LfTable b) {
+    final aDate = _extractBanlistSortKey(a);
+    final bDate = _extractBanlistSortKey(b);
+    for (var i = 0; i < 3; i++) {
+      final diff = bDate[i].compareTo(aDate[i]);
+      if (diff != 0) {
+        return diff;
+      }
+    }
+    return a.name.compareTo(b.name);
+  }
+
+  List<int> _extractBanlistSortKey(LfTable table) {
+    final source = '${table.name} ${table.date}';
+
+    final fullDate = RegExp(
+      r'((?:19|20)\d{2})[.\-/_年\s]*?(\d{1,2})[.\-/_月\s]*?(\d{1,2})',
+    ).firstMatch(source);
+    if (fullDate != null) {
+      return [
+        int.tryParse(fullDate.group(1) ?? '') ?? -1,
+        int.tryParse(fullDate.group(2) ?? '') ?? 0,
+        int.tryParse(fullDate.group(3) ?? '') ?? 0,
+      ];
+    }
+
+    final yearMonth = RegExp(
+      r'((?:19|20)\d{2})[.\-/_年\s]*?(\d{1,2})',
+    ).firstMatch(source);
+    if (yearMonth != null) {
+      return [
+        int.tryParse(yearMonth.group(1) ?? '') ?? -1,
+        int.tryParse(yearMonth.group(2) ?? '') ?? 0,
+        0,
+      ];
+    }
+
+    final yearOnly = RegExp(r'((?:19|20)\d{2})').firstMatch(source);
+    if (yearOnly != null) {
+      return [int.tryParse(yearOnly.group(1) ?? '') ?? -1, 0, 0];
+    }
+
+    return const [-1, 0, 0];
   }
 }

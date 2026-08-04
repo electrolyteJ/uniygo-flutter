@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ygo_card/card_info.dart';
 import '../../pages/deck_editor/deck_editor_store.dart';
+import 'banlist_status_badge.dart';
 import 'card_detail_dialog.dart';
 
 enum DeckZoneType { main, extra, side }
@@ -85,19 +86,17 @@ class DeckZoneWidget extends StatelessWidget {
                       )
                     : GridView.builder(
                         padding: const EdgeInsets.all(8),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 4,
-                          childAspectRatio: 591 / 825,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 4,
+                              childAspectRatio: 591 / 825,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                            ),
                         itemCount: cards.length,
                         itemBuilder: (context, index) {
                           final card = cards[index];
-                          return _DeckCardItem(
-                            card: card,
-                            type: type,
-                          );
+                          return _DeckCardItem(card: card, type: type);
                         },
                       ),
               ),
@@ -113,14 +112,13 @@ class _DeckCardItem extends StatelessWidget {
   final CardInfo card;
   final DeckZoneType type;
 
-  const _DeckCardItem({
-    required this.card,
-    required this.type,
-  });
+  const _DeckCardItem({required this.card, required this.type});
 
   @override
   Widget build(BuildContext context) {
-    final store = context.read<DeckEditorStore>();
+    final store = context.watch<DeckEditorStore>();
+    final imageUrl = store.getCardImageUrl(card.code);
+    final banlistStatus = store.getBanlistStatus(card);
 
     return LongPressDraggable<CardInfo>(
       data: card,
@@ -142,10 +140,7 @@ class _DeckCardItem extends StatelessWidget {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: Image.network(
-                'https://cdn02.moecube.com:444/images/ygopro-images-zh-CN/${card.code}.jpg',
-                fit: BoxFit.cover,
-              ),
+              child: Image.network(imageUrl, fit: BoxFit.cover),
             ),
           ),
         ),
@@ -166,7 +161,7 @@ class _DeckCardItem extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(6),
                   child: Image.network(
-                    'https://cdn02.moecube.com:444/images/ygopro-images-zh-CN/${card.code}.jpg',
+                    imageUrl,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return Center(
@@ -182,6 +177,12 @@ class _DeckCardItem extends StatelessWidget {
                   ),
                 ),
               ),
+              if (banlistStatus != null)
+                Positioned(
+                  top: 4,
+                  left: 4,
+                  child: BanlistCornerBadge(status: banlistStatus),
+                ),
               // 删除按钮（hover 时显示）
               Positioned(
                 top: 2,
@@ -214,8 +215,8 @@ class _DeckCardItem extends StatelessWidget {
     final typeName = type == DeckZoneType.main
         ? 'main'
         : type == DeckZoneType.extra
-            ? 'extra'
-            : 'side';
+        ? 'extra'
+        : 'side';
     store.removeCard(typeName, card);
   }
 

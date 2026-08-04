@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ygo_card/card_info.dart';
 import '../../pages/deck_editor/deck_editor_store.dart';
+import 'banlist_status_badge.dart';
 import 'card_detail_dialog.dart';
 
 class CardGridView extends StatelessWidget {
@@ -59,8 +60,10 @@ class _CardGridItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = context.read<DeckEditorStore>();
+    final store = context.watch<DeckEditorStore>();
     final theme = Theme.of(context);
+    final banlistStatus = store.getBanlistStatus(card);
+    final imageUrl = store.getCardImageUrl(card.code);
 
     return LongPressDraggable<CardInfo>(
       data: card,
@@ -82,17 +85,14 @@ class _CardGridItem extends StatelessWidget {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: Image.network(
-                'https://cdn02.moecube.com:444/images/ygopro-images-zh-CN/${card.code}.jpg',
-                fit: BoxFit.cover,
-              ),
+              child: Image.network(imageUrl, fit: BoxFit.cover),
             ),
           ),
         ),
       ),
       childWhenDragging: Opacity(
         opacity: 0.3,
-        child: _buildCardContent(context, theme),
+        child: _buildCardContent(context, theme, banlistStatus, imageUrl),
       ),
       onDragStarted: () {
         // 拖拽开始
@@ -105,20 +105,22 @@ class _CardGridItem extends StatelessWidget {
           CardDetailDialog.show(context, card: card, showAddButton: false);
         },
         borderRadius: BorderRadius.circular(8),
-        child: _buildCardContent(context, theme),
+        child: _buildCardContent(context, theme, banlistStatus, imageUrl),
       ),
     );
   }
 
-  Widget _buildCardContent(BuildContext context, ThemeData theme) {
+  Widget _buildCardContent(
+    BuildContext context,
+    ThemeData theme,
+    String? banlistStatus,
+    String imageUrl,
+  ) {
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.dividerColor,
-          width: 1,
-        ),
+        border: Border.all(color: theme.dividerColor, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -130,20 +132,32 @@ class _CardGridItem extends StatelessWidget {
                 color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Image.network(
-                  'https://cdn02.moecube.com:444/images/ygopro-images-zh-CN/${card.code}.jpg',
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Center(
-                      child: Text(
-                        card.name.substring(0, _min(2, card.name.length)),
-                        style: theme.textTheme.bodySmall,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Center(
+                            child: Text(
+                              card.name.substring(0, _min(2, card.name.length)),
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                  if (banlistStatus != null)
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: BanlistCornerBadge(status: banlistStatus),
+                    ),
+                ],
               ),
             ),
           ),

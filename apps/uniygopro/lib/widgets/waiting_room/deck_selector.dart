@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../models/deck_model.dart';
+import 'package:ygo_deck/deck_info.dart';
 
 class DeckSelector extends StatelessWidget {
   final bool enabled;
-  final List<DeckMeta> decks;
+  final List<DeckInfo> decks;
   final String? selectedDeckName;
   final int mySlot;
   final ValueChanged<String?>? onSelectDeck;
+  final VoidCallback? onEditDeck;
   final List<String>? invalidationResult;
 
   const DeckSelector({
@@ -17,6 +18,7 @@ class DeckSelector extends StatelessWidget {
     required this.selectedDeckName,
     required this.mySlot,
     required this.onSelectDeck,
+    this.onEditDeck,
     this.invalidationResult,
   });
 
@@ -24,6 +26,9 @@ class DeckSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final invalid = invalidationResult?.isNotEmpty == true;
     final isPlayer = mySlot >= 0 && mySlot <= 1;
+    final hasSelectedDeck =
+        selectedDeckName != null &&
+        decks.any((d) => d.deckName == selectedDeckName);
     if (!isPlayer) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.all(10),
@@ -87,6 +92,26 @@ class DeckSelector extends StatelessWidget {
                 style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 11),
               ),
             ),
+          if (hasSelectedDeck)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: onEditDeck,
+                  icon: const Icon(Icons.edit_note, size: 16),
+                  label: const Text('编辑当前卡组'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.amber.shade200,
+                    side: BorderSide(color: Colors.amber.shade700),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (invalid)
             Padding(
               padding: const EdgeInsets.only(top: 6),
@@ -102,8 +127,11 @@ class DeckSelector extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.warning_amber, size: 14,
-                            color: Colors.red.shade400),
+                        Icon(
+                          Icons.warning_amber,
+                          size: 14,
+                          color: Colors.red.shade400,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '卡组不合规',
@@ -115,16 +143,18 @@ class DeckSelector extends StatelessWidget {
                         ),
                       ],
                     ),
-                    ...invalidationResult!.map((e) => Padding(
-                      padding: const EdgeInsets.only(top: 2, left: 18),
-                      child: Text(
-                        '• $e',
-                        style: TextStyle(
-                          color: Colors.red.shade300,
-                          fontSize: 11,
+                    ...invalidationResult!.map(
+                      (e) => Padding(
+                        padding: const EdgeInsets.only(top: 2, left: 18),
+                        child: Text(
+                          '• $e',
+                          style: TextStyle(
+                            color: Colors.red.shade300,
+                            fontSize: 11,
+                          ),
                         ),
                       ),
-                    )),
+                    ),
                   ],
                 ),
               ),
@@ -134,7 +164,11 @@ class DeckSelector extends StatelessWidget {
               padding: const EdgeInsets.only(top: 6),
               child: Row(
                 children: [
-                  Icon(Icons.check_circle, size: 14, color: Colors.green.shade400),
+                  Icon(
+                    Icons.check_circle,
+                    size: 14,
+                    color: Colors.green.shade400,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     '卡组合规',

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../pages/deck_editor/deck_editor_session.dart';
 import '../../pages/duel_room/duel_room_store.dart';
 import 'hand_result_display.dart';
 import 'playerslot.dart';
@@ -11,7 +13,7 @@ import 'deck_selector.dart';
 class PlayerPanel extends StatelessWidget {
   final int mySlot;
   final DisplayStyle displayStyle;
-  PlayerPanel({
+  const PlayerPanel({
     super.key,
     required this.mySlot,
     required this.displayStyle,
@@ -68,9 +70,34 @@ class PlayerPanel extends StatelessWidget {
             mySlot: mySlot,
             onSelectDeck: (value) {
               if (value != null) {
-                duelRoomStore.selectDeck(context,value);
+                duelRoomStore.selectDeck(context, value);
               }
             },
+            onEditDeck: duelRoomStore.selectedDeckName == null
+                ? null
+                : () async {
+                    final result = await context.push<DeckEditorSaveResult?>(
+                      '/deck-editor',
+                      extra: DeckEditorRouteArgs(
+                        initialDeckName: duelRoomStore.selectedDeckName,
+                        validationContext: duelRoomStore.roomOptions == null
+                            ? null
+                            : DeckValidationContext(
+                                noCheckDeck:
+                                    duelRoomStore.roomOptions!.noCheckDeck,
+                                lfTableHash:
+                                    duelRoomStore.roomOptions!.lfTableHash,
+                              ),
+                        lockDeckSelection: true,
+                        lockDeckName: true,
+                      ),
+                    );
+                    if (context.mounted && (result?.saved ?? false)) {
+                      await duelRoomStore.refreshSelectedDeckValidation(
+                        context,
+                      );
+                    }
+                  },
             invalidationResult: duelRoomStore.invalidationDeckResult,
           ),
           const SizedBox(height: 12),

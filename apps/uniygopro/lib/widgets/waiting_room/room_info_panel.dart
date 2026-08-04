@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart';
 import 'package:ygo_card/lf_table.dart';
+import '../../pages/duel_room/waiting/banlist_detail_dialog.dart';
 
 class RoomInfoPanel extends StatelessWidget {
   final RoomOptions opts;
@@ -48,7 +49,14 @@ class RoomInfoPanel extends StatelessWidget {
           if (opts.autoDeath)
             _infoRow(Icons.alarm, '40分钟自动超时'),
 
-          _infoRow(Icons.list_alt, '禁限卡表: ${lfTable?.name ?? "未知"}'),
+          _InkInfoRow(
+            icon: Icons.list_alt,
+            text: '禁限卡表: ${lfTable?.name ?? "未知"}',
+            enabled: lfTable != null,
+            onTap: lfTable != null
+                ? () => BanlistDetailDialog.show(context, lfTable: lfTable!)
+                : null,
+          ),
           _infoRow(Icons.check_circle, '检查卡组: ${opts.noCheckDeck ? "否" : "是"}'),
           _infoRow(Icons.shuffle, '切洗卡组: ${opts.noShuffleDeck ? "否" : "是"}'),
         ],
@@ -56,15 +64,65 @@ class RoomInfoPanel extends StatelessWidget {
     );
   }
 
-  Widget _infoRow(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: Colors.blueGrey.shade400),
-          const SizedBox(width: 6),
-          Expanded(child: Text(text, style: TextStyle(color: Colors.blueGrey.shade200, fontSize: 13))),
-        ],
+}
+
+Widget _infoRow(IconData icon, String text) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Row(
+      children: [
+        Icon(icon, size: 14, color: Colors.blueGrey.shade400),
+        const SizedBox(width: 6),
+        Expanded(child: Text(text, style: TextStyle(color: Colors.blueGrey.shade200, fontSize: 13))),
+      ],
+    ),
+  );
+}
+/// 带点击效果的信息行
+///
+/// [enabled] 为 true 时显示可点击的外观（箭头 icon + 下划线），
+/// 为 false 时外观与普通 [_infoRow] 一致。
+class _InkInfoRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  const _InkInfoRow({
+    required this.icon,
+    required this.text,
+    required this.enabled,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      splashColor: Colors.blueGrey.shade600,
+      highlightColor: Colors.blueGrey.shade700,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          children: [
+            Icon(icon, size: 14, color: enabled ? Colors.blueGrey.shade400 : Colors.blueGrey.shade600),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(
+                  color: enabled ? Colors.blueGrey.shade200 : Colors.blueGrey.shade500,
+                  fontSize: 13,
+                  decoration: enabled ? TextDecoration.underline : null,
+                ),
+              ),
+            ),
+            if (enabled) ...[
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right, size: 16, color: Colors.blueGrey.shade400),
+            ],
+          ],
+        ),
       ),
     );
   }

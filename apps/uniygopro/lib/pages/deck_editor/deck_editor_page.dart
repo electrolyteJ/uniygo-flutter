@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'deck_editor_store.dart';
-import '../../services/deck_service.dart';
+import 'deck_editor_session.dart';
 import '../../widgets/deck_editor/deck_list_panel.dart';
 import '../../widgets/deck_editor/deck_edit_panel.dart';
 import '../../widgets/deck_editor/card_search_bar.dart';
@@ -11,7 +11,9 @@ import '../../widgets/deck_editor/card_grid_view.dart';
 import '../../widgets/deck_editor/card_list_view.dart';
 
 class DeckEditorPage extends StatefulWidget {
-  const DeckEditorPage({super.key});
+  const DeckEditorPage({super.key, this.args});
+
+  final DeckEditorRouteArgs? args;
 
   @override
   State<DeckEditorPage> createState() => _DeckEditorPageState();
@@ -27,6 +29,7 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
       final store = context.read<DeckEditorStore>();
       await store.initialize();
       await store.loadDecks();
+      await store.configureSession(widget.args);
     });
   }
 
@@ -34,20 +37,29 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF1E2A38),
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            context.go('/');
-          },
+    final canPop = Navigator.of(context).canPop();
+    return PopScope<Object?>(
+      canPop: !canPop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || !canPop) {
+          return;
+        }
+        final store = context.read<DeckEditorStore>();
+        context.pop(store.lastSaveResult);
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF1E2A38),
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: _handleBack,
+          ),
+          title: const Text("卡组编辑器"),
+          backgroundColor: Colors.blueGrey.shade800,
+          foregroundColor: Colors.white,
         ),
-        title: const Text("卡组编辑器"),
-        backgroundColor: Colors.blueGrey.shade800,
-        foregroundColor: Colors.white,
+        body: _buildResponsiveLayout(theme),
       ),
-      body: _buildResponsiveLayout(theme),
     );
   }
 
@@ -68,19 +80,11 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
     return Row(
       children: [
         // 左侧：卡组列表 (240px)
-        const SizedBox(
-          width: 240,
-          child: DeckListPanel(),
-        ),
+        const SizedBox(width: 240, child: DeckListPanel()),
         // 中间：搜索 + 结果
-        Expanded(
-          child: _buildMainContent(theme),
-        ),
+        Expanded(child: _buildMainContent(theme)),
         // 右侧：卡组编辑区 (380px)
-        const SizedBox(
-          width: 380,
-          child: DeckEditPanel(),
-        ),
+        const SizedBox(width: 380, child: DeckEditPanel()),
       ],
     );
   }
@@ -106,19 +110,14 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
       height: 56,
       decoration: BoxDecoration(
         color: const Color(0xFF2A3A4A),
-        border: Border(
-          bottom: BorderSide(color: theme.dividerColor),
-        ),
+        border: Border(bottom: BorderSide(color: theme.dividerColor)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
           const Text(
             '卡组编辑',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
           ),
           const SizedBox(width: 16),
           // 卡组名输入框
@@ -184,9 +183,7 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
       height: 56,
       decoration: BoxDecoration(
         color: const Color(0xFF2A3A4A),
-        border: Border(
-          bottom: BorderSide(color: theme.dividerColor),
-        ),
+        border: Border(bottom: BorderSide(color: theme.dividerColor)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
@@ -195,14 +192,10 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(),
           ),
-          const Expanded(
-            child: _DeckNameInput(),
-          ),
+          const Expanded(child: _DeckNameInput()),
           IconButton(
             icon: const Icon(Icons.save),
-            onPressed: () {
-              context.read<DeckEditorStore>().saveDeck();
-            },
+            onPressed: () => _saveDeckAndNotify(context),
           ),
         ],
       ),
@@ -213,14 +206,12 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
   Widget _buildMobileDeckBar(ThemeData theme) {
     final store = context.watch<DeckEditorStore>();
     final deck = store.editingDeck;
-    
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFF2A3A4A),
-        border: Border(
-          top: BorderSide(color: theme.dividerColor),
-        ),
+        border: Border(top: BorderSide(color: theme.dividerColor)),
       ),
       child: Row(
         children: [
@@ -261,6 +252,51 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
       ),
     );
   }
+
+  void _handleBack() {
+    final store = context.read<DeckEditorStore>();
+    if (Navigator.of(context).canPop()) {
+      context.pop(store.lastSaveResult);
+      return;
+    }
+    context.go('/');
+  }
+}
+
+Future<void> _saveDeckAndNotify(BuildContext context) async {
+  final store = context.read<DeckEditorStore>();
+  final result = await store.saveDeck();
+  if (!context.mounted) {
+    return;
+  }
+
+  final messenger = ScaffoldMessenger.of(context);
+  if (!result.saved) {
+    if (store.editingDeck.isDirty) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(store.errorMessage ?? '卡组保存失败'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    return;
+  }
+
+  final errors = result.validationErrors;
+  final message = errors == null
+      ? '卡组已保存'
+      : errors.isEmpty
+      ? '卡组已保存，当前卡组合规'
+      : '卡组已保存，但仍不合规：${errors.first}';
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor: errors == null || errors.isEmpty
+          ? null
+          : Colors.orange.shade800,
+    ),
+  );
 }
 
 // ── 卡组名输入框 ──
@@ -291,6 +327,7 @@ class _DeckNameInputState extends State<_DeckNameInput> {
   Widget build(BuildContext context) {
     final store = context.watch<DeckEditorStore>();
     final deckName = store.editingDeck.deckName;
+    final canRename = !store.lockDeckName;
     if (!_isEditing && _controller.text != deckName) {
       _controller.value = _controller.value.copyWith(
         text: deckName,
@@ -298,7 +335,21 @@ class _DeckNameInputState extends State<_DeckNameInput> {
         composing: TextRange.empty,
       );
     }
-    
+
+    if (!canRename) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.transparent),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          deckName.isEmpty ? '未命名卡组' : deckName,
+          style: const TextStyle(fontSize: 16),
+        ),
+      );
+    }
+
     return GestureDetector(
       onTap: () {
         setState(() => _isEditing = true);
@@ -349,9 +400,7 @@ class _DeckNameInputState extends State<_DeckNameInput> {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                deckName.isEmpty
-                    ? '未命名卡组'
-                    : deckName,
+                deckName.isEmpty ? '未命名卡组' : deckName,
                 style: const TextStyle(fontSize: 16),
               ),
             ),
@@ -364,7 +413,7 @@ class _AppBarActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<DeckEditorStore>();
-    
+
     return Row(
       children: [
         // 洗切
@@ -418,14 +467,7 @@ class _AppBarActions extends StatelessWidget {
           label: '保存',
           isPrimary: true,
           onPressed: store.editingDeck.isDirty
-              ? () async {
-                  await store.saveDeck();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('卡组已保存')),
-                    );
-                  }
-                }
+              ? () => _saveDeckAndNotify(context)
               : null,
         ),
       ],
@@ -511,25 +553,13 @@ class _AppBarActions extends StatelessWidget {
               final content = controller.text.trim();
               if (content.isEmpty) return;
 
-              final deckService = DeckService();
-              final deck = await deckService.importFromYdk(content, '导入的卡组');
-              if (deck != null && dialogContext.mounted) {
-                store.replaceEditingDeck(
-                  deckName: deck.deckName,
-                  main: deck.main,
-                  extra: deck.extra,
-                  side: deck.side,
-                  markDirty: true,
-                );
+              await store.importDeckFromYdk(content, '导入的卡组');
+              if (dialogContext.mounted) {
                 Navigator.pop(dialogContext);
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        '导入成功: 主卡组 ${deck.mainCount} | 额外 ${deck.extraCount} | 备牌 ${deck.sideCount}',
-                      ),
-                    ),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('导入成功')));
                 }
               }
             },
@@ -545,8 +575,7 @@ class _AppBarActions extends StatelessWidget {
   }
 
   void _exportDeck(BuildContext context, DeckEditorStore store) {
-    final deckService = DeckService();
-    final ydk = deckService.exportToYdk(store.editingDeck);
+    final ydk = store.exportToYdk();
 
     showDialog(
       context: context,
@@ -578,10 +607,7 @@ class _AppBarActions extends StatelessWidget {
                 ),
                 child: SelectableText(
                   ydk,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
                 ),
               ),
             ],
@@ -596,9 +622,9 @@ class _AppBarActions extends StatelessWidget {
             onPressed: () {
               Clipboard.setData(ClipboardData(text: ydk));
               Navigator.pop(dialogContext);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('已复制到剪贴板')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('已复制到剪贴板')));
             },
             icon: const Icon(Icons.copy, size: 18),
             label: const Text('复制'),

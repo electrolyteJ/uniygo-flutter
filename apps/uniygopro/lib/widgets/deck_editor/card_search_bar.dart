@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../pages/deck_editor/deck_editor_store.dart';
-import '../../models/deck_model.dart';
+import '../../pages/duel_room/waiting/banlist_detail_dialog.dart';
 
 class CardSearchBar extends StatefulWidget {
   const CardSearchBar({super.key});
@@ -29,9 +29,7 @@ class _CardSearchBarState extends State<CardSearchBar> {
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
         color: Color(0xFF2A3A4A),
-        border: Border(
-          bottom: BorderSide(color: Color(0xFF455A64)),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFF455A64))),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -46,7 +44,9 @@ class _CardSearchBarState extends State<CardSearchBar> {
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     hintText: '搜索卡牌名称、效果文本...',
-                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                    hintStyle: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                    ),
                     prefixIcon: Icon(
                       Icons.search,
                       color: Colors.white.withValues(alpha: 0.5),
@@ -109,10 +109,77 @@ class _CardSearchBarState extends State<CardSearchBar> {
             ],
           ),
           const SizedBox(height: 12),
+          _buildEnvironmentAndBanlist(store),
+          const SizedBox(height: 12),
           // 筛选器
           _buildFilterChips(store),
         ],
       ),
+    );
+  }
+
+  Widget _buildEnvironmentAndBanlist(DeckEditorStore store) {
+    final selectedBanlist = store.selectedBanlist;
+    final selectedBanlistHash =
+        store.availableBanlists.any(
+          (table) => table.hash == store.selectedBanlistHash,
+        )
+        ? store.selectedBanlistHash
+        : null;
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SegmentedButton<int>(
+          segments: const [
+            ButtonSegment<int>(value: 0, label: Text('OCG')),
+            ButtonSegment<int>(value: 1, label: Text('408')),
+          ],
+          selected: {store.currentEnvironmentCode},
+          showSelectedIcon: false,
+          onSelectionChanged: (values) {
+            if (values.isNotEmpty) {
+              store.setEnvironment(values.first);
+            }
+          },
+        ),
+        SizedBox(
+          width: 260,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF344555),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF455A64)),
+            ),
+            child: DropdownButton<int>(
+              value: selectedBanlistHash,
+              isExpanded: true,
+              underline: const SizedBox.shrink(),
+              hint: Text(store.isLoadingBanlists ? '加载禁限卡表中...' : '禁限卡表'),
+              items: store.availableBanlists
+                  .map(
+                    (table) => DropdownMenuItem<int>(
+                      value: table.hash,
+                      child: Text(table.name, overflow: TextOverflow.ellipsis),
+                    ),
+                  )
+                  .toList(),
+              onChanged: store.isLoadingBanlists ? null : store.selectBanlist,
+            ),
+          ),
+        ),
+        OutlinedButton.icon(
+          onPressed: selectedBanlist == null
+              ? null
+              : () =>
+                    BanlistDetailDialog.show(context, lfTable: selectedBanlist),
+          icon: const Icon(Icons.visibility_outlined, size: 16),
+          label: const Text('查看禁限'),
+        ),
+      ],
     );
   }
 
@@ -126,9 +193,12 @@ class _CardSearchBarState extends State<CardSearchBar> {
         // 全部
         _FilterChip(
           label: '全部',
-          isSelected: filter.isDefault,
+          isSelected:
+              filter.cardType == null &&
+              filter.race == null &&
+              filter.attribute == null,
           onTap: () {
-            store.updateFilter(const CardFilter());
+            store.resetSearchFilters();
           },
         ),
         // 怪兽
@@ -173,33 +243,6 @@ class _CardSearchBarState extends State<CardSearchBar> {
             );
           },
         ),
-        const SizedBox(width: 8),
-        // 环境筛选
-        _FilterChip(
-          label: 'OCG',
-          isSelected: filter.env == 0,
-          onTap: () {
-            store.updateFilter(
-              filter.copyWith(
-                env: filter.env == 0 ? null : 0,
-                clearEnv: filter.env == 0,
-              ),
-            );
-          },
-        ),
-        _FilterChip(
-          label: '408',
-          isSelected: filter.env == 1,
-          onTap: () {
-            store.updateFilter(
-              filter.copyWith(
-                env: filter.env == 1 ? null : 1,
-                clearEnv: filter.env == 1,
-              ),
-            );
-          },
-        ),
-        const SizedBox(width: 8),
         // 种族筛选
         _FilterChip(
           label: '战士',
@@ -260,8 +303,12 @@ class _ViewToggleButton extends StatelessWidget {
       icon: Icon(icon, size: 20),
       onPressed: onPressed,
       style: IconButton.styleFrom(
-        backgroundColor: isActive ? const Color(0xFF546E7A) : Colors.transparent,
-        foregroundColor: isActive ? Colors.white : Colors.white.withValues(alpha: 0.5),
+        backgroundColor: isActive
+            ? const Color(0xFF546E7A)
+            : Colors.transparent,
+        foregroundColor: isActive
+            ? Colors.white
+            : Colors.white.withValues(alpha: 0.5),
       ),
     );
   }
@@ -284,7 +331,7 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final chipColor = color ?? const Color(0xFFFFB300);
-    
+
     return GestureDetector(
       onTap: onTap,
       child: Container(

@@ -37,15 +37,23 @@ class CardDetailDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final store = context.watch<DeckEditorStore>();
-    final banlistStatus = store.getBanlistStatus(card);
+    DeckEditorStore? store;
+    try {
+      store = Provider.of<DeckEditorStore>(context, listen: false);
+    } catch (_) {
+      store = null;
+    }
+    final banlistStatus = store?.getBanlistStatus(card);
+    final imageUrl =
+        store?.getCardImageUrl(card.code) ??
+        'https://cdn02.moecube.com:444/images/ygopro-images-zh-CN/${card.code}.jpg';
     final screenSize = MediaQuery.of(context).size;
     final isSmallScreen = screenSize.width < 600;
 
     return Dialog(
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: isSmallScreen ? screenSize.width * 0.9 : 500,
+          maxWidth: isSmallScreen ? screenSize.width * 0.9 : 700,
           maxHeight: screenSize.height * 0.8,
         ),
         child: Column(
@@ -59,8 +67,8 @@ class CardDetailDialog extends StatelessWidget {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: isSmallScreen
-                    ? _buildVerticalLayout(theme, banlistStatus)
-                    : _buildHorizontalLayout(theme, banlistStatus),
+                    ? _buildVerticalLayout(theme, banlistStatus, imageUrl)
+                    : _buildHorizontalLayout(theme, banlistStatus, imageUrl),
               ),
             ),
           ],
@@ -69,7 +77,11 @@ class CardDetailDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context, ThemeData theme, String? banlistStatus) {
+  Widget _buildHeader(
+    BuildContext context,
+    ThemeData theme,
+    String? banlistStatus,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -104,27 +116,33 @@ class CardDetailDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildHorizontalLayout(ThemeData theme, String? banlistStatus) {
+  Widget _buildHorizontalLayout(
+    ThemeData theme,
+    String? banlistStatus,
+    String imageUrl,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 卡图
-        _buildCardImage(theme),
+        _buildCardImage(theme, imageUrl),
         const SizedBox(width: 16),
         // 信息
-        Expanded(
-          child: _buildCardInfo(theme, banlistStatus),
-        ),
+        Expanded(child: _buildCardInfo(theme, banlistStatus)),
       ],
     );
   }
 
-  Widget _buildVerticalLayout(ThemeData theme, String? banlistStatus) {
+  Widget _buildVerticalLayout(
+    ThemeData theme,
+    String? banlistStatus,
+    String imageUrl,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // 卡图
-        _buildCardImage(theme),
+        _buildCardImage(theme, imageUrl),
         const SizedBox(height: 16),
         // 信息
         _buildCardInfo(theme, banlistStatus),
@@ -132,10 +150,10 @@ class CardDetailDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildCardImage(ThemeData theme) {
+  Widget _buildCardImage(ThemeData theme, String imageUrl) {
     return Container(
-      width: 200,
-      height: 290,
+      width: 400,
+      height: 580,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
@@ -149,7 +167,7 @@ class CardDetailDialog extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: Image.network(
-          'https://cdn02.moecube.com:444/images/ygopro-images-zh-CN/${card.code}.jpg',
+          imageUrl,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) {
             return Container(
@@ -158,7 +176,11 @@ class CardDetailDialog extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.broken_image, size: 48, color: theme.colorScheme.onSurfaceVariant),
+                    Icon(
+                      Icons.broken_image,
+                      size: 48,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       card.name,
@@ -180,23 +202,15 @@ class CardDetailDialog extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 类型信息
-        _InfoSection(
-          label: '类型',
-          value: card.typeText,
-        ),
+        _InfoSection(label: '类型', value: card.typeText),
         if (card.isMonster) ...[
-          _InfoSection(
-            label: '属性',
-            value: card.attributeText,
-          ),
-          _InfoSection(
-            label: '种族',
-            value: card.raceText,
-          ),
+          _InfoSection(label: '属性', value: card.attributeText),
+          _InfoSection(label: '种族', value: card.raceText),
           if (card.attack >= 0 || card.defense >= 0)
             _InfoSection(
               label: '攻/守',
-              value: '${card.attack >= 0 ? card.attack : "?"} / ${card.defense >= 0 ? card.defense : "?"}',
+              value:
+                  '${card.attack >= 0 ? card.attack : "?"} / ${card.defense >= 0 ? card.defense : "?"}',
             ),
           if (card.isPendulum) ...[
             _InfoSection(
@@ -227,10 +241,7 @@ class CardDetailDialog extends StatelessWidget {
             color: theme.colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Text(
-            card.desc,
-            style: theme.textTheme.bodyMedium,
-          ),
+          child: Text(card.desc, style: theme.textTheme.bodyMedium),
         ),
       ],
     );
@@ -255,10 +266,7 @@ class _InfoSection extends StatelessWidget {
   final String label;
   final String value;
 
-  const _InfoSection({
-    required this.label,
-    required this.value,
-  });
+  const _InfoSection({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {

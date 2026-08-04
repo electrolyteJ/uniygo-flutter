@@ -96,7 +96,7 @@ class DeckApiClient {
   /// 获取单个卡组详情
   ///
   /// [deckId] 卡组 ID
-  Future<DeckInfo> fetchDeckDetail(String deckId) async {
+  Future<MdPro3DeckInfo> fetchDeckDetail(String deckId) async {
     try {
       final uri = Uri.parse('$baseUrl/api/mdpro3/deck/$deckId');
       final response = await _client
@@ -111,7 +111,7 @@ class DeckApiClient {
           message: 'Expected a JSON object',
         );
       }
-      return DeckInfo.fromJson(data);
+      return MdPro3DeckInfo.fromJson(data);
     } on YgoCardDeckException {
       rethrow;
     } catch (e) {
@@ -154,7 +154,7 @@ class DeckApiClient {
   ///
   /// [userId] 用户 ID
   /// [token] 认证 token
-  Future<List<DeckInfo>> fetchUserDecks({
+  Future<List<MdPro3DeckInfo>> fetchUserDecks({
     required int userId,
     required String token,
   }) async {
@@ -168,12 +168,12 @@ class DeckApiClient {
       final data = jsonDecode(response.body);
       if (data is List) {
         return data
-            .map((e) => DeckInfo.fromJson(e as Map<String, dynamic>))
+            .map((e) => MdPro3DeckInfo.fromJson(e as Map<String, dynamic>))
             .toList();
       }
       if (data is Map<String, dynamic> && data.containsKey('decks')) {
         return (data['decks'] as List)
-            .map((e) => DeckInfo.fromJson(e as Map<String, dynamic>))
+            .map((e) => MdPro3DeckInfo.fromJson(e as Map<String, dynamic>))
             .toList();
       }
       return [];
@@ -191,7 +191,7 @@ class DeckApiClient {
   /// [contributor] 贡献者名
   /// [token] 认证 token
   Future<void> uploadDeck({
-    required DeckInfo deck,
+    required MdPro3DeckInfo deck,
     required int userId,
     required String contributor,
     required String token,

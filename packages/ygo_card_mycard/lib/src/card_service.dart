@@ -74,7 +74,7 @@ Future<void> preloadBanlist() async {
   try {
     console.log('加载禁限卡表中...', name: 'DuelRoomStore');
     final raw = await fetch(EnvConfig.production.lflistUrl);
-    parseLflistConf(raw.body);
+    parseLflistConf(utf8.decode(raw.bodyBytes));
     _banlistLoaded = true;
   } catch (e) {
     console.log('加载禁限卡表失败: $e', name: 'DuelRoomStore');

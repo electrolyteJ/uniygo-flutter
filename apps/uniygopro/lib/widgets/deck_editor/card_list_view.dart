@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ygo_card/card_info.dart';
 import '../../pages/deck_editor/deck_editor_store.dart';
+import 'banlist_status_badge.dart';
 import 'card_detail_dialog.dart';
 
 class CardListView extends StatelessWidget {
@@ -53,9 +54,10 @@ class _CardListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = context.read<DeckEditorStore>();
+    final store = context.watch<DeckEditorStore>();
     final theme = Theme.of(context);
     final banlistStatus = store.getBanlistStatus(card);
+    final imageUrl = store.getCardImageUrl(card.code);
 
     return LongPressDraggable<CardInfo>(
       data: card,
@@ -83,7 +85,7 @@ class _CardListItem extends StatelessWidget {
                     bottomLeft: Radius.circular(8),
                   ),
                   child: Image.network(
-                    'https://cdn02.moecube.com:444/images/ygopro-images-zh-CN/${card.code}.jpg',
+                    imageUrl,
                     width: 40,
                     height: 56,
                     fit: BoxFit.cover,
@@ -105,13 +107,18 @@ class _CardListItem extends StatelessWidget {
       ),
       childWhenDragging: Opacity(
         opacity: 0.3,
-        child: _buildCardContent(context, theme, banlistStatus),
+        child: _buildCardContent(context, theme, banlistStatus, imageUrl),
       ),
-      child: _buildCardContent(context, theme, banlistStatus),
+      child: _buildCardContent(context, theme, banlistStatus, imageUrl),
     );
   }
 
-  Widget _buildCardContent(BuildContext context, ThemeData theme, String? banlistStatus) {
+  Widget _buildCardContent(
+    BuildContext context,
+    ThemeData theme,
+    String? banlistStatus,
+    String imageUrl,
+  ) {
     final store = context.read<DeckEditorStore>();
 
     return Card(
@@ -128,22 +135,32 @@ class _CardListItem extends StatelessWidget {
           padding: const EdgeInsets.all(8),
           child: Row(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Image.network(
-                  'https://cdn02.moecube.com:444/images/ygopro-images-zh-CN/${card.code}.jpg',
-                  width: 40,
-                  height: 56,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Image.network(
+                      imageUrl,
                       width: 40,
                       height: 56,
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      child: const Icon(Icons.image_not_supported),
-                    );
-                  },
-                ),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: 40,
+                          height: 56,
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          child: const Icon(Icons.image_not_supported),
+                        );
+                      },
+                    ),
+                  ),
+                  if (banlistStatus != null)
+                    Positioned(
+                      top: 2,
+                      left: 2,
+                      child: BanlistCornerBadge(status: banlistStatus),
+                    ),
+                ],
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -162,7 +179,7 @@ class _CardListItem extends StatelessWidget {
                         ),
                         if (banlistStatus != null) ...[
                           const SizedBox(width: 8),
-                          _BanlistDot(status: banlistStatus),
+                          BanlistDot(status: banlistStatus),
                         ],
                       ],
                     ),
@@ -185,42 +202,6 @@ class _CardListItem extends StatelessWidget {
                 ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BanlistDot extends StatelessWidget {
-  final String status;
-
-  const _BanlistDot({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    Color color;
-    switch (status) {
-      case '禁止':
-        color = Theme.of(context).colorScheme.error;
-        break;
-      case '限制':
-        color = Colors.orange;
-        break;
-      case '准限制':
-        color = Colors.yellow.shade700;
-        break;
-      default:
-        return const SizedBox.shrink();
-    }
-
-    return Tooltip(
-      message: status,
-      child: Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
         ),
       ),
     );

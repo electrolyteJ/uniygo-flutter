@@ -5,6 +5,12 @@ import 'package:ygo_deck/ygo_deck.dart';
 
 import 'deck_api_client.dart';
 
+
+@OnServiceRegister()
+onServiceRegister() {
+
+}
+
 /// 卡组广场服务
 ///
 /// 封装 [DeckApiClient]，提供高层级的卡组管理能力。
@@ -39,7 +45,7 @@ class DeckService implements IDeckService{
       );
 
   /// 获取卡组详情
-  Future<DeckInfo> fetchDeckDetail(String deckId) =>
+  Future<MdPro3DeckInfo> fetchDeckDetail(String deckId) =>
       _client.fetchDeckDetail(deckId);
 
   /// 生成新卡组 ID
@@ -50,7 +56,7 @@ class DeckService implements IDeckService{
   // ---------------------------------------------------------------------------
 
   /// 获取用户云端卡组列表
-  Future<List<DeckInfo>> fetchUserDecks({
+  Future<List<MdPro3DeckInfo>> fetchUserDecks({
     required int userId,
     required String token,
   }) =>
@@ -58,7 +64,7 @@ class DeckService implements IDeckService{
 
   /// 上传卡组
   Future<void> uploadDeck({
-    required DeckInfo deck,
+    required MdPro3DeckInfo deck,
     required int userId,
     required String contributor,
     required String token,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:ygo_deck/deck_info.dart';
 import '../../pages/deck_editor/deck_editor_store.dart';
-import '../../models/deck_model.dart';
 
 class DeckListPanel extends StatelessWidget {
   const DeckListPanel({super.key});
@@ -9,13 +9,12 @@ class DeckListPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<DeckEditorStore>();
+    final isLocked = store.lockDeckSelection;
 
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF2A3A4A),
-        border: Border(
-          right: BorderSide(color: Color(0xFF455A64)),
-        ),
+        border: Border(right: BorderSide(color: Color(0xFF455A64))),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -24,23 +23,26 @@ class DeckListPanel extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: Color(0xFF455A64)),
-              ),
+              border: Border(bottom: BorderSide(color: Color(0xFF455A64))),
             ),
             child: const Text(
               '我的卡组',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
           ),
+          if (isLocked)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Text(
+                '等待房间中仅允许编辑当前选中的卡组',
+                style: TextStyle(fontSize: 12, color: Colors.white60),
+              ),
+            ),
           // 新建按钮
           Padding(
             padding: const EdgeInsets.all(16),
             child: FilledButton.icon(
-              onPressed: () => _showCreateDialog(context),
+              onPressed: isLocked ? null : () => _showCreateDialog(context),
               icon: const Icon(Icons.add),
               label: const Text('新建卡组'),
               style: FilledButton.styleFrom(
@@ -60,8 +62,12 @@ class DeckListPanel extends StatelessWidget {
                 return _DeckListItem(
                   deck: deck,
                   isSelected: store.currentDeck?.deckName == deck.deckName,
-                  onTap: () => store.selectDeck(deck.deckName),
-                  onDelete: () => _confirmDelete(context, store, deck),
+                  onTap: isLocked
+                      ? null
+                      : () => store.selectDeck(deck.deckName),
+                  onDelete: isLocked
+                      ? null
+                      : () => _confirmDelete(context, store, deck),
                 );
               },
             ),
@@ -83,9 +89,7 @@ class DeckListPanel extends StatelessWidget {
           controller: controller,
           decoration: InputDecoration(
             hintText: '输入卡组名称',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: Color(0xFFFFB300)),
@@ -120,7 +124,7 @@ class DeckListPanel extends StatelessWidget {
   void _confirmDelete(
     BuildContext context,
     DeckEditorStore store,
-    DeckMeta deck,
+    DeckInfo deck,
   ) {
     showDialog(
       context: context,
@@ -150,10 +154,10 @@ class DeckListPanel extends StatelessWidget {
 }
 
 class _DeckListItem extends StatelessWidget {
-  final DeckMeta deck;
+  final DeckInfo deck;
   final bool isSelected;
-  final VoidCallback onTap;
-  final VoidCallback onDelete;
+  final VoidCallback? onTap;
+  final VoidCallback? onDelete;
 
   const _DeckListItem({
     required this.deck,
