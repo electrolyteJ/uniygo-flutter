@@ -40,6 +40,7 @@ class GameServer {
 enum DuelEnvironment {
   /// 默认 Koishi 通用环境
   koishi('Koishi', 'koishi.momobako.com', 7211),
+
   /// 默认 mycard 自定义房间
   mycard('mycard', 'tiramisu.moenext.com', 7912),
   mercury233('mercury233', 's1.ygo233.com', 233),
@@ -48,6 +49,7 @@ enum DuelEnvironment {
   koishi_preRelease('koishi先行卡测试', 'koishi.momobako.com', 889),
   mycard_preRelease('mycard先行卡测试', 'mygo.superpre.pro', 888),
   mercury233_preRelease('mercury233先行卡测试', 's1.ygo233.com', 23333),
+
   /// 408 特殊规则环境
   env408('408 环境', 'koishi.momobako.com', 1408),
 
@@ -65,6 +67,9 @@ enum DuelEnvironment {
 
   /// 是否使用编码密码（RoomPassword），MyCard 服务器需要解码参数
   bool get useEncodedPassword => this == mycard;
+
+  bool get usesRoomStringDsl =>
+      this == mercury233 || this == mercury233_preRelease;
 }
 
 /// 所有可用对战服务器列表。
