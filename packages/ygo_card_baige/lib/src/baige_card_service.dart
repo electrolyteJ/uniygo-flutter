@@ -19,16 +19,6 @@ class BaigeCardService implements ICardService {
   set envType(dynamic value) {}
 
   @override
-  Future<Map<int, LfTable>> getAllLfTable() async {
-    throw UnsupportedError('百鸽 API 不提供禁限卡表');
-  }
-
-  @override
-  Future<LfTable?> getLfTable(int code) async {
-    throw UnsupportedError('百鸽 API 不提供禁限卡表');
-  }
-
-  @override
   String getCardImageUrl(int code) => CardImageCdn.picHalf(code);
 
   @override

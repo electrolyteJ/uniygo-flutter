@@ -1,4 +1,5 @@
 import 'package:service_loader/service_loader.dart';
+import 'package:ygo_data/ygo_data.dart';
 import 'src/banlist_service.dart';
 
 export 'src/parse_lf_table.dart';
@@ -11,3 +12,6 @@ onServiceRegister() {
     'https://cdn02.moecube.com:444/ygopro-database/zh-CN/lflist.conf',
   );
 }
+@Service(IBanlistService)
+IBanlistService createMyCardBanListService() => BanlistService();
+

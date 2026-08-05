@@ -1,7 +1,5 @@
 import 'package:duelink/duelink.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'hand_result_display.dart';
 
 class PlayerSlot extends StatelessWidget {
   final PlayerInfo? player;
@@ -12,7 +10,6 @@ class PlayerSlot extends StatelessWidget {
   final bool isMe;
   final bool canKick;
   final VoidCallback onKick;
-  final DisplayStyle displayStyle;
 
   const PlayerSlot({super.key,
     required this.player,
@@ -23,7 +20,6 @@ class PlayerSlot extends StatelessWidget {
     this.isMe = false,
     this.canKick = false,
     required this.onKick,
-    required this.displayStyle,
   });
 
   String _getHandEmoji(int? result) {
@@ -122,7 +118,7 @@ class PlayerSlot extends StatelessWidget {
                 ),
             ],
           ),
-          if (showResult && handResult != null && displayStyle == DisplayStyle.card) ...[
+          if (showResult && handResult != null) ...[
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.only(top: 8),

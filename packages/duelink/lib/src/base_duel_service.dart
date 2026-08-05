@@ -193,8 +193,8 @@ abstract class BaseDuelService implements IDuelService {
   }
 
   void _onPlayerChange(StocHsPlayerChange m) {
-    console.log('RoomStage: PLAYER_CHANGE pos:${m.pos} action:${m.state}');
     final updated = List<PlayerInfo>.from(_playersOf(_roomStage));
+    console.log('RoomStage: PLAYER_CHANGE pos:${m.pos} action:${m.state} ${updated}');
 
     if (m.state == PlayerChange.leave ||
         m.state == PlayerChange.toObserver) {
@@ -217,7 +217,7 @@ abstract class BaseDuelService implements IDuelService {
       if (idx >= 0) updated[idx] = updated[idx].copyWith(pos: m.pos);
       _setPlayers(updated);
     }
-    console.log('RoomStage: PLAYER_CHANGE → $_roomStage');
+    console.log('RoomStage: PLAYER_CHANGE → $_roomStage ${updated}');
   }
 
   void _onWatchChange(StocHsWatchChange m) {

@@ -4,6 +4,7 @@ import 'dart:developer' as console;
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
 import 'package:service_loader/service_loader.dart';
+import 'package:uniygopro/service_singleton.dart';
 import 'package:ygo_data/card_info.dart' as pkg;
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 import 'package:ygo_data/ygo_data.dart';
@@ -48,7 +49,7 @@ class DuelBoardStore extends ChangeNotifier {
   String? lastAttackTo;
   IDuelService? _service;
   String? errorMessage;
-  final cardService = ServiceFactory.create<YgoDataService>();
+  final dataService = ServiceSingleton.instance.dataService;
   /// 卡片信息缓存：code → CardInfo（从本地 SQLite 查询）
   final Map<int, pkg.CardInfo> _cardInfoCache = {};
 
@@ -59,7 +60,7 @@ class DuelBoardStore extends ChangeNotifier {
   Future<void> ensureCardInfo(int code) async {
     if (_cardInfoCache.containsKey(code)) return;
     try {
-      final info = await cardService.getCard(code);
+      final info = await dataService.getCard(code);
       if (info != null) {
         _cardInfoCache[code] = info;
       }
@@ -885,7 +886,7 @@ class DuelBoardStore extends ChangeNotifier {
   }
 
   String getCardImageUrl(int code) {
-    return cardService.getCardImageUrl(code);
+    return dataService.getCardImageUrl(code);
   }
 
   void setError(int type, int code) {

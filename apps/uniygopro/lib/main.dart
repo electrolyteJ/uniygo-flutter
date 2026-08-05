@@ -17,7 +17,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   registerAllServices();
-  ServiceSingleton.instance.registerService();
   final boardStore = DuelBoardStore();
   final selectionStore = DuelSelectionStore();
   final uiStore = DuelUiStore();

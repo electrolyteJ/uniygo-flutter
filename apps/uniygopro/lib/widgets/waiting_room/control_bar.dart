@@ -1,21 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart';
 import '../shared/waiting_room.dart';
-import 'hand_result_display.dart' show DisplayStyle;
-
-export 'hand_result_display.dart' show DisplayStyle;
-
 class ControlBar extends StatelessWidget {
   final bool isHost;
   final PlayerType selfType;
   final bool isSelfReady;
+  final bool isAllReady;
   final bool autoHandEnabled;
   final bool autoTurnOrderEnabled;
-  final DisplayStyle displayStyle;
-  final VoidCallback onToggleDisplay;
+  final bool autoDuelEnabled;
   final ValueChanged<BuildContext> toggleReady;
   final ValueChanged<bool> onToggleAutoHand;
   final ValueChanged<bool> onToggleAutoTurnOrder;
+  final ValueChanged<bool> onToggleAutoDuel;
   final VoidCallback onStartDuel;
   final VoidCallback onBecomeDuelist;
   final VoidCallback onBecomeObserver;
@@ -26,13 +23,14 @@ class ControlBar extends StatelessWidget {
     required this.isHost,
     required this.selfType,
     required this.isSelfReady,
+    required this.isAllReady,
     required this.autoHandEnabled,
     required this.autoTurnOrderEnabled,
-    required this.displayStyle,
-    required this.onToggleDisplay,
+    required this.autoDuelEnabled,
     required this.toggleReady,
     required this.onToggleAutoHand,
     required this.onToggleAutoTurnOrder,
+    required this.onToggleAutoDuel,
     required this.onStartDuel,
     required this.onBecomeDuelist,
     required this.onBecomeObserver,
@@ -56,6 +54,13 @@ class ControlBar extends StatelessWidget {
               spacing: 8,
               runSpacing: 4,
               children: [
+                if (isHost)
+                  buildAutomationSwitch(
+                    label: '自动加入决斗',
+                    value: autoDuelEnabled,
+                    enabled: !isSelfReady,
+                    onChanged: (value) => onToggleAutoDuel(value),
+                  ),
                 buildAutomationSwitch(
                   label: '自动猜拳',
                   value: autoHandEnabled,
@@ -73,20 +78,6 @@ class ControlBar extends StatelessWidget {
               ],
             ),
             const SizedBox(width: 8),
-            IconButton(
-              icon: Icon(
-                displayStyle == DisplayStyle.card
-                    ? Icons.view_list
-                    : Icons.view_module,
-                size: 20,
-              ),
-              color: Colors.blueGrey.shade400,
-              onPressed: onToggleDisplay,
-              tooltip: displayStyle == DisplayStyle.card
-                  ? '切换到状态栏显示'
-                  : '切换到卡片显示',
-            ),
-            const SizedBox(width: 8),
             if (isPlayer)
               Expanded(
                 child: FilledButton.icon(
@@ -95,7 +86,7 @@ class ControlBar extends StatelessWidget {
                     isSelfReady ? Icons.cancel : Icons.check_circle,
                     size: 18,
                   ),
-                  label: Text(isSelfReady ? '取消准备' : '准备'),
+                  label: Text(isSelfReady ? '取消准备' : (autoDuelEnabled ? '准备&决斗' : '准备')),
                   style: FilledButton.styleFrom(
                     backgroundColor: isSelfReady
                         ? Colors.blueGrey.shade600
@@ -132,10 +123,10 @@ class ControlBar extends StatelessWidget {
                 ),
               ),
             if (selfType == PlayerType.observer) const SizedBox(width: 8),
-            if (isHost)
+            if (isHost && !autoDuelEnabled)
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: onStartDuel,
+                  onPressed: isAllReady ? onStartDuel : null,
                   icon: const Icon(Icons.play_arrow, size: 18),
                   label: const Text('开始决斗'),
                   style: FilledButton.styleFrom(

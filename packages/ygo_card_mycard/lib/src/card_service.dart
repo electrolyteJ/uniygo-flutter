@@ -54,15 +54,14 @@ Future<void> preDownloadDatabase() async {
 }
 
 // =============================================================================
-// BaseCardService
+// CardService
 // =============================================================================
 
-class BaseCardService implements ICardService {
+class CardService implements ICardService {
   EnvConfig config;
   CardDao? _cardDao;
-  final BanlistService _banlist = BanlistService();
 
-  BaseCardService({required this.config});
+  CardService({required this.config});
 
   @override
   get envType => config.type;
@@ -83,25 +82,6 @@ class BaseCardService implements ICardService {
         _cardDao = CardDatabase.instance.dao;
       });
     }
-  }
-
-  @override
-  List<String> validateDeck(
-    List<CardInfo> main,
-    List<CardInfo> extra,
-    List<CardInfo> side,
-  ) {
-    return _banlist.validateDeck(main, extra, side);
-  }
-
-  @override
-  Future<Map<int, LfTable>> getAllLfTable() async {
-    return _banlist.getAllLfTables();
-  }
-
-  @override
-  Future<LfTable?> getLfTable(int hash) async {
-    return _banlist.getLfTable(hash);
   }
 
   Future<Map<String, String>> fetchStrings() async {

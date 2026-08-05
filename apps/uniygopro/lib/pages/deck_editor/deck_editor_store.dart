@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:service_loader/service_loader.dart';
+import 'package:uniygopro/service_singleton.dart';
 import 'package:ygo_data/card_info.dart';
 import 'package:ygo_data/lf_table.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
@@ -71,7 +72,7 @@ class DeckEditorStore extends ChangeNotifier {
   bool get isWaitingRoomSession => _routeArgs?.isWaitingRoomSession ?? false;
   bool get lockDeckSelection => _routeArgs?.lockDeckSelection ?? false;
   bool get lockDeckName => _routeArgs?.lockDeckName ?? false;
-  final cardService = ServiceFactory.create<YgoDataService>();
+  final dataService = ServiceSingleton.instance.dataService;
   // ── 初始化 ──
 
   /// 初始化卡牌数据库
@@ -241,7 +242,7 @@ class DeckEditorStore extends ChangeNotifier {
 
     try {
       await _applyEnvironment();
-      _searchResults = await cardService.searchCombined(
+      _searchResults = await dataService.searchCombined(
         query: query.isNotEmpty ? query : null,
         cardType: _filter.cardType,
         attribute: _filter.attribute,
@@ -498,7 +499,7 @@ class DeckEditorStore extends ChangeNotifier {
   /// 导出为 YDK 格式
   String exportToYdk() => _deckService.exportToYdk(_toDeckInfo());
 
-  String getCardImageUrl(int code) => cardService.getCardImageUrl(code);
+  String getCardImageUrl(int code) => dataService.getCardImageUrl(code);
 
   void _replaceEditingDeck(
     String deckName,
@@ -543,7 +544,7 @@ class DeckEditorStore extends ChangeNotifier {
   Future<List<CardInfo>> _resolveCards(List<DeckCard> deckCards) async {
     final result = <CardInfo>[];
     for (final dc in deckCards) {
-      final card = await cardService.getCard(dc.code);
+      final card = await dataService.getCard(dc.code);
       if (card != null) {
         for (var i = 0; i < dc.count; i++) {
           result.add(card);
@@ -586,7 +587,7 @@ class DeckEditorStore extends ChangeNotifier {
   }
 
   Future<void> _applyEnvironment() async {
-    cardService.envType = currentEnvironmentCode == 1
+    dataService.envType = currentEnvironmentCode == 1
         ? EnvType.env408
         : EnvType.production;
     await Future<void>.delayed(const Duration(milliseconds: 80));
@@ -633,14 +634,14 @@ class DeckEditorStore extends ChangeNotifier {
           return table;
         }
       }
-      return cardService.getLfTable(_selectedBanlistHash!);
+      return dataService.getLfTable(_selectedBanlistHash!);
     }
 
     final validationContext = _routeArgs?.validationContext;
     if (validationContext == null) {
       return null;
     }
-    return cardService.getLfTable(validationContext.lfTableHash);
+    return dataService.getLfTable(validationContext.lfTableHash);
   }
 
   int _compareBanlistsByDateDesc(LfTable a, LfTable b) {

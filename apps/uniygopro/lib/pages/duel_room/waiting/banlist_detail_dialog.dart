@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:service_loader/service_loader.dart';
+import 'package:uniygopro/service_singleton.dart';
 import 'package:ygo_data/lf_table.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 import 'package:ygo_data/ygo_data.dart';
@@ -513,7 +514,7 @@ class _CardDetailNavigator extends StatefulWidget {
 
 class _CardDetailNavigatorState extends State<_CardDetailNavigator> {
   late int _currentIndex;
-  final _cardService = ServiceFactory.create<YgoDataService>();
+  final _dataService = ServiceSingleton.instance.dataService;
 
   @override
   void initState() {
@@ -558,7 +559,7 @@ class _CardDetailNavigatorState extends State<_CardDetailNavigator> {
           mainAxisSize: MainAxisSize.min,
           children: [
             FutureBuilder(
-              future: _cardService.getCard(info.code),
+              future: _dataService.getCard(info.code),
               builder: (context, snapshot) {
                 if (snapshot.connectionState != ConnectionState.done) {
                   return const Center(child: CircularProgressIndicator());

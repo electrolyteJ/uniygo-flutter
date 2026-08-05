@@ -19,7 +19,8 @@ class CardListPage extends StatefulWidget {
 class _CardListPageState extends State<CardListPage> {
   final TextEditingController _searchController = TextEditingController();
 
-  final _cardService = ServiceFactory.create<YgoDataService>();
+  final _cardService = ServiceFactory.create<ICardService>();
+  final _banlistService = ServiceFactory.create<IBanlistService>();
   final ScriptService _scriptService = ScriptService();
 
   List<CardInfo> _cards = [];
@@ -45,7 +46,7 @@ class _CardListPageState extends State<CardListPage> {
     });
 
     try {
-      _lflist = await _cardService.getLfTable(-1);
+      _lflist = await _banlistService.getLfTable(-1);
       await _scriptService.init();
       _cards = await _cardService.searchCards('');
       await _preloadEffects();

@@ -13,6 +13,7 @@ import 'package:ygo_data/ygo_data.dart';
 import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
 import 'package:ygo_data/deck_info.dart';
 
+import '../../service_singleton.dart';
 import '../../services/deck_service.dart';
 import '../../widgets/shared/duel_room.dart';
 
@@ -20,6 +21,7 @@ import '../../widgets/shared/duel_room.dart';
 class DuelRoomStore extends ChangeNotifier {
   static const _autoHandPrefKey = 'duel.auto_hand_enabled';
   static const _autoTurnOrderPrefKey = 'duel.auto_turn_order_enabled';
+  static const _autoDuelPrefKey = 'duel.auto_duel_enabled';
   List<String> duelLogs = [];
   RoomStage stage = const RoomNotJoined();
   PlayerType selfType = PlayerType.unknown;
@@ -35,8 +37,9 @@ class DuelRoomStore extends ChangeNotifier {
   List<DeckInfo> availableDecks = [];
   bool autoHandEnabled = false;
   bool autoTurnOrderEnabled = false;
+  bool autoDuelEnabled = false;
   IDuelService? _duelService;
-  final cardService = ServiceFactory.create<YgoDataService>();
+  final _dataService = ServiceSingleton.instance.dataService;
   final Random random = Random();
   StreamSubscription<RoomStage>? _roomStageSub;
 
@@ -59,6 +62,21 @@ class DuelRoomStore extends ChangeNotifier {
       return false;
     }
     return players.where((p) => p.pos == selfType.slot).any((p) => p.ready);
+  }
+
+  /// 当前房间中双方玩家是否都已经准备。
+  bool get isAllReady {
+    if (players.length < 2) {
+      return false;
+    }
+    for (final p in players) {
+      if (p.pos == 0 || p.pos == 1) {
+        if (!p.ready) {
+          return false;
+        }
+      }
+    }
+    return true;
   }
 
   DuelRoomStore() {
@@ -100,6 +118,7 @@ class DuelRoomStore extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     autoHandEnabled = prefs.getBool(_autoHandPrefKey) ?? false;
     autoTurnOrderEnabled = prefs.getBool(_autoTurnOrderPrefKey) ?? false;
+    autoDuelEnabled = prefs.getBool(_autoDuelPrefKey) ?? false;
     notifyListeners();
   }
 
@@ -120,6 +139,16 @@ class DuelRoomStore extends ChangeNotifier {
     autoTurnOrderEnabled = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_autoTurnOrderPrefKey, value);
+    notifyListeners();
+  }
+
+  Future<void> setAutoDuelEnabled(bool value) async {
+    if (isSelfReady && value != autoDuelEnabled) {
+      return;
+    }
+    autoDuelEnabled = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_autoDuelPrefKey, value);
     notifyListeners();
   }
 
@@ -189,7 +218,7 @@ class DuelRoomStore extends ChangeNotifier {
     // ── 禁限卡表校验 ──
     if (roomOptions?.noCheckDeck == false) {
       final lflistHash = roomOptions!.lfTableHash;
-      final lfTable = await cardService.getLfTable(lflistHash);
+      final lfTable = await _dataService.getLfTable(lflistHash);
       if (lfTable != null) {
         final validator = DeckValidator(lfInfos: lfTable.lfInfos);
         invalidationDeckResult = validator.validate(main, extra, side);
@@ -269,7 +298,6 @@ class DuelRoomStore extends ChangeNotifier {
       players = roomStage.players;
       observerCount = roomStage.observerCount;
       stage = roomStage;
-      console.log('Room stage changed: $roomStage');
       switch (roomStage) {
         case RoomNotJoined():
           //游戏结束或者离开房间后，重置房间状态
@@ -281,7 +309,14 @@ class DuelRoomStore extends ChangeNotifier {
           selfType = roomStage.selfType;
           isHost = roomStage.isHost;
           roomOptions = roomStage.options;
+          // 自动加入决斗：房主开启 autoDuelEnabled，双方准备后自动 startDuel
+          if (isHost && autoDuelEnabled && isAllReady) {
+            console.log('Auto duel enabled and all ready, starting duel...');
+            _duelService?.startDuel();
+          }
           break;
+        case RoomInLobby():
+
         case RoomSelectingHand():
           if (autoHandEnabled) {
             Timer(const Duration(milliseconds: 700), () {
@@ -318,13 +353,13 @@ class DuelRoomStore extends ChangeNotifier {
   }
 
   Future<LfTable?> getLfTable(int hash) async {
-    return cardService.getLfTable(hash);
+    return _dataService.getLfTable(hash);
   }
 
   Future<List<CardInfo>> _resolveCards(List<DeckCard> deckCards) async {
     final result = <CardInfo>[];
     for (final dc in deckCards) {
-      final card = await cardService.getCard(dc.code);
+      final card = await _dataService.getCard(dc.code);
       if (card != null) {
         for (var i = 0; i < dc.count; i++) {
           result.add(card);

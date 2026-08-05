@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../pages/deck_editor/deck_editor_session.dart';
 import '../../pages/duel_room/duel_room_store.dart';
-import 'hand_result_display.dart';
 import 'playerslot.dart';
 import 'select_hand.dart';
 import 'select_turn.dart';
@@ -12,18 +11,15 @@ import 'deck_selector.dart';
 
 class PlayerPanel extends StatelessWidget {
   final int mySlot;
-  final DisplayStyle displayStyle;
   const PlayerPanel({
     super.key,
     required this.mySlot,
-    required this.displayStyle,
   });
 
   @override
   Widget build(BuildContext context) {
     final duelRoomStore = context.watch<DuelRoomStore>();
     final showCardResults =
-        displayStyle == DisplayStyle.card &&
         (duelRoomStore.stage is RoomSelectingHand ||
             duelRoomStore.stage is RoomHandResult ||
             duelRoomStore.stage is RoomSelectingTurn);
@@ -58,7 +54,6 @@ class PlayerPanel extends StatelessWidget {
                         : (duelRoomStore.isHost ? false : true)) &&
                     item.pos != mySlot,
                 onKick: () => duelRoomStore.kickPlayer(item.pos),
-                displayStyle: displayStyle,
               ),
             ),
           ),

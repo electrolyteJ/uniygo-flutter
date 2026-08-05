@@ -14,12 +14,6 @@ abstract class ICardService implements IService {
 
   set envType(dynamic value);
 
-  Future<Map<int, LfTable>> getAllLfTable() async {
-    throw Exception('Not implemented');
-  }
-
-  Future<LfTable?> getLfTable(int code);
-
   String getCardImageUrl(int code);
 
   Future<CardInfo?> getCard(int code);
@@ -33,69 +27,31 @@ abstract class ICardService implements IService {
     int? race,
     int maxResults = 100,
   });
-
-  List<String> validateDeck(
-    List<CardInfo> main,
-    List<CardInfo> extra,
-    List<CardInfo> side,
-  );
 }
 
 /// 卡片资源服务
 abstract class IDeckService implements IService {}
 
-@Service(YgoDataService)
-class YgoDataService implements IService {
-  dynamic get envType => _cardService.envType;
-
-  ICardService _cardService = ServiceFactory.create<ICardService>();
-  IDeckService _deckService = ServiceFactory.create<IDeckService>();
-
-  set envType(dynamic value) {
-    _cardService.envType = value;
-  }
-
-  Future<Map<int, LfTable>> getAllLfTable() async {
-    return _cardService.getAllLfTable();
-  }
-
-  Future<LfTable?> getLfTable(int code) {
-    return _cardService.getLfTable(code);
-  }
-
-  String getCardImageUrl(int code) {
-    return _cardService.getCardImageUrl(code);
-  }
-
-  Future<CardInfo?> getCard(int code) {
-    return _cardService.getCard(code);
-  }
-
-  Future<List<CardInfo>> searchCards(String keyword) {
-    return _cardService.searchCards(keyword);
-  }
-
-  Future<List<CardInfo>> searchCombined({
-    String? query,
-    int? cardType,
-    int? attribute,
-    int? race,
-    int maxResults = 100,
-  }) {
-    return _cardService.searchCombined(
-      query: query,
-      cardType: cardType,
-      attribute: attribute,
-      race: race,
-      maxResults: maxResults,
-    );
-  }
-
+abstract class IBanlistService implements IService {
   List<String> validateDeck(
     List<CardInfo> main,
     List<CardInfo> extra,
     List<CardInfo> side,
   ) {
-    return _cardService.validateDeck(main, extra, side);
+    throw UnimplementedError(
+      'validateDeck is not implemented in IBanlistService',
+    );
+  }
+
+  Future<Map<int, LfTable>> getAllLfTable() async {
+    throw UnimplementedError(
+      'getAllLfTable is not implemented in IBanlistService',
+    );
+  }
+
+  Future<LfTable?> getLfTable(int hash) async {
+    throw UnimplementedError(
+      'getLfTable is not implemented in IBanlistService',
+    );
   }
 }

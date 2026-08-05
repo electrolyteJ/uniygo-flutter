@@ -1,8 +1,7 @@
 import 'dart:developer' as console;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:ygo_data/card_info.dart';
-import 'package:ygo_data/lf_table.dart';
+import 'package:ygo_data/ygo_data.dart';
 import 'parse_lf_table.dart';
 import 'deck_validator.dart';
 
@@ -24,9 +23,10 @@ Future<void> preloadBanlist(String lflistUrl) async {
   }
 }
 
-class BanlistService {
+class BanlistService extends IBanlistService {
   bool get isLoaded => _banlistLoaded;
 
+  @override
   List<String> validateDeck(
     List<CardInfo> main,
     List<CardInfo> extra,
@@ -42,7 +42,19 @@ class BanlistService {
     return validator.validate(main, extra, side);
   }
 
-  LfTable? getLfTable(int hash) => getLflist(hash);
+  @override
+  Future<Map<int, LfTable>> getAllLfTable() async {
+    if (!_banlistLoaded) {
+      throw Exception('Banlist not loaded. Call preloadBanlist() first.');
+    }
+    return lflistHashToTable;
+  }
 
-  Map<int, LfTable> getAllLfTables() => Map.unmodifiable(lflistHashToTable);
+  @override
+  Future<LfTable?> getLfTable(int code) async {
+    if (!_banlistLoaded) {
+      throw Exception('Banlist not loaded. Call preloadBanlist() first.');
+    }
+    return getLflist(code);
+  }
 }

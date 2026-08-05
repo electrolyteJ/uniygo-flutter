@@ -56,7 +56,7 @@ class RoomInLobby extends RoomStage {
     required this.options,
   });
 
-  @override String toString() => 'RoomInLobby(self:$selfType host:$isHost) ${options}';
+  @override String toString() => 'RoomInLobby(self:$selfType host:$isHost) ${options} ${players} obs:$observerCount';
 }
 
 /// 决斗开始。
