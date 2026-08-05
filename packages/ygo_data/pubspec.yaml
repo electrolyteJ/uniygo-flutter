@@ -1,5 +1,5 @@
-name: ygo_deck
-description: "YGOPRO card CDN and deck square API client — card/deck resource interface."
+name: ygo_data
+description: "YGOPRO card and deck data models and service interfaces."
 version: 1.0.0
 publish_to: 'none'
 
@@ -16,6 +16,7 @@ dependencies:
   path: ^1.9.0
   service_loader:
     path: ../service_loader
+
 dev_dependencies:
   test: ^1.24.0
   flutter_lints: ^6.0.0

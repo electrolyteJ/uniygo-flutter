@@ -3,11 +3,12 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:service_loader/service_loader.dart';
-import 'package:ygo_card/card_info.dart';
-import 'package:ygo_card/lf_table.dart';
+import 'package:ygo_data/card_info.dart';
+import 'package:ygo_data/lf_table.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
-import 'package:ygo_card_mycard/src/deck_validator.dart';
-import 'package:ygo_deck/deck_info.dart';
+import 'package:ygo_data/ygo_data.dart';
+import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
+import 'package:ygo_data/deck_info.dart';
 import '../../models/deck_model.dart';
 import '../../services/deck_service.dart';
 import 'deck_editor_session.dart';
@@ -70,7 +71,7 @@ class DeckEditorStore extends ChangeNotifier {
   bool get isWaitingRoomSession => _routeArgs?.isWaitingRoomSession ?? false;
   bool get lockDeckSelection => _routeArgs?.lockDeckSelection ?? false;
   bool get lockDeckName => _routeArgs?.lockDeckName ?? false;
-  final cardService = ServiceFactory.create<CardService>();
+  final cardService = ServiceFactory.create<YgoDataService>();
   // ── 初始化 ──
 
   /// 初始化卡牌数据库

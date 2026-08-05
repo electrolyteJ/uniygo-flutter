@@ -1,7 +1,7 @@
 import 'package:duelink/duelink.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
-import 'package:ygo_card/lf_table.dart';
+import 'package:ygo_data/lf_table.dart';
 
 import '../../../widgets/waiting_room/chat_panel.dart';
 import '../../../widgets/waiting_room/control_bar.dart';

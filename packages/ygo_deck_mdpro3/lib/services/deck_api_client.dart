@@ -1,9 +1,9 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:ygo_deck/deck_info.dart';
-import 'package:ygo_deck/deck_list_page.dart';
-import 'package:ygo_deck/ygo_card_deck_exception.dart';
+import 'package:ygo_data/deck_info.dart';
+import 'package:ygo_data/deck_list_page.dart';
+import 'package:ygo_data/ygo_card_deck_exception.dart';
 
 /// 卡组广场 Deck API 客户端
 ///

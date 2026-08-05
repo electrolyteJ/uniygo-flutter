@@ -1,16 +1,14 @@
 import 'package:service_loader/service_loader.dart';
-import 'package:ygo_card_mycard/ygo_card_mycard.dart';
+import 'package:ygo_data/ygo_data.dart';
 
 class ServiceSingleton {
-
-  late CardService cardService;
+  late YgoDataService dataService;
 
   ServiceSingleton._();
 
   static final ServiceSingleton instance = ServiceSingleton._();
 
   void registerService() {
-
-    cardService = ServiceFactory.create<CardService>();
+    dataService = ServiceFactory.create<YgoDataService>();
   }
 }

@@ -2,7 +2,7 @@
 // 模块级 HTTP 工具
 // ---------------------------------------------------------------------------
 import 'package:http/http.dart';
-import 'package:ygo_card/ygo_card_deck_exception.dart';
+import 'package:ygo_data/ygo_card_deck_exception.dart';
 
 final Client _client = Client();
 final timeout = const Duration(seconds: 30);

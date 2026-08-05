@@ -2,7 +2,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
 import 'package:provider/provider.dart';
-import 'package:ygo_card/card_info.dart';
+import 'package:ygo_data/card_info.dart';
 import '../../models/IdleAction.dart';
 import '../../models/SelectState.dart';
 import '../../pages/duel_room/duel_room_store.dart';

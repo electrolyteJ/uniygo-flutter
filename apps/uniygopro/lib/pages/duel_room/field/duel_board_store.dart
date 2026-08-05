@@ -4,8 +4,9 @@ import 'dart:developer' as console;
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
 import 'package:service_loader/service_loader.dart';
-import 'package:ygo_card/card_info.dart' as pkg;
+import 'package:ygo_data/card_info.dart' as pkg;
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
+import 'package:ygo_data/ygo_data.dart';
 
 import '../../../models/ChainLink.dart';
 import '../../../models/FieldCard.dart';
@@ -47,7 +48,7 @@ class DuelBoardStore extends ChangeNotifier {
   String? lastAttackTo;
   IDuelService? _service;
   String? errorMessage;
-  final cardService = ServiceFactory.create<CardService>();
+  final cardService = ServiceFactory.create<YgoDataService>();
   /// 卡片信息缓存：code → CardInfo（从本地 SQLite 查询）
   final Map<int, pkg.CardInfo> _cardInfoCache = {};
 

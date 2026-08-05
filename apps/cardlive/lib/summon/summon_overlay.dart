@@ -1,6 +1,6 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
-import 'package:ygo_card/card_info.dart';
+import 'package:ygo_data/card_info.dart';
 import 'summon_controller.dart';
 import 'summon_manager.dart';
 

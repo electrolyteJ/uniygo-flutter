@@ -6,11 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:service_loader/service_loader.dart';
 import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:ygo_card/card_info.dart';
-import 'package:ygo_card/lf_table.dart';
+import 'package:ygo_data/card_info.dart';
+import 'package:ygo_data/lf_table.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
-import 'package:ygo_card_mycard/src/deck_validator.dart';
-import 'package:ygo_deck/deck_info.dart';
+import 'package:ygo_data/ygo_data.dart';
+import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
+import 'package:ygo_data/deck_info.dart';
 
 import '../../services/deck_service.dart';
 import '../../widgets/shared/duel_room.dart';
@@ -35,7 +36,7 @@ class DuelRoomStore extends ChangeNotifier {
   bool autoHandEnabled = false;
   bool autoTurnOrderEnabled = false;
   IDuelService? _duelService;
-  final cardService = ServiceFactory.create<CardService>();
+  final cardService = ServiceFactory.create<YgoDataService>();
   final Random random = Random();
   StreamSubscription<RoomStage>? _roomStageSub;
 

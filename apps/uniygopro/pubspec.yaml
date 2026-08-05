@@ -31,12 +31,12 @@ dependencies:
     path: ../../packages/duelink_lan
   duelink_ai:
     path: ../../packages/duelink_ai
-  ygo_card:
-    path: ../../packages/ygo_card
+  ygo_data:
+    path: ../../packages/ygo_data
   ygo_card_mycard:
     path: ../../packages/ygo_card_mycard
-  ygo_deck:
-    path: ../../packages/ygo_deck
+  ygo_banlist_mycard:
+    path: ../../packages/ygo_banlist_mycard
   ygo_deck_mdpro3:
     path: ../../packages/ygo_deck_mdpro3
   go_router: ^14.0.0

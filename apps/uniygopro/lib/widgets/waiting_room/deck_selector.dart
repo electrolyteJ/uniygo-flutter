@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:ygo_deck/deck_info.dart';
+import 'package:ygo_data/deck_info.dart';
 
 class DeckSelector extends StatelessWidget {
   final bool enabled;

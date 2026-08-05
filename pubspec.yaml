@@ -7,10 +7,11 @@ environment:
 workspace:
   - packages/service_loader
   - packages/service_loader_gen
-  - packages/ygo_deck
+  - packages/ygo_data
   - packages/ygo_deck_mdpro3
-  - packages/ygo_card
   - packages/ygo_card_mycard
+  - packages/ygo_card_baige
+  - packages/ygo_banlist_mycard
   - packages/duelink
   - packages/duelink_online
   - packages/duelink_lan

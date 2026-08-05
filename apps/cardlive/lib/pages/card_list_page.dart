@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:service_loader/service_loader.dart';
-import 'package:ygo_card/card_info.dart';
-import 'package:ygo_card/lf_table.dart';
+import 'package:ygo_data/card_info.dart';
+import 'package:ygo_data/lf_table.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
+import 'package:ygo_data/ygo_data.dart';
 import '../service/script_service.dart';
 import '../summon/summon_inline.dart';
 import '../widgets/card_animation.dart';
@@ -18,7 +19,7 @@ class CardListPage extends StatefulWidget {
 class _CardListPageState extends State<CardListPage> {
   final TextEditingController _searchController = TextEditingController();
 
-  final CardService _cardService = ServiceFactory.create<CardService>();
+  final _cardService = ServiceFactory.create<YgoDataService>();
   final ScriptService _scriptService = ScriptService();
 
   List<CardInfo> _cards = [];

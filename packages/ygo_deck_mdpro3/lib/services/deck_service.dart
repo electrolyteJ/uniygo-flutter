@@ -1,7 +1,7 @@
 import 'package:service_loader/service_loader.dart';
-import 'package:ygo_deck/deck_info.dart';
-import 'package:ygo_deck/deck_list_page.dart';
-import 'package:ygo_deck/ygo_deck.dart';
+import 'package:ygo_data/deck_info.dart';
+import 'package:ygo_data/deck_list_page.dart';
+import 'package:ygo_data/ygo_data.dart';
 
 import 'deck_api_client.dart';
 

@@ -1,5 +1,5 @@
-import 'package:ygo_card/card_info.dart';
-import 'package:ygo_card/lf_table.dart';
+import 'package:ygo_data/card_info.dart';
+import 'package:ygo_data/lf_table.dart';
 
 /// 卡组校验器
 ///

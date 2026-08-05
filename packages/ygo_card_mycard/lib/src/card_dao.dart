@@ -3,7 +3,7 @@ import 'dart:developer' as console;
 import 'package:sqflite/sqflite.dart';
 
 import '../../src/card_info.dart';
-import 'package:ygo_card/card_info.dart' as pkg;
+import 'package:ygo_data/card_info.dart' as pkg;
 /// Pure data-access layer for card queries against a cards.cdb SQLite database.
 ///
 /// Accepts an already-open [Database] in the constructor — it does **not** own

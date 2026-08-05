@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ygo_card/card_info.dart';
+import 'package:ygo_data/card_info.dart';
 import '../../models/deck_model.dart';
 import '../../pages/deck_editor/deck_editor_store.dart';
 import 'deck_zone_widget.dart';

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ygo_deck/deck_info.dart';
+import 'package:ygo_data/deck_info.dart';
 import '../../pages/deck_editor/deck_editor_store.dart';
 
 class DeckListPanel extends StatelessWidget {

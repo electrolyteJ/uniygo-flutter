@@ -1,6 +1,6 @@
 import 'dart:developer' as console;
 
-import 'package:ygo_card/lf_table.dart';
+import 'package:ygo_data/lf_table.dart';
 
 /// 禁限卡表缓存，按 hash 索引: hash → LfTable
 Map<int, LfTable> lflistHashToTable = {};
