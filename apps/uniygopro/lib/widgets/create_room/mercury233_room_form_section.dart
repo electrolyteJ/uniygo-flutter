@@ -260,14 +260,17 @@ class _Mercury233RoomFormSectionState extends State<Mercury233RoomFormSection> {
           ],
         ),
         const SizedBox(height: 8),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          activeTrackColor: Colors.amber,
-          value: widget.spec.manualRoomStringEnabled,
-          onChanged: (value) => _setManualMode(value, result.value),
-          title: Text(
-            '手动编辑最终房间串',
-            style: TextStyle(color: Colors.blueGrey.shade100),
+        Material(
+          color: const Color(0xFF1E2A38),
+          child: SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            activeTrackColor: Colors.amber,
+            value: widget.spec.manualRoomStringEnabled,
+            onChanged: (value) => _setManualMode(value, result.value),
+            title: Text(
+              '手动编辑最终房间串',
+              style: TextStyle(color: Colors.blueGrey.shade100),
+            ),
           ),
         ),
         if (widget.spec.manualRoomStringEnabled)

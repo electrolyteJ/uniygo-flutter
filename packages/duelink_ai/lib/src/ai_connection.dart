@@ -65,7 +65,7 @@ class AiConnection implements DuelConnection {
   // ──────────── DuelConnection 接口 ────────────
 
   @override
-  Future<void> connect(String address, int port) async {
+  Future<void> connect(Uri address) async {
     _state = ConnectionState.connecting;
     _stateController.add(_state);
 

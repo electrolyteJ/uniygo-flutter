@@ -13,8 +13,8 @@ workspace:
   - packages/ygo_card_baige
   - packages/ygo_banlist_mycard
   - packages/duelink
-  - packages/duelink_online
-  - packages/duelink_lan
+  - packages/duelink_websocket
+  - packages/duelink_socket
   - packages/duelink_ai
   - packages/ocgcore
   - apps/uniygopro

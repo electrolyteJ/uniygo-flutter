@@ -1,43 +1,38 @@
 import 'dart:async';
-import 'dart:developer' as console;
-import 'dart:typed_data';
+import 'dart:io';
 import 'package:duelink/duelink.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 
-/// 在线WebSocket连接实现。
+/// TCP Socket 连接实现。
 ///
 /// 工作在 [YgoCtosMsg] / [YgoStocMsg] 消息对象上，
 /// 线格式由 duelink 的 [encodeCtos] / [decodeStocs] 负责。
-class OnlineConnection implements DuelConnection {
-  WebSocketChannel? _channel;
+class SocketConnection implements DuelConnection {
+  Socket? _socket;
   final _msgCtrl = StreamController<YgoStocMsg>.broadcast();
   final _stateController = StreamController<ConnectionState>.broadcast();
   ConnectionState _state = ConnectionState.disconnected;
 
   @override
-  Future<void> connect(String address, int port) async {
+  Future<void> connect(Uri address) async {
     _state = ConnectionState.connecting;
     _stateController.add(_state);
+
     try {
-      console.log('Connecting to wss://$address:$port');
-      _channel = WebSocketChannel.connect(Uri.parse('wss://$address:$port'));
-      await _channel!.ready;
+      _socket = await Socket.connect(address.host, address.port);
       _state = ConnectionState.connected;
       _stateController.add(_state);
-      _channel!.stream.listen(
+
+      _socket!.listen(
         (data) {
-          final bytes = data is List<int> ? Uint8List.fromList(data) : data as Uint8List;
-          for (final s in decodeStocs(bytes)) {
+          for (final s in decodeStocs(data)) {
             _msgCtrl.add(s);
           }
         },
-        onError: (e) {
-          console.log('WebSocket error: $e');
+        onError: (error) {
           _state = ConnectionState.error;
           _stateController.add(_state);
         },
         onDone: () {
-          console.log('WebSocket connection closed');
           _state = ConnectionState.disconnected;
           _stateController.add(_state);
         },
@@ -51,19 +46,7 @@ class OnlineConnection implements DuelConnection {
 
   @override
   void send(YgoCtosMsg msg) {
-    if (_state != ConnectionState.connected || _channel == null) {
-      console.log(
-        'Ignoring send while connection state is $_state: $msg',
-      );
-      return;
-    }
-    try {
-      _channel!.sink.add(encodeCtos(msg));
-    } on StateError catch (e) {
-      console.log('Ignoring send on closed socket: $e');
-      _state = ConnectionState.disconnected;
-      _stateController.add(_state);
-    }
+    _socket?.add(encodeCtos(msg));
   }
 
   @override
@@ -71,8 +54,7 @@ class OnlineConnection implements DuelConnection {
 
   @override
   Future<void> disconnect() async {
-    await _channel?.sink.close();
-    _channel = null;
+    await _socket?.close();
     _state = ConnectionState.disconnected;
     _stateController.add(_state);
   }

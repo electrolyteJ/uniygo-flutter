@@ -5,7 +5,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:duelink/duelink.dart';
-import 'package:duelink_online/duelink_online.dart';
+import 'package:duelink_websocket/duelink_websocket.dart';
 import 'package:service_loader/service_loader.dart';
 import 'package:test/test.dart';
 
@@ -215,11 +215,11 @@ void main() {
   late List<YgoStocMsg> aM, bM;
 
   setUp(() {
-    if (!ServiceFactory.isRegistered<OnlineDuelService>()) {
-      ServiceFactory.register<OnlineDuelService>(OnlineDuelService.new);
+    if (!ServiceFactory.isRegistered<WebSocketDuelService>()) {
+      ServiceFactory.register<WebSocketDuelService>(WebSocketDuelService.new);
     }
-    alice = ServiceFactory.create<OnlineDuelService>();
-    bob = ServiceFactory.create<OnlineDuelService>();
+    alice = ServiceFactory.create<WebSocketDuelService>();
+    bob = ServiceFactory.create<WebSocketDuelService>();
     aS = []; bS = []; aM = []; bM = [];
     alice.onRoomStageChange.listen(aS.add);
     bob.onRoomStageChange.listen(bS.add);
@@ -236,7 +236,8 @@ void main() {
   });
 
   Future<void> join(IDuelService s, String n, String pw) async {
-    await s.connect(kServerHost, kServerPort);
+    final uri = 'wss://$kServerHost:$kServerPort';
+    await s.connect(Uri.parse(uri));
     s.setPlayerName(n);
     s.enterRoom(pw);
   }
@@ -391,7 +392,7 @@ void main() {
       expect(d, greaterThan(2), reason: '含强欲之壶的卡组应有多次抽卡(>2)，实际$d');
     });
 
-    // ═══ 完整回合交互：召唤→发动魔法→覆盖陷阱→攻击→LP ═══
+    // ═══ 完整回合交互：召唤→发动魔法→盖放陷阱→攻击→LP ═══
     test('A召唤→发动强欲→盖放落穴→结束 B召唤→攻击→LP计算→结束', () async {
       // 这个回合脚本依赖固定的起手与额外卡组，这里直接使用内联后的 A Starter Deck 数据。
       await startDuel(

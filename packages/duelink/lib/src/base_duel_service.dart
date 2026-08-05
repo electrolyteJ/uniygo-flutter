@@ -56,8 +56,8 @@ abstract class BaseDuelService implements IDuelService {
   ConnectionState get connectionState => _connState;
 
   @override
-  Future<void> connect(String address, int port) async {
-    await connection.connect(address, port);
+  Future<void> connect(Uri address) async {
+    await connection.connect(address);
     _connectionSub = connection.messages.listen(_onServerMessage);
   }
 

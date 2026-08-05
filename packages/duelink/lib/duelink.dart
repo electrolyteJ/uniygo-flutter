@@ -157,7 +157,7 @@ import 'duelink.dart';
 abstract class IDuelService implements IService {
   // ─── 连接 ──────────────────────────────────────────
 
-  Future<void> connect(String address, int port);
+  Future<void> connect(Uri address);
 
   Future<void> disconnect();
 
@@ -238,11 +238,11 @@ enum ConnectionState { disconnected, connecting, connected, error }
 /// 传输层抽象 — 网络数据包的发送与接收。
 ///
 /// 每种连接场景提供一个实现：
-/// - [OnlineConnection]（WebSocket）
+/// - [WebSocketConnection]（WebSocket）
 /// - [AiConnection]（本地模拟）
-/// - [LanConnection]（TCP 直连）
+/// - [SocketConnection]（TCP 直连）
 abstract class DuelConnection {
-  Future<void> connect(String address, int port);
+  Future<void> connect(Uri address);
 
   void send(YgoCtosMsg data);
 

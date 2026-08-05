@@ -96,7 +96,7 @@ void main() {
           noShuffleDeck: true);
       final pw = RoomPassword.encodeCreate(options: o, roomId: 'ai_diag');
 
-      await player.connect('ai', 0);
+      await player.connect(Uri.parse(''));
       expect(player.connectionState, isNot(ConnectionState.error),
           reason: 'connection should not be in error state');
 
@@ -121,7 +121,7 @@ void main() {
           noShuffleDeck: true);
       final pw = RoomPassword.encodeCreate(options: o, roomId: 'ai_diag2');
 
-      await player.connect('ai', 0);
+      await player.connect(Uri.parse(''));
       player.setPlayerName('Human');
       player.enterRoom(pw);
 

@@ -4,13 +4,13 @@ import 'package:source_gen/source_gen.dart';
 
 /// 一条服务注册信息。
 class ServiceRegistration {
-  /// 服务类型源码（如 `OnlineDuelService`），用作注册表的 key。
+  /// 服务类型源码（如 `WebSocketDuelService`），用作注册表的 key。
   final String service;
 
   /// 服务类型所在库的 uri（用于生成 import）。
   final Uri? serviceLibraryUri;
 
-  /// 生成代码中的工厂表达式（如 `() => OnlineDuelService()`）。
+  /// 生成代码中的工厂表达式（如 `() => WebSocketDuelService()`）。
   final String creator;
 
   /// 元素所在库的 uri（用于生成 import）。

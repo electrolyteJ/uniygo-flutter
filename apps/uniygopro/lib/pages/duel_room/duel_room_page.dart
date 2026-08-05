@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:developer' as console;
 import 'package:duelink/duelink.dart' as duel;
 import 'package:duelink/duelink.dart';
-import 'package:duelink_online/duelink_online.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:service_loader/service_loader.dart';
 import 'package:uniygopro/pages/duel_room/field/duel_field_page.dart';
 import 'package:uniygopro/pages/duel_room/waiting/waiting_room_page.dart';
 import '../../constants.dart';
+import '../../service_singleton.dart';
 import 'field/duel_board_store.dart';
 import 'waiting/duel_chat_store.dart';
 import 'duel_room_store.dart';
@@ -28,7 +28,7 @@ class DuelRoomPage extends StatefulWidget {
 }
 
 class _DuelRoomPageState extends State<DuelRoomPage> {
-  final IDuelService _duelService = ServiceFactory.create<OnlineDuelService>();
+  final IDuelService _duelService = ServiceSingleton.instance.duelService;
 
 
   StreamSubscription<YgoStocMsg>? _msgSub;
@@ -73,12 +73,15 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
 
     final host = matchRoomStore.serverAddress;
     final port = matchRoomStore.serverPort;
+    final env = matchRoomStore.environment;
     final password = matchRoomStore.serverPassword;
     if (host == null || port == null) {
       console.log('Server address or port is null');
       return;
     }
-    await _duelService.connect(host, port);
+    final uri = Uri.tryParse('${env.schema}://$host:$port');
+    if (uri == null) return;
+    await _duelService.connect(uri);
     _duelService.setPlayerName(matchRoomStore.username);
     _duelService.enterRoom(password ?? '');
   }
@@ -513,7 +516,6 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
         }
       });
     }
-    console.log('DuelRoomPage build, current stage: ${duel.stage}');
     return Scaffold(
       backgroundColor: duel.stage is RoomInDuel
           ? Colors.brown.shade900

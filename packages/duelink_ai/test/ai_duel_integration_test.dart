@@ -142,7 +142,7 @@ void main() {
     const o = RoomOptions(mode: RoomMode.single, noCheckDeck: true, noShuffleDeck: true);
     final pw = RoomPassword.encodeCreate(options: o, roomId: 'ai_test');
 
-    await player.connect('ai', 0);
+    await player.connect(Uri.parse(''));
     player.setPlayerName('Human');
     player.enterRoom(pw);
 

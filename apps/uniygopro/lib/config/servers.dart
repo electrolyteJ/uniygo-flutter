@@ -39,28 +39,29 @@ class GameServer {
 /// 自由房间可选环境
 enum DuelEnvironment {
   /// 默认 Koishi 通用环境
-  koishi('Koishi', 'koishi.momobako.com', 7211),
+  koishi("wss",'Koishi', 'koishi.momobako.com', 7211),
 
   /// 默认 mycard 自定义房间
-  mycard('mycard', 'tiramisu.moenext.com', 7912),
-  mercury233('mercury233', 's1.ygo233.com', 233),
+  mycard("wss",'mycard', 'tiramisu.moenext.com', 7912),
+  mercury233("tcp",'mercury233', 's1.ygo233.com', 233),
 
   /// 先行卡测试环境
-  koishi_preRelease('koishi先行卡测试', 'koishi.momobako.com', 889),
-  mycard_preRelease('mycard先行卡测试', 'mygo.superpre.pro', 888),
-  mercury233_preRelease('mercury233先行卡测试', 's1.ygo233.com', 23333),
+  koishi_preRelease("wss",'koishi先行卡测试', 'koishi.momobako.com', 889),
+  mycard_preRelease("wss",'mycard先行卡测试', 'mygo.superpre.pro', 888),
+  mercury233_preRelease("tcp",'mercury233先行卡测试', 's1.ygo233.com', 23333),
 
   /// 408 特殊规则环境
-  env408('408 环境', 'koishi.momobako.com', 1408),
+  env408("wss",'408 环境', 'koishi.momobako.com', 1408),
 
   /// YGOPro PC LAN 服务器
-  ygopro('YGOPro LAN', '', 7911);
+  ygopro("wss",'YGOPro LAN', '', 7911);
 
   final String displayName;
+  final String schema;
   final String host;
   final int port;
 
-  const DuelEnvironment(this.displayName, this.host, this.port);
+  const DuelEnvironment(this.schema, this.displayName, this.host, this.port);
 
   /// 是否允许创建房间（Koishi/先行卡/408 只允许加入）
   bool get canCreate => this == mycard || this == ygopro || this == mercury233;

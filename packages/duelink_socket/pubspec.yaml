@@ -1,5 +1,5 @@
-name: duelink_online
-description: WebSocket implementation for duelink online duels.
+name: duelink_socket
+description: TCP Socket implementation for duelink duels.
 version: 0.0.1
 environment:
   sdk: ^3.12.2
@@ -11,7 +11,6 @@ dependencies:
     sdk: flutter
   duelink:
     path: ../duelink
-  web_socket_channel: ^3.0.0
   async: ^2.11.0
   service_loader:
     path: ../service_loader

@@ -25,10 +25,10 @@ dependencies:
     path: ../../packages/service_loader
   duelink:
     path: ../../packages/duelink
-  duelink_online:
-    path: ../../packages/duelink_online
-  duelink_lan:
-    path: ../../packages/duelink_lan
+  duelink_websocket:
+    path: ../../packages/duelink_websocket
+  duelink_socket:
+    path: ../../packages/duelink_socket
   duelink_ai:
     path: ../../packages/duelink_ai
   ygo_data:

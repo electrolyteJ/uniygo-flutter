@@ -1,6 +1,6 @@
 ---
 name: create-duelink-derivative
-description: Use when creating a new duelink derivative package (like duelink_ai, duelink_online, duelink_lan) in the uniygo-flutter monorepo. Triggered by requests to create a new duel connection implementation, duel service variant, or dueling mode package.
+description: Use when creating a new duelink derivative package (like duelink_ai, duelink_websocket, duelink_socket) in the uniygo-flutter monorepo. Triggered by requests to create a new duel connection implementation, duel service variant, or dueling mode package.
 ---
 
 # Create duelink Derivative Package
@@ -115,7 +115,7 @@ class <Name>Connection implements DuelConnection {
 
 Reference implementations at:
 - `packages/duelink_ai/lib/src/ai_connection.dart` — local OCGCore engine
-- `packages/duelink_online/lib/src/online_connection.dart` — WebSocket transport
+- `packages/duelink_websocket/lib/src/websocket_connection.dart` — WebSocket transport
 
 ### 5. Create main entry file
 
