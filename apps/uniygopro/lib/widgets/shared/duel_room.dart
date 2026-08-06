@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../pages/duel_room/field/duel_board_store.dart';
+import '../../pages/duel_room/duel/duel_field_store.dart';
 import '../../pages/duel_room/waiting/duel_chat_store.dart';
 import '../../pages/duel_room/duel_room_store.dart';
-import '../../pages/duel_room/field/duel_selection_store.dart';
-import '../../pages/duel_room/field/duel_ui_store.dart';
 import '../../pages/create_room/match_store.dart';
 
 Widget buildBackButton(BuildContext context) {
@@ -55,16 +53,12 @@ void backHomeDialog({
 
 void backHome(BuildContext context) {
   final duelRoomState = context.read<DuelRoomStore>();
-  final duelBoardStore = context.read<DuelBoardStore>();
-  final selectionStore = context.read<DuelSelectionStore>();
+  final duelStore = context.read<DuelFieldStore>();
   final duelChatStore = context.read<DuelChatStore>();
-  final uiStore = context.read<DuelUiStore>();
   final matchRoomStore = context.read<MatchStore>();
   duelRoomState.reset();
-  duelBoardStore.reset();
-  selectionStore.reset();
+  duelStore.reset();
   duelChatStore.reset();
-  uiStore.reset();
   matchRoomStore.reset();
   context.go('/');
 }

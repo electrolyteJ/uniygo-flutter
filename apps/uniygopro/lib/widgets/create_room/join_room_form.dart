@@ -43,6 +43,22 @@ class _JoinRoomFormState extends State<JoinRoomForm> {
   }
 
   Future<void> _join(BuildContext context) async {
+    final matchStore = context.read<MatchStore>();
+    final server = widget.server;
+    final env = widget.env;
+
+    // AI 本地人机对战：无需密码，直接进入（密码内容被 AiConnection 忽略）
+    if (env.isAi) {
+      setState(() {
+        _connecting = true;
+        _error = null;
+      });
+      matchStore.selectServer(server, env, RoomPassword.encodeJoin());
+      Navigator.of(context).pop();
+      if (context.mounted) context.go('/duel-room');
+      return;
+    }
+
     final pw = _pwCtrl.text.trim();
     if (pw.isEmpty) {
       setState(
@@ -54,10 +70,6 @@ class _JoinRoomFormState extends State<JoinRoomForm> {
       _connecting = true;
       _error = null;
     });
-
-    final matchStore = context.read<MatchStore>();
-    final server = widget.server;
-    final env = widget.env;
 
     final password = env.usesRoomStringDsl
         ? pw
@@ -71,6 +83,24 @@ class _JoinRoomFormState extends State<JoinRoomForm> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.env.isAi) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 8),
+          Text(
+            '与本地 AI 进行一场单局对战，无需联网。',
+            style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          connectButton(
+            label: '开始人机对战',
+            connecting: _connecting,
+            onPressed: () => _join(context),
+          ),
+        ],
+      );
+    }
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

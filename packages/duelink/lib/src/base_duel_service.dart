@@ -217,7 +217,7 @@ abstract class BaseDuelService implements IDuelService {
       if (idx >= 0) updated[idx] = updated[idx].copyWith(pos: m.pos);
       _setPlayers(updated);
     }
-    console.log('RoomStage: PLAYER_CHANGE → $_roomStage ${updated}');
+    console.log('RoomStage: PLAYER_CHANGE → $_roomStage ');
   }
 
   void _onWatchChange(StocHsWatchChange m) {

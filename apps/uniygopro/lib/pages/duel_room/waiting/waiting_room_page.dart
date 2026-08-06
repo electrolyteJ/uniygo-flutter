@@ -1,3 +1,5 @@
+import 'dart:developer' as console;
+
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:ygo_data/lf_table.dart';
@@ -8,19 +10,8 @@ import '../../../widgets/waiting_room/player_panel.dart';
 import '../../../widgets/waiting_room/room_info_panel.dart';
 import '../duel_room_store.dart';
 
-class WaitingRoomPage extends StatefulWidget {
+class WaitingRoomPage extends StatelessWidget {
   const WaitingRoomPage({super.key});
-
-  @override
-  State<WaitingRoomPage> createState() => _WaitingRoomPageState();
-}
-
-class _WaitingRoomPageState extends State<WaitingRoomPage> {
-
-  @override
-  void initState() {
-    super.initState();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,12 +23,7 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
         Expanded(
           child: Row(
             children: [
-              Expanded(
-                flex: 3,
-                child: PlayerPanel(
-                  mySlot: mySlotVal,
-                ),
-              ),
+              Expanded(flex: 3, child: PlayerPanel(mySlot: mySlotVal)),
               Expanded(
                 flex: 4,
                 child: Column(

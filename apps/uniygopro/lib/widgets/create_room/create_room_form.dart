@@ -6,10 +6,12 @@ import 'package:uniygopro/widgets/create_room/password_field.dart';
 import 'package:uniygopro/widgets/create_room/mercury233_room_form_section.dart';
 import 'package:uniygopro/widgets/create_room/mercury233_room_spec.dart';
 import 'package:uniygopro/widgets/create_room/mercury233_room_string_codec.dart';
+import 'package:uniygopro/widgets/create_room/room_history_list.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../config/servers.dart';
 import '../../pages/create_room/match_store.dart';
+import '../../pages/create_room/room_history.dart';
 import '../shared/create_room.dart';
 
 class CreateRoomForm extends StatefulWidget {
@@ -38,6 +40,87 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
   int _timeLimit = 180;
   Mercury233RoomSpec _mercury233Spec = const Mercury233RoomSpec();
 
+  /// 全部创建记录（展示时按当前环境过滤）。
+  List<CreatedRoomRecord> _history = [];
+
+  List<CreatedRoomRecord> get _envHistory =>
+      _history.where((r) => r.env == widget.env).toList();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    final records = await RoomHistoryStore.load();
+    if (mounted) setState(() => _history = records);
+  }
+
+  Future<void> _saveRecord(CreatedRoomRecord record) async {
+    await RoomHistoryStore.add(record);
+    await _loadHistory();
+  }
+
+  /// 点击历史卡片：把记录回填到表单。
+  void _fillFromHistory(CreatedRoomRecord record) {
+    setState(() {
+      final spec = record.mercurySpec;
+      final options = record.options;
+      if (spec != null) {
+        _mercury233Spec = spec;
+      } else if (options != null) {
+        _nameCtrl.text = record.roomName;
+        _pwCtrl.text = record.password;
+        _startLp = options.startLp;
+        _startHand = options.startHand;
+        _drawCount = options.drawCount;
+        _rule = options.rule;
+        _duelRule = options.duelRule;
+        _mode = options.mode;
+        _noCheckDeck = options.noCheckDeck;
+        _noShuffleDeck = options.noShuffleDeck;
+        _timeLimit = options.timeLimit;
+      }
+      _error = null;
+    });
+  }
+
+  /// 点击历史卡片的播放按钮：跳过表单直接创建并进入房间。
+  Future<void> _enterFromHistory(CreatedRoomRecord record) async {
+    final spec = record.mercurySpec;
+    if (spec != null) {
+      final result = Mercury233RoomStringCodec.build(spec);
+      if (result.error != null) {
+        setState(() => _error = result.error);
+        return;
+      }
+      await _saveRecord(record.touch());
+      if (!mounted) return;
+      _enterRoom(
+        options: spec.toRoomOptions(),
+        roomName: spec.roomName.trim(),
+        password: result.value,
+      );
+      return;
+    }
+    final options = record.options;
+    if (options == null) return;
+    final password = _encodePassword(options, record.password);
+    await _saveRecord(record.touch());
+    if (!mounted) return;
+    _enterRoom(
+      options: options,
+      roomName: record.roomName,
+      password: password,
+    );
+  }
+
+  Future<void> _deleteFromHistory(CreatedRoomRecord record) async {
+    await RoomHistoryStore.remove(record);
+    await _loadHistory();
+  }
+
   @override
   void dispose() {
     _nameCtrl.dispose();
@@ -65,15 +148,18 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
         _connecting = true;
         _error = null;
       });
-      final matchStore = context.read<MatchStore>();
-      matchStore.configureCreatedRoom(
-        roomOptions: _mercury233Spec.toRoomOptions(),
-        roomName: _mercury233Spec.roomName.trim(),
+      final spec = _mercury233Spec;
+      await _saveRecord(CreatedRoomRecord(
+        env: widget.env,
+        roomName: spec.roomName.trim(),
+        mercurySpec: spec,
+      ));
+      if (!context.mounted) return;
+      _enterRoom(
+        options: spec.toRoomOptions(),
+        roomName: spec.roomName.trim(),
+        password: result.value,
       );
-      matchStore.selectServer(widget.server, widget.env, result.value);
-
-      Navigator.of(context).pop();
-      if (context.mounted) context.go('/duel-room');
       return;
     }
 
@@ -99,28 +185,45 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
       timeLimit: _timeLimit,
     );
 
+    final roomName = _nameCtrl.text.trim();
+    final password = _encodePassword(options, pw);
+    await _saveRecord(CreatedRoomRecord(
+      env: widget.env,
+      roomName: roomName,
+      password: pw,
+      options: options,
+    ));
+    if (!context.mounted) return;
+    _enterRoom(options: options, roomName: roomName, password: password);
+  }
+
+  /// 按环境编码创建房间密码（mycard 需要 RoomPassword 编码）。
+  String _encodePassword(RoomOptions options, String pw) {
+    if (widget.env.useEncodedPassword) {
+      // 每次操作前都要重新获取 u16Secret
+      // const u16Secret = await getUserU16Secret(user.token);
+      //todo: 这里的 u16Secret 需要从服务器获取，暂时使用 0 作为占位符
+      return RoomPassword.encodeCreate(
+        options: options,
+        roomId: pw,
+        secret: 0,
+      );
+    }
+    return pw;
+  }
+
+  /// 写入 MatchStore 并跳转到决斗房间页。
+  void _enterRoom({
+    required RoomOptions options,
+    required String roomName,
+    required String password,
+  }) {
     final matchStore = context.read<MatchStore>();
     matchStore.configureCreatedRoom(
       roomOptions: options,
-      roomName: _nameCtrl.text.trim(),
+      roomName: roomName,
     );
-
-    final env = widget.env;
-    String password;
-    if (env.useEncodedPassword) {
-      // 每次操作前都要重新获取 u16Secret
-      // const u16Secret = await getUserU16Secret(user.token);
-      const u16Secret = 0;
-      //todo: 这里的 u16Secret 需要从服务器获取，暂时使用 0 作为占位符
-      password = RoomPassword.encodeCreate(
-        options: options,
-        roomId: pw,
-        secret: u16Secret,
-      );
-    } else {
-      password = pw;
-    }
-    matchStore.selectServer(widget.server, env, password);
+    matchStore.selectServer(widget.server, widget.env, password);
 
     Navigator.of(context).pop();
     if (context.mounted) context.go('/duel-room');
@@ -133,6 +236,13 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 4),
+          if (_envHistory.isNotEmpty)
+            RoomHistoryList(
+              records: _envHistory,
+              onFill: _fillFromHistory,
+              onEnter: (r) => _enterFromHistory(r),
+              onDelete: (r) => _deleteFromHistory(r),
+            ),
           if (widget.env.usesRoomStringDsl)
             Mercury233RoomFormSection(
               spec: _mercury233Spec,

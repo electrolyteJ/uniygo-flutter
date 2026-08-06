@@ -1,6 +1,7 @@
 class BattleAction {
   final int type;
   final int sequence;
+  final int code;
   final int attackerController;
   final int attackerLocation;
   final int attackerSequence;
@@ -14,6 +15,7 @@ class BattleAction {
   const BattleAction({
     required this.type,
     required this.sequence,
+    this.code = 0,
     required this.attackerController,
     required this.attackerLocation,
     required this.attackerSequence,

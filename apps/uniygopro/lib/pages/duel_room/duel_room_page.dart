@@ -4,21 +4,17 @@ import 'package:duelink/duelink.dart' as duel;
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:service_loader/service_loader.dart';
-import 'package:uniygopro/pages/duel_room/field/duel_field_page.dart';
 import 'package:uniygopro/pages/duel_room/waiting/waiting_room_page.dart';
 import '../../constants.dart';
 import '../../service_singleton.dart';
-import 'field/duel_board_store.dart';
+import 'duel/duel_field_store.dart';
+import 'duel/duel_field_page.dart';
 import 'waiting/duel_chat_store.dart';
 import 'duel_room_store.dart';
-import 'field/duel_selection_store.dart';
-import 'field/duel_ui_store.dart';
 import '../create_room/match_store.dart';
 import '../../models/duel_event.dart';
 import '../../eventbus/duel_event_mapper.dart';
 import '../../widgets/shared/duel_room.dart';
-
 
 class DuelRoomPage extends StatefulWidget {
   const DuelRoomPage({super.key});
@@ -30,14 +26,11 @@ class DuelRoomPage extends StatefulWidget {
 class _DuelRoomPageState extends State<DuelRoomPage> {
   final IDuelService _duelService = ServiceSingleton.instance.duelService;
 
-
   StreamSubscription<YgoStocMsg>? _msgSub;
 
   late final DuelRoomStore duelRoomStore;
   late final DuelChatStore duelChatStore;
-  late final DuelBoardStore duelBoardStore;
-  late final DuelSelectionStore selectionStore;
-  late final DuelUiStore uiStore;
+  late final DuelFieldStore duelStore;
   late final MatchStore matchRoomStore;
 
   @override
@@ -47,30 +40,13 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     duelRoomStore.bind(_duelService);
     duelChatStore = context.read<DuelChatStore>();
     duelChatStore.bind(_duelService);
-    duelBoardStore = context.read<DuelBoardStore>();
-    duelBoardStore.bind(_duelService);
-    selectionStore = context.read<DuelSelectionStore>();
-    selectionStore.bind(_duelService);
-    uiStore = context.read<DuelUiStore>();
+    duelStore = context.read<DuelFieldStore>();
+    duelStore.bind(_duelService);
     matchRoomStore = context.read<MatchStore>();
     _connect();
   }
 
   Future<void> _connect() async {
-    duelRoomStore.bindRoomStageChange(context);
-    _duelService.onDuelPhaseMessage.listen((phase) {
-      _handleNewPhase(phase);
-
-    });
-    _msgSub = _duelService.onServerMessage.listen((msg) {
-      console.log('Received server message: $msg');
-      _onMessage(msg);
-      if (msg.errorMsg != null) {
-        final err = msg.errorMsg!;
-        duelBoardStore.setError(err.errorType, err.errorCode);
-      }
-    });
-
     final host = matchRoomStore.serverAddress;
     final port = matchRoomStore.serverPort;
     final env = matchRoomStore.environment;
@@ -81,10 +57,29 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     }
     final uri = Uri.tryParse('${env.schema}://$host:$port');
     if (uri == null) return;
+
+    // connect() 必须在流订阅之前调用，否则 DuelService 门面会把订阅
+    // 路由到默认的 WebSocket 服务（而不是 AI/TCP 等目标协议）。
     await _duelService.connect(uri);
+
+    duelRoomStore.bindRoomStageChange(context);
+    _duelService.onDuelPhaseMessage.listen((phase) {
+      _handleNewPhase(phase);
+      duelStore.markChanged();
+    });
+    _msgSub = _duelService.onServerMessage.listen((msg) {
+      console.log('Received server message: $msg');
+      _onMessage(msg);
+      if (msg.errorMsg != null) {
+        final err = msg.errorMsg!;
+        duelStore.setError(err.errorType, err.errorCode);
+      }
+    });
+
     _duelService.setPlayerName(matchRoomStore.username);
     _duelService.enterRoom(password ?? '');
   }
+
   // ══════════════════════════════════════════
   // 消息处理 (from DuelStore)
   // ══════════════════════════════════════════
@@ -101,9 +96,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     if (event == null) return;
     _onEvent(event);
     duelRoomStore.markChanged();
-    duelBoardStore.markChanged();
-    selectionStore.markChanged();
-    uiStore.markChanged();
+    duelStore.markChanged();
   }
 
   void _onEvent(DuelEvent event) {
@@ -131,14 +124,14 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
             _handlePayLife(innerMsg);
             break;
           case MSG_CHAINING:
-            final name = duelBoardStore.handleChaining(innerMsg);
+            final name = duelStore.handleChaining(innerMsg);
             addLog('连锁发动 $name。');
             break;
           case MSG_CHAIN_END:
             _handleChainEnd(innerMsg);
             break;
           case MSG_SUMMONING:
-            final name = duelBoardStore.handleSummoning(innerMsg);
+            final name = duelStore.handleSummoning(innerMsg);
             addLog('正在召唤 $name。');
             break;
           case MSG_BATTLE:
@@ -181,7 +174,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
             _handleFieldDisabled(innerMsg as MsgFieldDisabled);
             break;
           case MSG_POS_CHANGE:
-            final card = duelBoardStore.handlePosChange(innerMsg);
+            final card = duelStore.handlePosChange(innerMsg);
             addLog('${card?.name} 表示形式变更。');
             break;
           case MSG_SHUFFLE_HAND:
@@ -241,89 +234,76 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
         }
     }
   }
+
   void addLog(String log) {
     duelRoomStore.duelLogs.add(log);
     duelRoomStore.markChanged();
   }
 
-
   void _handleStart(dynamic data) {
     final msg = data as MsgStart;
     final isFirst = msg.isFirst;
-    duelBoardStore.myController = isFirst ? 0 : 1;
+    duelStore.myController = isFirst ? 0 : 1;
 
-    duelBoardStore.selfLp = isFirst ? msg.life1 : msg.life2;
-    duelBoardStore.opponentLp = isFirst ? msg.life2 : msg.life1;
+    duelStore.selfLp = isFirst ? msg.life1 : msg.life2;
+    duelStore.opponentLp = isFirst ? msg.life2 : msg.life1;
 
-    duelBoardStore.selfDeck = isFirst ? msg.deckSize1 : msg.deckSize2;
-    duelBoardStore.selfExtra = isFirst ? msg.extraSize1 : msg.extraSize2;
-    duelBoardStore.oppDeck = isFirst ? msg.deckSize2 : msg.deckSize1;
-    duelBoardStore.oppExtra = isFirst ? msg.extraSize2 : msg.extraSize1;
+    duelStore.selfDeck = isFirst ? msg.deckSize1 : msg.deckSize2;
+    duelStore.selfExtra = isFirst ? msg.extraSize1 : msg.extraSize2;
+    duelStore.oppDeck = isFirst ? msg.deckSize2 : msg.deckSize1;
+    duelStore.oppExtra = isFirst ? msg.extraSize2 : msg.extraSize1;
 
-    duelBoardStore.selfHand.clear();
-    duelBoardStore.opponentHand.clear();
-    duelBoardStore.fieldCards.clear();
+    duelStore.selfHand.clear();
+    duelStore.opponentHand.clear();
+    duelStore.fieldCards.clear();
 
-    duelBoardStore.turnCount = 1;
+    duelStore.turnCount = 1;
     addLog('决斗开始。');
   }
 
   void _handleNewTurn(dynamic data) {
     final msg = data as MsgNewTurn;
-    duelBoardStore.currentPlayer = msg.player;
-    duelBoardStore.turnCount++;
+    duelStore.currentPlayer = msg.player;
+    duelStore.turnCount++;
     final name = duelRoomStore.players
         .firstWhere(
           (p) => p.pos == msg.player,
-      orElse: () => PlayerInfo(name: '玩家${msg.player}', pos: msg.player),
-    )
+          orElse: () => PlayerInfo(name: '玩家${msg.player}', pos: msg.player),
+        )
         .name;
     addLog('$name 的回合。');
   }
 
   void _handleNewPhase(DuelPhase duelPhase) {
-    duelBoardStore.phase = duelPhase;
+    duelStore.phase = duelPhase;
+    // 阶段合法性（enableBp/enableM2/enableEp）只由服务端下发的
+    // MSG_SELECT_IDLE_CMD / MSG_SELECT_BATTLE_CMD 驱动，这里不做本地推断。
     final phaseName = getDuelPhaseText(context, duelPhase);
-    switch (duelPhase) {
-      case DuelPhase.m1:
-        selectionStore.enableBp = true;
-        selectionStore.enableM2 = false;
-        selectionStore.enableEp = true;
-        break;
-      case DuelPhase.m2:
-        selectionStore.enableBp = false;
-        selectionStore.enableM2 = false;
-        selectionStore.enableEp = true;
-        break;
-      default:
-        break;
-    }
     if (phaseName?.isNotEmpty == true) addLog('$phaseName 开始。');
   }
 
   void _handleDraw(dynamic data) {
     final msg = data as MsgDraw;
-    duelBoardStore.applyDraw(msg);
+    duelStore.applyDraw(msg);
     final name = duelRoomStore.players
         .firstWhere(
           (p) => p.pos == msg.player,
-      orElse: () => PlayerInfo(name: '玩家${msg.player}', pos: msg.player),
-    )
+          orElse: () => PlayerInfo(name: '玩家${msg.player}', pos: msg.player),
+        )
         .name;
     addLog('$name 抽了 ${msg.count} 张卡。');
   }
 
   void _handleUpdateData(MsgUpdateData msg) {
-    duelBoardStore.applyUpdateData(msg);
+    duelStore.applyUpdateData(msg);
   }
 
   void _handleUpdateCard(MsgUpdateCard msg) {
-    duelBoardStore.applyUpdateCard(msg);
+    duelStore.applyUpdateCard(msg);
   }
 
-
   void _handleReloadField(MsgReloadField msg) {
-    duelBoardStore.applyReloadField(msg);
+    duelStore.applyReloadField(msg);
   }
 
   void _handleWaiting(MsgWait msg) {
@@ -331,24 +311,25 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
   }
 
   void _handleMove(dynamic data) {
-    duelBoardStore.applyMove(data as MsgMove);
+    duelStore.applyMove(data as MsgMove);
   }
-
 
   void _handleAttack(dynamic data) {
     final msg = data as MsgAttack;
-    duelBoardStore.lastAttackFrom =
-    '${msg.attacker.controller}_${msg.attacker.location}_${msg.attacker.sequence}';
+    duelStore.lastAttackFrom =
+        '${msg.attacker.controller}_${msg.attacker.location}_${msg.attacker.sequence}';
 
     if (msg.target != null) {
-      duelBoardStore.lastAttackTo =
-      '${msg.target!.controller}_${msg.target!.location}_${msg.target!.sequence}';
+      duelStore.lastAttackTo =
+          '${msg.target!.controller}_${msg.target!.location}_${msg.target!.sequence}';
     } else {
-      duelBoardStore.lastAttackTo = null;
+      duelStore.lastAttackTo = null;
     }
-    final attackerName = duelBoardStore.fieldCards[duelBoardStore.lastAttackFrom]?.name ?? '怪兽';
-    if (duelBoardStore.lastAttackTo != null) {
-      final targetName = duelBoardStore.fieldCards[duelBoardStore.lastAttackTo]?.name ?? '怪兽';
+    final attackerName =
+        duelStore.fieldCards[duelStore.lastAttackFrom]?.name ?? '怪兽';
+    if (duelStore.lastAttackTo != null) {
+      final targetName =
+          duelStore.fieldCards[duelStore.lastAttackTo]?.name ?? '怪兽';
       addLog('$attackerName 攻击 $targetName。');
     } else {
       addLog('$attackerName 发动直接攻击。');
@@ -357,42 +338,42 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
 
   void _handleDamage(dynamic data) {
     final msg = data as MsgDamage;
-    if (msg.player == duelBoardStore.myController) {
-      duelBoardStore.selfLp -= msg.value;
+    if (msg.player == duelStore.myController) {
+      duelStore.selfLp -= msg.value;
     } else {
-      duelBoardStore.opponentLp -= msg.value;
+      duelStore.opponentLp -= msg.value;
     }
     final name = duelRoomStore.players
         .firstWhere(
           (p) => p.pos == msg.player,
-      orElse: () => PlayerInfo(name: '玩家${msg.player}', pos: msg.player),
-    )
+          orElse: () => PlayerInfo(name: '玩家${msg.player}', pos: msg.player),
+        )
         .name;
     addLog('$name 受到 ${msg.value} 点伤害。');
   }
 
   void _handlePayLife(dynamic data) {
     final msg = data as MsgPayLpCost;
-    if (msg.player == duelBoardStore.myController) {
-      duelBoardStore.selfLp -= msg.value;
+    if (msg.player == duelStore.myController) {
+      duelStore.selfLp -= msg.value;
     } else {
-      duelBoardStore.opponentLp -= msg.value;
+      duelStore.opponentLp -= msg.value;
     }
     final name = duelRoomStore.players
         .firstWhere(
           (p) => p.pos == msg.player,
-      orElse: () => PlayerInfo(name: '玩家${msg.player}', pos: msg.player),
-    )
+          orElse: () => PlayerInfo(name: '玩家${msg.player}', pos: msg.player),
+        )
         .name;
     addLog('$name 支付了 ${msg.value} 点生命值。');
   }
 
   void _handleSelectIdleCmd(dynamic data) {
-    selectionStore.applyIdleCmd(data as MsgSelectIdleCmd);
+    duelStore.applyIdleCmd(data as MsgSelectIdleCmd);
   }
 
   void _handleSelectBattleCmd(dynamic data) {
-    selectionStore.applyBattleCmd(data as MsgSelectBattleCmd);
+    duelStore.applyBattleCmd(data as MsgSelectBattleCmd);
   }
 
   void _handleSelectGeneric(int func, dynamic data) {
@@ -418,74 +399,73 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
   }
 
   void _handleSelectPlace(MsgSelectPlace msg) {
-    selectionStore.applySelectPlace(msg);
+    duelStore.applySelectPlace(msg);
   }
 
   void _handleSelectCard(MsgSelectCard msg) {
-    selectionStore.applySelectCard(msg);
+    duelStore.applySelectCard(msg);
   }
 
   void _handleSelectChain(MsgSelectChain msg) {
-    selectionStore.applySelectChain(msg);
+    duelStore.applySelectChain(msg);
   }
 
   void _handleSelectEffectYn(MsgSelectEffectYn msg) {
-    selectionStore.applySelectEffectYn(msg);
+    duelStore.applySelectEffectYn(msg);
   }
 
   void _handleSelectYesNo(MsgSelectYesNo msg) {
-    selectionStore.applySelectYesNo(msg);
+    duelStore.applySelectYesNo(msg);
   }
 
   void _handleSelectPosition(MsgSelectPosition msg) {
-    selectionStore.applySelectPosition(msg);
+    duelStore.applySelectPosition(msg);
   }
 
   void _handleFieldDisabled(MsgFieldDisabled msg) {
-    duelBoardStore.applyFieldDisabled(msg);
+    duelStore.applyFieldDisabled(msg);
     addLog('区域禁用状态已更新。');
   }
 
   void _handleSelectTribute(MsgSelectTribute msg) {
-    selectionStore.applySelectTribute(msg);
+    duelStore.applySelectTribute(msg);
   }
 
   void _handleSelectCounter(MsgSelectCounter msg) {
-    selectionStore.applySelectCounter(msg);
+    duelStore.applySelectCounter(msg);
   }
 
   void _handleSelectSum(MsgSelectSum msg) {
-    selectionStore.applySelectSum(msg);
+    duelStore.applySelectSum(msg);
   }
 
   void _handleSortCard(MsgSortCard msg) {
-    selectionStore.applySortCard(msg);
+    duelStore.applySortCard(msg);
   }
 
-
   void _handleBattle(MsgBattle msg) {
-    duelBoardStore.applyBattle(msg);
+    duelStore.applyBattle(msg);
     addLog('战斗结算。');
   }
 
   void _handleChainEnd(dynamic data) {
-    duelBoardStore.chains.clear();
+    duelStore.chains.clear();
   }
 
   void _handleShuffleHand(dynamic data) {
-    duelBoardStore.applyShuffleHand(data as MsgShuffleHand);
+    duelStore.applyShuffleHand(data as MsgShuffleHand);
   }
 
   void _handleSelectOption(dynamic data) {
-    selectionStore.applySelectOption(data as MsgSelectOption);
+    duelStore.applySelectOption(data as MsgSelectOption);
   }
 
   void _handleSelectUnselectCard(dynamic data) {
-    selectionStore.applySelectUnselectCard(data as MsgSelectUnselectCard);
+    duelStore.applySelectUnselectCard(data as MsgSelectUnselectCard);
   }
 
   void _handleSelectDisfield(dynamic data) {
-    selectionStore.applySelectDisfield(data as MsgSelectPlace);
+    duelStore.applySelectDisfield(data as MsgSelectPlace);
   }
 
   String _roomTitle(DuelRoomStore duelRoomStore, MatchStore match) {
@@ -503,16 +483,16 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
   Widget build(BuildContext context) {
     final duel = context.watch<DuelRoomStore>();
     final matchRoomStore = context.watch<MatchStore>();
-    if (duelBoardStore.errorMessage != null) {
+    if (duelStore.errorMessage != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(duelBoardStore.errorMessage!),
+              content: Text(duelStore.errorMessage!),
               backgroundColor: Colors.red.shade700,
             ),
           );
-          duelBoardStore.clearError();
+          duelStore.clearError();
         }
       });
     }
@@ -527,15 +507,16 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     );
   }
 
-  Widget _buildAppBar(
-    DuelRoomStore duelRoomStore,
-    MatchStore matchRoomStore,
-  ) {
+  Widget _buildAppBar(DuelRoomStore duelRoomStore, MatchStore matchRoomStore) {
     return AppBar(
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
         onPressed: () {
-          backHomeDialog(context: context, title: '退出房间', content: '是否确认退出当前房间？');
+          backHomeDialog(
+            context: context,
+            title: '退出房间',
+            content: '是否确认退出当前房间？',
+          );
         },
       ),
       title: Text(_roomTitle(duelRoomStore, matchRoomStore)),

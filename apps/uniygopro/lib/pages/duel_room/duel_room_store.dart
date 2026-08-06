@@ -315,7 +315,6 @@ class DuelRoomStore extends ChangeNotifier {
             _duelService?.startDuel();
           }
           break;
-        case RoomInLobby():
 
         case RoomSelectingHand():
           if (autoHandEnabled) {

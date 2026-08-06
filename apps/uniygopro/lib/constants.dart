@@ -4,6 +4,9 @@ import 'package:flutter/cupertino.dart';
 import 'l10n/app_localizations.dart';
 
 String? getDuelPhaseText(BuildContext context, DuelPhase duelPhase) {
+  if(context.mounted == false) {
+    return "";
+  }
   final l10n = AppLocalizations.of(context);
   switch (duelPhase) {
     case DuelPhase.dp:

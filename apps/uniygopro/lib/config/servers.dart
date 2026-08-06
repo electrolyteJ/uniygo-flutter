@@ -54,7 +54,10 @@ enum DuelEnvironment {
   env408("wss",'408 环境', 'koishi.momobako.com', 1408),
 
   /// YGOPro PC LAN 服务器
-  ygopro("wss",'YGOPro LAN', '', 7911);
+  ygopro("wss",'YGOPro LAN', '', 7911),
+
+  /// AI 本地人机对战（本地 ocgcore 引擎模拟服务端，无需联网）
+  ai("ai",'AI 人机对战', 'localhost', 0);
 
   final String displayName;
   final String schema;
@@ -65,6 +68,9 @@ enum DuelEnvironment {
 
   /// 是否允许创建房间（Koishi/先行卡/408 只允许加入）
   bool get canCreate => this == mycard || this == ygopro || this == mercury233;
+
+  /// 是否为 AI 本地人机对战环境
+  bool get isAi => this == ai;
 
   /// 是否使用编码密码（RoomPassword），MyCard 服务器需要解码参数
   bool get useEncodedPassword => this == mycard;

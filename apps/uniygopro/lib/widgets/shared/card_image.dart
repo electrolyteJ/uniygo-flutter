@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../pages/duel_room/field/duel_board_store.dart';
+import '../../pages/duel_room/duel/duel_field_store.dart';
+
 
 class CardImage extends StatelessWidget {
   final int code;
@@ -12,8 +13,8 @@ class CardImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final duelBoardStore = context.read<DuelBoardStore>(); // Ensure the widget rebuilds when the code changes
-    final url = duelBoardStore.getCardImageUrl(code);
+    final duelStore = context.read<DuelFieldStore>(); // Ensure the widget rebuilds when the code changes
+    final url = duelStore.getCardImageUrl(code);
     return Container(
       width: width,
       height: height,

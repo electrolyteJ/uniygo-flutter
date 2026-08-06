@@ -1,33 +1,46 @@
 import 'dart:async';
 import 'dart:developer' as console;
 import 'dart:ffi' as ffi;
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:duelink/duelink.dart';
-import 'package:flutter/services.dart';
-import 'package:ocgcore/ocgcore.dart';
+import 'package:ygo_data/ygo_data.dart';
+
+import 'ai_duel_engine.dart';
+import 'card_data_loader.dart';
 
 /// AI 本地对局连接 — 实现 DuelConnection，模拟 ygopro 服务端。
 ///
 /// ## 架构
 /// ```
-/// 玩家 CTOS → send() → switch(protoId) ─┬─ 房间态: 直接生成 STOC 回复
-///                                         └─ 对局态: ocgcore.process() → STOC
-/// AI 回合:     ocgcore PROCESSOR_WAITING → _autoAnswer() → 继续 process()
+/// 玩家 CTOS → send() → switch(protoId) ─┬─ 房间态: 直接生成 STOC 回复（本类）
+///                                        └─ 对局态: AiDuelEngine(ocgcore) → STOC
+/// AI 回合:  ocgcore PROCESSOR_WAITING 且待应答消息属于 player 1
+///           → AiDuelEngine 自动应答（策略见 ai_strategy.dart）→ 继续 process()
 /// ```
+///
+/// ## DUEL_SIMPLE_AI 的覆盖范围（重要）
+/// ocgcore 的 `DUEL_SIMPLE_AI` 只对 player 1 的**细粒度选择**自动应答
+/// （select_card / select_chain / select_place / select_position /
+/// select_option / select_yes_no / sort_card 等，见 playerop.cpp），
+/// 而 **回合级指令不自动处理**：
+/// `MSG_SELECT_IDLECMD` / `MSG_SELECT_BATTLECMD` / `MSG_SELECT_TRIBUTE`
+/// 对 player 1 同样会发出消息并进入 PROCESSOR_WAITING（processor.cpp 的
+/// 分发不含 SIMPLE_AI 分支）。因此 AI 的"回合策略"由 [AiDuelEngine]
+/// 实现：WAITING 时若待应答消息属于 player 1，自动应答后继续。
+///
+/// 同理，SIMPLE_AI 只为 playerid==1 服务，因此 **AI 固定为 player 1（后攻方）**，
+/// 人类固定 player 0（先攻方）；先后攻选择见 [_onTpResult] 的说明。
 ///
 /// ## 房间生命周期
 /// ```
-/// connect → (auto AI join) → Lobby → Hand → TurnOrder → Duel → End
+/// connect → (人类 join) → (AI 自动 join+ready) → Hand → TurnOrder → Duel → End
 /// ```
 ///
-/// ## 对局流程
-/// ```
-/// startDuel → ocgcore.startDuel()
-/// 玩家操作 → setResponse() → process()
-/// AI 轮次 → _autoAnswer() → setResponse() → process()
-/// ```
+/// ## 卡牌数据来源
+/// 对局所需的卡数据由 [CardDataLoader] 提供：优先取已注册的 [ICardService]
+/// （App 中为 ygo_card_mycard / ygo_card_baige 实现），无服务时回退到
+/// 内置测试卡表（test_card_data.dart）。也可通过 [cardService] 显式注入。
 class AiConnection implements DuelConnection {
   final _messageController = StreamController<YgoStocMsg>.broadcast();
   final _stateController = StreamController<ConnectionState>.broadcast();
@@ -35,23 +48,24 @@ class AiConnection implements DuelConnection {
   /// 显式指定的 ocgcore 动态库（测试环境传入，运行时默认为平台自带查找）。
   final ffi.DynamicLibrary? lib;
 
-  AiConnection({this.lib});
+  late final AiDuelEngine _engine;
 
-  // ── ocgcore ──
-  OcgCore? _core;
-  int? _duel;
-  final _scriptCache = <String, Uint8List>{};
+  AiConnection({this.lib, ICardService? cardService}) {
+    _engine = AiDuelEngine(
+      emit: _emit,
+      cardLoader: CardDataLoader(cardService: cardService),
+    );
+  }
 
   // ── 对局状态 ──
   final List<int> _deck = [];
-  final int _aiPlayer = 1;
-  bool _duelStarted = false;
 
   // ── 房间模拟 ──
   final String _aiName = 'AI_Bob';
   String _name = '';
   bool _humanReady = false;
   bool _roomJoined = false;
+  bool _handPhaseStarted = false;
   int _humanHandChoice = 0;
   int _aiHandChoice = 0;
   bool _humanGoFirst = true;
@@ -66,43 +80,59 @@ class AiConnection implements DuelConnection {
 
   @override
   Future<void> connect(Uri address) async {
+    _resetRoomState();
     _state = ConnectionState.connecting;
     _stateController.add(_state);
 
-    try {
-      _core = await createOcgCore(lib);
-      if (_core == null) {
-        _state = ConnectionState.error;
-        _stateController.add(_state);
-        return;
-      }
-      _core!.setScriptReader(_loadScript);
-      _core!.setCardReader(_loadCard);
-
-      _state = ConnectionState.connected;
-      _stateController.add(_state);
-
-      // AI 自动加入房间
-      _scheduleAIJoin();
-    } catch (e) {
-      console.log('AiConnection: init error $e');
-      _state = ConnectionState.error;
-      _stateController.add(_state);
-    }
+    final ok = await _engine.init(lib);
+    _state = ok ? ConnectionState.connected : ConnectionState.error;
+    _stateController.add(_state);
   }
 
   @override
   void send(YgoCtosMsg msg) {
     switch (msg.protoId) {
-      case CTOS_PLAYER_INFO:  _name = msg.playerInfo?.name ?? _name; break;
-      case CTOS_JOIN_GAME:    _onJoinGame(); break;
-      case CTOS_UPDATE_DECK:  _deck.clear(); _parseDeck(msg.updateDeck!.encode()); break;
-      case CTOS_HS_READY:     _humanReady = true; _checkReady(); break;
-      case CTOS_HS_START:     _startHandPhase(); break;
-      case CTOS_HAND_RESULT:  _humanHandChoice = msg.handResult!.hand; _onHandResult(); break;
-      case CTOS_TP_RESULT:    _humanGoFirst = msg.tpResult?.first ?? true; _onTpResult(); break;
-      case CTOS_RESPONSE:     _onResponse(msg.response!.encode()); break;
-      case CTOS_SURRENDER:    _endDuel(); break;
+      case CTOS_PLAYER_INFO:
+        _name = msg.playerInfo?.name ?? _name;
+        break;
+      case CTOS_JOIN_GAME:
+        _onJoinGame();
+        break;
+      case CTOS_UPDATE_DECK:
+        _deck.clear();
+        _parseDeck(msg.updateDeck!.encode());
+        break;
+      case CTOS_HS_READY:
+        _humanReady = true;
+        _emit(YgoStocMsg.hsPlayerChange(
+          StocHsPlayerChange(pos: 0, state: HS_PLAYER_STATE_READY),
+        ));
+        _checkReady();
+        break;
+      case CTOS_HS_NOT_READY:
+        _humanReady = false;
+        _emit(YgoStocMsg.hsPlayerChange(
+          StocHsPlayerChange(pos: 0, state: HS_PLAYER_STATE_NO_READY),
+        ));
+        break;
+      case CTOS_HS_START:
+        _emit(YgoStocMsg.duelStart());
+        _startHandPhase();
+        break;
+      case CTOS_HAND_RESULT:
+        _humanHandChoice = msg.handResult!.hand;
+        _onHandResult();
+        break;
+      case CTOS_TP_RESULT:
+        _humanGoFirst = msg.tpResult?.first ?? true;
+        _onTpResult();
+        break;
+      case CTOS_RESPONSE:
+        _engine.onResponse(msg.response!.encode());
+        break;
+      case CTOS_SURRENDER:
+        _engine.endDuel();
+        break;
     }
     _flushPending();
   }
@@ -110,28 +140,37 @@ class AiConnection implements DuelConnection {
   @override
   Stream<YgoStocMsg> get messages => _messageController.stream;
 
-  // ──────────── CTOS 路由 ────────────
-
   @override
   Stream<ConnectionState> get state => _stateController.stream;
+
   @override
   Future<void> disconnect() async {
     _pendingTimer?.cancel();
-    if (_duel != null && _core != null) {
-      try { _core!.endDuel(_duel!); } catch (_) {}
-    }
-    _duel = null;
-    _core = null;
+    _pending.clear();
+    _engine.dispose();
+    _resetRoomState();
     _state = ConnectionState.disconnected;
     _stateController.add(_state);
   }
 
+  /// 重置房间/对局状态，保证断线重连后可以重新进房。
+  void _resetRoomState() {
+    _roomJoined = false;
+    _humanReady = false;
+    _handPhaseStarted = false;
+    _deck.clear();
+    _humanHandChoice = 0;
+    _aiHandChoice = 0;
+    _humanGoFirst = true;
+  }
+
   // ──────────── 房间模拟 ────────────
 
+  /// AI 在人类玩家进房之后加入（若提前发送，BaseDuelService 在
+  /// RoomNotJoined 阶段会丢弃 playerEnter，大厅里看不到 AI）。
   void _scheduleAIJoin() {
-    // 延迟一小段时间后 AI 自动加入房间
-    Future<void>.delayed(const Duration(milliseconds: 200), () {
-      if (_state != ConnectionState.connected) return;
+    Future<void>.delayed(const Duration(milliseconds: 100), () {
+      if (_state != ConnectionState.connected || !_roomJoined) return;
       _emit(YgoStocMsg.hsPlayerEnter(
         StocHsPlayerEnter(name: _aiName, pos: 1),
       ));
@@ -159,144 +198,65 @@ class AiConnection implements DuelConnection {
     _emit(YgoStocMsg.hsPlayerEnter(
       StocHsPlayerEnter(name: _name.isNotEmpty ? _name : 'Human', pos: 0),
     ));
+    _scheduleAIJoin();
   }
 
   void _checkReady() {
     if (_humanReady && _deck.isNotEmpty) {
-      // AI is auto-ready (set in _scheduleAIJoin via PLAYER_CHANGE)
+      // AI 在进房时已自动 ready（见 _scheduleAIJoin）
       _startHandPhase();
     }
   }
 
   void _startHandPhase() {
-    // AI 自动猜拳
-    _aiHandChoice = 2; // ROCK (2=ROCK in ygopro)
+    // HS_READY 与 HS_START 都可能触发，幂等保护避免重复发 SELECT_HAND
+    if (_handPhaseStarted) return;
+    _handPhaseStarted = true;
     _emit(YgoStocMsg.selectHand());
   }
 
   void _onHandResult() {
-    // 发送猜拳结果
+    // AI 固定出剪刀（1）：人类出石头必胜，流程确定；平局按协议重新猜拳
+    _aiHandChoice = 1;
     _emit(YgoStocMsg.handResult(StocHandResult(
       meResult: _humanHandChoice, opResult: _aiHandChoice,
     )));
-    // 猜拳阶段结束，进入先后攻选择
+
+    final h = _humanHandChoice, a = _aiHandChoice;
     Future<void>.delayed(const Duration(milliseconds: 100), () {
-      _emit(YgoStocMsg.selectTp());
+      if (!_handPhaseStarted || _engine.duelStarted) return;
+      if (h == a) {
+        // 平局 — 重新猜拳
+        _emit(YgoStocMsg.selectHand());
+        return;
+      }
+      // 1=剪刀 2=石头 3=布
+      final humanWins =
+          (h == 2 && a == 1) || (h == 3 && a == 2) || (h == 1 && a == 3);
+      if (humanWins) {
+        _emit(YgoStocMsg.selectTp());
+      } else {
+        // AI 赢 → 由 AI 决定先后攻。受 DUEL_SIMPLE_AI 限制（只自动应答
+        // playerid==1），AI 必须是 player 1 即后攻方，因此固定人类先攻，
+        // 不再发 SELECT_TP，直接开始决斗。
+        _beginDuel();
+      }
     });
   }
 
   void _onTpResult() {
-    // 先后攻已选 → 开始对局
+    // 引擎约束：DUEL_SIMPLE_AI 只服务 player 1，人类固定为 player 0（先攻方）。
+    // 人类选择后攻时无法让 AI 成为 player 0，这里仍按人类先攻开局，
+    // MSG_START 的 playerType 与引擎保持一致（0 = 先攻）。
+    if (!_humanGoFirst) {
+      console.log('AiConnection: SIMPLE_AI 模式不支持人类后攻，按人类先攻开局');
+    }
+    _beginDuel();
+  }
+
+  void _beginDuel() {
     _emit(YgoStocMsg.duelStart());
-    _startOcgDuel();
-  }
-
-  // ──────────── 对局引擎 ────────────
-
-  Future<void> _startOcgDuel() async {
-    if (_core == null || _deck.isEmpty) return;
-
-    _duel = _core!.createDuel(DateTime.now().millisecondsSinceEpoch & 0xffffffff);
-    if (_duel == 0) return;
-
-    // 设置双方玩家
-    _core!.setPlayerInfo(_duel!, 0, 8000, 5, 1);
-    _core!.setPlayerInfo(_duel!, 1, 8000, 5, 1);
-
-    // 预加载基础脚本
-    for (final s in ['constant.lua', 'utility.lua', 'procedure.lua', 'event.lua']) {
-      _core!.preloadScript(_duel!, s);
-    }
-
-    // 预加载卡牌数据与效果脚本（需在 newCard 之前完成，否则回调缓存为空，
-    // 导致怪兽无法召唤 / 魔法陷阱无法发动）
-    //
-    // 注意：只通过 preloadScriptAsync 将脚本字节缓存到 Dart 侧，
-    // 不调用 preloadScript（那会直接执行 .lua 文件，但卡牌脚本依赖
-    // load_card_script 提前创建好的 cXXXX 全局表，直接执行会报 nil 错误）。
-    // 引擎会在 newCard 时通过 load_card_script → read_script 回调读缓存。
-    for (final code in _deck.toSet()) {
-      await _core!.preloadCardAsync(code);
-      await _core!.preloadScriptAsync('c$code.lua');
-    }
-
-    // 加载卡组到 ocgcore
-    _loadDeckToCore();
-
-    // 使用简单 AI 模式（ocgcore 内置）
-    _core!.startDuel(_duel!, DUEL_SIMPLE_AI);
-    _duelStarted = true;
-
-    // ocgcore 不直接发出 MSG_START（由服务端合成），这里补发
-    _emit(YgoStocMsg.gameMsg(StocGameMessage(
-      func: MSG_START,
-      innerMsg: MsgStart(
-        playerType: _humanGoFirst ? 0 : 1,
-        masterRule: 1,
-        life1: 8000,
-        life2: 8000,
-        deckSize1: _deck.length,
-        extraSize1: 0,
-        deckSize2: _deck.length,
-        extraSize2: 0,
-      ),
-    )));
-
-    // 同步执行第一轮 process
-    _duelLoop();
-  }
-
-  void _loadDeckToCore() {
-    if (_duel == null || _core == null) return;
-
-    // 将卡组放入双方的主卡组
-    for (int i = 0; i < _deck.length; i++) {
-      // 人类玩家 (player 0) 的主卡组
-      _core!.newCard(_duel!, _deck[i], 0, 0, LOCATION_DECK, i, 0);
-      // AI 玩家 (player 1) 的主卡组（同样的卡组）
-      _core!.newCard(_duel!, _deck[i], 1, 1, LOCATION_DECK, i, 0);
-    }
-  }
-
-  void _duelLoop() {
-    while (true) {
-      final result = _core!.process(_duel!);
-      final status = result & PROCESSOR_FLAG;
-      final msgLen = result & PROCESSOR_BUFFER_LEN;
-
-      if (msgLen > 0) {
-        final buf = Uint8List(msgLen);
-        _core!.getMessage(_duel!, buf);
-        _emitGameMsg(buf);
-      }
-
-      if (status == PROCESSOR_WAITING) {
-        // DUEL_SIMPLE_AI 下 ocgcore 自动处理 AI 回合，
-        // WAITING 必然是人类玩家的回合 — 停止等待输入
-        break;
-      }
-
-      if (status == PROCESSOR_END) {
-        _endDuel();
-        break;
-      }
-    }
-  }
-
-  void _onResponse(Uint8List data) {
-    if (!_duelStarted || _duel == null || _core == null) return;
-    // 人类玩家发送了游戏内响应 — 传给 ocgcore
-    _core!.setResponseb(_duel!, data);
-    _duelLoop();
-  }
-
-  void _endDuel() {
-    _duelStarted = false;
-    if (_duel != null && _core != null) {
-      try { _core!.endDuel(_duel!); } catch (_) {}
-    }
-    _duel = null;
-    _emit(YgoStocMsg.duelEnd());
+    unawaited(_engine.startDuel(List<int>.of(_deck)));
   }
 
   // ──────────── 消息发射 ────────────
@@ -304,10 +264,6 @@ class AiConnection implements DuelConnection {
   void _emit(YgoStocMsg msg) {
     _pending.add(msg);
     _flushPending();
-  }
-
-  void _emitGameMsg(Uint8List msg) {
-    _emit(YgoStocMsg.gameMsg(StocGameMessage.decode(msg)));
   }
 
   void _flushPending() {
@@ -334,86 +290,4 @@ class AiConnection implements DuelConnection {
       _deck.add(r.readInt32());
     }
   }
-
-  // ──────────── 工具 ────────────
-
-  // ──────────── 脚本与卡片加载 ────────────
-
-  Future<Uint8List?> _loadScript(String name) async {
-    if (_scriptCache.containsKey(name)) return _scriptCache[name];
-    try {
-      final data = await rootBundle.load('assets/scripts/$name');
-      final bytes = data.buffer.asUint8List();
-      _scriptCache[name] = bytes;
-      return bytes;
-    } catch (_) {
-      try {
-        final file = File('assets/scripts/$name');
-        final bytes = await file.readAsBytes();
-        _scriptCache[name] = bytes;
-        return bytes;
-      } catch (_) {
-        return null;
-      }
-    }
-  }
-
-  Future<CardData?> _loadCard(int code) async {
-    // 返回已知卡片的基础数据（通常怪兽级别）
-    return _knownCards[code];
-  }
-
-  /// 测试用卡组的 CardData。
-  /// ocgcore 需要知道卡片的基本信息（ATK/DEF/种族等）才能正确处理战斗。
-  static final Map<int, CardData> _knownCards = {
-    89631139: CardData(code: 89631139, alias: 0, setcode: [], type: 0x11,
-        level: 8, attribute: 0x10, race: 0x2000,
-        attack: 3000, defense: 2500, lscale: 0, rscale: 0,
-        linkMarker: 0, ruleCode: 0, name: 'Blue-Eyes White Dragon', desc: ''),
-    46986414: CardData(code: 46986414, alias: 0, setcode: [], type: 0x11,
-        level: 7, attribute: 0x20, race: 0x2,
-        attack: 2500, defense: 2100, lscale: 0, rscale: 0,
-        linkMarker: 0, ruleCode: 0, name: 'Dark Magician', desc: ''),
-    15025844: CardData(code: 15025844, alias: 0, setcode: [], type: 0x11,
-        level: 4, attribute: 0x10, race: 0x2,
-        attack: 800, defense: 2000, lscale: 0, rscale: 0,
-        linkMarker: 0, ruleCode: 0, name: 'Mystical Elf', desc: ''),
-    91152256: CardData(code: 91152256, alias: 0, setcode: [], type: 0x11,
-        level: 4, attribute: 0x01, race: 0x1,
-        attack: 1400, defense: 1200, lscale: 0, rscale: 0,
-        linkMarker: 0, ruleCode: 0, name: 'Celtic Guardian', desc: ''),
-    13039848: CardData(code: 13039848, alias: 0, setcode: [], type: 0x11,
-        level: 3, attribute: 0x01, race: 0x100,
-        attack: 1300, defense: 2000, lscale: 0, rscale: 0,
-        linkMarker: 0, ruleCode: 0, name: 'Giant Soldier of Stone', desc: ''),
-    6368038: CardData(code: 6368038, alias: 0, setcode: [], type: 0x11,
-        level: 7, attribute: 0x01, race: 0x1,
-        attack: 2300, defense: 2100, lscale: 0, rscale: 0,
-        linkMarker: 0, ruleCode: 0, name: 'Gaia The Fierce Knight', desc: ''),
-    28279543: CardData(code: 28279543, alias: 0, setcode: [], type: 0x11,
-        level: 5, attribute: 0x20, race: 0x2000,
-        attack: 2000, defense: 1500, lscale: 0, rscale: 0,
-        linkMarker: 0, ruleCode: 0, name: 'Curse of Dragon', desc: ''),
-    74677422: CardData(code: 74677422, alias: 0, setcode: [], type: 0x11,
-        level: 7, attribute: 0x20, race: 0x2000,
-        attack: 2400, defense: 2000, lscale: 0, rscale: 0,
-        linkMarker: 0, ruleCode: 0, name: 'Red-Eyes Black Dragon', desc: ''),
-    88819587: CardData(code: 88819587, alias: 0, setcode: [], type: 0x11,
-        level: 4, attribute: 0x04, race: 0x2000,
-        attack: 1200, defense: 700, lscale: 0, rscale: 0,
-        linkMarker: 0, ruleCode: 0, name: 'Baby Dragon', desc: ''),
-    76184692: CardData(code: 76184692, alias: 0, setcode: [], type: 0x11,
-        level: 4, attribute: 0x01, race: 0x8000,
-        attack: 1200, defense: 1000, lscale: 0, rscale: 0,
-        linkMarker: 0, ruleCode: 0, name: 'Hitotsu-Me Giant', desc: ''),
-    55144522: CardData(code: 55144522, alias: 0, setcode: [], type: 0x2,
-        level: 0, attribute: 0, race: 0,
-        attack: 0, defense: 0, lscale: 0, rscale: 0,
-        linkMarker: 0, ruleCode: 0, name: 'Pot of Greed', desc: 'Draw 2 cards.'),
-    4206964: CardData(code: 4206964, alias: 0, setcode: [], type: 0x4,
-        level: 0, attribute: 0, race: 0,
-        attack: 0, defense: 0, lscale: 0, rscale: 0,
-        linkMarker: 0, ruleCode: 0, name: 'Trap Hole',
-        desc: 'When your opponent Normal Summons a monster with 1000 or more ATK: Target that monster; destroy it.'),
-  };
 }

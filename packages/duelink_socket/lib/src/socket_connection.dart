@@ -1,21 +1,33 @@
 import 'dart:async';
+import 'dart:developer' as console;
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:duelink/duelink.dart';
 
 /// TCP Socket 连接实现。
 ///
 /// 工作在 [YgoCtosMsg] / [YgoStocMsg] 消息对象上，
 /// 线格式由 duelink 的 [encodeCtos] / [decodeStocs] 负责。
+///
+/// TCP 是字节流协议：一次 `listen` 回调可能只交付半个包（半包），
+/// 也可能多个包合在一起（粘包）。`YgoProPacket.deserialize` 只处理粘包，
+/// 不完整的尾部会被丢弃，因此这里必须用 [_recvBuf] 做拼包：
+/// 累积字节 → 按帧长切出完整区域解码 → 剩余半包留给下次回调拼接。
 class SocketConnection implements DuelConnection {
   Socket? _socket;
   final _msgCtrl = StreamController<YgoStocMsg>.broadcast();
   final _stateController = StreamController<ConnectionState>.broadcast();
   ConnectionState _state = ConnectionState.disconnected;
 
+  /// 接收拼包缓冲（半包留存）。
+  final BytesBuilder _recvBuf = BytesBuilder(copy: false);
+
   @override
   Future<void> connect(Uri address) async {
+    console.log('Connecting to ${address.host}:${address.port}...');
     _state = ConnectionState.connecting;
     _stateController.add(_state);
+    _recvBuf.clear();
 
     try {
       _socket = await Socket.connect(address.host, address.port);
@@ -23,30 +35,60 @@ class SocketConnection implements DuelConnection {
       _stateController.add(_state);
 
       _socket!.listen(
-        (data) {
-          for (final s in decodeStocs(data)) {
-            _msgCtrl.add(s);
-          }
-        },
+        _onData,
         onError: (error) {
-          _state = ConnectionState.error;
-          _stateController.add(_state);
+          console.log('Socket error: $error');
+          _setState(ConnectionState.error);
         },
         onDone: () {
-          _state = ConnectionState.disconnected;
-          _stateController.add(_state);
+          console.log('Socket connection closed');
+          _setState(ConnectionState.disconnected);
         },
       );
     } catch (e) {
-      _state = ConnectionState.error;
-      _stateController.add(_state);
+      _setState(ConnectionState.error);
       rethrow;
+    }
+  }
+
+  /// 累积接收字节，切出完整帧解码，不完整尾部留存待下次拼接。
+  void _onData(Uint8List data) {
+    _recvBuf.add(data);
+    final buf = _recvBuf.takeBytes();
+    final bd = ByteData.sublistView(buf);
+
+    // 定位完整帧区域 [0, completeEnd)
+    var completeEnd = 0;
+    while (buf.length - completeEnd >= 3) {
+      final packetLen = bd.getUint16(completeEnd, Endian.little);
+      if (packetLen < 1) break; // 数据损坏，等待更多字节也无意义
+      if (buf.length - completeEnd < packetLen + 2) break; // 半包
+      completeEnd += packetLen + 2;
+    }
+
+    if (completeEnd > 0) {
+      for (final s in decodeStocs(Uint8List.sublistView(buf, 0, completeEnd))) {
+        _msgCtrl.add(s);
+      }
+    }
+    // 留存不完整尾部，等下次回调拼接
+    if (completeEnd < buf.length) {
+      _recvBuf.add(Uint8List.sublistView(buf, completeEnd));
     }
   }
 
   @override
   void send(YgoCtosMsg msg) {
-    _socket?.add(encodeCtos(msg));
+    final socket = _socket;
+    if (_state != ConnectionState.connected || socket == null) {
+      console.log('Ignoring send while connection state is $_state: $msg');
+      return;
+    }
+    try {
+      socket.add(encodeCtos(msg));
+    } on StateError catch (e) {
+      console.log('Ignoring send on closed socket: $e');
+    }
   }
 
   @override
@@ -54,11 +96,19 @@ class SocketConnection implements DuelConnection {
 
   @override
   Future<void> disconnect() async {
-    await _socket?.close();
-    _state = ConnectionState.disconnected;
-    _stateController.add(_state);
+    final socket = _socket;
+    _socket = null;
+    _recvBuf.clear();
+    await socket?.close();
+    _setState(ConnectionState.disconnected);
   }
 
   @override
   Stream<ConnectionState> get state => _stateController.stream;
+
+  void _setState(ConnectionState next) {
+    if (_state == next) return;
+    _state = next;
+    _stateController.add(next);
+  }
 }
