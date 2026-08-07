@@ -44,3 +44,7 @@ app.*.map.json
 **/android/app/debug
 **/android/app/profile
 **/android/app/release
+
+# Local backups of replaced prebuilt ocgcore binaries (recoverable from git history)
+packages/ocgcore/android/src/main/jniLibs.prebuilt/
+packages/ocgcore/macos/Frameworks/*.bak

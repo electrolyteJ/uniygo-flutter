@@ -27,10 +27,17 @@ class OcgCoreNativeAdapter implements OcgCore {
       return ffi.DynamicLibrary.open('ocgcore.dll');
     }
     if (Platform.isMacOS || Platform.isIOS) {
+      // 源码构建后符号静态链接进宿主进程,优先尝试进程内查找;
+      // 预编译 dylib 场景则按文件名打开。
+      try {
+        return ffi.DynamicLibrary.process();
+      } catch (_) {}
       try {
         return ffi.DynamicLibrary.open('libocgcore.dylib');
-      } catch (_) {
-      }
+      } catch (_) {}
+      try {
+        return ffi.DynamicLibrary.executable();
+      } catch (_) {}
     }
     throw UnsupportedError('Unsupported platform: ${Platform.operatingSystem}');
   }

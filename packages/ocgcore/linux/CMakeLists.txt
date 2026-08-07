@@ -1,20 +1,23 @@
-# Plugin-level CMake configuration for the ocgcore FFI plugin.
-#
-# The Flutter build system includes this file automatically and collects
-# the ${ocgcore_bundled_libraries} list into PLUGIN_BUNDLED_LIBRARIES,
-# which is then installed alongside the final binary.
-
+# ocgcore 源码构建(含 Lua 引擎)。
+# ocgcore 以 C++ 符号名引用 Lua API(与上游一致),vendor/lua 以聚合
+# 编译单元(C++)并入,见 src/lua_amalgam.cpp;带 main() 的
+# lua.c / luac.c 与 onelua.c 不参与编译。
 cmake_minimum_required(VERSION 3.13)
+project(ocgcore LANGUAGES C CXX)
 
-# Bundle the appropriate libocgcore.so for the target architecture.
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-  set(ocgcore_bundled_libraries
-    "${CMAKE_CURRENT_SOURCE_DIR}/libs/x64/libocgcore.so"
-    PARENT_SCOPE
-  )
-else()
-  set(ocgcore_bundled_libraries
-    "${CMAKE_CURRENT_SOURCE_DIR}/libs/x86/libocgcore.so"
-    PARENT_SCOPE
-  )
-endif()
+set(VENDOR "${CMAKE_CURRENT_SOURCE_DIR}/../vendor")
+
+file(GLOB OCG_SOURCES "${VENDOR}/ocgcore/*.cpp")
+
+add_library(ocgcore SHARED
+  ${OCG_SOURCES}
+  "${CMAKE_CURRENT_SOURCE_DIR}/../src/lua_amalgam.cpp"
+)
+target_include_directories(ocgcore PRIVATE "${VENDOR}/ocgcore" "${VENDOR}/lua")
+target_compile_features(ocgcore PRIVATE cxx_std_17)
+
+# Flutter 构建系统收集该列表并随产物安装。
+set(ocgcore_bundled_libraries
+  $<TARGET_FILE:ocgcore>
+  PARENT_SCOPE
+)

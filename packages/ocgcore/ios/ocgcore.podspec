@@ -5,7 +5,7 @@ Pod::Spec.new do |s|
   s.homepage         = 'https://github.com/electrolyteJ/ygopro-core'
   s.license          = { :type => 'MIT' }
   s.author           = { 'electrolyteJ' => '' }
-  s.platform         = :osx, '10.15'
+  s.platform         = :ios, '12.0'
   s.source           = { :path => '.' }
 
   # 源码构建:ocgcore + Lua 5.3(卡牌脚本解释器依赖)。

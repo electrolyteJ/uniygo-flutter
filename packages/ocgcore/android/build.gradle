@@ -26,6 +26,17 @@ android {
 
     defaultConfig {
         minSdk = 21
+        externalNativeBuild {
+            cmake {
+                cppFlags ""
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
     }
 
     compileOptions {
@@ -35,7 +46,9 @@ android {
 
     sourceSets {
         main {
-            jniLibs.srcDirs = ["src/main/jniLibs"]
+            // 已切换为源码构建(externalNativeBuild),预编译产物保留在
+            // src/main/jniLibs.prebuilt 以备回退,不再参与打包。
+            jniLibs.srcDirs = []
         }
     }
 }
