@@ -4,9 +4,9 @@ import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
 import 'package:duelink/duelink.dart';
+import 'package:ocgcore/ocgcore.dart' show DuelEngine, ScriptLoader;
 import 'package:ygo_data/ygo_data.dart';
 
-import 'ai_duel_engine.dart';
 import 'card_data_loader.dart';
 
 /// AI 本地对局连接 — 实现 DuelConnection，模拟 ygopro 服务端。
@@ -14,9 +14,9 @@ import 'card_data_loader.dart';
 /// ## 架构
 /// ```
 /// 玩家 CTOS → send() → switch(protoId) ─┬─ 房间态: 直接生成 STOC 回复（本类）
-///                                        └─ 对局态: AiDuelEngine(ocgcore) → STOC
+///                                        └─ 对局态: DuelEngine(ocgcore) → STOC
 /// AI 回合:  ocgcore PROCESSOR_WAITING 且待应答消息属于 player 1
-///           → AiDuelEngine 自动应答（策略见 ai_strategy.dart）→ 继续 process()
+///           → DuelEngine 自动应答（策略见 ai_strategy.dart）→ 继续 process()
 /// ```
 ///
 /// ## DUEL_SIMPLE_AI 的覆盖范围（重要）
@@ -26,7 +26,7 @@ import 'card_data_loader.dart';
 /// 而 **回合级指令不自动处理**：
 /// `MSG_SELECT_IDLECMD` / `MSG_SELECT_BATTLECMD` / `MSG_SELECT_TRIBUTE`
 /// 对 player 1 同样会发出消息并进入 PROCESSOR_WAITING（processor.cpp 的
-/// 分发不含 SIMPLE_AI 分支）。因此 AI 的"回合策略"由 [AiDuelEngine]
+/// 分发不含 SIMPLE_AI 分支）。因此 AI 的"回合策略"由 [DuelEngine]
 /// 实现：WAITING 时若待应答消息属于 player 1，自动应答后继续。
 ///
 /// 同理，SIMPLE_AI 只为 playerid==1 服务，因此 **AI 固定为 player 1（后攻方）**，
@@ -48,13 +48,27 @@ class AiConnection implements DuelConnection {
   /// 显式指定的 ocgcore 动态库（测试环境传入，运行时默认为平台自带查找）。
   final ffi.DynamicLibrary? lib;
 
-  late final AiDuelEngine _engine;
+  late final DuelEngine _engine;
 
   AiConnection({this.lib, ICardService? cardService}) {
-    _engine = AiDuelEngine(
-      emit: _emit,
-      cardLoader: CardDataLoader(cardService: cardService),
+    final cardLoader = CardDataLoader(cardService: cardService);
+    _engine = DuelEngine(
+      emit: _emitEngineMessage,
+      splitMessages: splitGameMessages,
+      autoAnswer: aiAutoAnswer(cardLoader.levelOf),
+      scriptLoader: ScriptLoader(),
+      cardReader: cardLoader.load,
+      onDuelEnd: () => _emit(YgoStocMsg.duelEnd()),
     );
+  }
+
+  /// 引擎消息入口：原始字节解码为协议消息后入队派发。
+  void _emitEngineMessage(Uint8List data) {
+    try {
+      _emit(YgoStocMsg.gameMsg(StocGameMessage.decode(data)));
+    } catch (e) {
+      console.log('AiConnection: decode gameMsg failed: $e');
+    }
   }
 
   // ── 对局状态 ──
@@ -256,7 +270,26 @@ class AiConnection implements DuelConnection {
 
   void _beginDuel() {
     _emit(YgoStocMsg.duelStart());
-    unawaited(_engine.startDuel(List<int>.of(_deck)));
+    unawaited(() async {
+      final info = await _engine.startDuel(List<int>.of(_deck));
+      if (info == null) return;
+      // ocgcore 不直接发出 MSG_START（由服务端合成），这里补发。
+      // playerType 与引擎保持一致：0 = 当前视角为先攻方（人类固定先攻）。
+      _emit(YgoStocMsg.gameMsg(StocGameMessage(
+        func: MSG_START,
+        innerMsg: MsgStart(
+          playerType: 0,
+          masterRule: DuelRule.mr2020.value,
+          life1: info.lp0,
+          life2: info.lp1,
+          deckSize1: info.deck0,
+          extraSize1: info.extra0,
+          deckSize2: info.deck1,
+          extraSize2: info.extra1,
+        ),
+      )));
+      _engine.pump();
+    }());
   }
 
   // ──────────── 消息发射 ────────────

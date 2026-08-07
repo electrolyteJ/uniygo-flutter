@@ -1,4 +1,6 @@
 import 'package:duelink_ai/duelink_ai.dart' show AiDuelService;
+import 'package:duelink_puzzle/duelink_puzzle.dart'
+    show IPuzzleService, PuzzleDuelService;
 import 'package:duelink_socket/duelink_socket.dart' show SocketDuelService;
 import 'package:duelink_websocket/duelink_websocket.dart' show WebSocketDuelService;
 import 'package:service_loader/service_loader.dart';
@@ -22,7 +24,14 @@ class ServiceSingleton {
         wsDuelService: ServiceFactory.create<WebSocketDuelService>(),
         socketDuelService: ServiceFactory.create<SocketDuelService>(),
         aiDuelService: ServiceFactory.create<AiDuelService>(),
+        puzzleDuelService: ServiceFactory.create<PuzzleDuelService>(),
       );
+
+  IPuzzleService? _puzzleService;
+
+  /// 残局目录服务（残局房列表/详情）。
+  IPuzzleService get puzzleService =>
+      _puzzleService ??= ServiceFactory.create<IPuzzleService>();
 
   ServiceSingleton._();
 

@@ -1,3 +1,12 @@
-[submodule "packages/ocgcore/vendor/ocgcore"]
-	path = packages/ocgcore/vendor/ocgcore
-	url = git@github.com:electrolyteJ/ygopro-core.git
+[submodule "/vendor/ocgcore"]
+	path = vendor/ocgcore
+	url = git@github.com:Fluorohydride/ygopro-core.git
+[submodule "vendor/scripts"]
+	path = vendor/scripts
+	url = git@github.com:Fluorohydride/ygopro-scripts.git
+[submodule "vendor/Puzzles"]
+	path = vendor/Puzzles
+	url = git@github.com:ProjectIgnis/Puzzles.git
+[submodule "vendor/ygopro-card-list"]
+	path = vendor/ygopro-card-list
+	url = https://github.com/mycard/ygopro-card-list.git

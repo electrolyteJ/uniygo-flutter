@@ -1,6 +1,7 @@
 library duelink_ai;
 
 export 'src/ai_connection.dart';
+export 'src/card_data_loader.dart';
 
 import 'dart:ffi' as ffi;
 

@@ -5,7 +5,7 @@ import 'src/env_config.dart';
 
 export 'src/env_config.dart';
 
-@Service(CardService)
+@Service(ICardService)
 ICardService createMyCardCardService() =>
     CardService(config: EnvConfig.production);
 

@@ -37,33 +37,32 @@ class MsgReloadField {
     }
     final r = BufferReader(data);
     final duelRule = r.readUint8();
-    final rawData = r.readBytes(data.length - 1);
+    final payloadStart = r.offset;
 
     final players = <MsgReloadFieldPlayer>[];
-    final body = BufferReader(rawData);
-    for (var player = 0; player < 2 && body.hasRemaining; player++) {
-      final lp = body.readUint32();
+    for (var player = 0; player < 2 && r.hasRemaining; player++) {
+      final lp = r.readUint32();
       final zoneActions = <MsgReloadFieldZoneAction>[];
 
       for (var sequence = 0; sequence < 7; sequence++) {
-        final occupied = body.readUint8();
+        final occupied = r.readUint8();
         if (occupied != 0) {
           zoneActions.add(MsgReloadFieldZoneAction(
             zone: CARD_ZONE_MZONE,
             sequence: sequence,
-            position: body.readUint8(),
-            overlayCount: body.readUint8(),
+            position: r.readUint8(),
+            overlayCount: r.readUint8(),
           ));
         }
       }
 
       for (var sequence = 0; sequence < 8; sequence++) {
-        final occupied = body.readUint8();
+        final occupied = r.readUint8();
         if (occupied != 0) {
           zoneActions.add(MsgReloadFieldZoneAction(
             zone: CARD_ZONE_SZONE,
             sequence: sequence,
-            position: body.readUint8(),
+            position: r.readUint8(),
           ));
         }
       }
@@ -78,13 +77,13 @@ class MsgReloadField {
         }
       }
 
-      addSizedZone(CARD_ZONE_DECK, body.readUint8(), position: POS_FACEDOWN_ATTACK);
-      addSizedZone(CARD_ZONE_HAND, body.readUint8());
-      addSizedZone(CARD_ZONE_GRAVE, body.readUint8());
-      addSizedZone(CARD_ZONE_REMOVED, body.readUint8());
-      addSizedZone(CARD_ZONE_EXTRA, body.readUint8(), position: POS_FACEDOWN_ATTACK);
+      addSizedZone(CARD_ZONE_DECK, r.readUint8(), position: POS_FACEDOWN_ATTACK);
+      addSizedZone(CARD_ZONE_HAND, r.readUint8());
+      addSizedZone(CARD_ZONE_GRAVE, r.readUint8());
+      addSizedZone(CARD_ZONE_REMOVED, r.readUint8());
+      addSizedZone(CARD_ZONE_EXTRA, r.readUint8(), position: POS_FACEDOWN_ATTACK);
 
-      final extraFaceUpPendulumCount = body.readUint8();
+      final extraFaceUpPendulumCount = r.readUint8();
 
       players.add(MsgReloadFieldPlayer(
         player: player,
@@ -93,6 +92,19 @@ class MsgReloadField {
         extraFaceUpPendulumCount: extraFaceUpPendulumCount,
       ));
     }
+
+    // 连锁区（C++ reload_field_info 末尾）：条数 + 每条 15 字节
+    // （code u32 / info_location u32 / controller u8 / location u8 /
+    // sequence u8 / description u32）。结构化解析未细化，但必须消费掉，
+    // 否则 rawData 会吞掉缓冲区中紧随其后的其他消息。
+    if (r.hasRemaining) {
+      final chainCount = r.readUint8();
+      r.skip(chainCount * 15);
+    }
+
+    // 只保留本消息自身的载荷字节 —— 引擎缓冲区可能首尾相接多条消息，
+    // 贪婪读取会让 encode() 重编码长度失真（见 StocGameMessage.decodeAll）。
+    final rawData = Uint8List.sublistView(data, payloadStart, r.offset);
 
     return MsgReloadField(
       duelRule: duelRule,

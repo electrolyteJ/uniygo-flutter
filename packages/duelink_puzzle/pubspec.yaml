@@ -1,0 +1,52 @@
+name: duelink_puzzle
+description: Puzzle (残局) duel implementation for duelink using OCGCore engine.
+version: 0.0.1
+environment:
+  sdk: ^3.12.2
+resolution: workspace
+publish_to: 'none'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  duelink:
+    path: ../duelink
+  ocgcore:
+    path: ../ocgcore
+  ygo_data:
+    path: ../ygo_data
+  async: ^2.11.0
+  service_loader:
+    path: ../service_loader
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+    assets:
+      # Flutter 目录资产不递归，须逐目录声明（含 .lua 的目录共 23 个）。
+      # 根目录只有 Puzzle Creator.lua（制作工具）/README/COPYING，无需打包。
+      - ../../vendor/Puzzles/Duel Links/
+      - ../../vendor/Puzzles/GX Spirit Caller/1_Beginner/
+      - ../../vendor/Puzzles/GX Spirit Caller/2_Intermediate/
+      - ../../vendor/Puzzles/GX Spirit Caller/3_Advanced/
+      - ../../vendor/Puzzles/Miscellaneous/
+      - ../../vendor/Puzzles/Nightmare Troubadour/
+      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/01 Starter Duel Q/
+      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/02 Astonishing Duel Q/
+      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/03 3-Type Duel Q/
+      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/04 Super Illusion Duel Q/
+      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/05 Maximum Duel Q/
+      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/06 Fateful Duel Q/
+      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/07 Duel Best Bout 1/
+      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/08 Duel Best Bout 2/
+      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/09 Duel Best Bout 3/
+      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/10 Dynamic Duel Q/
+      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/11 Transcendental Maximum Duel Q/
+      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/12 Fierce Duel Q/
+      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/13 Transcendental Fusion Duel Q/
+      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/XX Extra/
+      - ../../vendor/Puzzles/Tutorials/
+      - ../../vendor/Puzzles/World Championship/

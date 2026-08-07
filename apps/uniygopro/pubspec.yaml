@@ -31,6 +31,8 @@ dependencies:
     path: ../../packages/duelink_socket
   duelink_ai:
     path: ../../packages/duelink_ai
+  duelink_puzzle:
+    path: ../../packages/duelink_puzzle
   ygo_data:
     path: ../../packages/ygo_data
   ygo_card_mycard:

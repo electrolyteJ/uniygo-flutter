@@ -8,6 +8,7 @@ import 'package:service_loader/service_loader.dart';
 /// | Scheme     | 底层服务              |
 /// |------------|----------------------|
 /// | `ai://`    | [AiDuelService]      |
+/// | `puzzle://`| [PuzzleDuelService]  |
 /// | `ws://` / `wss://` | [WebSocketDuelService] |
 /// | `tcp://`   | [SocketDuelService]  |
 /// | (无 scheme) | 默认 WebSocket       |
@@ -15,6 +16,7 @@ class DuelService implements IDuelService {
   final IDuelService _wsDuelService;
   final IDuelService _socketDuelService;
   final IDuelService _aiDuelService;
+  final IDuelService _puzzleDuelService;
 
   IDuelService? _activeService;
 
@@ -22,9 +24,11 @@ class DuelService implements IDuelService {
     required IDuelService wsDuelService,
     required IDuelService socketDuelService,
     required IDuelService aiDuelService,
+    required IDuelService puzzleDuelService,
   }) : _wsDuelService = wsDuelService,
        _socketDuelService = socketDuelService,
-       _aiDuelService = aiDuelService;
+       _aiDuelService = aiDuelService,
+       _puzzleDuelService = puzzleDuelService;
 
   /// 当前活跃的底层服务。
   ///
@@ -37,6 +41,9 @@ class DuelService implements IDuelService {
     switch (scheme) {
       case 'ai':
         _activeService = _aiDuelService;
+        break;
+      case 'puzzle':
+        _activeService = _puzzleDuelService;
         break;
       case 'tcp':
         _activeService = _socketDuelService;

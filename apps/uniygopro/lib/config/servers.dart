@@ -11,6 +11,9 @@ enum ServerType {
 
   /// 自由房间 — 手动创建/加入房间（含多环境 + 人机）
   freeRoom,
+
+  /// 残局房 — 本地预设残局挑战（无需联网/卡组）
+  puzzleRoom,
 }
 
 /// 单个对战服务器的配置。
@@ -57,7 +60,10 @@ enum DuelEnvironment {
   ygopro("wss",'YGOPro LAN', '', 7911),
 
   /// AI 本地人机对战（本地 ocgcore 引擎模拟服务端，无需联网）
-  ai("ai",'AI 人机对战', 'localhost', 0);
+  ai("ai",'AI 人机对战', 'localhost', 0),
+
+  /// 残局挑战（本地 ocgcore 引擎加载残局脚本，无需联网/卡组）
+  puzzle("puzzle",'残局挑战', 'local', 0);
 
   final String displayName;
   final String schema;
@@ -71,6 +77,9 @@ enum DuelEnvironment {
 
   /// 是否为 AI 本地人机对战环境
   bool get isAi => this == ai;
+
+  /// 是否为残局挑战环境
+  bool get isPuzzle => this == puzzle;
 
   /// 是否使用编码密码（RoomPassword），MyCard 服务器需要解码参数
   bool get useEncodedPassword => this == mycard;
@@ -106,5 +115,13 @@ const List<GameServer> gameServers = [
     host: 'koishi.momobako.com',
     port: 7211,
     type: ServerType.freeRoom,
+  ),
+  GameServer(
+    id: 'puzzle-room',
+    displayName: '残局房',
+    description: '挑战预设残局，在固定局面中一回合取胜',
+    host: 'local',
+    port: 0,
+    type: ServerType.puzzleRoom,
   ),
 ];

@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'ocgcore_cc_adapter.dart';
 export 'ocgcore.dart';
+export 'src/duel_engine.dart';
+export 'src/script_loader.dart';
 
 /// OCGCore API 接口常量和抽象类定义
 ///

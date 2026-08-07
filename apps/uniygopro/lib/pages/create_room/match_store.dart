@@ -29,6 +29,10 @@ class MatchStore extends ChangeNotifier {
   /// 创建房间时的规则参数
   RoomOptions? roomOptions;
 
+  /// 残局模式选中的残局脚本名（`puzzle/<category>/<file>.lua`），
+  /// 仅 [DuelEnvironment.puzzle] 环境使用。
+  String? puzzleScript;
+
   /// 配置创建房间流程中需要跨页面传递的房间信息。
   void configureCreatedRoom({
     required RoomOptions roomOptions,
@@ -82,6 +86,18 @@ class MatchStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 选择残局（残局房流程）：记录残局脚本并切换到 puzzle 环境。
+  void selectPuzzle(GameServer server, String scriptName) {
+    selectedServer = server;
+    environment = DuelEnvironment.puzzle;
+    puzzleScript = scriptName;
+    serverAddress = DuelEnvironment.puzzle.host;
+    serverPort = DuelEnvironment.puzzle.port;
+    serverPassword = '';
+    password = '';
+    notifyListeners();
+  }
+
   void reset() {
     isSearching = false;
     arena = null;
@@ -95,6 +111,7 @@ class MatchStore extends ChangeNotifier {
     roomName = '';
     username = 'Guest';
     roomOptions = null;
+    puzzleScript = null;
     notifyListeners();
   }
 }

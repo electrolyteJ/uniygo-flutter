@@ -5,6 +5,7 @@ import '../config/servers.dart';
 import 'create_room/match_store.dart';
 import 'create_room/free_room_sheet.dart';
 import 'create_room/match_join_sheet.dart';
+import 'create_room/puzzle_room_sheet.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -75,7 +76,14 @@ class HomePage extends StatelessWidget {
   }
 
   void _onServerTap(BuildContext context, GameServer server) {
-    if (server.requiresMatchApi) {
+    if (server.type == ServerType.puzzleRoom) {
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (_) => PuzzleRoomSheet(server: server),
+      );
+    } else if (server.requiresMatchApi) {
       showModalBottomSheet(
         context: context,
         backgroundColor: Colors.transparent,
@@ -111,6 +119,8 @@ class _ServerCard extends StatelessWidget {
         return Icons.sports_esports;
       case ServerType.freeRoom:
         return Icons.meeting_room;
+      case ServerType.puzzleRoom:
+        return Icons.extension;
     }
   }
 
@@ -122,6 +132,8 @@ class _ServerCard extends StatelessWidget {
         return Colors.lightBlue;
       case ServerType.freeRoom:
         return Colors.green;
+      case ServerType.puzzleRoom:
+        return Colors.deepPurpleAccent;
     }
   }
 

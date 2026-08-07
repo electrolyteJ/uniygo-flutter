@@ -38,3 +38,4 @@ flutter:
   assets:
     - web/libs/libocgcore.js
     - web/libs/libocgcore.wasm
+    - ../../vendor/scripts/

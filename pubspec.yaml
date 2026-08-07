@@ -16,6 +16,7 @@ workspace:
   - packages/duelink_websocket
   - packages/duelink_socket
   - packages/duelink_ai
+  - packages/duelink_puzzle
   - packages/ocgcore
   - apps/uniygopro
   - apps/cardlive

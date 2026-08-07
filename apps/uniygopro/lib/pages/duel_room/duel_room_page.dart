@@ -55,7 +55,21 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
       console.log('Server address or port is null');
       return;
     }
-    final uri = Uri.tryParse('${env.schema}://$host:$port');
+    // 残局环境：URI 路径携带残局脚本（puzzle://local/<category>/<file>.lua），
+    // 路径段逐个编码以兼容空格/方括号等特殊字符。
+    final Uri? uri;
+    if (env.isPuzzle) {
+      final script = matchRoomStore.puzzleScript;
+      if (script == null || script.isEmpty) {
+        console.log('Puzzle script is null');
+        return;
+      }
+      final rel = script.startsWith('puzzle/') ? script.substring(7) : script;
+      final encoded = rel.split('/').map(Uri.encodeComponent).join('/');
+      uri = Uri.tryParse('${env.schema}://$host/$encoded');
+    } else {
+      uri = Uri.tryParse('${env.schema}://$host:$port');
+    }
     if (uri == null) return;
 
     // connect() 必须在流订阅之前调用，否则 DuelService 门面会把订阅

@@ -7,25 +7,29 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 Widget sheetContainer({required Widget child}) {
-  return Container(
-    decoration: const BoxDecoration(
-      color: Color(0xFF1E2A38),
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Center(
-          child: Container(
-            width: 40, height: 4,
-            decoration: BoxDecoration(color: Colors.blueGrey.shade600, borderRadius: BorderRadius.circular(2)),
+  // 用 Material 而非 DecoratedBox：ListTile 家族（ListTile/SwitchListTile/
+  // ExpansionTile 等）会把背景与 ink 水波绘制在最近的 Material 祖先上，
+  // 中间夹 DecoratedBox 会遮挡这些效果并触发框架断言。
+  return Material(
+    color: const Color(0xFF1E2A38),
+    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+    clipBehavior: Clip.antiAlias,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(color: Colors.blueGrey.shade600, borderRadius: BorderRadius.circular(2)),
+            ),
           ),
-        ),
-        const SizedBox(height: 20),
-        child,
-      ],
+          const SizedBox(height: 20),
+          child,
+        ],
+      ),
     ),
   );
 }

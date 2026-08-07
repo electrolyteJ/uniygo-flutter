@@ -157,6 +157,8 @@ class StocGameMessage {
         return (innerMsg as MsgSelectPosition).encode();
       case MSG_SELECT_PLACE:
         return (innerMsg as MsgSelectPlace).encode();
+      case MSG_SELECT_DISFIELD:
+        return (innerMsg as MsgSelectPlace).encode();
       case MSG_SELECT_YES_NO:
         return (innerMsg as MsgSelectYesNo).encode();
       case MSG_SELECT_UNSELECT_CARD:
@@ -589,6 +591,42 @@ class StocGameMessage {
     }
   }
 
+  /// 顺序解码引擎缓冲区中的多条游戏消息。
+  ///
+  /// 等价于对 [splitGameMessages] 的每个切片调用 [decode]。
+  static List<StocGameMessage> decodeAll(Uint8List data) {
+    return splitGameMessages(data).map(decode).toList();
+  }
+
   @override
   String toString() => 'StocGameMessage(func:$func)';
+}
+
+/// 将 ocgcore process() 缓冲区切分为多条单消息原始字节（含 func 头）。
+///
+/// 缓冲区可能包含多条首尾相接的游戏消息（ygopro 服务端在 netserver 侧
+/// 按 func 逐条拆包，这里等价处理）：每条先按 func 解码，再用 encode()
+/// 重编码得到线长以切出下一条。遇到未实现消息（线长不可知）时把它作为
+/// 最后一条收尾；解码异常时截断并返回已成功切分的前缀。
+List<Uint8List> splitGameMessages(Uint8List data) {
+  final messages = <Uint8List>[];
+  var offset = 0;
+  while (offset < data.length) {
+    final StocGameMessage msg;
+    try {
+      msg = StocGameMessage.decode(Uint8List.sublistView(data, offset));
+    } catch (_) {
+      break;
+    }
+    if (msg.innerMsg is MsgUnimplemented) {
+      // 未知消息无法确定线长，剩余字节全部归入它
+      messages.add(Uint8List.sublistView(data, offset));
+      break;
+    }
+    // encode() = func 头 + 载荷重编码，其长度即线长（解码/编码对等的前提）
+    final wireLen = msg.encode().length;
+    messages.add(Uint8List.sublistView(data, offset, offset + wireLen));
+    offset += wireLen;
+  }
+  return messages;
 }
