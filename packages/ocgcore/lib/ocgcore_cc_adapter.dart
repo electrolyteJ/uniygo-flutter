@@ -72,11 +72,11 @@ class OcgCoreNativeAdapter implements OcgCore {
     if (scriptName.startsWith('./script/')) {
       scriptName = scriptName.substring('./script/'.length);
     }
-    print('_onScriptReader called with scriptName: $scriptName ${_scriptCache.containsKey(scriptName)}');
+    // print('_onScriptReader called with scriptName: $scriptName ${_scriptCache.containsKey(scriptName)}');
     if (_scriptCache.containsKey(scriptName)) {
       final result = _scriptCache[scriptName]!;
       lenPtr.value = result.length;
-      print('_onScriptReader called with scriptName: $scriptName, length: ${result.length}');
+      // print('_onScriptReader called with scriptName: $scriptName, length: ${result.length}');
       final ptr = calloc<byte>(result.length);
       for (var i = 0; i < result.length; i++) {
         ptr[i] = result[i];
@@ -136,9 +136,9 @@ class OcgCoreNativeAdapter implements OcgCore {
       return;
     }
     final start = DateTime.now();
-    print('preloadScriptAsync called with name: $name');
+    // print('preloadScriptAsync called with name: $name');
     final data = await _scriptReader!(name);
-    print('preloadScriptAsync called with name: $name ${data != null} in ${DateTime.now().difference(start).inMilliseconds} ms');
+    // print('preloadScriptAsync called with name: $name ${data != null} in ${DateTime.now().difference(start).inMilliseconds} ms');
     if (data != null) {
       _scriptCache[name] = data;
     }

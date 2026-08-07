@@ -24,29 +24,62 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 
-flutter:
-    assets:
-      # Flutter 目录资产不递归，须逐目录声明（含 .lua 的目录共 23 个）。
-      # 根目录只有 Puzzle Creator.lua（制作工具）/README/COPYING，无需打包。
-      - ../../vendor/Puzzles/Duel Links/
-      - ../../vendor/Puzzles/GX Spirit Caller/1_Beginner/
-      - ../../vendor/Puzzles/GX Spirit Caller/2_Intermediate/
-      - ../../vendor/Puzzles/GX Spirit Caller/3_Advanced/
-      - ../../vendor/Puzzles/Miscellaneous/
-      - ../../vendor/Puzzles/Nightmare Troubadour/
-      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/01 Starter Duel Q/
-      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/02 Astonishing Duel Q/
-      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/03 3-Type Duel Q/
-      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/04 Super Illusion Duel Q/
-      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/05 Maximum Duel Q/
-      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/06 Fateful Duel Q/
-      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/07 Duel Best Bout 1/
-      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/08 Duel Best Bout 2/
-      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/09 Duel Best Bout 3/
-      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/10 Dynamic Duel Q/
-      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/11 Transcendental Maximum Duel Q/
-      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/12 Fierce Duel Q/
-      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/13 Transcendental Fusion Duel Q/
-      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/XX Extra/
-      - ../../vendor/Puzzles/Tutorials/
-      - ../../vendor/Puzzles/World Championship/
+#flutter:
+#    assets:
+      # CardScripts 根目录的基础/工具脚本（25 个）
+#      - ../../vendor/CardScripts/archetype_setcode_constants.lua
+#      - ../../vendor/CardScripts/card_counter_constants.lua
+#      - ../../vendor/CardScripts/cards_specific_functions.lua
+#      - ../../vendor/CardScripts/chain.lua
+#      - ../../vendor/CardScripts/constant.lua
+#      - ../../vendor/CardScripts/debug_utility.lua
+#      - ../../vendor/CardScripts/deprecated_functions.lua
+#      - ../../vendor/CardScripts/proc_equip.lua
+#      - ../../vendor/CardScripts/proc_fusion.lua
+#      - ../../vendor/CardScripts/proc_fusion_spell.lua
+#      - ../../vendor/CardScripts/proc_gemini.lua
+#      - ../../vendor/CardScripts/proc_link.lua
+#      - ../../vendor/CardScripts/proc_maximum.lua
+#      - ../../vendor/CardScripts/proc_normal.lua
+#      - ../../vendor/CardScripts/proc_pendulum.lua
+#      - ../../vendor/CardScripts/proc_persistent.lua
+#      - ../../vendor/CardScripts/proc_ritual.lua
+#      - ../../vendor/CardScripts/proc_rush.lua
+#      - ../../vendor/CardScripts/proc_skill.lua
+#      - ../../vendor/CardScripts/proc_spirit.lua
+#      - ../../vendor/CardScripts/proc_synchro.lua
+#      - ../../vendor/CardScripts/proc_union.lua
+#      - ../../vendor/CardScripts/proc_workaround.lua
+#      - ../../vendor/CardScripts/proc_xyz.lua
+#      - ../../vendor/CardScripts/utility.lua
+#      # CardScripts 卡牌脚本子目录
+#      - ../../vendor/CardScripts/goat/
+#      - ../../vendor/CardScripts/official/
+#      - ../../vendor/CardScripts/pre-errata/
+#      - ../../vendor/CardScripts/pre-release/
+#      - ../../vendor/CardScripts/rush/
+#      - ../../vendor/CardScripts/skill/
+#      - ../../vendor/CardScripts/unofficial/
+      # Puzzles 根目录只有 Puzzle Creator.lua（制作工具）/README/COPYING，无需打包。
+#      - ../../vendor/Puzzles/Duel Links/
+#      - ../../vendor/Puzzles/GX Spirit Caller/1_Beginner/
+#      - ../../vendor/Puzzles/GX Spirit Caller/2_Intermediate/
+#      - ../../vendor/Puzzles/GX Spirit Caller/3_Advanced/
+#      - ../../vendor/Puzzles/Miscellaneous/
+#      - ../../vendor/Puzzles/Nightmare Troubadour/
+#      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/01 Starter Duel Q/
+#      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/02 Astonishing Duel Q/
+#      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/03 3-Type Duel Q/
+#      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/04 Super Illusion Duel Q/
+#      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/05 Maximum Duel Q/
+#      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/06 Fateful Duel Q/
+#      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/07 Duel Best Bout 1/
+#      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/08 Duel Best Bout 2/
+#      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/09 Duel Best Bout 3/
+#      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/10 Dynamic Duel Q/
+#      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/11 Transcendental Maximum Duel Q/
+#      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/12 Fierce Duel Q/
+#      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/13 Transcendental Fusion Duel Q/
+#      - ../../vendor/Puzzles/RUSH DUEL Dawn of the Battle Royale!!/XX Extra/
+#      - ../../vendor/Puzzles/Tutorials/
+#      - ../../vendor/Puzzles/World Championship/

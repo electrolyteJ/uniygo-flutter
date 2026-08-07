@@ -1,9 +1,15 @@
-[submodule "/vendor/ocgcore"]
+[submodule "vendor/ocgcore"]
 	path = vendor/ocgcore
 	url = git@github.com:Fluorohydride/ygopro-core.git
+[submodule "vendor/ocgcore-edo"]
+	path = vendor/ocgcore-edo
+	url = git@github.com:edo9300/ygopro-core.git
 [submodule "vendor/scripts"]
 	path = vendor/scripts
 	url = git@github.com:Fluorohydride/ygopro-scripts.git
+[submodule "vendor/CardScripts"]
+	path = vendor/CardScripts
+	url = git@github.com:ProjectIgnis/CardScripts.git
 [submodule "vendor/Puzzles"]
 	path = vendor/Puzzles
 	url = git@github.com:ProjectIgnis/Puzzles.git

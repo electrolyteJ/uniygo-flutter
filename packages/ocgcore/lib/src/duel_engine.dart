@@ -61,12 +61,12 @@ class DuelEngine {
     ScriptLoader? scriptLoader,
     CardReader? cardReader,
     void Function()? onDuelEnd,
-  })  : _emit = emit,
-        _splitMessages = splitMessages,
-        _autoAnswer = autoAnswer,
-        scriptLoader = scriptLoader ?? ScriptLoader(),
-        _cardReader = cardReader,
-        _onDuelEnd = onDuelEnd;
+  }) : _emit = emit,
+       _splitMessages = splitMessages,
+       _autoAnswer = autoAnswer,
+       scriptLoader = scriptLoader ?? ScriptLoader(),
+       _cardReader = cardReader,
+       _onDuelEnd = onDuelEnd;
 
   final DuelMessageEmitter _emit;
   final DuelMessageSplitter _splitMessages;
@@ -146,7 +146,7 @@ class DuelEngine {
     // 就会通过同步回调自动加载 ./script/constant.lua、utility.lua、
     // procedure.lua（interpreter.cpp），错过时缓存为空会加载失败，
     // 导致卡牌脚本依赖的常量（REASON_* 等）全部为 nil。
-    for (final s in ['constant.lua', 'utility.lua', 'procedure.lua']) {
+    for (final s in scriptLoader.bootstrapScriptNames) {
       await core.preloadScriptAsync(s);
     }
 
@@ -219,7 +219,11 @@ class DuelEngine {
     if (core == null) return null;
 
     // 基础脚本必须在 createDuel 之前写入 Dart 侧缓存（同 startDuel 注释）
-    for (final s in ['constant.lua', 'utility.lua', 'procedure.lua']) {
+    final preloadScripts = await scriptLoader.listPreloadScriptNames();
+    final preloadTargets = preloadScripts.isNotEmpty
+        ? preloadScripts
+        : scriptLoader.bootstrapScriptNames;
+    for (final s in preloadTargets) {
       await core.preloadScriptAsync(s);
     }
 
@@ -230,10 +234,9 @@ class DuelEngine {
       return null;
     }
     final text = utf8.decode(bytes, allowMalformed: true);
-    final codes = RegExp(r'Debug\.AddCard\(\s*(\d+)')
-        .allMatches(text)
-        .map((m) => int.parse(m.group(1)!))
-        .toSet();
+    final codes = RegExp(
+      r'Debug\.AddCard\(\s*(\d+)',
+    ).allMatches(text).map((m) => int.parse(m.group(1)!)).toSet();
 
     // 预加载卡牌数据与效果脚本（Debug.AddCard 执行时通过同步回调读缓存）
     for (final code in codes) {
@@ -248,6 +251,17 @@ class DuelEngine {
 
     _duel = core.createDuel(DateTime.now().millisecondsSinceEpoch & 0xffffffff);
     if (_duel == 0) return null;
+
+    // 对 CardScripts 方案，bootstrap 由 preloadScriptAsync 预热后再显式执行。
+    for (final s in scriptLoader.bootstrapScriptNames) {
+      final result = core.preloadScript(_duel!, s);
+      if (result != OPERATION_SUCCESS) {
+        console.log('DuelEngine: bootstrap script exec failed: $s');
+        core.endDuel(_duel!);
+        _duel = null;
+        return null;
+      }
+    }
 
     // 占位默认值，实际 LP/起手/抽牌数由脚本的 Debug.SetPlayerInfo 覆盖
     core.setPlayerInfo(_duel!, 0, 8000, 0, 0);
@@ -355,7 +369,8 @@ class DuelEngine {
   static List<(int, int)> _puzzleDeckCounts(String text) {
     var d0 = 0, e0 = 0, d1 = 0, e1 = 0;
     final re = RegExp(
-        r'Debug\.AddCard\(\s*\d+\s*,\s*(\d+)\s*,\s*\d+\s*,\s*(\w+)');
+      r'Debug\.AddCard\(\s*\d+\s*,\s*(\d+)\s*,\s*\d+\s*,\s*(\w+)',
+    );
     for (final m in re.allMatches(text)) {
       final owner = m.group(1)!;
       final loc = _puzzleLocations[m.group(2)];
@@ -370,8 +385,9 @@ class DuelEngine {
 
   /// 从残局脚本文本解析 Debug.SetPlayerInfo 设置的初始 LP（缺省 8000）。
   static int _puzzleLp(String text, int player) {
-    final m = RegExp('Debug\\.SetPlayerInfo\\(\\s*$player\\s*,\\s*(\\d+)')
-        .firstMatch(text);
+    final m = RegExp(
+      'Debug\\.SetPlayerInfo\\(\\s*$player\\s*,\\s*(\\d+)',
+    ).firstMatch(text);
     return m != null ? int.parse(m.group(1)!) : 8000;
   }
 
@@ -434,10 +450,12 @@ class DuelEngine {
       // 线格式约定（playerop.cpp）：选择类消息载荷首字节即 player。
       if (m.isNotEmpty && _selectFuncs.contains(m[0])) {
         _pendingSelectFunc = m[0];
-        _pendingSelectPayload =
-            m.length > 1 ? Uint8List.sublistView(m, 1) : Uint8List(0);
-        _pendingSelectPlayer =
-            _pendingSelectPayload!.isNotEmpty ? _pendingSelectPayload![0] : null;
+        _pendingSelectPayload = m.length > 1
+            ? Uint8List.sublistView(m, 1)
+            : Uint8List(0);
+        _pendingSelectPlayer = _pendingSelectPayload!.isNotEmpty
+            ? _pendingSelectPayload![0]
+            : null;
       }
       _emit(m);
     }
