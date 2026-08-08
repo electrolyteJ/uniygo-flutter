@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_portal/flutter_portal.dart';
 
 import 'package:uniygopro/config_route.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -9,7 +10,8 @@ class UniygoproApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
+    return Portal(
+      child: MaterialApp.router(
       title: 'uniygopro',
       localizationsDelegates: [
         AppLocalizations.delegate, // Add this line
@@ -41,6 +43,7 @@ class UniygoproApp extends StatelessWidget {
       ),
       themeMode: ThemeMode.dark,
       routerConfig: router,
+      ),
     );
   }
 }

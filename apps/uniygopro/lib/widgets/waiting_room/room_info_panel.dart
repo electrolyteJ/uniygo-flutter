@@ -51,7 +51,7 @@ class RoomInfoPanel extends StatelessWidget {
 
           _InkInfoRow(
             icon: Icons.list_alt,
-            text: '禁限卡表: ${lfTable?.name ?? "未知"}',
+            text: '禁限卡表: ${lfTable?.name ?? "不限制"}',
             enabled: lfTable != null,
             onTap: lfTable != null
                 ? () => BanlistDetailDialog.show(context, lfTable: lfTable!)

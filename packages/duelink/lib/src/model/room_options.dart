@@ -92,6 +92,40 @@ class RoomOptions {
     this.autoDeath = false,
   });
 
+  /// 编码为 AI 连接 URI 的查询参数（本地引擎无需网络，参数经 URI 传递）。
+  Map<String, String> toAiQuery() => {
+        'lp': '$startLp',
+        'hand': '$startHand',
+        'draw': '$drawCount',
+        'rule': '$rule',
+        'mode': '${mode.value}',
+        'mr': '${duelRule.value}',
+        'nc': noCheckDeck ? '1' : '0',
+        'ns': noShuffleDeck ? '1' : '0',
+        'tl': '$timeLimit',
+      };
+
+  /// 从 AI 连接 URI 的查询参数解析房间选项。缺省值与本地人机对战
+  /// 当前行为一致（单局、不检查/不切洗卡组）。
+  factory RoomOptions.fromAiQuery(Map<String, String> q) {
+    int? num(String k) {
+      final v = q[k];
+      return v == null ? null : int.tryParse(v);
+    }
+
+    return RoomOptions(
+      rule: num('rule') ?? 0,
+      mode: RoomMode.of(num('mode') ?? RoomMode.single.value),
+      duelRule: DuelRule.of(num('mr') ?? DuelRule.mr2020.value),
+      noCheckDeck: (num('nc') ?? 1) != 0,
+      noShuffleDeck: (num('ns') ?? 1) != 0,
+      startLp: num('lp') ?? 8000,
+      startHand: num('hand') ?? 5,
+      drawCount: num('draw') ?? 1,
+      timeLimit: num('tl') ?? 180,
+    );
+  }
+
   /// 编码为 20 字节 HostInfo 结构体（用于 ygopro LAN 模式）
   Uint8List encode() {
     final w = BufferWriter();

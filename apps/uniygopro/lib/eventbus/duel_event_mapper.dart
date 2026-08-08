@@ -19,9 +19,20 @@ class DuelEventMapper {
       case MSG_ATTACK:
       case MSG_DAMAGE:
       case MSG_PAY_LP_COST:
+      case MSG_CONFIRM_CARDS:
+      case MSG_CONFIRM_DECKTOP:
+      case MSG_CONFIRM_EXTRATOP:
       case MSG_CHAINING:
+      case MSG_CHAINED:
+      case MSG_CHAIN_SOLVING:
+      case MSG_CHAIN_SOLVED:
       case MSG_CHAIN_END:
       case MSG_SUMMONING:
+      case MSG_SUMMONED:
+      case MSG_SP_SUMMONING:
+      case MSG_SP_SUMMONED:
+      case MSG_FLIP_SUMMONING:
+      case MSG_FLIP_SUMMONED:
       case MSG_BATTLE:
       case MSG_HINT:
       case MSG_WIN:
@@ -51,7 +62,10 @@ class DuelEventMapper {
       case MSG_SELECT_OPTION:
       case MSG_SELECT_UNSELECT_CARD:
       case MSG_SELECT_DISFIELD:
-        return DuelSelectionMessageEvent(func: gameMsg.func, innerMsg: innerMsg);
+        return DuelSelectionMessageEvent(
+          func: gameMsg.func,
+          innerMsg: innerMsg,
+        );
       default:
         return DuelFlowMessageEvent(func: gameMsg.func, innerMsg: innerMsg);
     }

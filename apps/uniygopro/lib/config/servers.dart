@@ -9,8 +9,11 @@ enum ServerType {
   /// 娱乐匹配 — 自动撮合，无排名
   matchEntertain,
 
-  /// 自由房间 — 手动创建/加入房间（含多环境 + 人机）
+  /// 自由房间 — 手动创建/加入房间（含多环境）
   freeRoom,
+
+  /// AI 对决 — 本地人机对战（无需联网）
+  aiRoom,
 
   /// 残局房 — 本地预设残局挑战（无需联网/卡组）
   puzzleRoom,
@@ -115,6 +118,14 @@ const List<GameServer> gameServers = [
     host: 'koishi.momobako.com',
     port: 7211,
     type: ServerType.freeRoom,
+  ),
+  GameServer(
+    id: 'ai-room',
+    displayName: 'AI 对决',
+    description: '与本地 AI 进行单局对战，无需联网',
+    host: 'localhost',
+    port: 0,
+    type: ServerType.aiRoom,
   ),
   GameServer(
     id: 'puzzle-room',

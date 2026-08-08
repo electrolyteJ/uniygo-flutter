@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../config/servers.dart';
+import '../widgets/shared/create_room.dart';
 import 'create_room/match_store.dart';
+import 'create_room/ai_room_sheet.dart';
 import 'create_room/free_room_sheet.dart';
 import 'create_room/match_join_sheet.dart';
 import 'create_room/puzzle_room_sheet.dart';
@@ -77,26 +79,13 @@ class HomePage extends StatelessWidget {
 
   void _onServerTap(BuildContext context, GameServer server) {
     if (server.type == ServerType.puzzleRoom) {
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.transparent,
-        isScrollControlled: true,
-        builder: (_) => PuzzleRoomSheet(server: server),
-      );
+      showRoomDialog(context, PuzzleRoomSheet(server: server));
+    } else if (server.type == ServerType.aiRoom) {
+      showRoomDialog(context, AiRoomSheet(server: server));
     } else if (server.requiresMatchApi) {
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.transparent,
-        isScrollControlled: true,
-        builder: (_) => MatchJoinSheet(server: server),
-      );
+      showRoomDialog(context, MatchJoinSheet(server: server));
     } else {
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.transparent,
-        isScrollControlled: true,
-        builder: (_) => FreeRoomSheet(server: server),
-      );
+      showRoomDialog(context, FreeRoomSheet(server: server));
     }
   }
 }
@@ -119,6 +108,8 @@ class _ServerCard extends StatelessWidget {
         return Icons.sports_esports;
       case ServerType.freeRoom:
         return Icons.meeting_room;
+      case ServerType.aiRoom:
+        return Icons.smart_toy;
       case ServerType.puzzleRoom:
         return Icons.extension;
     }
@@ -132,6 +123,8 @@ class _ServerCard extends StatelessWidget {
         return Colors.lightBlue;
       case ServerType.freeRoom:
         return Colors.green;
+      case ServerType.aiRoom:
+        return Colors.deepOrange;
       case ServerType.puzzleRoom:
         return Colors.deepPurpleAccent;
     }

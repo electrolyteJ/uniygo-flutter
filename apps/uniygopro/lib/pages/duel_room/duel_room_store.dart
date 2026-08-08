@@ -162,10 +162,13 @@ class DuelRoomStore extends ChangeNotifier {
 
   void sendTp(bool first) {
     console.log('Sending TP result: ${first ? 'first' : 'second'}');
-    stage = RoomInDuel(isFirstTurn: first);
-    isFirstTurn = first;
+    // 不做乐观状态更新：先后攻由服务器裁决（AI 可能覆盖选择，如
+    // SIMPLE_AI 强制人类先攻）。提前设置 stage/isFirstTurn 会导致：
+    //  1. DuelFieldPage 在乐观 RoomInDuel 上提前挂载，弹出取到错误值的提示；
+    //  2. 紧接着服务器下发 RoomStartDuel（与 RoomInDuel 平级）使页面卸载，
+    //     再下发 RoomInDuel(first:...) 又重挂，导致先后攻提示重复出现。
+    // 故仅发送选择，stage/isFirstTurn 均由服务器下发的 RoomInDuel 驱动。
     _duelService?.chooseTurnOrder(first);
-    notifyListeners();
   }
 
   void kickPlayer(int pos) {

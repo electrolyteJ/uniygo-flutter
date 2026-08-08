@@ -27,6 +27,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
   final IDuelService _duelService = ServiceSingleton.instance.duelService;
 
   StreamSubscription<YgoStocMsg>? _msgSub;
+  StreamSubscription<DuelPhase>? _phaseSub;
 
   late final DuelRoomStore duelRoomStore;
   late final DuelChatStore duelChatStore;
@@ -67,6 +68,11 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
       final rel = script.startsWith('puzzle/') ? script.substring(7) : script;
       final encoded = rel.split('/').map(Uri.encodeComponent).join('/');
       uri = Uri.tryParse('${env.schema}://$host/$encoded');
+    } else if (env.isAi) {
+      // AI 环境：房间参数经 URI 查询参数传递给本地引擎连接。
+      final base = Uri.tryParse('${env.schema}://$host:$port');
+      final options = matchRoomStore.roomOptions;
+      uri = base?.replace(queryParameters: options?.toAiQuery());
     } else {
       uri = Uri.tryParse('${env.schema}://$host:$port');
     }
@@ -75,9 +81,11 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     // connect() 必须在流订阅之前调用，否则 DuelService 门面会把订阅
     // 路由到默认的 WebSocket 服务（而不是 AI/TCP 等目标协议）。
     await _duelService.connect(uri);
+    if (!mounted) return;
 
     duelRoomStore.bindRoomStageChange(context);
-    _duelService.onDuelPhaseMessage.listen((phase) {
+    _phaseSub = _duelService.onDuelPhaseMessage.listen((phase) {
+      if (!mounted) return;
       _handleNewPhase(phase);
       duelStore.markChanged();
     });
@@ -118,12 +126,21 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
       case DuelIgnoredEvent():
         return;
       case DuelFlowMessageEvent(:final func, :final innerMsg):
+        if (innerMsg is MsgUnimplemented) {
+          console.log(
+            'Ignoring unsupported flow event: $func (${innerMsg.data.length} bytes)',
+          );
+          return;
+        }
         switch (func) {
           case MSG_START:
             _handleStart(innerMsg);
             break;
           case MSG_NEW_TURN:
             _handleNewTurn(innerMsg);
+            break;
+          case MSG_NEW_PHASE:
+            // 已通过 onDuelPhaseMessage 单独派发，避免这里重复记日志。
             break;
           case MSG_WAITING:
             _handleWaiting(innerMsg as MsgWait);
@@ -137,9 +154,23 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
           case MSG_PAY_LP_COST:
             _handlePayLife(innerMsg);
             break;
+          case MSG_CONFIRM_CARDS:
+          case MSG_CONFIRM_DECKTOP:
+          case MSG_CONFIRM_EXTRATOP:
+            _handleConfirmCards(func, innerMsg as MsgConfirmCards);
+            break;
           case MSG_CHAINING:
             final name = duelStore.handleChaining(innerMsg);
             addLog('连锁发动 $name。');
+            break;
+          case MSG_CHAINED:
+            _handleChained(innerMsg as MsgChained);
+            break;
+          case MSG_CHAIN_SOLVING:
+            _handleChainSolving(innerMsg as MsgChainSolving);
+            break;
+          case MSG_CHAIN_SOLVED:
+            _handleChainSolved(innerMsg as MsgChainSolved);
             break;
           case MSG_CHAIN_END:
             _handleChainEnd(innerMsg);
@@ -148,26 +179,46 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
             final name = duelStore.handleSummoning(innerMsg);
             addLog('正在召唤 $name。');
             break;
+          case MSG_SUMMONED:
+            _handleSummonFinished('召唤');
+            break;
+          case MSG_SP_SUMMONING:
+            final msg = innerMsg as MsgSpSummoning;
+            _handleSummonPreparing(msg.code, msg.location, actionLabel: '特殊召唤');
+            break;
+          case MSG_SP_SUMMONED:
+            _handleSummonFinished('特殊召唤');
+            break;
+          case MSG_FLIP_SUMMONING:
+            final msg = innerMsg as MsgFlipSummoning;
+            _handleSummonPreparing(msg.code, msg.location, actionLabel: '反转召唤');
+            break;
+          case MSG_FLIP_SUMMONED:
+            _handleSummonFinished('反转召唤');
+            break;
           case MSG_BATTLE:
             _handleBattle(innerMsg as MsgBattle);
             break;
           case MSG_HINT:
-            final msg = innerMsg as MsgHint;
-            console.log(
-              'MSG_HINT received, but no handler implemented yet. $msg',
-            );
+            _handleHint(innerMsg as MsgHint);
             break;
           case MSG_WIN:
-            final msg = innerMsg as MsgWin;
-            console.log(
-              'MSG_WIN received, but no handler implemented yet. $msg',
-            );
+            _handleWin(innerMsg as MsgWin);
+            break;
+          case MSG_RETRY:
+            duelStore.retryLastResponse();
             break;
           default:
             console.log('Unhandled flow event: $func');
         }
         return;
       case DuelBoardMessageEvent(:final func, :final innerMsg):
+        if (innerMsg is MsgUnimplemented) {
+          console.log(
+            'Ignoring unsupported board event: $func (${innerMsg.data.length} bytes)',
+          );
+          return;
+        }
         switch (func) {
           case MSG_DRAW:
             _handleDraw(innerMsg);
@@ -195,16 +246,19 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
             _handleShuffleHand(innerMsg);
             break;
           case MSG_SET:
-            final msg = innerMsg as MsgSet;
-            console.log(
-              'MSG_SET received, but no handler implemented yet. $msg',
-            );
+            _handleSet(innerMsg as MsgSet);
             break;
           default:
             console.log('Unhandled board event: $func');
         }
         return;
       case DuelSelectionMessageEvent(:final func, :final innerMsg):
+        if (innerMsg is MsgUnimplemented) {
+          console.log(
+            'Ignoring unsupported selection event: $func (${innerMsg.data.length} bytes)',
+          );
+          return;
+        }
         switch (func) {
           case MSG_SELECT_IDLE_CMD:
             _handleSelectIdleCmd(innerMsg);
@@ -292,6 +346,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     duelStore.phase = duelPhase;
     // 阶段合法性（enableBp/enableM2/enableEp）只由服务端下发的
     // MSG_SELECT_IDLE_CMD / MSG_SELECT_BATTLE_CMD 驱动，这里不做本地推断。
+    if (!mounted) return;
     final phaseName = getDuelPhaseText(context, duelPhase);
     if (phaseName?.isNotEmpty == true) addLog('$phaseName 开始。');
   }
@@ -382,6 +437,61 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     addLog('$name 支付了 ${msg.value} 点生命值。');
   }
 
+  void _handleConfirmCards(int func, MsgConfirmCards msg) {
+    _preloadCardInfos(msg.cards.map((card) => card.code));
+    final owner = msg.player == duelStore.myController ? '我方' : '对方';
+    final zoneLabel = switch (func) {
+      MSG_CONFIRM_DECKTOP => '卡组顶端',
+      MSG_CONFIRM_EXTRATOP => '额外卡组顶端',
+      _ => '卡片',
+    };
+    addLog('$owner 确认了 $zoneLabel 的 ${msg.count} 张卡。');
+  }
+
+  void _handleChained(MsgChained msg) {
+    addLog('连锁 ${msg.chainIndex + 1} 已入链。');
+  }
+
+  void _handleChainSolving(MsgChainSolving msg) {
+    addLog('正在处理连锁 ${msg.chainIndex + 1}。');
+  }
+
+  void _handleChainSolved(MsgChainSolved msg) {
+    addLog('连锁 ${msg.solvedIndex + 1} 处理完成。');
+  }
+
+  void _handleSummonPreparing(
+    int code,
+    CardLocation location, {
+    required String actionLabel,
+  }) {
+    duelStore.lastSummonKey =
+        '${location.controller}_${location.location}_${location.sequence}';
+    if (code > 0) {
+      unawaited(duelStore.ensureCardInfo(code));
+    }
+    final name = duelStore.getCardInfo(code)?.name ?? '怪兽';
+    addLog('正在$actionLabel $name。');
+  }
+
+  void _handleSummonFinished(String actionLabel) {
+    final key = duelStore.lastSummonKey;
+    final name = key != null ? duelStore.fieldCards[key]?.name ?? '怪兽' : '怪兽';
+    duelStore.lastSummonKey = null;
+    addLog('$name $actionLabel成功。');
+  }
+
+  void _handleHint(MsgHint msg) {
+    if (msg.hintData >= 1000000) {
+      unawaited(duelStore.ensureCardInfo(msg.hintData));
+    }
+  }
+
+  void _handleWin(MsgWin msg) {
+    final didWin = msg.winPlayer == duelStore.myController;
+    addLog(didWin ? '决斗胜利。' : '决斗失败。');
+  }
+
   void _handleSelectIdleCmd(dynamic data) {
     duelStore.applyIdleCmd(data as MsgSelectIdleCmd);
   }
@@ -441,6 +551,14 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     addLog('区域禁用状态已更新。');
   }
 
+  void _handleSet(MsgSet msg) {
+    if (msg.code > 0) {
+      unawaited(duelStore.ensureCardInfo(msg.code));
+    }
+    final name = duelStore.getCardInfo(msg.code)?.name ?? '卡片';
+    addLog('$name 已盖放。');
+  }
+
   void _handleSelectTribute(MsgSelectTribute msg) {
     duelStore.applySelectTribute(msg);
   }
@@ -482,6 +600,14 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     duelStore.applySelectDisfield(data as MsgSelectPlace);
   }
 
+  void _preloadCardInfos(Iterable<int> codes) {
+    for (final code in codes) {
+      if (code > 0) {
+        unawaited(duelStore.ensureCardInfo(code));
+      }
+    }
+  }
+
   String _roomTitle(DuelRoomStore duelRoomStore, MatchStore match) {
     final modeName = switch (duelRoomStore.roomOptions?.mode) {
       RoomMode.single => '单局',
@@ -510,14 +636,18 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
         }
       });
     }
+    // 只有真正进入 RoomInDuel 后才挂载 DuelFieldPage。
+    // RoomStartDuel / 猜拳 / 先后攻都属于对局启动流程，提前切到场地页会出现
+    // “先闪进决斗场，再闪回等待页，然后再进一次场地页”的跳变。
+    final isInDuel = duel.stage is RoomInDuel;
     return Scaffold(
-      backgroundColor: duel.stage is RoomInDuel
+      backgroundColor: isInDuel
           ? Colors.brown.shade900
           : Colors.blueGrey.shade900,
-      appBar: duel.stage is RoomInDuel
+      appBar: isInDuel
           ? null
           : _buildAppBar(duelRoomStore, matchRoomStore) as PreferredSizeWidget?,
-      body: duel.stage is RoomInDuel ? DuelFieldPage() : WaitingRoomPage(),
+      body: isInDuel ? const DuelFieldPage() : const WaitingRoomPage(),
     );
   }
 
@@ -545,6 +675,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
       _duelService.surrender();
     }
     _duelService.disconnect();
+    _phaseSub?.cancel();
     _msgSub?.cancel();
     super.dispose();
     console.log('DuelRoomPage disposed and disconnected from server.');

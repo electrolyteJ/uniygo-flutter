@@ -118,7 +118,7 @@ class OcgCoreNativeAdapter implements OcgCore {
   }
 
   static int _onCardReader(int code, ffi.Pointer<card_data> data) {
-    print('_onCardReader called with code: $code ${_cardCache.containsKey(code)}');
+    // print('_onCardReader called with code: $code ${_cardCache.containsKey(code)}');
     if (_cardCache.containsKey(code)) {
       _fillCardData(data, _cardCache[code]!);
       return OPERATION_SUCCESS;
@@ -154,9 +154,9 @@ class OcgCoreNativeAdapter implements OcgCore {
       return;
     }
     final start = DateTime.now();
-    print('preloadCardAsync called with code: $code');
+    // print('preloadCardAsync called with code: $code');
     final cardData = await _cardReader!(code);
-    print('preloadCardAsync called with code: $code ${cardData != null} in ${DateTime.now().difference(start).inMilliseconds} ms');
+    // print('preloadCardAsync called with code: $code ${cardData != null} in ${DateTime.now().difference(start).inMilliseconds} ms');
     if (cardData != null) {
       _cardCache[code] = cardData;
     }

@@ -23,36 +23,40 @@ class PuzzleRoomSheet extends StatefulWidget {
 
 class _PuzzleRoomSheetState extends State<PuzzleRoomSheet> {
   final _puzzleService = ServiceSingleton.instance.puzzleService;
-  late final Future<List<PuzzleInfo>> _puzzles =
-      _puzzleService.listPuzzles();
+  late final Future<List<PuzzleInfo>> _puzzles = _puzzleService.listPuzzles();
   String _filter = '';
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: sheetContainer(
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(widget.server.displayName,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold)),
+            Text(
+              widget.server.displayName,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(widget.server.description,
-                style:
-                    TextStyle(color: Colors.blueGrey.shade400, fontSize: 13)),
+            Text(
+              widget.server.description,
+              style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 13),
+            ),
             const SizedBox(height: 12),
             TextField(
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: '搜索残局…',
                 hintStyle: TextStyle(color: Colors.blueGrey.shade500),
-                prefixIcon:
-                    Icon(Icons.search, color: Colors.blueGrey.shade400),
+                prefixIcon: Icon(Icons.search, color: Colors.blueGrey.shade400),
                 filled: true,
                 fillColor: Colors.blueGrey.shade900,
                 border: OutlineInputBorder(
@@ -71,9 +75,10 @@ class _PuzzleRoomSheetState extends State<PuzzleRoomSheet> {
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
                     return Center(
-                      child: Text('残局加载失败: ${snapshot.error}',
-                          style:
-                              const TextStyle(color: Colors.redAccent)),
+                      child: Text(
+                        '残局加载失败: ${snapshot.error}',
+                        style: const TextStyle(color: Colors.redAccent),
+                      ),
                     );
                   }
                   if (!snapshot.hasData) {
@@ -95,13 +100,16 @@ class _PuzzleRoomSheetState extends State<PuzzleRoomSheet> {
     final filtered = _filter.isEmpty
         ? puzzles
         : puzzles
-            .where((p) =>
-                p.fileName.toLowerCase().contains(_filter.toLowerCase()))
-            .toList();
+              .where(
+                (p) => p.fileName.toLowerCase().contains(_filter.toLowerCase()),
+              )
+              .toList();
     if (filtered.isEmpty) {
       return Center(
-        child: Text('没有匹配的残局',
-            style: TextStyle(color: Colors.blueGrey.shade400)),
+        child: Text(
+          '没有匹配的残局',
+          style: TextStyle(color: Colors.blueGrey.shade400),
+        ),
       );
     }
     // 按分类分组（保持合集目录顺序）
@@ -117,19 +125,24 @@ class _PuzzleRoomSheetState extends State<PuzzleRoomSheet> {
         final category = categories[i];
         final items = byCategory[category]!;
         return ExpansionTile(
-          title: Text('$category (${items.length})',
-              style: const TextStyle(color: Colors.white, fontSize: 14)),
+          title: Text(
+            '$category (${items.length})',
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+          ),
           iconColor: Colors.amber,
           collapsedIconColor: Colors.blueGrey.shade400,
           children: [
             for (final p in items)
               ListTile(
                 dense: true,
-                title: Text(p.displayName,
-                    style:
-                        const TextStyle(color: Colors.white70, fontSize: 13)),
-                trailing:
-                    Icon(Icons.play_arrow, color: Colors.blueGrey.shade400),
+                title: Text(
+                  p.displayName,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                trailing: Icon(
+                  Icons.play_arrow,
+                  color: Colors.blueGrey.shade400,
+                ),
                 onTap: () => _showPuzzleDetail(p),
               ),
           ],
@@ -145,8 +158,10 @@ class _PuzzleRoomSheetState extends State<PuzzleRoomSheet> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E2A38),
-        title: Text(info.displayName,
-            style: const TextStyle(color: Colors.white, fontSize: 16)),
+        title: Text(
+          info.displayName,
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+        ),
         content: SingleChildScrollView(
           child: Text(
             detail?.description ?? '在该局面下击败对手。',

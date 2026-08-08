@@ -84,6 +84,9 @@ class AiConnection implements DuelConnection {
   int _aiHandChoice = 0;
   bool _humanGoFirst = true;
 
+  /// 房间规则参数 — 由 connect 的 URI 查询参数解析（缺省单局/不检查/不切洗）。
+  late RoomOptions _roomOptions = RoomOptions.fromAiQuery(const {});
+
   // ── 延迟消息队列 ──
   final _pending = <YgoStocMsg>[];
   Timer? _pendingTimer;
@@ -95,6 +98,7 @@ class AiConnection implements DuelConnection {
   @override
   Future<void> connect(Uri address) async {
     _resetRoomState();
+    _roomOptions = RoomOptions.fromAiQuery(address.queryParameters);
     _state = ConnectionState.connecting;
     _stateController.add(_state);
 
@@ -198,9 +202,7 @@ class AiConnection implements DuelConnection {
     if (_roomJoined) return;
     _roomJoined = true;
 
-    final options = RoomOptions(
-      mode: RoomMode.single, noCheckDeck: true, noShuffleDeck: true,
-    );
+    final options = _roomOptions;
     _emit(YgoStocMsg.joinGame(StocJoinGame(
       lflist: options.lfTableHash, rule: options.rule,
       mode: options.mode, duelRule: options.duelRule,
@@ -237,7 +239,7 @@ class AiConnection implements DuelConnection {
     )));
 
     final h = _humanHandChoice, a = _aiHandChoice;
-    Future<void>.delayed(const Duration(milliseconds: 100), () {
+    Future<void>.delayed(const Duration(milliseconds: 900), () {
       if (!_handPhaseStarted || _engine.duelStarted) return;
       if (h == a) {
         // 平局 — 重新猜拳
@@ -265,13 +267,20 @@ class AiConnection implements DuelConnection {
     if (!_humanGoFirst) {
       console.log('AiConnection: SIMPLE_AI 模式不支持人类后攻，按人类先攻开局');
     }
-    _beginDuel();
+    Timer(const Duration(milliseconds: 900), () {
+      _beginDuel();
+    });
   }
 
   void _beginDuel() {
     _emit(YgoStocMsg.duelStart());
     unawaited(() async {
-      final info = await _engine.startDuel(List<int>.of(_deck));
+      final info = await _engine.startDuel(
+        List<int>.of(_deck),
+        startLp: _roomOptions.startLp,
+        startHand: _roomOptions.startHand,
+        drawCount: _roomOptions.drawCount,
+      );
       if (info == null) return;
       // ocgcore 不直接发出 MSG_START（由服务端合成），这里补发。
       // playerType 与引擎保持一致：0 = 当前视角为先攻方（人类固定先攻）。
@@ -279,7 +288,7 @@ class AiConnection implements DuelConnection {
         func: MSG_START,
         innerMsg: MsgStart(
           playerType: 0,
-          masterRule: DuelRule.mr2020.value,
+          masterRule: _roomOptions.duelRule.value,
           life1: info.lp0,
           life2: info.lp1,
           deckSize1: info.deck0,

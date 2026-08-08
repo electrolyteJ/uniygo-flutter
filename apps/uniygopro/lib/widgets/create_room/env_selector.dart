@@ -17,10 +17,12 @@ class EnvSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // AI 对决和残局挑战已作为独立服务器入口，不再出现在自由房的环境选择器里。
+    final envs = DuelEnvironment.values.where((e) => !e.isAi && !e.isPuzzle).toList();
     return dropdownRow<DuelEnvironment>(
       label: '对战环境',
       value: value,
-      items: DuelEnvironment.values.map((e) => DropdownMenuItem(value: e, child: Text(e.displayName))).toList(),
+      items: envs.map((e) => DropdownMenuItem(value: e, child: Text(e.displayName))).toList(),
       onChanged: (v) { if (v != null) onChanged(v); },
     );
   }

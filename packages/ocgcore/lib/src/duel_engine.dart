@@ -136,9 +136,17 @@ class DuelEngine {
   /// 创建对局：预加载脚本/卡数据 → createDuel → 装载双方卡组 →
   /// 以 DUEL_SIMPLE_AI 启动。成功返回开局信息，失败返回 null。
   ///
+  /// [startLp]/[startHand]/[drawCount] 控制双方玩家的初始 LP、起手手牌数
+  /// 与每回合抽牌数（缺省 8000/5/1）。
+  ///
   /// 注意：本方法不推进 process 循环，调用方应在合成/下发 MSG_START
   /// 之后再调用 [pump] 推进第一轮。
-  Future<DuelSetupInfo?> startDuel(List<int> deck) async {
+  Future<DuelSetupInfo?> startDuel(
+    List<int> deck, {
+    int startLp = 8000,
+    int startHand = 5,
+    int drawCount = 1,
+  }) async {
     final core = _core;
     if (core == null || deck.isEmpty) return null;
 
@@ -169,8 +177,8 @@ class DuelEngine {
     if (_duel == 0) return null;
 
     // 设置双方玩家：人类固定 player 0（先攻方），AI 固定 player 1
-    core.setPlayerInfo(_duel!, 0, 8000, 5, 1);
-    core.setPlayerInfo(_duel!, 1, 8000, 5, 1);
+    core.setPlayerInfo(_duel!, 0, startLp, startHand, drawCount);
+    core.setPlayerInfo(_duel!, 1, startLp, startHand, drawCount);
 
     // 加载卡组到 ocgcore（双方使用同一副卡组）
     for (int i = 0; i < deck.length; i++) {
@@ -189,8 +197,8 @@ class DuelEngine {
     _duelStarted = true;
 
     return DuelSetupInfo(
-      lp0: 8000,
-      lp1: 8000,
+      lp0: startLp,
+      lp1: startLp,
       deck0: deck.length,
       extra0: 0,
       deck1: deck.length,

@@ -13,10 +13,7 @@ import '../../widgets/shared/create_room.dart';
 
 class MatchJoinSheet extends StatefulWidget {
   final GameServer server;
-  const MatchJoinSheet({
-    super.key,
-    required this.server,
-  });
+  const MatchJoinSheet({super.key, required this.server});
 
   @override
   State<MatchJoinSheet> createState() => _MatchJoinSheetState();
@@ -29,44 +26,99 @@ class _MatchJoinSheetState extends State<MatchJoinSheet> {
   String? _error;
 
   @override
-  void dispose() { _usernameCtrl.dispose(); _passwordCtrl.dispose(); super.dispose(); }
+  void dispose() {
+    _usernameCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _join(BuildContext context) async {
-    setState(() { _connecting = true; _error = null; });
+    setState(() {
+      _connecting = true;
+      _error = null;
+    });
     final matchStore = context.read<MatchStore>();
-    final arena = widget.server.type == ServerType.matchAthletic ? 'athletic' : 'entertain';
+    final arena = widget.server.type == ServerType.matchAthletic
+        ? 'athletic'
+        : 'entertain';
     matchStore.startSearching(arena);
     Navigator.of(context).pop();
 
     try {
       final result = await MatchService().match(
-        arena: arena, username: _usernameCtrl.text.trim(), secret: _passwordCtrl.text.trim(),
+        arena: arena,
+        username: _usernameCtrl.text.trim(),
+        secret: _passwordCtrl.text.trim(),
       );
       matchStore.setMatchResult(result.address, result.port, result.password);
       matchStore.setUsername(_usernameCtrl.text.trim());
       if (context.mounted) context.go('/duel-room');
     } catch (e) {
-      if (mounted) { setState(() { _connecting = false; _error = '匹配失败: $e'; }); matchStore.stopSearching(); }
+      if (mounted) {
+        setState(() {
+          _connecting = false;
+          _error = '匹配失败: $e';
+        });
+        matchStore.stopSearching();
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: sheetContainer(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(widget.server.displayName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
-        Text('${widget.server.wsUrl}  ·  ${widget.server.description}',
-            style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 13)),
-        const SizedBox(height: 20),
-        darkTextField(controller: _usernameCtrl, label: '用户名', icon: Icons.person),
-        const SizedBox(height: 12),
-        PasswordField(controller: _passwordCtrl, label: '密码 (选填)', hintText: '留空使用默认密码', icon: Icons.lock, onSubmitted: (_) => _join(context)),
-        if (_error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 13))),
-        const SizedBox(height: 20),
-        connectButton(label: '开始匹配', connecting: _connecting, onPressed: () => _join(context)),
-      ])),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: sheetContainer(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.server.displayName,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${widget.server.wsUrl}  ·  ${widget.server.description}',
+              style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 13),
+            ),
+            const SizedBox(height: 20),
+            darkTextField(
+              controller: _usernameCtrl,
+              label: '用户名',
+              icon: Icons.person,
+            ),
+            const SizedBox(height: 12),
+            PasswordField(
+              controller: _passwordCtrl,
+              label: '密码 (选填)',
+              hintText: '留空使用默认密码',
+              icon: Icons.lock,
+              onSubmitted: (_) => _join(context),
+            ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                ),
+              ),
+            const SizedBox(height: 20),
+            connectButton(
+              label: '开始匹配',
+              connecting: _connecting,
+              onPressed: () => _join(context),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

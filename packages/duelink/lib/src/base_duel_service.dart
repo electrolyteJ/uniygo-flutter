@@ -474,16 +474,12 @@ abstract class BaseDuelService implements IDuelService {
   @override
   void chooseTurnOrder(bool goFirst) {
     _send(YgoCtosMsg.tpResult(CtosTpResult(first: goFirst)));
-    // optimistic: 提前进入 PreDuel
-    if (_roomStage is RoomSelectingTurn) {
-      _roomStage = RoomInDuel(
-        players: _playersOf(_roomStage),
-        observerCount: _obsOf(_roomStage),
-        isFirstTurn: goFirst,
-      );
-      console.log('RoomStage RoomSelectingTurn ${_roomStage}');
-      _roomStageController.add(_roomStage);
-    }
+    // 不做乐观更新：先后攻由服务器裁决（AI 可能覆盖选择，如
+    // SIMPLE_AI 强制人类先攻）。提前切到 RoomInDuel 会导致：
+    //  1. DuelFieldPage 在乐观 RoomInDuel 上提前挂载，弹出取到错误值的提示；
+    //  2. 紧接着服务器下发 RoomStartDuel（与 RoomInDuel 平级）使页面卸载，
+    //     再下发 RoomInDuel(first:...) 又重挂，导致先后攻提示重复出现。
+    // stage/isFirstTurn 均由服务器下发的 RoomInDuel 驱动。
   }
 
   @override

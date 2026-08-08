@@ -115,6 +115,11 @@ class MsgSelectChainOption {
 
   bool get hasOperationFlag => (flag & 1) != 0;
   bool get hasResetFlag => (flag & 2) != 0;
+
+  @override
+  String toString() {
+    return 'MsgSelectChainOption(flag:$flag isForced:$isForced code:$code location:$location effectDescription:$effectDescription response:$response)';
+  }
 }
 
 enum MsgSelectChainFlag {
