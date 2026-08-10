@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../../models/FieldCard.dart';
 import '../../shared/card_image.dart';
-import '../hud/duel_field_background.dart';
+import 'duel_field_background.dart';
 import 'duel_field_world.dart';
 import 'phase_lamp.dart';
 import 'playmat_anchor_data.dart';

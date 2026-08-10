@@ -1175,6 +1175,8 @@ class DuelFieldStore extends ChangeNotifier {
 
   /// 把手牌/场上可执行行动整理成 idle command 菜单。
   void applyIdleCmd(MsgSelectIdleCmd msg) {
+    // 进入新的选择阶段时清除残留的动效（如攻击动画被反射镜力中断，怪兽破坏后无 MSG_BATTLE 结算）
+    _scheduleBattlePresentationClear();
     final actions = <IdleAction>[];
     for (final group in msg.commandGroups) {
       final type = group.type.index;
@@ -1218,6 +1220,9 @@ class DuelFieldStore extends ChangeNotifier {
 
   /// 把战斗阶段可执行行动整理成 battle command 菜单。
   void applyBattleCmd(MsgSelectBattleCmd msg) {
+    // 进入新的战斗指令选择时，若前一击未进入伤害计算（如怪兽在伤害计算前被效果破坏，
+    // 无 MSG_BATTLE 结算），则清除残留的攻击动效。
+    _scheduleBattlePresentationClear();
     final actions = <BattleAction>[];
     for (final group in msg.commandGroups) {
       final type = group.type.index;

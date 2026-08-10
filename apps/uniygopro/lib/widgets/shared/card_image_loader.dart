@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 /// 统一的卡片图片加载器——Flame (ui.Image) 和 Flutter Widget (ImageProvider)

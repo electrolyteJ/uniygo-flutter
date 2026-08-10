@@ -614,7 +614,7 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
               child: IgnorePointer(
                 child: ChainStackOverlay(
                   chains: duelFieldStore.chains,
-                  sealed: duelFieldStore.chainSealed,
+                  chainSealed: duelFieldStore.chainSealed,
                 ),
               ),
             ),

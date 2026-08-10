@@ -184,7 +184,10 @@ class _CardSelectorState extends State<CardSelector> {
         ),
         child: Stack(
           children: [
-            CardImage(code: option.code, width: 92, height: 132),
+            if (option.code > 0)
+              CardImage(code: option.code, width: 92, height: 132)
+            else
+              _buildEmptySlotPlaceholder(),
             if (!selected)
               Positioned.fill(
                 child: IgnorePointer(
@@ -245,5 +248,22 @@ class _CardSelectorState extends State<CardSelector> {
     _selectedIndices
       ..clear()
       ..addAll(widget.select.initialSelectedIndices);
+  }
+
+  Widget _buildEmptySlotPlaceholder() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.grey.shade700, width: 1),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.blueGrey.shade800, Colors.blueGrey.shade900],
+        ),
+      ),
+      child: const Center(
+        child: Icon(Icons.add, color: Colors.white24, size: 24),
+      ),
+    );
   }
 }

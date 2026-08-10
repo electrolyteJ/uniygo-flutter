@@ -42,7 +42,7 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
   DuelRule _duelRule = DuelRule.mr2020;
   int _timeLimit = 180;
   bool _noCheckDeck = true;
-  bool _noShuffleDeck = true;
+  bool _noShuffleDeck = false;
   bool _connecting = false;
 
   /// 为 233 服 AI 生成 mercury233 兼容房间串。
