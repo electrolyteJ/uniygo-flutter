@@ -228,7 +228,7 @@ class PlaymatActionResolver {
       case 0:
         return '召唤';
       case 1:
-        return '特殊召唤';
+        return action.controller == 0 ? '特殊召唤（己方）' : '特殊召唤（对方）';
       case 2:
         return '改变表示形式';
       case 3:
