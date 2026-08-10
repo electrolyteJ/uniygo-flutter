@@ -15,6 +15,7 @@ import '../../../models/confirm_cards.dart';
 import '../../../models/FieldCard.dart';
 import '../../../models/IdleAction.dart';
 import '../../../models/SelectState.dart';
+import '../../../widgets/shared/card_image_loader.dart';
 import '../../../models/duel_event.dart';
 import '../../../services/duel_sound_service.dart';
 import '../../../widgets/duel_room/inspector/zone_browser_modal.dart';
@@ -62,6 +63,8 @@ class DuelFieldStore extends ChangeNotifier {
   int myController = 0;
 
   List<ChainLink> chains = [];
+  /// 连锁组建阶段已结束，不再有新的连锁入链（MSG_CHAIN_SOLVING 之后）。
+  bool chainSealed = false;
   String? lastSummonKey;
   String? lastAttackFrom;
   String? lastAttackTo;
@@ -167,6 +170,7 @@ class DuelFieldStore extends ChangeNotifier {
     turnCount = 0;
     myController = 0;
     chains = [];
+    chainSealed = false;
     lastSummonKey = null;
     lastAttackFrom = null;
     lastAttackTo = null;
@@ -954,10 +958,18 @@ class DuelFieldStore extends ChangeNotifier {
   // 选择响应
   // ──────────────────────────────────────────
 
-  /// 记录当前等待玩家处理的选择请求。
+  /// 记录当前等待玩家处理的选择请求，同时预热所有选项的卡图缓存。
   void setSelect(SelectState select) {
     currentSelect = select;
+    _preloadSelectImages(select);
     notifyListeners();
+  }
+
+  /// 预热 CardSelector 中所有卡片图片到 [CardImageLoader] 全局缓存。
+  void _preloadSelectImages(SelectState select) {
+    for (final opt in select.options) {
+      if (opt.code > 0) CardImageLoader.I.load(opt.code);
+    }
   }
 
   /// 清除当前选择请求。
@@ -1719,6 +1731,7 @@ class DuelFieldStore extends ChangeNotifier {
         _handleConfirmCards(gameMsg.func, innerMsg as MsgConfirmCards);
         break;
       case MSG_CHAINING:
+        chainSealed = false;
         final name = handleChaining(innerMsg);
         addLog('连锁发动 $name。');
         soundService.playChain();
@@ -1727,6 +1740,7 @@ class DuelFieldStore extends ChangeNotifier {
         _handleChained(innerMsg as MsgChained);
         break;
       case MSG_CHAIN_SOLVING:
+        chainSealed = true;
         _handleChainSolving(innerMsg as MsgChainSolving);
         break;
       case MSG_CHAIN_SOLVED:
@@ -2661,11 +2675,26 @@ class DuelFieldStore extends ChangeNotifier {
   }
 
   List<PlaymatResolvedAction> _handActionsForSequence(int sequence) {
-    return PlaymatActionResolver.resolveHandActions(
+    final actions = PlaymatActionResolver.resolveHandActions(
       this,
       myController,
       sequence,
     );
+    // 魔法/陷阱卡：发动在上，盖放在下
+    if (actions.length <= 1) return actions;
+    final sorted = List<PlaymatResolvedAction>.of(actions);
+    sorted.sort((a, b) {
+      if (a.kind == PlaymatResolvedActionKind.activate &&
+          b.kind == PlaymatResolvedActionKind.spellSet) {
+        return -1;
+      }
+      if (b.kind == PlaymatResolvedActionKind.activate &&
+          a.kind == PlaymatResolvedActionKind.spellSet) {
+        return 1;
+      }
+      return 0;
+    });
+    return sorted;
   }
 
   pkg.CardInfo? cardInfoForHandSequence(int sequence) {
