@@ -1,57 +1,10 @@
 import 'dart:developer' as console;
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:ygo_data/card_info.dart';
-import 'package:ygo_data/lf_table.dart';
 import 'package:ygo_data/ygo_data.dart';
 import 'package:ygo_card_mycard/src/card_dao.dart';
-import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
-import 'card_database.dart';
+import 'db/card_database.dart';
 import 'env_config.dart';
 import 'dart:convert';
 import 'httper.dart';
-
-Future<File> _dbPath() async {
-  final path = '${(await getApplicationDocumentsDirectory()).path}/cards.cdb';
-  return File(path);
-}
-
-Future<File> _test_dbPath() async {
-  final path =
-      '${(await getApplicationDocumentsDirectory()).path}/test_cards.cdb';
-  return File(path);
-}
-
-Future<void> preDownloadDatabase() async {
-  final productionFile = await _dbPath();
-  console.log('Checking database file at ${productionFile.path}');
-  if (!await productionFile.exists() || await productionFile.length() == 0) {
-    final response = await fetch(EnvConfig.production.cardDatabaseUrl);
-    final bodyBytes = response.bodyBytes;
-    console.log('Database file not found, downloading...');
-    if (bodyBytes.isNotEmpty) {
-      console.log('Database downloaded, saving to ${productionFile.path}');
-      await productionFile.writeAsBytes(bodyBytes);
-    } else {
-      throw Exception('HTTP error');
-    }
-  }
-  await initDatabase(productionFile.path);
-
-  final stagingFile = await _test_dbPath();
-  console.log('Checking test database file at ${stagingFile.path}');
-  if (!await stagingFile.exists() || await stagingFile.length() == 0) {
-    final response = await fetch(EnvConfig.staging.cardDatabaseUrl);
-    final bodyBytes = response.bodyBytes;
-    console.log('Database file not found, downloading...');
-    if (bodyBytes.isNotEmpty) {
-      console.log('Database downloaded, saving to ${stagingFile.path}');
-      await stagingFile.writeAsBytes(bodyBytes);
-    } else {
-      throw Exception('HTTP error');
-    }
-  }
-}
 
 // =============================================================================
 // CardService
@@ -70,17 +23,19 @@ class CardService implements ICardService {
   set envType(dynamic value) {
     config = EnvConfig.fromType(value);
     if (envType == EnvType.staging) {
-      _test_dbPath().then((file) async {
-        await CardDatabase.instance.dispose();
-        await initDatabase(file.path);
-        _cardDao = CardDatabase.instance.dao;
-      });
+      console.log('Staging environment detected, checking test database files...');
+      // _test_dbPath().then((file) async {
+      //   await CardDatabase.instance.dispose();
+      //   await initDatabase(file.path);
+      //   _cardDao = CardDatabase.instance.dao;
+      // });
     } else {
-      _dbPath().then((file) async {
-        await CardDatabase.instance.dispose();
-        await initDatabase(file.path);
-        _cardDao = CardDatabase.instance.dao;
-      });
+      console.log('Desktop platform detected, checking database files...');
+      // _dbPath().then((file) async {
+      //   await CardDatabase.instance.dispose();
+      //   await initDatabase(file.path);
+      //   _cardDao = CardDatabase.instance.dao;
+      // });
     }
   }
 
@@ -161,10 +116,7 @@ class CardService implements ICardService {
 
   Future<void> _ensureDao() async {
     if (_cardDao != null) return;
-    final file = envType == EnvType.staging
-        ? await _test_dbPath()
-        : await _dbPath();
-    await initDatabase(file.path);
+    await ensureDao(envType);
     _cardDao = CardDatabase.instance.dao;
   }
 }

@@ -1,8 +1,8 @@
-import 'dart:ffi' as ffi;
-import 'dart:io';
 import 'dart:typed_data';
 
-import 'ocgcore_cc_adapter.dart';
+export 'src/ocgcore_adapter.web.dart'
+    if (dart.library.ffi) 'src/ocgcore_adapter.native.dart';
+
 export 'ocgcore.dart';
 export 'src/duel_engine.dart';
 export 'src/script_loader.dart';
@@ -1403,33 +1403,16 @@ typedef MessageHandler = Future<int> Function(int pduel, int msgType);
 /// 创建 OcgCore 实例
 ///
 /// 根据当前平台返回对应的适配器实例：
-/// - Android: 使用原生 FFI 适配器
-/// - macOS: 使用原生 FFI 适配器
-/// - iOS: 使用原生 FFI 适配器
-/// - Linux: 使用原生 FFI 适配器
-/// - Windows: 使用原生 FFI 适配器
-/// - 其他平台: 返回 null
+/// - Web: 使用 WASM 适配器（dart:js_interop）
+/// - Android/iOS/macOS/Linux/Windows: 使用原生 FFI 适配器（dart:ffi）
 ///
-/// 使用示例：
-/// ```dart
-/// final ocgCore = createOcgCore();
-/// if (ocgCore != null) {
-///   // 使用 ocgCore
-/// }
-/// ```
-Future<OcgCore?> createOcgCore([ffi.DynamicLibrary? lib]) async {
-  if (Platform.isAndroid ||
-      Platform.isMacOS ||
-      Platform.isIOS ||
-      Platform.isLinux ||
-      Platform.isWindows)  {
-    var ocgCoreNativeAdapter = OcgCoreNativeAdapter();
-    ocgCoreNativeAdapter.initialize(lib);
-    return ocgCoreNativeAdapter;
-  } else {
-    return null;
-  }
-}
+/// [lib] 用于显式指定 ocgcore 动态库（可为 null，按平台默认规则查找）。
+///
+/// 实现由条件导入提供：
+/// - `src/create_ocgcore_stub.dart`（web，无 dart:ffi）
+/// - `src/create_ocgcore_io.dart`（原生，使用 dart:ffi）
+
+// createOcgCore 函数由条件导入提供，参见文件顶部的 import。
 
 /// OcgCore 引擎适配器的抽象基类
 ///

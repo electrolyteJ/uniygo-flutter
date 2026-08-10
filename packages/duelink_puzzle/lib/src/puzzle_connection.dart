@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:developer' as console;
-import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
 import 'package:duelink/duelink.dart';
@@ -32,7 +31,7 @@ class PuzzleConnection implements DuelConnection {
   final _stateController = StreamController<ConnectionState>.broadcast();
 
   /// 显式指定的 ocgcore 动态库（测试环境传入，运行时默认为平台自带查找）。
-  final ffi.DynamicLibrary? lib;
+  final Object? lib;
 
   late final DuelEngine _engine;
 

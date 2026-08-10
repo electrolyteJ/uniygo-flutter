@@ -30,12 +30,14 @@ class TpSelect extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               FilledButton(
+                key: const ValueKey('tp-select-first'),
                 onPressed: enabled ? () => onSendTp(true) : null,
                 style: FilledButton.styleFrom(backgroundColor: Colors.teal),
                 child: const Text('先攻'),
               ),
               const SizedBox(width: 16),
               FilledButton(
+                key: const ValueKey('tp-select-second'),
                 onPressed: enabled ? () => onSendTp(false) : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: Colors.deepOrange,

@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:developer' as console;
-import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
 import '../ocgcore.dart';
@@ -63,16 +62,14 @@ class DuelEngine {
     void Function()? onDuelEnd,
   }) : _emit = emit,
        _splitMessages = splitMessages,
-       _autoAnswer = autoAnswer,
        scriptLoader = scriptLoader ?? ScriptLoader(),
-       _cardReader = cardReader,
        _onDuelEnd = onDuelEnd;
 
   final DuelMessageEmitter _emit;
   final DuelMessageSplitter _splitMessages;
-  final DuelAutoAnswer? _autoAnswer;
   final ScriptLoader scriptLoader;
-  final CardReader? _cardReader;
+  DuelAutoAnswer? _autoAnswer;
+  CardReader? _cardReader;
   final void Function()? _onDuelEnd;
 
   OcgCore? _core;
@@ -88,9 +85,16 @@ class DuelEngine {
   int? _pendingSelectFunc;
   int? _pendingSelectPlayer;
   Uint8List? _pendingSelectPayload;
+  bool _sawRetryInPump = false;
 
+  void setCardReader(CardReader reader) {
+    _cardReader = reader;
+  }
+  void setAutoAnswer(DuelAutoAnswer autoAnswer) {
+    _autoAnswer = autoAnswer;
+  }
   /// 初始化 ocgcore 并注册脚本/卡数据读取回调。成功返回 true。
-  Future<bool> init(ffi.DynamicLibrary? lib) async {
+  Future<bool> init(Object? lib) async {
     try {
       _core = await createOcgCore(lib);
     } catch (e) {
@@ -148,7 +152,15 @@ class DuelEngine {
     int drawCount = 1,
   }) async {
     final core = _core;
-    if (core == null || deck.isEmpty) return null;
+    if (core == null) {
+      console.log('DuelEngine: startDuel failed — _core is null');
+      return null;
+    }
+    if (deck.isEmpty) {
+      console.log('DuelEngine: startDuel failed — deck is empty');
+      return null;
+    }
+    console.log('DuelEngine: preloading ${deck.toSet().length} unique cards...');
 
     // 基础脚本必须在 createDuel 之前写入 Dart 侧缓存 —— interpreter 构造时
     // 就会通过同步回调自动加载 ./script/constant.lua、utility.lua、
@@ -157,6 +169,7 @@ class DuelEngine {
     for (final s in scriptLoader.bootstrapScriptNames) {
       await core.preloadScriptAsync(s);
     }
+    console.log('DuelEngine: bootstrap scripts preloaded');
 
     // 预加载卡牌数据与效果脚本（需在 newCard 之前完成，否则回调缓存为空，
     // 导致怪兽无法召唤 / 魔法陷阱无法发动）
@@ -169,12 +182,20 @@ class DuelEngine {
       await core.preloadCardAsync(code);
       await core.preloadScriptAsync('c$code.lua');
     }
+    console.log('DuelEngine: card data and scripts preloaded');
 
     // 预加载是异步的，期间连接可能已断开（dispose 会清空 _core）
-    if (!identical(_core, core)) return null;
+    if (!identical(_core, core)) {
+      console.log('DuelEngine: startDuel failed — _core changed during preloading');
+      return null;
+    }
 
     _duel = core.createDuel(DateTime.now().millisecondsSinceEpoch & 0xffffffff);
-    if (_duel == 0) return null;
+    if (_duel == 0) {
+      console.log('DuelEngine: startDuel failed — createDuel returned 0');
+      return null;
+    }
+    console.log('DuelEngine: createDuel succeeded, pduel=$_duel');
 
     // 设置双方玩家：人类固定 player 0（先攻方），AI 固定 player 1
     core.setPlayerInfo(_duel!, 0, startLp, startHand, drawCount);
@@ -185,17 +206,19 @@ class DuelEngine {
       core.newCard(_duel!, deck[i], 0, 0, LOCATION_DECK, i, 0);
       core.newCard(_duel!, deck[i], 1, 1, LOCATION_DECK, i, 0);
     }
+    console.log('DuelEngine: cards loaded, starting duel with DUEL_SIMPLE_AI');
 
     // 使用简单 AI 模式（ocgcore 内置，覆盖范围见上层 Connection 注释）
     try {
       core.startDuel(_duel!, DUEL_SIMPLE_AI);
-    } catch (_) {
+    } catch (e) {
+      console.log('DuelEngine: startDuel failed — core.startDuel threw: $e');
       core.endDuel(_duel!);
       _duel = null;
       return null;
     }
     _duelStarted = true;
-
+    console.log('DuelEngine: duel started successfully');
     return DuelSetupInfo(
       lp0: startLp,
       lp1: startLp,
@@ -325,25 +348,70 @@ class DuelEngine {
   void _pumpLoop() {
     // 自动应答保护：连续应答上限，防止无效应答导致 MSG_RETRY 死循环
     var autoAnswers = 0;
+    var emptyWaitRetries = 0;
+    _sawRetryInPump = false;
     while (true) {
       final result = _core!.process(_duel!);
       final status = result & PROCESSOR_FLAG;
       final msgLen = result & PROCESSOR_BUFFER_LEN;
+      var emitResult = const _EmitGameMsgResult();
 
       if (msgLen > 0) {
         final buf = Uint8List(msgLen);
         _core!.getMessage(_duel!, buf);
-        _emitGameMsg(buf);
+        emitResult = _emitGameMsg(buf);
       }
 
       if (status == PROCESSOR_WAITING) {
         if (_pendingSelectPlayer == _aiPlayer && _tryAutoAnswer()) {
+          emptyWaitRetries = 0;
           if (++autoAnswers > 512) {
             console.log('DuelEngine: AI auto-answer limit reached, bail');
             break;
           }
           continue;
         }
+
+        if (emitResult.emittedRetry) {
+          // MSG_RETRY 表示上一条响应非法；保持 WAITING，等客户端重新应答。
+          emptyWaitRetries = 0;
+          break;
+        }
+
+        if (_pendingSelectPlayer == null &&
+            emitResult.emittedNonBlockingWaitMessage) {
+          // PROCESSOR_WAIT 会返回 WAITING | buffer_size，用于把展示类消息
+          // （如 MSG_CONFIRM_CARDS / CONFIRM_DECKTOP / CONFIRM_EXTRATOP）
+          // 先吐给客户端，再在下一轮继续推进；这类消息不需要 CTOS_RESPONSE。
+          emptyWaitRetries = 0;
+          continue;
+        }
+
+        if (_pendingSelectPlayer == null && msgLen == 0) {
+          // 对照 ygopro / YGOProUnity_V2：有些脚本会先经过一拍空的
+          // PROCESSOR_WAITING，再在后续 process() 中吐出真正的下一条消息。
+          // MSG_CONFIRM_CARDS 就会命中这条路径，不能立刻当成“等待客户端应答”。
+          if (++emptyWaitRetries <= 5) {
+            console.log(
+              'DuelEngine: WAITING with no pending select and empty message, retry process()',
+            );
+            continue;
+          }
+          console.log(
+            'DuelEngine: WAITING with no pending select persists, bail',
+          );
+          break;
+        }
+
+        if (_pendingSelectPlayer == null) {
+          emptyWaitRetries = 0;
+          console.log(
+            'DuelEngine: WAITING with non-select message, stop for caller',
+          );
+          break;
+        }
+
+        emptyWaitRetries = 0;
         // 等待人类玩家输入（或无法自动应答的未知消息）
         break;
       }
@@ -361,9 +429,19 @@ class DuelEngine {
     // 引擎等待的必须是人类玩家的应答；AI 的应答已由 _tryAutoAnswer 处理，
     // 其余情况（如非等待状态）直接忽略，避免污染 returns 缓冲。
     if (_pendingSelectPlayer != 0) return;
+    final previousFunc = _pendingSelectFunc;
+    final previousPlayer = _pendingSelectPlayer;
+    final previousPayload = _pendingSelectPayload == null
+        ? null
+        : Uint8List.fromList(_pendingSelectPayload!);
     _clearPendingSelect();
     _core!.setResponseb(_duel!, data);
     pump();
+    if (_sawRetryInPump) {
+      _pendingSelectFunc = previousFunc;
+      _pendingSelectPlayer = previousPlayer;
+      _pendingSelectPayload = previousPayload;
+    }
   }
 
   /// 残局脚本中 location 参数的符号名映射（脚本用常量名而非数值）。
@@ -443,7 +521,14 @@ class DuelEngine {
     MSG_SORT_CARD,
   };
 
-  void _emitGameMsg(Uint8List msg) {
+  /// 不需要客户端应答、但会通过 PROCESSOR_WAIT 暂停一拍的展示类消息。
+  static const _nonBlockingWaitFuncs = {
+    MSG_CONFIRM_CARDS,
+    MSG_CONFIRM_DECKTOP,
+    MSG_CONFIRM_EXTRATOP,
+  };
+
+  _EmitGameMsgResult _emitGameMsg(Uint8List msg) {
     // 引擎缓冲区可能首尾相接多条消息（如残局 preloadScript 摆场时
     // MSG_AI_NAME/MSG_RELOAD_FIELD/MSG_SHOW_HINT 连写），逐条拆开派发。
     final List<Uint8List> messages;
@@ -451,11 +536,23 @@ class DuelEngine {
       messages = _splitMessages(msg);
     } catch (e) {
       console.log('DuelEngine: split gameMsg failed: $e');
-      return;
+      return const _EmitGameMsgResult();
     }
+    var emittedNonBlockingWaitMessage = false;
+    var emittedRetry = false;
     for (final m in messages) {
       // 记录待应答消息归属，供 pump 判断 WAITING 是人类还是 AI。
       // 线格式约定（playerop.cpp）：选择类消息载荷首字节即 player。
+      console.log(
+        'DuelEngine: emit gameMsg func=${m.isNotEmpty ? m[0] : -1} len=${m.length}',
+      );
+      if (m.isNotEmpty && m[0] == MSG_RETRY) {
+        emittedRetry = true;
+        _sawRetryInPump = true;
+      }
+      if (m.isNotEmpty && _nonBlockingWaitFuncs.contains(m[0])) {
+        emittedNonBlockingWaitMessage = true;
+      }
       if (m.isNotEmpty && _selectFuncs.contains(m[0])) {
         _pendingSelectFunc = m[0];
         _pendingSelectPayload = m.length > 1
@@ -467,5 +564,19 @@ class DuelEngine {
       }
       _emit(m);
     }
+    return _EmitGameMsgResult(
+      emittedNonBlockingWaitMessage: emittedNonBlockingWaitMessage,
+      emittedRetry: emittedRetry,
+    );
   }
+}
+
+class _EmitGameMsgResult {
+  final bool emittedNonBlockingWaitMessage;
+  final bool emittedRetry;
+
+  const _EmitGameMsgResult({
+    this.emittedNonBlockingWaitMessage = false,
+    this.emittedRetry = false,
+  });
 }

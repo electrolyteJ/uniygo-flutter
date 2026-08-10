@@ -3,7 +3,7 @@ description: |
   Generated bindings for ocgcore (libocgcore).
   
   Regenerate with `dart run ffigen --config ffigen.yaml`.
-output: 'lib/ocgcore_bindings_generated.dart'
+output: 'lib/src/ocgcore_bindings_generated.dart'
 compiler-opts:
   - '-xc'
   - '-std=c11'

@@ -5,6 +5,9 @@ class SelectState {
   final int min;
   final int max;
   final bool cancelable;
+  final bool finishable;
+  final bool immediateSingleToggle;
+  final List<int> initialSelectedIndices;
   final int? effectDescription;
 
   const SelectState({
@@ -14,6 +17,9 @@ class SelectState {
     this.min = 1,
     this.max = 1,
     this.cancelable = false,
+    this.finishable = false,
+    this.immediateSingleToggle = false,
+    this.initialSelectedIndices = const [],
     this.effectDescription,
   });
 }
@@ -43,12 +49,14 @@ enum SelectType {
   card,
   chain,
   option,
+  announceCard,
   position,
   effectYn,
   yesNo,
   battleCmd,
   place,
   tribute,
+  unselect,
   sum,
   counter,
   sort,

@@ -1,5 +1,7 @@
 library duelink_websocket;
 
+import 'dart:developer' as console;
+
 import 'package:duelink/duelink.dart';
 import 'package:duelink_websocket/src/websocket_connection.dart';
 import 'package:service_loader/service_loader.dart';
@@ -12,5 +14,5 @@ class WebSocketDuelService extends BaseDuelService {
 
 @OnServiceRegister()
 onServiceRegister() {
-  print("onServiceRegister");
+  console.log('duelink_websocket.dart onServiceRegister');
 }

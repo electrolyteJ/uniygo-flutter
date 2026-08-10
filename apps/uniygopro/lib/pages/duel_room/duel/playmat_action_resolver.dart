@@ -67,6 +67,7 @@ class PlaymatActionResolver {
     int controller,
     int location,
     int sequence,
+    int? code,
   ) {
     if (!duelStore.ownsCurrentWindow(player)) {
       return const [];
@@ -74,16 +75,25 @@ class PlaymatActionResolver {
 
     final actions = <PlaymatResolvedAction>[];
     if (duelStore.hasIdleCommandWindow) {
-      actions.addAll(
-        duelStore.selectedIdleActions
-            .where(
-              (action) =>
-                  action.controller == controller &&
-                  action.location == location &&
-                  action.locationSequence == sequence,
-            )
-            .map(_resolveIdleAction),
-      );
+      final idleActions = duelStore.selectedIdleActions
+          .where(
+            (action) =>
+                action.controller == controller && action.location == location,
+          )
+          .toList(growable: false);
+      final exactIdleActions = idleActions
+          .where((action) => action.locationSequence == sequence)
+          .map(_resolveIdleAction);
+      actions.addAll(exactIdleActions);
+      if (actions.isEmpty && code != null && code > 0) {
+        final codeMatchedActions = idleActions
+            .where((action) => action.code == code)
+            .map(_resolveIdleAction)
+            .toList(growable: false);
+        if (codeMatchedActions.length == 1) {
+          actions.addAll(codeMatchedActions);
+        }
+      }
     }
     if (duelStore.hasBattleCommandWindow) {
       actions.addAll(

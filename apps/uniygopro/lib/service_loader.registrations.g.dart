@@ -8,15 +8,18 @@ import 'package:duelink_socket/duelink_socket.dart';
 import 'package:duelink_websocket/duelink_websocket.dart';
 import 'package:service_loader/service_loader.dart';
 import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
+import 'package:ygo_card_baige/ygo_card_baige.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 import 'package:ygo_data/ygo_data.dart';
-import 'package:ygo_deck_mdpro3/services/deck_service.dart';
+import 'package:ygo_deck_mdpro3/ygo_deck_mdpro3.dart';
+import 'package:ygo_deck_mycard/ygo_deck_mycard.dart';
 import 'package:duelink_websocket/duelink_websocket.dart' as _i1;
 import 'package:duelink_ai/duelink_ai.dart' as _i2;
 import 'package:duelink_puzzle/duelink_puzzle.dart' as _i3;
 import 'package:ygo_card_mycard/ygo_card_mycard.dart' as _i4;
 import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart' as _i5;
-import 'package:ygo_deck_mdpro3/services/deck_service.dart' as _i6;
+import 'package:ygo_deck_mdpro3/ygo_deck_mdpro3.dart' as _i6;
+import 'package:ygo_deck_mycard/ygo_deck_mycard.dart' as _i7;
 
 /// 注册本包内所有标注了 [Service] 的服务。
 void registerAllServices() {
@@ -26,12 +29,15 @@ void registerAllServices() {
   _i4.onServiceRegister();
   _i5.onServiceRegister();
   _i6.onServiceRegister();
+  _i7.onServiceRegister();
   ServiceFactory.register<WebSocketDuelService>(() => WebSocketDuelService());
   ServiceFactory.register<SocketDuelService>(() => SocketDuelService());
   ServiceFactory.register<AiDuelService>(() => AiDuelService());
   ServiceFactory.register<PuzzleDuelService>(() => PuzzleDuelService());
   ServiceFactory.register<IPuzzleService>(() => PuzzleService());
-  ServiceFactory.register<ICardService>(createMyCardCardService);
   ServiceFactory.register<IBanlistService>(createMyCardBanListService);
-  ServiceFactory.register<IDeckService>(() => DeckService());
+  // ServiceFactory.register<BaigeCardService>(() => BaigeCardService());
+  ServiceFactory.register<MyCardCardService>(() => MyCardCardService());
+  ServiceFactory.register<MdPro3DeckService>(() => MdPro3DeckService());
+  ServiceFactory.register<MycardDeckService>(() => MycardDeckService());
 }

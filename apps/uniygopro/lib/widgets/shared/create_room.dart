@@ -3,6 +3,7 @@
 // ────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 Widget sheetContainer({required Widget child}) {
   // 用 Material 而非 DecoratedBox：ListTile 家族（ListTile/SwitchListTile/
@@ -74,6 +75,7 @@ Widget darkTextField({
 }
 
 Widget connectButton({
+  Key? key,
   required String label,
   required bool connecting,
   required VoidCallback onPressed,
@@ -81,6 +83,7 @@ Widget connectButton({
   return SizedBox(
     height: 48,
     child: FilledButton.icon(
+      key: key,
       onPressed: connecting ? null : onPressed,
       icon: connecting
           ? const SizedBox(
@@ -102,48 +105,140 @@ Widget connectButton({
   );
 }
 
-Widget numberRow(String label, int value, ValueChanged<int> onChanged) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 3),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(color: Colors.blueGrey.shade200, fontSize: 14),
-          ),
-        ),
-        IconButton(
-          icon: Icon(
-            Icons.remove_circle_outline,
-            color: Colors.blueGrey.shade300,
-            size: 22,
-          ),
-          onPressed: value > 0 ? () => onChanged(value - 1) : null,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 32),
-        ),
-        SizedBox(
-          width: 48,
-          child: Text(
-            '$value',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+Widget numberRow(
+  String label,
+  int value,
+  ValueChanged<int> onChanged, {
+  int min = 0,
+  int max = 999999,
+}) {
+  return _NumberInputRow(
+    label: label,
+    value: value,
+    min: min,
+    max: max,
+    onChanged: onChanged,
+  );
+}
+
+class _NumberInputRow extends StatefulWidget {
+  final String label;
+  final int value;
+  final int min;
+  final int max;
+  final ValueChanged<int> onChanged;
+
+  const _NumberInputRow({
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+  });
+
+  @override
+  State<_NumberInputRow> createState() => _NumberInputRowState();
+}
+
+class _NumberInputRowState extends State<_NumberInputRow> {
+  late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+
+  int get _clampedValue => widget.value.clamp(widget.min, widget.max);
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: '$_clampedValue');
+    _focusNode = FocusNode()..addListener(_handleFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant _NumberInputRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value && !_focusNode.hasFocus) {
+      _controller.text = '$_clampedValue';
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode
+      ..removeListener(_handleFocusChange)
+      ..dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleFocusChange() {
+    if (!_focusNode.hasFocus) {
+      _commit();
+    }
+  }
+
+  void _commit() {
+    final parsed = int.tryParse(_controller.text);
+    final nextValue = (parsed ?? widget.value).clamp(widget.min, widget.max);
+    final nextText = '$nextValue';
+    if (_controller.text != nextText) {
+      _controller.value = TextEditingValue(
+        text: nextText,
+        selection: TextSelection.collapsed(offset: nextText.length),
+      );
+    }
+    if (nextValue != widget.value) {
+      widget.onChanged(nextValue);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              widget.label,
+              style: TextStyle(color: Colors.blueGrey.shade200, fontSize: 14),
             ),
           ),
-        ),
-        IconButton(
-          icon: Icon(Icons.add_circle_outline, color: Colors.amber, size: 22),
-          onPressed: () => onChanged(value + 1),
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 32),
-        ),
-      ],
-    ),
-  );
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 120,
+            child: TextField(
+              controller: _controller,
+              focusNode: _focusNode,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: '${widget.min}-${widget.max}',
+                hintStyle: TextStyle(color: Colors.blueGrey.shade500),
+                filled: true,
+                fillColor: Colors.blueGrey.shade800,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onSubmitted: (_) => _commit(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 Widget dropdownRow<T>({

@@ -3,23 +3,18 @@ import 'dart:developer' as console;
 import 'package:ocgcore/ocgcore.dart';
 import 'package:service_loader/service_loader.dart';
 import 'package:ygo_data/card_info.dart';
-import 'package:ygo_data/ygo_data.dart';
+import '../duelink_ai.dart';
+
 /// ocgcore 卡牌数据加载器 —— [CardReader] 的实现对局引擎通过它读取卡数据。
 ///
 /// 数据来源优先级：
 /// [ICardService]（构造函数注入，或运行时通过 [ServiceFactory] 查找
 ///    已注册的实现 —— App 中为 ygo_card_mycard / ygo_card_baige）。
 class CardDataLoader {
-  CardDataLoader({ICardService? cardService})
-      : _cardService = cardService ?? _resolveCardService();
-
-  final ICardService? _cardService;
+  final CardConverter _cardConverter;
   final _cache = <int, CardData>{};
 
-  static ICardService? _resolveCardService() {
-    if (!ServiceFactory.isRegistered<ICardService>()) return null;
-    return ServiceFactory.create<ICardService>();
-  }
+  CardDataLoader({required this._cardConverter});
 
   /// 读取卡牌数据（ocgcore [CardReader] 签名）。
   Future<CardData?> load(int code) async {
@@ -27,7 +22,8 @@ class CardDataLoader {
     if (cached != null) return cached;
 
     CardData? data;
-    final info = await _cardService?.getCard(code);
+
+    final info = await _cardConverter(code);
     console.log('CardDataLoader: load code=$code info=$info');
     if (info != null) {
       data = _toCardData(info);
@@ -40,20 +36,20 @@ class CardDataLoader {
   int? levelOf(int code) => _cache[code]?.level;
 
   static CardData _toCardData(CardInfo info) => CardData(
-        code: info.code,
-        alias: info.alias,
-        setcode: info.setcode,
-        type: info.type,
-        level: info.level,
-        attribute: info.attribute,
-        race: info.race,
-        attack: info.attack,
-        defense: info.defense,
-        lscale: info.lscale,
-        rscale: info.rscale,
-        linkMarker: info.linkMarker,
-        ruleCode: 0,
-        name: info.name,
-        desc: info.desc,
-      );
+    code: info.code,
+    alias: info.alias,
+    setcode: info.setcode,
+    type: info.type,
+    level: info.level,
+    attribute: info.attribute,
+    race: info.race,
+    attack: info.attack,
+    defense: info.defense,
+    lscale: info.lscale,
+    rscale: info.rscale,
+    linkMarker: info.linkMarker,
+    ruleCode: 0,
+    name: info.name,
+    desc: info.desc,
+  );
 }

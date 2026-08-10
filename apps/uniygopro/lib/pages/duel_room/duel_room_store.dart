@@ -1,28 +1,26 @@
 import 'dart:async';
 import 'dart:developer' as console;
+import 'dart:math';
+
 import 'package:duelink/duelink.dart' hide CardInfo;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:service_loader/service_loader.dart';
-import 'dart:math';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:ygo_data/card_info.dart';
-import 'package:ygo_data/lf_table.dart';
-import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 import 'package:ygo_data/ygo_data.dart';
 import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
-import 'package:ygo_data/deck_info.dart';
+
+import 'package:service_loader/service_loader.dart';
 
 import '../../service_singleton.dart';
-import '../../services/deck_service.dart';
 import '../../widgets/shared/duel_room.dart';
+import 'duel/duel_field_store.dart';
 
 /// 决斗房间状态仓库。
 class DuelRoomStore extends ChangeNotifier {
   static const _autoHandPrefKey = 'duel.auto_hand_enabled';
   static const _autoTurnOrderPrefKey = 'duel.auto_turn_order_enabled';
   static const _autoDuelPrefKey = 'duel.auto_duel_enabled';
-  List<String> duelLogs = [];
   RoomStage stage = const RoomNotJoined();
   PlayerType selfType = PlayerType.unknown;
   bool isHost = false;
@@ -100,6 +98,7 @@ class DuelRoomStore extends ChangeNotifier {
     // 等待房间重置
     stage = const RoomNotJoined();
     _roomStageSub?.cancel();
+    _msgSub?.cancel();
     selfType = PlayerType.unknown;
     isHost = false;
     players = [];
@@ -109,6 +108,7 @@ class DuelRoomStore extends ChangeNotifier {
     isFirstTurn = null;
     roomOptions = null;
     invalidationDeckResult = null;
+    errorMessage = null;
     selectedDeckName = availableDecks.first.deckName;
     notifyListeners();
   }
@@ -188,10 +188,7 @@ class DuelRoomStore extends ChangeNotifier {
   }
 
   Future<void> loadDecks() async {
-    final deckService = DeckService();
-    final builtinDecks = await deckService.loadBuiltinDecks();
-    final userDecks = await deckService.loadDeckList();
-    final decks = _mergeDecks(builtinDecks, userDecks);
+    final decks = await _dataService.loadDeckList();
     availableDecks = decks;
     console.log(
       'Loaded ${decks.length} decks: ${decks.map((d) => d.deckName).join(', ')}',
@@ -208,8 +205,7 @@ class DuelRoomStore extends ChangeNotifier {
       return null;
     }
     selectedDeckName = deckName;
-    final deckService = DeckService();
-    final deckInfo = await deckService.loadDeck(deckName);
+    final deckInfo = await _dataService.loadDeck(deckName);
     console.log('loadDeck: $deckName -> $deckInfo');
     if (deckInfo == null || deckInfo.mainDeck.isEmpty) {
       return null;
@@ -241,6 +237,7 @@ class DuelRoomStore extends ChangeNotifier {
 
   Future<void> refreshSelectedDeckValidation(BuildContext context) async {
     await loadDecks();
+    if (!context.mounted) return;
     await selectDeck(context, selectedDeckName);
   }
 
@@ -253,6 +250,7 @@ class DuelRoomStore extends ChangeNotifier {
     if (isSelfReady) {
       _duelService?.unready();
     } else {
+      final duelFieldStore = context.read<DuelFieldStore>();
       if (invalidationDeckResult?.isNotEmpty == true) {
         if (context.mounted) {
           final firstError = invalidationDeckResult!.first;
@@ -281,6 +279,9 @@ class DuelRoomStore extends ChangeNotifier {
       }
       final mainBytes = _deckToBytes(result.main.map((c) => c.code).toList());
       final extraBytes = _deckToBytes(result.extra.map((c) => c.code).toList());
+      duelFieldStore.setKnownSelfExtraDeckCodes(
+        result.extra.map((c) => c.code).toList(),
+      );
       _duelService?.submitDeck(mainBytes, extraBytes);
       _duelService?.ready();
     }
@@ -296,8 +297,53 @@ class DuelRoomStore extends ChangeNotifier {
     return bytes;
   }
 
+  String? errorMessage;
+  void setError(int type, int code) {
+    errorMessage = _errorMessage(type, code);
+    notifyListeners();
+  }
+
+  String _errorMessage(int type, int code) {
+    switch (type) {
+      case 1:
+        return '连接已断开';
+      case 2:
+        return '你已经被踢出房间';
+      case 3:
+        return '错误: $code';
+      case 4:
+        return '卡组无效 (错误码: $code)';
+      case 5:
+        return '卡组数量不正确 (错误码: $code)';
+      case 6:
+        return '主卡组需要至少40张';
+      case 7:
+        return '额外卡组不能超过15张';
+      case 8:
+        return '副卡组不能超过15张';
+      case 9:
+        return '禁限卡表不匹配';
+      default:
+        return '服务器错误: type=$type code=$code';
+    }
+  }
+
+  void clearError() {
+    errorMessage = null;
+    notifyListeners();
+  }
+
+  StreamSubscription<YgoStocMsg>? _msgSub;
+
   void bindRoomStageChange(BuildContext context) {
+    _msgSub = _duelService?.onServerMessage.listen((msg) {
+      if (msg.errorMsg != null) {
+        final err = msg.errorMsg!;
+        setError(err.errorType, err.errorCode);
+      }
+    });
     _roomStageSub = _duelService?.onRoomStageChange.listen((roomStage) {
+      if (!context.mounted) return;
       players = roomStage.players;
       observerCount = roomStage.observerCount;
       stage = roomStage;
@@ -345,7 +391,6 @@ class DuelRoomStore extends ChangeNotifier {
           isFirstTurn = roomStage.isFirstTurn;
           break;
         case RoomDuelEnded():
-          backHome(context);
           break;
         default:
           break;
@@ -361,27 +406,17 @@ class DuelRoomStore extends ChangeNotifier {
   Future<List<CardInfo>> _resolveCards(List<DeckCard> deckCards) async {
     final result = <CardInfo>[];
     for (final dc in deckCards) {
-      final card = await _dataService.getCard(dc.code);
-      if (card != null) {
-        for (var i = 0; i < dc.count; i++) {
-          result.add(card);
+      try {
+        final card = await _dataService.getCard(dc.code);
+        if (card != null) {
+          for (var i = 0; i < dc.count; i++) {
+            result.add(card);
+          }
         }
+      } catch (e) {
+        console.log('Failed to resolve card ${dc.code}: $e');
       }
     }
     return result;
-  }
-
-  List<DeckInfo> _mergeDecks(
-    List<DeckInfo> builtinDecks,
-    List<DeckInfo> userDecks,
-  ) {
-    final merged = <String, DeckInfo>{};
-    for (final deck in builtinDecks) {
-      merged[deck.deckName] = deck;
-    }
-    for (final deck in userDecks) {
-      merged[deck.deckName] = deck;
-    }
-    return merged.values.toList();
   }
 }

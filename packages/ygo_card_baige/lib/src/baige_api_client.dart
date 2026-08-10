@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -240,10 +241,14 @@ class BaigeApiClient {
 
   YgoCardDeckException _mapError(Object e) {
     if (e is YgoCardDeckException) return e;
-    if (e is http.ClientException) {
+    if (e is http.ClientException || e is HandshakeException || e is TlsException) {
       return YgoCardDeckException(
         type: YgoCardDeckErrorType.networkError,
-        message: e.message,
+        message: e is HandshakeException
+            ? 'TLS handshake failed: ${e.message}'
+            : e is TlsException
+                ? 'TLS error: ${e.message}'
+                : (e as http.ClientException).message,
         cause: e,
       );
     }

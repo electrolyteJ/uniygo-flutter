@@ -48,6 +48,8 @@ dependencies:
     path: ../../packages/ygo_data
   ygo_card_mycard:
     path: ../../packages/ygo_card_mycard
+  ygo_deck_mycard:
+    path: ../../packages/ygo_deck_mycard
   ygo_deck_mdpro3:
       path: ../../packages/ygo_deck_mdpro3
   ygo_banlist_mycard:

@@ -17,8 +17,8 @@ class DuelLogDrawer extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          width: 220,
-          padding: const EdgeInsets.all(10),
+          width: 300,
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: panelDark,
             border: Border.all(
@@ -44,15 +44,15 @@ class DuelLogDrawer extends StatelessWidget {
                     '❖ DUEL LOG',
                     style: TextStyle(
                       color: goldGlow,
-                      fontSize: 11,
+                      fontSize: 14,
                       fontWeight: FontWeight.w800,
                       fontFamily: 'Orbitron',
                     ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 1,
+                      horizontal: 6,
+                      vertical: 2,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.red.withOpacity(0.2),
@@ -62,7 +62,7 @@ class DuelLogDrawer extends StatelessWidget {
                       'LIVE',
                       style: TextStyle(
                         color: Colors.redAccent,
-                        fontSize: 8,
+                        fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -71,7 +71,7 @@ class DuelLogDrawer extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Container(
-                constraints: const BoxConstraints(maxHeight: 120),
+                // constraints: const BoxConstraints(maxHeight: 120),
                 child: ListView.separated(
                   shrinkWrap: true,
                   physics: const ClampingScrollPhysics(),
@@ -85,21 +85,21 @@ class DuelLogDrawer extends StatelessWidget {
                     if (logs.isEmpty) {
                       return const Text(
                         '等待决斗开始...',
-                        style: TextStyle(color: Colors.white24, fontSize: 10),
+                        style: TextStyle(color: Colors.white24, fontSize: 13),
                       );
                     }
                     final log = logs[logs.length - 1 - index];
                     final isHighlight =
                         log.contains('发动') || log.contains('攻击力');
                     return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      padding: const EdgeInsets.symmetric(vertical: 3),
                       child: Text(
                         log,
                         style: TextStyle(
                           color: isHighlight
                               ? cyanGlow
                               : const Color(0xFF8B9BB4),
-                          fontSize: 10,
+                          fontSize: 14,
                           height: 1.5,
                           fontFamily: 'Noto Sans SC',
                         ),

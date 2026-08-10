@@ -109,11 +109,7 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
     final password = _encodePassword(options, record.password);
     await _saveRecord(record.touch());
     if (!mounted) return;
-    _enterRoom(
-      options: options,
-      roomName: record.roomName,
-      password: password,
-    );
+    _enterRoom(options: options, roomName: record.roomName, password: password);
   }
 
   Future<void> _deleteFromHistory(CreatedRoomRecord record) async {
@@ -149,11 +145,13 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
         _error = null;
       });
       final spec = _mercury233Spec;
-      await _saveRecord(CreatedRoomRecord(
-        env: widget.env,
-        roomName: spec.roomName.trim(),
-        mercurySpec: spec,
-      ));
+      await _saveRecord(
+        CreatedRoomRecord(
+          env: widget.env,
+          roomName: spec.roomName.trim(),
+          mercurySpec: spec,
+        ),
+      );
       if (!context.mounted) return;
       _enterRoom(
         options: spec.toRoomOptions(),
@@ -187,12 +185,14 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
 
     final roomName = _nameCtrl.text.trim();
     final password = _encodePassword(options, pw);
-    await _saveRecord(CreatedRoomRecord(
-      env: widget.env,
-      roomName: roomName,
-      password: pw,
-      options: options,
-    ));
+    await _saveRecord(
+      CreatedRoomRecord(
+        env: widget.env,
+        roomName: roomName,
+        password: pw,
+        options: options,
+      ),
+    );
     if (!context.mounted) return;
     _enterRoom(options: options, roomName: roomName, password: password);
   }
@@ -203,11 +203,7 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
       // 每次操作前都要重新获取 u16Secret
       // const u16Secret = await getUserU16Secret(user.token);
       //todo: 这里的 u16Secret 需要从服务器获取，暂时使用 0 作为占位符
-      return RoomPassword.encodeCreate(
-        options: options,
-        roomId: pw,
-        secret: 0,
-      );
+      return RoomPassword.encodeCreate(options: options, roomId: pw, secret: 0);
     }
     return pw;
   }
@@ -219,10 +215,7 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
     required String password,
   }) {
     final matchStore = context.read<MatchStore>();
-    matchStore.configureCreatedRoom(
-      roomOptions: options,
-      roomName: roomName,
-    );
+    matchStore.configureCreatedRoom(roomOptions: options, roomName: roomName);
     matchStore.selectServer(widget.server, widget.env, password);
 
     Navigator.of(context).pop();
@@ -261,16 +254,23 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
             const SizedBox(height: 10),
             PasswordField(controller: _pwCtrl, label: '房间密码', icon: Icons.lock),
             const SizedBox(height: 14),
-            numberRow('初始 LP', _startLp, (v) => setState(() => _startLp = v)),
+            numberRow(
+              '初始 LP',
+              _startLp,
+              (v) => setState(() => _startLp = v),
+              max: 65535,
+            ),
             numberRow(
               '初始手牌',
               _startHand,
               (v) => setState(() => _startHand = v),
+              max: 15,
             ),
             numberRow(
               '每回合抽卡',
               _drawCount,
               (v) => setState(() => _drawCount = v),
+              max: 15,
             ),
             const SizedBox(height: 6),
             dropdownRow<int>(

@@ -534,7 +534,7 @@ class StocGameMessage {
       case MSG_CONFIRM_DECKTOP:
       case MSG_CONFIRM_EXTRATOP:
         return StocGameMessage(
-            func: func, innerMsg: MsgConfirmCards.decode(innerData));
+            func: func, innerMsg: MsgConfirmCards.decode(innerData, func));
 
       // ---- 刷新/更新 ----
       case MSG_CARD_HINT:

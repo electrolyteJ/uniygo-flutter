@@ -1,0 +1,1 @@
+必须要app宿主 执行dart run sqflite_common_ffi_web:setup 生成 sql 文件

@@ -68,10 +68,11 @@ class _Mercury233RoomFormSectionState extends State<Mercury233RoomFormSection> {
 
   Future<void> _loadBanlistOptions() async {
     try {
-      final tables = await ServiceSingleton.instance.dataService.getAllLfTable();
+      final tables = await ServiceSingleton.instance.dataService
+          .getAllLfTable();
       if (!mounted) return;
 
-       if (tables.isEmpty) {
+      if (tables.isEmpty) {
         _scheduleBanlistRetry();
         return;
       }
@@ -112,7 +113,8 @@ class _Mercury233RoomFormSectionState extends State<Mercury233RoomFormSection> {
     List<Mercury233BanlistOption> options,
   ) {
     for (final option in options) {
-      if (current.lfTableHash != 0 && option.lfTableHash == current.lfTableHash) {
+      if (current.lfTableHash != 0 &&
+          option.lfTableHash == current.lfTableHash) {
         return option;
       }
     }
@@ -218,16 +220,19 @@ class _Mercury233RoomFormSectionState extends State<Mercury233RoomFormSection> {
           '初始 LP',
           widget.spec.startLp,
           (value) => _update(widget.spec.copyWith(startLp: value)),
+          max: 65535,
         ),
         numberRow(
           '初始手牌',
           widget.spec.startHand,
           (value) => _update(widget.spec.copyWith(startHand: value)),
+          max: 15,
         ),
         numberRow(
           '每回合抽卡',
           widget.spec.drawCount,
           (value) => _update(widget.spec.copyWith(drawCount: value)),
+          max: 15,
         ),
         dropdownRow<int>(
           label: '时间限制',

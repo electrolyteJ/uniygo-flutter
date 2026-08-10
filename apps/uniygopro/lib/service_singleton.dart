@@ -2,28 +2,34 @@ import 'package:duelink_ai/duelink_ai.dart' show AiDuelService;
 import 'package:duelink_puzzle/duelink_puzzle.dart'
     show IPuzzleService, PuzzleDuelService;
 import 'package:duelink_socket/duelink_socket.dart' show SocketDuelService;
-import 'package:duelink_websocket/duelink_websocket.dart' show WebSocketDuelService;
+import 'package:duelink_websocket/duelink_websocket.dart'
+    show WebSocketDuelService;
 import 'package:service_loader/service_loader.dart';
 import 'package:uniygopro/services/YgoDataService.dart';
+import 'package:ygo_card_baige/ygo_card_baige.dart';
 import 'package:ygo_data/ygo_data.dart';
-
+import 'package:ygo_deck_mycard/ygo_deck_mycard.dart';
 import 'services/DuelService.dart';
-
+import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 class ServiceSingleton {
   YgoDataService? _dataService;
+  final aiDuelService = ServiceFactory.create<AiDuelService>();
+  // final cardService = ServiceFactory.create<BaigeCardService>();
+  final cardService = ServiceFactory.create<MyCardCardService>();
 
-  YgoDataService get dataService => _dataService ??= YgoDataService(
-    cardService: ServiceFactory.create<ICardService>(),
-    banlistService: ServiceFactory.create<IBanlistService>(),
-    // deckService: ServiceFactory.create<IDeckService>(),
-  );
+  YgoDataService get dataService =>
+      _dataService ??= YgoDataService(
+        cardService: cardService,
+        banlistService: ServiceFactory.create<IBanlistService>(),
+        deckService: ServiceFactory.create<MycardDeckService>(),
+      );
   DuelService? _duelService;
 
   DuelService get duelService =>
       _duelService ??= DuelService(
         wsDuelService: ServiceFactory.create<WebSocketDuelService>(),
         socketDuelService: ServiceFactory.create<SocketDuelService>(),
-        aiDuelService: ServiceFactory.create<AiDuelService>(),
+        aiDuelService: aiDuelService,
         puzzleDuelService: ServiceFactory.create<PuzzleDuelService>(),
       );
 
@@ -33,7 +39,9 @@ class ServiceSingleton {
   IPuzzleService get puzzleService =>
       _puzzleService ??= ServiceFactory.create<IPuzzleService>();
 
-  ServiceSingleton._();
+  ServiceSingleton._() {
+    aiDuelService.setCardConverter(cardService.getCard);
+  }
 
   static final ServiceSingleton instance = ServiceSingleton._();
 }

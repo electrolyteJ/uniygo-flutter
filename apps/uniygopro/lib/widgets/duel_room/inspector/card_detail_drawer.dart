@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:ygo_data/card_info.dart';
@@ -21,21 +20,14 @@ class CardDetailDrawer extends StatelessWidget {
     const cyanGlow = Color(0xFF00F0FF);
     const goldGlow = Color(0xFFFFD700);
     const panelDark = Color(0xF1080C14);
-    // 高度随窗口自适应，避免矮窗口溢出压到手牌栏
-    final maxHeight = math.min(
-      620.0,
-      math.max(320.0, MediaQuery.of(context).size.height - 160),
-    );
+    // 高度由父级 Positioned(top/bottom) 约束决定，自适应屏幕：
+    // 填满两张 PlayerStatusCard 之间的可用空间。
 
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
           width: 324,
-          constraints: BoxConstraints(
-            minHeight: math.min(540.0, maxHeight),
-            maxHeight: maxHeight,
-          ),
           decoration: BoxDecoration(
             color: panelDark,
             borderRadius: BorderRadius.circular(26),
@@ -99,7 +91,7 @@ class CardDetailDrawer extends StatelessWidget {
               ),
 
               Expanded(
-                child: SingleChildScrollView(
+                child: Padding(
                   padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -189,24 +181,26 @@ class CardDetailDrawer extends StatelessWidget {
                           ),
                         const SizedBox(height: 14),
 
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.4),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.08),
+                        // 描述区域：Expanded 填满剩余空间，内部可滚动
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.08),
+                              ),
                             ),
-                          ),
-                          constraints: const BoxConstraints(maxHeight: 190),
-                          child: SingleChildScrollView(
-                            child: Text(
-                              cardInfo!.desc,
-                              style: const TextStyle(
-                                color: Color(0xFF8B9BB4),
-                                fontSize: 12,
-                                height: 1.5,
-                                fontFamily: 'Noto Sans SC',
+                            child: SingleChildScrollView(
+                              child: Text(
+                                cardInfo!.desc,
+                                style: const TextStyle(
+                                  color: Color(0xFF8B9BB4),
+                                  fontSize: 12,
+                                  height: 1.5,
+                                  fontFamily: 'Noto Sans SC',
+                                ),
                               ),
                             ),
                           ),

@@ -38,6 +38,7 @@ class HandSelect extends StatelessWidget {
 
   Widget _handButton(HandType hand, String emoji, String label, void Function(HandType) onTap) {
     return GestureDetector(
+      key: ValueKey('hand-select-${hand.name}'),
       onTap: enabled ? () => onTap(hand) : null,
       child: Column(
         children: [

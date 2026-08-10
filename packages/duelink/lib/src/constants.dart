@@ -99,10 +99,10 @@ const int MSG_SORT_CARD = 25;
 const int MSG_SELECT_UNSELECT_CARD = 26;
 
 // ---- 卡牌信息消息 ----
-/// MSG_CONFIRM_CARDS: 确认卡牌（展示卡片列表）
-const int MSG_CONFIRM_CARDS = 30;
 /// MSG_CONFIRM_DECKTOP: 确认卡组顶部卡片
-const int MSG_CONFIRM_DECKTOP = 31;
+const int MSG_CONFIRM_DECKTOP = 30;
+/// MSG_CONFIRM_CARDS: 确认卡牌（展示卡片列表）
+const int MSG_CONFIRM_CARDS = 31;
 /// MSG_CONFIRM_EXTRATOP: 确认额外卡组顶部卡片
 const int MSG_CONFIRM_EXTRATOP = 42;
 

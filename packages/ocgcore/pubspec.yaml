@@ -12,6 +12,8 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
   plugin_platform_interface: ^2.0.2
 
 dev_dependencies:
@@ -20,6 +22,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  wasm_bridge:
+    path: ../wasm_bridge
 
 flutter:
   plugin:
@@ -34,6 +38,9 @@ flutter:
         ffiPlugin: true
       windows:
         ffiPlugin: true
+      web:
+        pluginClass: OcgCoreWebPlugin
+        fileName: src/ocgcore_bindings_generated.web.dart
 
   assets:
     - web/libs/libocgcore.js

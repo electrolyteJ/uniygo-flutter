@@ -1,15 +1,13 @@
-import 'package:service_loader/service_loader.dart';
 import 'package:ygo_data/card_info.dart';
-import 'package:ygo_data/lf_table.dart';
 import 'package:ygo_data/ygo_data.dart';
 
 import 'baige_api_client.dart';
 
-@Service(BaigeCardService)
-class BaigeCardService implements ICardService {
+
+class CardService implements ICardService {
   final BaigeApiClient _client;
 
-  BaigeCardService({BaigeApiClient? client})
+  CardService({BaigeApiClient? client})
       : _client = client ?? BaigeApiClient();
 
   @override

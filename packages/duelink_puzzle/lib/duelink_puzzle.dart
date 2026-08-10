@@ -6,7 +6,7 @@ export 'src/puzzle_connection.dart';
 export 'src/puzzle_script_loader.dart';
 export 'src/puzzle_service.dart';
 
-import 'dart:ffi' as ffi;
+import 'dart:developer' as console;
 
 import 'package:duelink/duelink.dart';
 import 'package:service_loader/service_loader.dart';
@@ -23,11 +23,11 @@ import 'duelink_puzzle.dart';
 /// 规则查找 libocgcore）。保持可无参构造以满足 `@Service` 注册要求。
 @Service(PuzzleDuelService)
 class PuzzleDuelService extends BaseDuelService {
-  PuzzleDuelService({ffi.DynamicLibrary? lib})
+  PuzzleDuelService({Object? lib})
       : super(PuzzleConnection(lib: lib));
 }
 
 @OnServiceRegister()
 onServiceRegister() {
-  print("onServiceRegister");
+  console.log('duelink_puzzle.dart onServiceRegister');
 }

@@ -16,3 +16,6 @@
 [submodule "vendor/ygopro-card-list"]
 	path = vendor/ygopro-card-list
 	url = https://github.com/mycard/ygopro-card-list.git
+[submodule "vendor/lua"]
+	path = vendor/lua
+	url = https://github.com/lua/lua.git

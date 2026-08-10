@@ -1,15 +1,20 @@
 import 'dart:math' as math;
 
+import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 
 import '../../../models/FieldCard.dart';
 import '../../shared/card_image.dart';
+import '../hud/duel_field_background.dart';
+import 'duel_field_world.dart';
+import 'phase_lamp.dart';
 import 'playmat_anchor_data.dart';
 import 'playmat_field_view_data.dart';
 
-/**
- * PrototypePlaymatField 是一个用于展示游戏场地的 Flutter 组件，支持显示玩家和对手的卡槽、卡牌以及相关信息。它提供了点击事件回调，用于处理卡槽点击和区域点击，并且可以在场地布局发生变化时上报锚点数据。
- */
+/// PrototypePlaymatField 是一个用于展示游戏场地的 Flutter 组件，
+/// 支持显示玩家和对手的卡槽、卡牌以及相关信息。
+/// 它提供了点击事件回调，用于处理卡槽点击和区域点击，
+/// 并且可以在场地布局发生变化时上报锚点数据。
 class PrototypePlaymatField extends StatefulWidget {
   final PlaymatFieldViewData data;
   final void Function(FieldCard? card, int? code)? onFieldCardTap;
@@ -20,9 +25,18 @@ class PrototypePlaymatField extends StatefulWidget {
   /// 青色选中光环 (zone-ring)。
   final String? selectedSlotId;
 
+  /// 阶段指示灯数据：阶段、是否可点击、点击回调。
+  /// PhaseLamp 直接在字段内渲染（定位到 self_grave / 我方墓地卡槽右上角）。
+  final DuelPhase phase;
+  final bool phaseLampEnabled;
+  final VoidCallback? onPhaseLampTap;
+
   const PrototypePlaymatField({
     super.key,
     required this.data,
+    required this.phase,
+    this.phaseLampEnabled = false,
+    this.onPhaseLampTap,
     this.onFieldCardTap,
     this.onZoneTap,
     this.onAnchorsChanged,
@@ -34,14 +48,22 @@ class PrototypePlaymatField extends StatefulWidget {
 }
 
 class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
-  static const _slotWidth = 68.0;
-  static const _slotHeight = 96.0;
-  static const _phaseLampSize = Size(132, 44);
+  static final _slotWidth = DuelFieldLayout.slotWidth;
+  static final _slotHeight = DuelFieldLayout.slotHeight;
+  static final _phaseLampSize = DuelFieldLayout.phaseLampSize;
+
+  /// 沉浸式布局：棋盘内容在「扣除 HUD 的可用区」内 FittedBox 铺满。
+  /// 数值与 [DuelFieldPage] 的 HUD Positioned 对齐，左右为状态卡对称预留
+  /// （不考虑检查器展开的覆盖）。
+  static const _horizontalReserved = 96.0;
+  static const _topReserved = 230.0; // 顶部 HUD + 对手手牌预留
+  static const _bottomReserved = 96.0; // 自己手牌栏高 96
 
   final GlobalKey _rootKey = GlobalKey();
   final Map<String, GlobalKey> _slotKeys = <String, GlobalKey>{};
   String? _lastAnchorSignature;
   bool _anchorEmitQueued = false;
+  Rect? _phaseLampRect;
 
   @override
   void initState() {
@@ -70,8 +92,7 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
 
   void _emitAnchors() {
     final rootContext = _rootKey.currentContext;
-    final callback = widget.onAnchorsChanged;
-    if (rootContext == null || callback == null) return;
+    if (rootContext == null) return;
     final rootBox = rootContext.findRenderObject() as RenderBox?;
     if (rootBox == null || !rootBox.hasSize) return;
 
@@ -94,32 +115,51 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
     }
 
     final phaseLampRect = _buildPhaseLampRect(slotRects, rootBox.size);
-    final anchorData = PlaymatAnchorData(
-      slotRects: slotRects,
-      phaseLampRect: phaseLampRect,
-    );
-    if (anchorData.signature == _lastAnchorSignature) return;
-    _lastAnchorSignature = anchorData.signature;
-    callback(anchorData);
+
+    // 上报 anchors（供 page 的 PhaseActionMenu / FieldActionPopover 定位）
+    final callback = widget.onAnchorsChanged;
+    if (callback != null) {
+      final anchorData = PlaymatAnchorData(
+        slotRects: slotRects,
+        phaseLampRect: phaseLampRect,
+      );
+      if (anchorData.signature != _lastAnchorSignature) {
+        _lastAnchorSignature = anchorData.signature;
+        callback(anchorData);
+      }
+    }
+
+    // 本地 PhaseLamp 渲染：rect 变化时触发重建
+    if (_phaseLampRect != phaseLampRect) {
+      _phaseLampRect = phaseLampRect;
+      setState(() {});
+    }
   }
 
   Rect _buildPhaseLampRect(Map<String, Rect> slotRects, Size rootSize) {
+    // 锚点优先级：self_removed（除外/Banish，EMZ行右 colX[6]）→ self_grave（墓地 Monster行右）→ M4
+    // 与 DuelFieldLayout.phaseLampRefBoardX/Y 对齐。
     final reference =
         slotRects['self_removed'] ??
         slotRects['self_grave'] ??
-        slotRects['${widget.data.selfController}_4_4'];
+        slotRects['${widget.data.selfController}_4_0'];
     if (reference == null) {
       return Rect.fromLTWH(
-        rootSize.width * 0.73,
-        rootSize.height * 0.53,
+        rootSize.width * DuelFieldLayout.phaseLampFallbackRatio.dx,
+        rootSize.height * DuelFieldLayout.phaseLampFallbackRatio.dy,
         _phaseLampSize.width,
         _phaseLampSize.height,
       );
     }
-    return Rect.fromCenter(
-      center: Offset(reference.center.dx - 8, reference.center.dy - 42),
-      width: _phaseLampSize.width,
-      height: _phaseLampSize.height,
+    // PhaseLamp 左下角 = self_grave 卡槽右上角 + (gap, -gap)。
+    // reference 是 FittedBox 缩放后的视口 rect，gap 为固定像素间距，
+    // 故定位与缩放比例无关，lamp 始终贴在卡槽右上角外侧。
+    final gap = DuelFieldLayout.phaseLampGap;
+    return Rect.fromLTWH(
+      reference.right + gap,
+      reference.top - gap - _phaseLampSize.height,
+      _phaseLampSize.width,
+      _phaseLampSize.height,
     );
   }
 
@@ -130,69 +170,81 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
   @override
   Widget build(BuildContext context) {
     _scheduleAnchorEmit();
-    return Center(
-      child: SizedBox.expand(
-        key: _rootKey,
-        child: NotificationListener<ScrollNotification>(
-          onNotification: (notification) {
-            // 滚动会改变槽位的实际渲染位置，需要重新上报 anchors，
-            // 否则 phase lamp / 场上 action popover 会停留在旧位置。
-            _scheduleAnchorEmit();
-            return false;
-          },
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-            child: Transform(
+    const h = _horizontalReserved;
+    return SizedBox.expand(
+      key: _rootKey,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // v10 装饰背景：渐变光晕 + vignette（原型模式专属），铺满全视口。
+          const Positioned.fill(child: DuelFieldBackground()),
+          // 棋盘内容在「扣除状态卡(水平) + 上下手牌栏」的可用区内 FittedBox 铺满：
+          // 既最大化放大（沉浸），又避免与左右状态卡、上下手牌栏重叠。
+          // _rootKey 在视口级 SizedBox 上，slotRects 经 localToGlobal 反映
+          // FittedBox 缩放后的实际视口坐标，page 的 popover 定位正确。
+          Positioned(
+            left: h,
+            top: _topReserved,
+            right: h,
+            bottom: _bottomReserved,
+            child: FittedBox(
+              fit: BoxFit.contain,
               alignment: Alignment.center,
-              transform: Matrix4.identity()
-                ..setEntry(3, 2, 0.001)
-                ..rotateX(0.78)
-                ..multiply(Matrix4.diagonal3Values(0.96, 0.96, 1)),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 40,
-                  vertical: 30,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0x7300F0FF), width: 2),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black87,
-                      blurRadius: 40,
-                      offset: Offset(0, 20),
-                    ),
-                  ],
-                  gradient: const RadialGradient(
-                    center: Alignment(0, -0.15),
-                    radius: 1.15,
-                    colors: [Color(0x1F00F0FF), Color(0xF1060A12)],
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildSpellTrapRow(
-                      controller: widget.data.opponentController,
-                    ),
-                    const SizedBox(height: 14),
-                    _buildMonsterRow(
-                      controller: widget.data.opponentController,
-                    ),
-                    const SizedBox(height: 20),
-                    _buildDivider(),
-                    const SizedBox(height: 20),
-                    _buildEmzRow(),
-                    const SizedBox(height: 20),
-                    _buildMonsterRow(controller: widget.data.selfController),
-                    const SizedBox(height: 14),
-                    _buildSpellTrapRow(controller: widget.data.selfController),
-                  ],
-                ),
-              ),
+              child: _buildBoardContent(),
             ),
           ),
+          // PhaseLamp 固定尺寸（不随 FittedBox 缩放），保持可读可点；
+          // 定位基于 self_grave 卡槽的视口 rect 右上角 + gap。
+          if (_phaseLampRect != null)
+            Positioned(
+              left: _phaseLampRect!.left,
+              top: _phaseLampRect!.top,
+              child: PhaseLamp(
+                phase: widget.phase,
+                enabled: widget.phaseLampEnabled,
+                onTap: widget.onPhaseLampTap,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 棋盘内容（装饰容器 + 卡槽列），保持自然尺寸，由外层 FittedBox 缩放。
+  Widget _buildBoardContent() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 30),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x7300F0FF), width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black87,
+            blurRadius: 40,
+            offset: Offset(0, 20),
+          ),
+        ],
+        gradient: const RadialGradient(
+          center: Alignment(0, -0.15),
+          radius: 1.15,
+          colors: [Color(0x1F00F0FF), Color(0xF1060A12)],
         ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildSpellTrapRow(controller: widget.data.opponentController),
+          const SizedBox(height: 4),
+          _buildMonsterRow(controller: widget.data.opponentController),
+          const SizedBox(height: 20),
+          _buildDivider(),
+          const SizedBox(height: 20),
+          _buildEmzRow(),
+          const SizedBox(height: 20),
+          _buildMonsterRow(controller: widget.data.selfController),
+          const SizedBox(height: 4),
+          _buildSpellTrapRow(controller: widget.data.selfController),
+        ],
       ),
     );
   }
@@ -209,53 +261,37 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
       );
     });
 
+    // SpellTrap 行：EXTRA / S/T1..5 / DECK，紧贴怪兽行。
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // v10 布局：己方 [DECK][FIELD][S/T1..5][EX]，对手镜像 [EX][S/T5..1][FIELD][DECK]
-        if (!isOpponent) ...[
-          _buildZoneEntry(
-            slotId: 'self_deck',
-            label: 'DECK',
-            count: widget.data.selfDeckCount,
-          ),
-          const SizedBox(width: 12),
-        ],
         isOpponent
             ? _buildZoneEntry(
-                zoneKey: 'opp_extra',
-                slotId: 'opp_extra',
-                label: 'EX',
-                count: widget.data.oppExtraCount,
+                slotId: 'opp_deck',
+                label: 'DECK',
+                count: widget.data.oppDeckCount,
               )
-            : _buildSlot(
-                slotId: '${controller}_8_5',
-                label: 'FIELD',
-                card: widget.data.cardAt(controller, 8, 5),
+            : _buildZoneEntry(
+                zoneKey: 'self_extra',
+                slotId: 'self_extra',
+                label: 'EXTRA',
+                count: widget.data.selfExtraCount,
               ),
         const SizedBox(width: 12),
         ..._withGaps(cards),
         const SizedBox(width: 12),
         isOpponent
-            ? _buildSlot(
-                slotId: '${controller}_8_5',
-                label: 'FIELD',
-                card: widget.data.cardAt(controller, 8, 5),
+            ? _buildZoneEntry(
+                zoneKey: 'opp_extra',
+                slotId: 'opp_extra',
+                label: 'EXTRA',
+                count: widget.data.oppExtraCount,
               )
             : _buildZoneEntry(
-                zoneKey: 'self_extra',
-                slotId: 'self_extra',
-                label: 'EX',
-                count: widget.data.selfExtraCount,
+                slotId: 'self_deck',
+                label: 'DECK',
+                count: widget.data.selfDeckCount,
               ),
-        if (isOpponent) ...[
-          const SizedBox(width: 12),
-          _buildZoneEntry(
-            slotId: 'opp_deck',
-            label: 'DECK',
-            count: widget.data.oppDeckCount,
-          ),
-        ],
       ],
     );
   }
@@ -272,25 +308,10 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
       );
     });
 
+    // Monster 行：FIELD 与 M1..5 保持同一水平线。
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        isOpponent
-            ? _buildZoneEntry(
-                zoneKey: 'opp_removed',
-                slotId: 'opp_removed',
-                label: 'BANISH',
-                count: widget.data.oppRemovedCount,
-              )
-            : _buildZoneEntry(
-                zoneKey: 'self_grave',
-                slotId: 'self_grave',
-                label: 'GRAVE',
-                count: widget.data.selfGraveCount,
-              ),
-        const SizedBox(width: 12),
-        ..._withGaps(cards),
-        const SizedBox(width: 12),
         isOpponent
             ? _buildZoneEntry(
                 zoneKey: 'opp_grave',
@@ -298,21 +319,45 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
                 label: 'GRAVE',
                 count: widget.data.oppGraveCount,
               )
+            : _buildSlot(
+                slotId: '${controller}_8_5',
+                label: 'FIELD',
+                card: widget.data.cardAt(controller, 8, 5),
+              ),
+        const SizedBox(width: 12),
+        ..._withGaps(cards),
+        const SizedBox(width: 12),
+        isOpponent
+            ? _buildSlot(
+                slotId: '${controller}_8_5',
+                label: 'FIELD',
+                card: widget.data.cardAt(controller, 8, 5),
+              )
             : _buildZoneEntry(
-                zoneKey: 'self_removed',
-                slotId: 'self_removed',
-                label: 'BANISH',
-                count: widget.data.selfRemovedCount,
+                zoneKey: 'self_grave',
+                slotId: 'self_grave',
+                label: 'GRAVE',
+                count: widget.data.selfGraveCount,
               ),
       ],
     );
   }
 
   Widget _buildEmzRow() {
+    // 新布局：BANISH 移至本行，与 EM1/EM2 同一水平。
+    // 己方视角从左→右：[对手BANISH][EMZ 1][EMZ 2][己方BANISH]
+    // 对应 colX：[0] [2]=-84 [4]=+84 [6]，列间距 84，槽宽 68 → 相邻槽边距=84*2-68=100
+    const gap = 100.0;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(width: 164),
+        _buildZoneEntry(
+          zoneKey: 'opp_removed',
+          slotId: 'opp_removed',
+          label: 'BANISH',
+          count: widget.data.oppRemovedCount,
+        ),
+        const SizedBox(width: gap),
         _buildSlot(
           slotId: '${widget.data.selfController}_4_5',
           label: 'EMZ 1',
@@ -321,7 +366,7 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
               widget.data.cardAt(widget.data.selfController, 4, 5),
           isEmz: true,
         ),
-        const SizedBox(width: 104),
+        const SizedBox(width: gap),
         _buildSlot(
           slotId: '${widget.data.selfController}_4_6',
           label: 'EMZ 2',
@@ -330,7 +375,13 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
               widget.data.cardAt(widget.data.selfController, 4, 6),
           isEmz: true,
         ),
-        const SizedBox(width: 164),
+        const SizedBox(width: gap),
+        _buildZoneEntry(
+          zoneKey: 'self_removed',
+          slotId: 'self_removed',
+          label: 'BANISH',
+          count: widget.data.selfRemovedCount,
+        ),
       ],
     );
   }
@@ -427,8 +478,8 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
         ? const _CardBack()
         : CardImage(code: card.code, width: _slotWidth, height: _slotHeight);
 
-    if (isDefense) {
-      // 守备表示：卡图旋转 90°，等比缩小避免溢出槽位
+    // 仅怪兽卡(zone==4)守备表示时横放；魔陷卡(zone==8)始终竖放。
+    if (isDefense && card.zone == 4) {
       face = Transform(
         alignment: Alignment.center,
         transform: Matrix4.identity()

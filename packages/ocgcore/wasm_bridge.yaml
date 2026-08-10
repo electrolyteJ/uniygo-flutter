@@ -1,0 +1,141 @@
+# ocgcore web 端 libocgcore.{js,wasm} 构建配置，由 packages/wasm_bridge 驱动。
+# 构建：在 packages/ocgcore 下执行 `dart run wasm_bridge build`。
+name: libocgcore
+
+# 钉住工具链版本保证可复现；环境没有 emsdk 时运行 `dart run wasm_bridge install` 会自动装这个版本。
+emsdk_version: "6.0.6"
+
+output: web/libs/libocgcore.js
+
+sources:
+  # lua 必须按 C++ 编译：lua.h 没有 extern "C" 保护，否则 ocgcore（C++）
+  # 引用的 mangled lua_* 符号与 C 目标文件对不上。
+  - path: ../../vendor/lua
+    language: c++
+    exclude: [lua.c, luac.c, ltests.c, onelua.c]
+  - path: ../../vendor/ocgcore
+
+include_dirs:
+  - ../../vendor/lua
+
+compile_flags: [-O3, -std=c++14]
+
+link:
+  no_entry: true
+  # lua 按 C++ 编译后错误处理走 C++ 异常（LUAI_THROW/LUAI_TRY），必须开启。
+  exceptions: true
+  initial_memory: 67108864
+  allow_memory_growth: true
+  # Dart 适配器用 Module.addFunction 注册 JS 回调，需要函数表可增长。
+  allow_table_growth: true
+  environment: [web, node]
+  # packages/ocgcore/lib/src/ocgcore_adapter.web.dart 依赖的 C API。
+  exported_functions:
+    - _malloc
+    - _free
+    - _set_script_reader
+    - _set_card_reader
+    - _set_message_handler
+    - _default_script_reader
+    - _create_duel
+    - _create_duel_v2
+    - _start_duel
+    - _end_duel
+    - _set_player_info
+    - _get_log_message
+    - _get_message
+    - _process
+    - _new_card
+    - _new_tag_card
+    - _query_card
+    - _query_field_count
+    - _query_field_card
+    - _query_field_info
+    - _set_responsei
+    - _set_responseb
+    - _preload_script
+  exported_runtime_methods:
+    - ccall
+    - cwrap
+    - getValue
+    - setValue
+    - UTF8ToString
+    - stringToUTF8OnStack
+    - HEAPU8
+    - addFunction
+    - removeFunction
+
+# 生成 Flutter web 插件（动态注入 wasm/js）。package/class_name 从
+# pubspec.yaml 的 name 和 flutter.plugin.platforms.web.pluginClass 推导，
+# output 缺省跟随下面的 bindings.output。dart run wasm_bridge gen 产出。
+plugin: {}
+
+# 生成 dart:js_interop 接口声明。签名须与 lib/src/ocgcore_adapter.web.dart
+# 的调用点保持一致；改了 C API 就在这里同步改签名。
+# plugin.output 跟随到此，绑定声明与插件类合并生成到一个文件。
+bindings:
+  output: lib/src/ocgcore_bindings_generated.web.dart
+  functions:
+    _set_script_reader:
+      dart_name: setScriptReaderCC
+      params: {callback: JSAny}
+    _set_card_reader:
+      dart_name: setCardReaderCC
+      params: {callback: JSAny}
+    _set_message_handler:
+      dart_name: setMessageHandlerCC
+      params: {callback: JSAny}
+    _default_script_reader:
+      dart_name: defaultScriptReaderCC
+      params: {namePtr: int, lenPtr: int}
+      returns: int
+    _create_duel:
+      params: {seed: int}
+      returns: int
+    _create_duel_v2:
+      params: {seedSequence: JSAny}
+      returns: int
+    _start_duel:
+      params: {pduel: int, options: int}
+    _end_duel:
+      params: {pduel: int}
+    _set_player_info:
+      params: {pduel: int, playerid: int, lp: int, startCount: int, drawCount: int}
+    _get_log_message:
+      params: {pduel: int, bufPtr: int}
+    _get_message:
+      params: {pduel: int, bufPtr: int}
+      returns: int
+    _process:
+      params: {pduel: int}
+      returns: int
+    _new_card:
+      params: {pduel: int, code: int, owner: int, playerid: int, location: int, sequence: int, position: int}
+    _new_tag_card:
+      params: {pduel: int, code: int, owner: int, location: int}
+    _query_card:
+      params: {pduel: int, playerid: int, location: int, sequence: int, queryFlag: int, bufPtr: int, useCache: int}
+      returns: int
+    _query_field_count:
+      params: {pduel: int, playerid: int, location: int}
+      returns: int
+    _query_field_card:
+      params: {pduel: int, playerid: int, location: int, queryFlag: int, bufPtr: int, useCache: int}
+      returns: int
+    _query_field_info:
+      params: {pduel: int, bufPtr: int}
+      returns: int
+    _set_responsei:
+      params: {pduel: int, value: int}
+    _set_responseb:
+      params: {pduel: int, bufPtr: int}
+    _preload_script:
+      params: {pduel: int, namePtr: int}
+      returns: int
+    _malloc:
+      dart_name: wasmMalloc
+      params: {size: int}
+      returns: int
+    _free:
+      dart_name: wasmFree
+      params: {ptr: int}

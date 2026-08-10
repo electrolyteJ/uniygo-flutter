@@ -1,5 +1,6 @@
 import 'package:service_loader/service_loader.dart';
 import 'card_info.dart';
+import 'deck_info.dart';
 import 'lf_table.dart';
 
 export 'card_info.dart';
@@ -29,8 +30,34 @@ abstract class ICardService implements IService {
   });
 }
 
-/// 卡片资源服务
-abstract class IDeckService implements IService {}
+/// 统一卡组服务接口
+abstract class IDeckService implements IService {
+  Future<List<DeckInfo>> loadDeckList();
+
+  Future<DeckInfo?> loadDeck(String deckKey) {
+    throw UnimplementedError('loadDeck is not implemented in IDeckService');
+  }
+
+  Future<bool> saveDeck(DeckInfo deck) {
+    throw UnimplementedError('saveDeck is not implemented in IDeckService');
+  }
+
+  Future<bool> deleteDeck(String deckKey) {
+    throw UnimplementedError('deleteDeck is not implemented in IDeckService');
+  }
+
+  /// 导出为 YDK 格式字符串
+  String exportToYdk(DeckInfo deck) {
+    throw UnimplementedError('exportToYdk is not implemented in IDeckService');
+  }
+
+  /// 从 YDK 格式字符串导入卡组
+  Future<DeckInfo?> importFromYdk(String content, String deckKey) {
+    throw UnimplementedError(
+      'importFromYdk is not implemented in IDeckService',
+    );
+  }
+}
 
 abstract class IBanlistService implements IService {
   List<String> validateDeck(

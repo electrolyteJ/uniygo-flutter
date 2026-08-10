@@ -1,10 +1,15 @@
-import 'dart:math';
+import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flame/components.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show Offset, Size;
 import '../../../models/FieldCard.dart';
 import '../../../pages/duel_room/duel/duel_field_store.dart';
-import 'board_mesh_component.dart';
-import 'card_slot_3d.dart';
+import 'component/battle_presentation_component.dart';
+import 'component/board_mesh_component.dart';
+import 'component/zone_component.dart';
+import 'component/phase_lamp_component.dart';
 import 'duel_flame_game.dart';
 
 /// 棋盘布局常量（世界/逻辑坐标，原点为棋盘中心）。
@@ -13,10 +18,48 @@ class DuelFieldLayout {
 
   /// 7 列布局的 x 坐标。
   static const colX = [-252.0, -168.0, -84.0, 0.0, 84.0, 168.0, 252.0];
-  static const monsterY = 55.0;
-  static const stY = 155.0;
+  // 怪兽行 y：EMZ 在 y=0（半高 48，跨越 ±48），怪兽行需 ≥ 96 才不重叠；
+  // 取 100 留 4px 间隙（与怪兽-魔陷行间距一致）。
+  static const monsterY = 100.0;
+  // 魔陷行紧贴怪兽行外侧：中心相距 100，扣除两张卡半高后留约 4px 间隙。
+  static const stY = 200.0;
   static const slotWidth = 68.0;
   static const slotHeight = 96.0;
+
+  /// Deck（卡组）区域 x 坐标（绝对值）。
+  /// self 在 colX[0] 左侧（-deckX），opponent 在 colX[6] 右侧（+deckX）。
+  /// 间距与 colX 列间距一致（84）。
+  static const deckX = 336.0; // colX[6] + 84 = 252 + 84
+
+  /// PhaseLamp 锚点：self_grave（墓地）卡槽（第 7 列 / Monster 行）。
+  /// 己方墓地位于 Monster 行 monsterY 的 colX[6] 位置（己方 Monster 行最右）。
+  /// PhaseLamp 左下边 = 墓地卡槽右上边 + (gap, -gap)（右移 8px，上移 8px）。
+  static const phaseLampRefBoardX = 252.0; // colX[6]
+  static const phaseLampRefBoardY = monsterY; // 100
+
+  /// PhaseLamp 的尺寸（Flutter 与 Flame 共用）。
+  static const phaseLampWidth = 132.0;
+  static const phaseLampHeight = 44.0;
+  static const phaseLampSize = Size(phaseLampWidth, phaseLampHeight);
+
+  /// PhaseLamp 左下角与锚点卡槽右上角之间的间距（px）。
+  /// 同时决定 x 向右、y 向上的偏移，形成对角间隙。需要更松/更紧时调它即可。
+  static const phaseLampGap = 8.0;
+
+  /// PhaseLamp 相对锚点卡槽「中心」的偏移：使灯的左下角落在卡槽右上角
+  /// 外侧 [phaseLampGap] 像素处（向右 gap、向上 gap）。
+  /// 推导：center→center 偏移 = (半宽和 + gap, -(半高和 + gap))。
+  /// 在原型(Flutter)/火焰(Flame) 两侧统一引用（project3D 为恒等时世界坐标=像素）。
+  static const phaseLampOffset = Offset(
+    (slotWidth + phaseLampWidth) / 2 + phaseLampGap, // 34 + 66 + 8 = 108
+    -((slotHeight + phaseLampHeight) / 2 +
+        phaseLampGap), // -(48 + 22 + 8) = -78
+  );
+
+  /// PhaseLamp 未找到锚点时的 fallback（相对视口比例）。
+  /// x: 0.88 对应 self_grave（我方墓地，棋盘右区 colX[6]）；
+  /// y: 0.53 对应 Monster 行上沿附近，留边缘安全距离。
+  static const phaseLampFallbackRatio = Offset(0.88, 0.53);
 }
 
 /// 决斗场地世界：持有棋盘网格与全部卡槽组件，并统一负责
@@ -26,205 +69,172 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
   final DuelFieldStore duelStore;
   final Function(FieldCard? card, int? code)? onCardSelect;
   final void Function(String zoneKey)? onZoneInspect;
+  final VoidCallback? onPhaseLampTap;
+  final bool Function()? isPhaseLampEnabled;
 
-  final List<CardSlot3DComponent> _slots = [];
-  Vector2? _lastParallaxMouse;
+  PhaseLampComponent? _phaseLamp;
+  ZonesComponent? _zones;
+
+  /// 卡图图片缓存（按 card code 索引），跨 slot rebuild 共享。
+  final Map<int, ui.Image> _cardImageCache = {};
+  final Map<int, Completer<ui.Image?>> _cardImageLoading = {};
 
   DuelFieldWorld({
     required this.duelStore,
     this.onCardSelect,
     this.onZoneInspect,
+    this.onPhaseLampTap,
+    this.isPhaseLampEnabled,
   });
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    add(BoardMeshComponent());
-    rebuildField();
+    _initComponents();
   }
 
-  // 100% 还原效果图的 Stylized 3D 投影算法
-  // 效果图特征：宽顶窄底的梯形，这是一种为了艺术效果而反转的透视感
-  Vector2 project3D(double x, double y, {double lift = 0}) {
-    final tilt = _parallaxTilt;
-
-    // 俯视角参数
-    final double alpha = (45 * pi / 180) + tilt.x;
-    final double cosA = cos(alpha);
-    final double sinA = sin(alpha);
-
-    // 为了实现效果图中的“上宽下窄”梯形：
-    // 我们反转 z 轴的影响，或者调整 factor 计算方式。
-    // y > 0 是底部（近端），y < 0 是顶部（远端）。
-    // 在效果图中，顶端反而显得更开阔。
-    final double yRot = (y * cosA) + (lift * sinA);
-    // 关键修正：让 y 为负（顶部）时 factor 更大
-    // 我们使用一个线性偏移来模拟这种特殊的广角形变
-    final double factor = 1.0 - (y * 0.0008);
-
-    return Vector2(
-      (x * factor) + (tilt.y * 100 * factor),
-      yRot * 0.85, // 稍微压缩 y 轴，使其更扁平
+  void _initComponents() {
+    add(BoardMeshComponent());
+    _zones = ZonesComponent(
+      duelStore: duelStore,
+      onCardSelect: onCardSelect,
+      onZoneInspect: onZoneInspect,
     );
+    add(_zones!);
+    _zones!.rebuild();
+    add(BattlePresentationComponent(duelStore: duelStore));
+    _phaseLamp = PhaseLampComponent(
+      duelStore: duelStore,
+      onTap: onPhaseLampTap,
+      enabledGetter: isPhaseLampEnabled,
+    );
+    add(_phaseLamp!);
+  }
+
+  /// Hot reload 支持：移除并重建全部子组件。
+  /// 由 [DuelFlameGame.reload] → [State.reassemble] 调用，
+  /// 使修改后的 Component 类定义在 hot reload 后立即生效。
+  void reload() {
+    if (!isLoaded) return;
+    for (final child in children.toList()) {
+      child.removeFromParent();
+    }
+    _zones = null;
+    _phaseLamp = null;
+    _initComponents();
+  }
+
+  // ⚠️ 临时关闭 3D 投影：返回恒等投影（原始 x,y），便于预览平面布局。
+  // 恢复时还原下方注释的梯形投影算法。
+  Vector2 project3D(double x, double y, {double lift = 0}) {
+    return Vector2(x, y);
+    // final tilt = _parallaxTilt;
+    // final double alpha = (45 * pi / 180) + tilt.x;
+    // final double cosA = cos(alpha);
+    // final double sinA = sin(alpha);
+    // final double yRot = (y * cosA) + (lift * sinA);
+    // final double factor = 1.0 + (y * 0.0008);
+    // return Vector2(
+    //   (x * factor) + (tilt.y * 100 * factor),
+    //   yRot * 0.85,
+    // );
   }
 
   /// lift（Z 轴提升）换算成世界坐标 y 方向位移。
+  /// 临时关闭 3D 后直接返回原值，hover 仍可垂直抬起。
   double projectLiftY(double lift) {
-    final double alpha = (45 * pi / 180) + _parallaxTilt.x;
-    return lift * sin(alpha) * 0.85;
+    return lift;
+    // final double alpha = (45 * pi / 180) + _parallaxTilt.x;
+    // return lift * sin(alpha) * 0.85;
   }
 
-  /// 动态视差（x: 俯仰微调, y: 横移微调）；首帧 layout 前为 0。
-  Vector2 get _parallaxTilt {
-    final viewport = game.canvasSize;
-    if (viewport.x <= 0 || viewport.y <= 0) return Vector2.zero();
-    final mouse = game.mousePos;
-    return Vector2(
-      (mouse.y / viewport.y - 0.5) * 0.04,
-      (mouse.x / viewport.x - 0.5) * -0.02,
-    );
-  }
+  /// 重建场地区域（委托给 [ZonesComponent]）。
+  void rebuildField() => _zones?.rebuild();
 
-  @override
-  void update(double dt) {
-    super.update(dt);
-    _syncParallax();
-  }
-
-  /// 鼠标移动时重新投影卡槽位置（BoardMesh 每帧自行投影，无需同步）。
-  void _syncParallax() {
-    final mouse = game.mousePos;
-    final last = _lastParallaxMouse;
-    if (last != null && last.x == mouse.x && last.y == mouse.y) return;
-    _lastParallaxMouse = mouse.clone();
-    for (final slot in _slots) {
-      slot.position = project3D(slot.boardX, slot.boardY);
-    }
-  }
-
-  void rebuildField() {
-    if (!isLoaded) return;
-    for (final slot in _slots) {
-      slot.removeFromParent();
-    }
-    _slots.clear();
-    _buildAllSlots();
-  }
-
-  void _buildAllSlots() {
-    final selfController = duelStore.myController;
-    final opponentController = 1 - selfController;
+  Vector2? boardPositionForSlotId(String slotId) {
+    final parts = slotId.split('_');
+    if (parts.length != 3) return null;
+    final controller = int.tryParse(parts[0]);
+    final zone = int.tryParse(parts[1]);
+    final sequence = int.tryParse(parts[2]);
+    if (controller == null || zone == null || sequence == null) return null;
 
     const colX = DuelFieldLayout.colX;
-    const monsterY = DuelFieldLayout.monsterY;
-    const stY = DuelFieldLayout.stY;
+    final isSelf = controller == duelStore.myController;
 
-    FieldCard? getCard(int c, int z, int s) =>
-        duelStore.fieldCards['${c}_${z}_$s'];
-
-    // 对手区 (Top)
-    _addSlot(
-      null,
-      'EX',
-      colX[0],
-      -stY,
-      onTapOverride: () => onZoneInspect?.call('opp_extra'),
-    );
-    for (int i = 0; i < 5; i++) {
-      _addSlot(
-        getCard(opponentController, 8, 4 - i),
-        'S/T ${5 - i}',
-        colX[1 + i],
-        -stY,
-      );
-      _addSlot(
-        getCard(opponentController, 4, 4 - i),
-        'M ${5 - i}',
-        colX[1 + i],
-        -monsterY,
-        isMonster: true,
+    if (zone == 4) {
+      if (sequence == 5) return Vector2(-84, 0);
+      if (sequence == 6) return Vector2(84, 0);
+      if (sequence < 0 || sequence > 4) return null;
+      return Vector2(
+        colX[1 + (isSelf ? sequence : 4 - sequence)],
+        isSelf ? DuelFieldLayout.monsterY : -DuelFieldLayout.monsterY,
       );
     }
-    _addSlot(getCard(opponentController, 8, 5), 'Field', colX[6], -stY);
-    _addSlot(
-      null,
-      'Banish',
-      colX[0],
-      -monsterY,
-      onTapOverride: () => onZoneInspect?.call('opp_removed'),
-    );
-    _addSlot(
-      null,
-      'Grave',
-      colX[6],
-      -monsterY,
-      onTapOverride: () => onZoneInspect?.call('opp_grave'),
-    );
 
-    // EMZ
-    final emz1 =
-        duelStore.fieldCards['${opponentController}_4_5'] ??
-        duelStore.fieldCards['${selfController}_4_5'];
-    _addSlot(emz1, 'EMZ 1', -84.0, 0, isMonster: true, isEMZ: true);
-    final emz2 =
-        duelStore.fieldCards['${opponentController}_4_6'] ??
-        duelStore.fieldCards['${selfController}_4_6'];
-    _addSlot(emz2, 'EMZ 2', 84.0, 0, isMonster: true, isEMZ: true);
-
-    // 己方区 (Bottom)
-    for (int i = 0; i < 5; i++) {
-      _addSlot(
-        getCard(selfController, 4, i),
-        'M ${i + 1}',
-        colX[1 + i],
-        monsterY,
-        isMonster: true,
+    if (zone == 8) {
+      if (sequence == 5) {
+        return Vector2(
+          isSelf ? colX[0] : colX[6],
+          isSelf ? DuelFieldLayout.monsterY : -DuelFieldLayout.monsterY,
+        );
+      }
+      if (sequence < 0 || sequence > 4) return null;
+      return Vector2(
+        colX[1 + (isSelf ? sequence : 4 - sequence)],
+        isSelf ? DuelFieldLayout.stY : -DuelFieldLayout.stY,
       );
-      _addSlot(getCard(selfController, 8, i), 'S/T ${i + 1}', colX[1 + i], stY);
     }
-    _addSlot(
-      null,
-      'Grave',
-      colX[0],
-      monsterY,
-      onTapOverride: () => onZoneInspect?.call('self_grave'),
-    );
-    _addSlot(
-      null,
-      'Banish',
-      colX[6],
-      monsterY,
-      onTapOverride: () => onZoneInspect?.call('self_removed'),
-    );
-    _addSlot(getCard(selfController, 8, 5), 'Field', colX[0], stY);
-    _addSlot(
-      null,
-      'EX',
-      colX[6],
-      stY,
-      onTapOverride: () => onZoneInspect?.call('self_extra'),
-    );
+
+    return null;
   }
 
-  void _addSlot(
-    FieldCard? card,
-    String label,
-    double x,
-    double y, {
-    bool isMonster = false,
-    bool isEMZ = false,
-    VoidCallback? onTapOverride,
-  }) {
-    final slot = CardSlot3DComponent(
-      card: card,
-      label: label,
-      boardX: x,
-      boardY: y,
-      isMonster: isMonster,
-      isEMZ: isEMZ,
-      onTap: onTapOverride ?? () => onCardSelect?.call(card, card?.code),
-    )..position = project3D(x, y);
-    _slots.add(slot);
-    add(slot);
+  Vector2? worldPositionForSlotId(String slotId) {
+    final board = boardPositionForSlotId(slotId);
+    if (board == null) return null;
+    return project3D(board.x, board.y);
+  }
+
+  // ── 卡图图片缓存 ──────────────────────────────────────────────
+
+  /// 同步获取已缓存的卡图（未加载时返回 null）。
+  ui.Image? getCachedCardImage(int code) => _cardImageCache[code];
+
+  /// 异步加载卡图：先查缓存，再查正在进行的加载，最后发起网络请求。
+  /// 同一 code 的并发请求只会发一次 HTTP，结果共享给所有等待者。
+  Future<ui.Image?> loadCardImage(int code) async {
+    final cached = _cardImageCache[code];
+    if (cached != null) return cached;
+
+    final existing = _cardImageLoading[code];
+    if (existing != null) return existing.future;
+
+    final completer = Completer<ui.Image?>();
+    _cardImageLoading[code] = completer;
+    try {
+      final url = duelStore.getCardImageUrl(code);
+      final image = await _fetchNetworkImage(url);
+      if (image != null) _cardImageCache[code] = image;
+      completer.complete(image);
+      return image;
+    } catch (_) {
+      completer.complete(null);
+      return null;
+    } finally {
+      _cardImageLoading.remove(code);
+    }
+  }
+
+  Future<ui.Image?> _fetchNetworkImage(String url) async {
+    if (url.isEmpty) return null;
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) return null;
+      final codec = await ui.instantiateImageCodec(response.bodyBytes);
+      final frame = await codec.getNextFrame();
+      return frame.image;
+    } catch (_) {
+      return null;
+    }
   }
 }

@@ -18,6 +18,9 @@ workspace:
   - packages/duelink_ai
   - packages/duelink_puzzle
   - packages/ocgcore
+  - packages/wasm_bridge
+  - packages/ygo_storage
+  - packages/ygo_deck_mycard
   - apps/uniygopro
   - apps/cardlive
   - apps/duelarena

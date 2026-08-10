@@ -1,0 +1,71 @@
+# wasm_bridge 示例配置：编译一个 C 库为 web/node 通用的 wasm + JS glue。
+name: libexample
+
+# 可选：已有 emsdk 的路径。默认依次查找 EMSDK_DIR 环境变量 ->
+# ~/.cache/wasm_bridge/emsdk（install 命令的安装位置）-> /tmp/emsdk -> ~/emsdk -> PATH。
+# emsdk: /tmp/emsdk
+# 可选：钉住工具链版本。环境没有 emsdk 时 `dart run wasm_bridge install` 会安装该版本。
+# emsdk_version: "6.0.6"
+
+# 输出 .js glue 路径（相对配置文件所在目录），.wasm 会同名生成在旁边。
+output: web/libs/libexample.js
+
+# 源文件分组。path 指向源码目录（默认扫描 .c/.cc/.cpp/.cxx）。
+sources:
+  - path: ../../vendor/example_c
+    exclude: [main.c]          # 排除独立程序入口
+  # language 强制按某语言编译（如 lua 需按 c++ 编译才能被 C++ 代码链接）：
+  # - path: ../../vendor/lua
+  #   language: c++
+  #   exclude: [lua.c, luac.c]
+  # recursive: true            # 需要递归扫描时打开
+
+include_dirs:
+  - ../../vendor/example_c/include
+
+defines:
+  EXAMPLE_FEATURE: "1"
+  EXAMPLE_FLAG: null            # 只 -D 不带值
+
+compile_flags: [-O3]
+
+link:
+  no_entry: true                # 纯库，没有 main
+  exceptions: true              # C++ 异常（-fwasm-exceptions）
+  initial_memory: 16777216      # 16MB
+  allow_memory_growth: true
+  allow_table_growth: true      # 需要 addFunction 注册 JS 回调时必须
+  environment: [web, node]
+  exported_functions:
+    - _malloc
+    - _free
+    - _example_create
+    - _example_destroy
+  exported_runtime_methods:
+    - ccall
+    - HEAPU8
+    - addFunction
+    - removeFunction
+
+# 可选：生成 Flutter web 插件（动态注入 wasm/js 脚本）。
+# `dart run wasm_bridge gen` 按此产出 registerWith 插件类。
+# output 必填；package/class_name 可省略，自动从 pubspec.yaml 的
+# name 和 flutter.plugin.platforms.web.pluginClass 推导。
+plugin:
+  package: example                      # Flutter 包名（资产路径 packages/<package>/...）
+  class_name: ExampleWebPlugin          # 须与 pubspec 的 pluginClass 一致
+  output: lib/src/example_web_plugin.dart  # 必填
+  # debug_prefix: example               # window 调试变量前缀，默认同 package
+  # exports_anchor: 'updateMemoryViews();return wasmExports}'  # Emscripten 版本相关
+
+# 可选：生成 dart:js_interop 接口声明（@JS('Module._xxx') external ...）。
+# 导出了但没在此声明签名的函数会在 gen 时告警。
+# 提示：output 必填；与 plugin.output 相同时两部分合并生成到同一个文件。
+bindings:
+  output: lib/src/example_bindings.web.g.dart  # 必填
+  functions:
+    _example_create:                    # 默认 Dart 名：去下划线驼峰 + C（exampleCreateC）
+      returns: int
+    _example_destroy:
+      dart_name: exampleDestroy         # 可用 dart_name 覆盖
+      params: {handle: int}             # 类型支持 int/double/void/JSAny/JSString/...

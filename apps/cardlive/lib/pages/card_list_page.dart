@@ -19,7 +19,7 @@ class CardListPage extends StatefulWidget {
 class _CardListPageState extends State<CardListPage> {
   final TextEditingController _searchController = TextEditingController();
 
-  final _cardService = ServiceFactory.create<ICardService>();
+  final _cardService = ServiceFactory.create<MyCardCardService>();
   final _banlistService = ServiceFactory.create<IBanlistService>();
   final ScriptService _scriptService = ScriptService();
 

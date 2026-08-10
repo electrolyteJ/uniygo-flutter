@@ -83,6 +83,7 @@ class ControlBar extends StatelessWidget {
             if (isPlayer)
               Expanded(
                 child: FilledButton.icon(
+                  key: const ValueKey('waiting-room-ready'),
                   onPressed: () => toggleReady(context),
                   icon: Icon(
                     isSelfReady ? Icons.cancel : Icons.check_circle,

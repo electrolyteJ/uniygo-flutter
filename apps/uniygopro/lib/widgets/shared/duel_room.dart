@@ -6,6 +6,7 @@ import '../../pages/duel_room/duel/duel_field_store.dart';
 import '../../pages/duel_room/waiting/duel_chat_store.dart';
 import '../../pages/duel_room/duel_room_store.dart';
 import '../../pages/create_room/match_store.dart';
+import '../../service_singleton.dart';
 
 Widget buildBackButton(BuildContext context) {
   return Material(
@@ -41,7 +42,7 @@ void backHomeDialog({
         ),
         TextButton(
           onPressed: () {
-            backHome(context);
+            backHome(context, surrenderOnExit: true);
           },
           style: TextButton.styleFrom(foregroundColor: Colors.red),
           child: const Text('退出'),
@@ -51,7 +52,12 @@ void backHomeDialog({
   );
 }
 
-void backHome(BuildContext context) {
+void backHome(BuildContext context, {bool surrenderOnExit = false}) {
+  final duelService = ServiceSingleton.instance.duelService;
+  if (surrenderOnExit) {
+    duelService.surrender();
+  }
+  duelService.disconnect();
   final duelRoomState = context.read<DuelRoomStore>();
   final duelStore = context.read<DuelFieldStore>();
   final duelChatStore = context.read<DuelChatStore>();

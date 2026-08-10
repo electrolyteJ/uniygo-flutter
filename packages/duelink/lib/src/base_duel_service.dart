@@ -259,7 +259,8 @@ abstract class BaseDuelService implements IDuelService {
     _roomStage = RoomInDuel(
       players: _playersOf(_roomStage),
       observerCount: _obsOf(_roomStage),
-      isFirstTurn: gameMsg.isFirst,
+      // MSG_START 首字节 = 当前视角的引擎玩家编号，0 号玩家即先攻方。
+      isFirstTurn: gameMsg.isPlayer0,
     );
     console.log('RoomStage: tp selected → RoomInDuel ${_roomStage}');
   }
@@ -306,7 +307,7 @@ abstract class BaseDuelService implements IDuelService {
   RoomStage _withPlayers(List<PlayerInfo> players) {
     return switch (_roomStage) {
       RoomNotJoined() => RoomNotJoined(),
-      RoomJoined() => RoomJoined(),
+      RoomJoined() => RoomJoined(players: players),
       RoomInLobby(:final selfType, :final isHost, :final options) =>
         RoomInLobby(
           players: players,
@@ -352,7 +353,7 @@ abstract class BaseDuelService implements IDuelService {
   RoomStage _withObs(int count) {
     return switch (_roomStage) {
       RoomNotJoined() => RoomNotJoined(),
-      RoomJoined() => RoomJoined(),
+      RoomJoined() => RoomJoined(players: _playersOf(_roomStage)),
       RoomInLobby(:final selfType, :final isHost, :final options) =>
         RoomInLobby(
           players: _playersOf(_roomStage),
@@ -398,7 +399,7 @@ abstract class BaseDuelService implements IDuelService {
   // ── Send ──
 
   void _send(YgoCtosMsg msg) {
-    console.log('Sending: $msg');
+    console.log('duelink Sending: $msg');
     connection.send(msg);
   }
 

@@ -11,7 +11,6 @@ import 'package:ygo_data/ygo_data.dart';
 import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
 import 'package:ygo_data/deck_info.dart';
 import '../../models/deck_model.dart';
-import '../../services/deck_service.dart';
 import 'deck_editor_session.dart';
 
 /// 卡组编辑器状态仓库。
@@ -19,7 +18,7 @@ import 'deck_editor_session.dart';
 /// 负责卡组列表加载、当前编辑中的卡组、卡片搜索筛选、
 /// 禁限卡表校验，以及编辑页本身的加载/错误/UI 状态。
 class DeckEditorStore extends ChangeNotifier {
-  final DeckService _deckService = DeckService();
+    final _dataService = ServiceSingleton.instance.dataService;
   // ── 卡组数据 ──
   List<DeckInfo> _decks = [];
   DeckInfo? _currentDeck;
@@ -72,7 +71,6 @@ class DeckEditorStore extends ChangeNotifier {
   bool get isWaitingRoomSession => _routeArgs?.isWaitingRoomSession ?? false;
   bool get lockDeckSelection => _routeArgs?.lockDeckSelection ?? false;
   bool get lockDeckName => _routeArgs?.lockDeckName ?? false;
-  final dataService = ServiceSingleton.instance.dataService;
   // ── 初始化 ──
 
   /// 初始化卡牌数据库
@@ -89,9 +87,7 @@ class DeckEditorStore extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final builtinDecks = await _deckService.loadBuiltinDecks();
-      final userDecks = await _deckService.loadDeckList();
-      _decks = _mergeDecks(builtinDecks, userDecks);
+      _decks = await _dataService.loadDeckList();
     } catch (e) {
       _errorMessage = '加载卡组列表失败: $e';
     } finally {
@@ -115,7 +111,7 @@ class DeckEditorStore extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final deckInfo = await _deckService.loadDeck(deckName);
+      final deckInfo = await _dataService.loadDeck(deckName);
 
       if (deckInfo != null) {
         final mainCards = await _resolveCards(deckInfo.mainDeck);
@@ -149,7 +145,7 @@ class DeckEditorStore extends ChangeNotifier {
     }
 
     final newDeck = DeckInfo(deckName: name);
-    final success = await _deckService.saveDeck(newDeck);
+    final success = await _dataService.saveDeck(newDeck);
 
     if (success) {
       _decks.add(newDeck);
@@ -162,7 +158,7 @@ class DeckEditorStore extends ChangeNotifier {
 
   /// 删除卡组
   Future<void> deleteDeck(String name) async {
-    final success = await _deckService.deleteDeck(name);
+    final success = await _dataService.deleteDeck(name);
     if (success) {
       _decks.removeWhere((d) => d.deckName == name);
       if (_currentDeck?.deckName == name) {
@@ -188,7 +184,7 @@ class DeckEditorStore extends ChangeNotifier {
 
     try {
       final deckInfo = _toDeckInfo();
-      final success = await _deckService.saveDeck(deckInfo);
+      final success = await _dataService.saveDeck(deckInfo);
       if (success) {
         final validationErrors = await _validateForCurrentSession(deckInfo);
         _editingDeck.isDirty = false;
@@ -221,7 +217,7 @@ class DeckEditorStore extends ChangeNotifier {
 
   /// 从 YDK 格式导入卡组
   Future<void> importDeckFromYdk(String content, String deckName) async {
-    final deckInfo = await _deckService.importFromYdk(content, deckName);
+    final deckInfo = await _dataService.importFromYdk(content, deckName);
     if (deckInfo != null) {
       final mainCards = await _resolveCards(deckInfo.mainDeck);
       final extraCards = await _resolveCards(deckInfo.extraDeck);
@@ -242,7 +238,7 @@ class DeckEditorStore extends ChangeNotifier {
 
     try {
       await _applyEnvironment();
-      _searchResults = await dataService.searchCombined(
+      _searchResults = await _dataService.searchCombined(
         query: query.isNotEmpty ? query : null,
         cardType: _filter.cardType,
         attribute: _filter.attribute,
@@ -497,9 +493,9 @@ class DeckEditorStore extends ChangeNotifier {
   DeckInfo toDeckInfo() => _toDeckInfo();
 
   /// 导出为 YDK 格式
-  String exportToYdk() => _deckService.exportToYdk(_toDeckInfo());
+  String exportToYdk() => _dataService.exportToYdk(_toDeckInfo());
 
-  String getCardImageUrl(int code) => dataService.getCardImageUrl(code);
+  String getCardImageUrl(int code) => _dataService.getCardImageUrl(code);
 
   void _replaceEditingDeck(
     String deckName,
@@ -544,7 +540,7 @@ class DeckEditorStore extends ChangeNotifier {
   Future<List<CardInfo>> _resolveCards(List<DeckCard> deckCards) async {
     final result = <CardInfo>[];
     for (final dc in deckCards) {
-      final card = await dataService.getCard(dc.code);
+      final card = await _dataService.getCard(dc.code);
       if (card != null) {
         for (var i = 0; i < dc.count; i++) {
           result.add(card);
@@ -554,19 +550,6 @@ class DeckEditorStore extends ChangeNotifier {
     return result;
   }
 
-  List<DeckInfo> _mergeDecks(
-    List<DeckInfo> builtinDecks,
-    List<DeckInfo> userDecks,
-  ) {
-    final merged = <String, DeckInfo>{};
-    for (final deck in builtinDecks) {
-      merged[deck.deckName] = deck;
-    }
-    for (final deck in userDecks) {
-      merged[deck.deckName] = deck;
-    }
-    return merged.values.toList();
-  }
 
   Future<List<String>?> _validateForCurrentSession(DeckInfo deckInfo) async {
     final validationContext = _routeArgs?.validationContext;
@@ -587,7 +570,7 @@ class DeckEditorStore extends ChangeNotifier {
   }
 
   Future<void> _applyEnvironment() async {
-    dataService.envType = currentEnvironmentCode == 1
+    _dataService.envType = currentEnvironmentCode == 1
         ? EnvType.env408
         : EnvType.production;
     await Future<void>.delayed(const Duration(milliseconds: 80));
@@ -634,14 +617,14 @@ class DeckEditorStore extends ChangeNotifier {
           return table;
         }
       }
-      return dataService.getLfTable(_selectedBanlistHash!);
+      return _dataService.getLfTable(_selectedBanlistHash!);
     }
 
     final validationContext = _routeArgs?.validationContext;
     if (validationContext == null) {
       return null;
     }
-    return dataService.getLfTable(validationContext.lfTableHash);
+    return _dataService.getLfTable(validationContext.lfTableHash);
   }
 
   int _compareBanlistsByDateDesc(LfTable a, LfTable b) {

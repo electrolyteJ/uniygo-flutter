@@ -33,7 +33,7 @@ class RoomNotJoined extends RoomStage {
 }
 /// 已加入房间。
 class RoomJoined extends RoomStage {
-  const RoomJoined() : super();
+  const RoomJoined({super.players = const [], super.observerCount = 0});
   @override String toString() => 'RoomJoined';
 }
 

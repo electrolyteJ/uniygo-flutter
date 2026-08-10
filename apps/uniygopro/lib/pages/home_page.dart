@@ -44,7 +44,10 @@ class HomePage extends StatelessWidget {
           children: [
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 itemCount: gameServers.length,
                 itemBuilder: (context, index) {
                   return _ServerCard(
@@ -70,7 +73,10 @@ class HomePage extends StatelessWidget {
           children: [
             CircularProgressIndicator(color: Colors.amber),
             SizedBox(height: 16),
-            Text('正在搜索对手...', style: TextStyle(color: Colors.white, fontSize: 16)),
+            Text(
+              '正在搜索对手...',
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
           ],
         ),
       ),
@@ -137,6 +143,9 @@ class _ServerCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
+        key: server.type == ServerType.aiRoom
+            ? const ValueKey('home-server-ai-room')
+            : null,
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
@@ -157,11 +166,22 @@ class _ServerCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(server.displayName,
-                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                    Text(
+                      server.displayName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    Text(server.description,
-                        style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 13)),
+                    Text(
+                      server.description,
+                      style: TextStyle(
+                        color: Colors.blueGrey.shade300,
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -174,4 +194,3 @@ class _ServerCard extends StatelessWidget {
     );
   }
 }
-

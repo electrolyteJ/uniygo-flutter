@@ -5,6 +5,7 @@
 import 'dart:math' as math;
 
 import 'package:duelink/duelink.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -13,7 +14,17 @@ import '../../config/servers.dart';
 import '../../widgets/shared/create_room.dart';
 import 'match_store.dart';
 
-/// AI 对决面板 — 选择房间参数后进入本地人机对战，无需联网。
+/// AI 类型选择
+enum _AiType {
+  local('本地 AI', '与本地 AI 进行一场单局对战，无需联网。'),
+  server233('233 服 AI', '连接 ygo233.com 服务器，与服务器端 AI 对战。');
+
+  final String label;
+  final String description;
+  const _AiType(this.label, this.description);
+}
+
+/// AI 对决面板 — 选择房间参数后进入人机对战。
 class AiRoomSheet extends StatefulWidget {
   final GameServer server;
   const AiRoomSheet({super.key, required this.server});
@@ -23,6 +34,7 @@ class AiRoomSheet extends StatefulWidget {
 }
 
 class _AiRoomSheetState extends State<AiRoomSheet> {
+  _AiType _aiType = _AiType.local;
   int _startLp = 8000;
   int _startHand = 5;
   int _drawCount = 1;
@@ -32,6 +44,34 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
   bool _noCheckDeck = true;
   bool _noShuffleDeck = true;
   bool _connecting = false;
+
+  /// 为 233 服 AI 生成 mercury233 兼容房间串。
+  String _build233RoomString() {
+    final codes = <String>[
+      // 单局模式不输出特殊标记
+      switch (_duelRule) {
+        DuelRule.mr3 => 'MR3',
+        DuelRule.mr4 => 'MR4',
+        DuelRule.mr2020 => 'MR5',
+      },
+      switch (_rule) {
+        0 => '', // OCG (默认)
+        1 => 'TO', // 仅 TCG
+        2 => 'OT', // OT 混
+        4 => 'NU', // 专有卡禁止
+        _ => '', // 自制卡/所有卡片 → 默认
+      },
+      if (_timeLimit != 0 && _timeLimit != 180) 'TM$_timeLimit',
+      if (_startLp != 8000) 'LP$_startLp',
+      if (_startHand != 5) 'ST$_startHand',
+      if (_drawCount != 1) 'DR$_drawCount',
+      if (_noCheckDeck) 'NC',
+      if (_noShuffleDeck) 'NS',
+    ]..removeWhere((code) => code.isEmpty);
+
+    final prefix = codes.isEmpty ? '' : '${codes.join(',')}#';
+    return '$prefix${'AI 人机对战'}';
+  }
 
   Future<void> _start() async {
     final matchStore = context.read<MatchStore>();
@@ -47,11 +87,30 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
       timeLimit: _timeLimit,
     );
     setState(() => _connecting = true);
-    matchStore.configureCreatedRoom(
-      roomOptions: options,
-      roomName: 'AI 人机对战',
-    );
-    matchStore.selectServer(widget.server, DuelEnvironment.ai, RoomPassword.encodeJoin());
+
+    if (_aiType == _AiType.local) {
+      matchStore.configureCreatedRoom(
+        roomOptions: options,
+        roomName: 'AI 人机对战',
+      );
+      matchStore.selectServer(
+        widget.server,
+        DuelEnvironment.ai,
+        RoomPassword.encodeJoin(),
+      );
+    } else {
+      // 233 服 AI：使用 mercury233 环境，房间串作为密码。
+      final roomString = _build233RoomString();
+      matchStore.configureCreatedRoom(
+        roomOptions: options,
+        roomName: 'AI 人机对战',
+      );
+      matchStore.selectServer(
+        widget.server,
+        DuelEnvironment.mercury233,
+        roomString,
+      );
+    }
     Navigator.of(context).pop();
     if (context.mounted) context.go('/duel-room');
   }
@@ -85,9 +144,15 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
                 const SizedBox(height: 4),
                 Text(
                   widget.server.description,
-                  style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 13),
+                  style: TextStyle(
+                    color: Colors.blueGrey.shade400,
+                    fontSize: 13,
+                  ),
                 ),
                 const SizedBox(height: 14),
+                // ── AI 类型选择器 ──
+                _aiTypeSelector(),
+                const SizedBox(height: 12),
                 ConstrainedBox(
                   constraints: BoxConstraints(maxHeight: availableBodyHeight),
                   child: SingleChildScrollView(
@@ -95,7 +160,7 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          '与本地 AI 进行一场单局对战，无需联网。',
+                          _aiType.description,
                           style: TextStyle(
                             color: Colors.blueGrey.shade300,
                             fontSize: 13,
@@ -106,16 +171,19 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
                           '初始 LP',
                           _startLp,
                           (v) => setState(() => _startLp = v),
+                          max: 65535,
                         ),
                         numberRow(
                           '初始手牌',
                           _startHand,
                           (v) => setState(() => _startHand = v),
+                          max: 15,
                         ),
                         numberRow(
                           '每回合抽卡',
                           _drawCount,
                           (v) => setState(() => _drawCount = v),
+                          max: 15,
                         ),
                         const SizedBox(height: 6),
                         dropdownRow<int>(
@@ -174,13 +242,24 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
                             checkRow(
                               '不切洗卡组',
                               _noShuffleDeck,
-                              (v) => setState(() => _noShuffleDeck = v ?? false),
+                              (v) =>
+                                  setState(() => _noShuffleDeck = v ?? false),
                             ),
                           ],
                         ),
+                        // ── 233 服 AI 房间串预览 ──
+                        if (_aiType == _AiType.server233) ...[
+                          const SizedBox(height: 10),
+                          _roomStringPreview(),
+                        ],
                         const SizedBox(height: 16),
                         connectButton(
-                          label: '开始人机对战',
+                          key: _aiType == _AiType.local
+                              ? const ValueKey('ai-room-start-local')
+                              : const ValueKey('ai-room-start-server233'),
+                          label: _aiType == _AiType.local
+                              ? '开始人机对战'
+                              : '连接 233 服 AI',
                           connecting: _connecting,
                           onPressed: () => _start(),
                         ),
@@ -192,6 +271,87 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
             );
           },
         ),
+      ),
+    );
+  }
+
+  /// Web 端不支持 TCP Socket，过滤掉 233 服 AI。
+  List<_AiType> get _availableAiTypes =>
+      kIsWeb ? [_AiType.local] : _AiType.values;
+
+  // ── AI 类型分段选择器 ──
+  Widget _aiTypeSelector() {
+    final types = _availableAiTypes;
+    // 仅单个选项时隐藏选择器
+    if (types.length <= 1) return const SizedBox.shrink();
+
+    return SegmentedButton<_AiType>(
+      segments: types.map((type) {
+        return ButtonSegment<_AiType>(
+          value: type,
+          label: Text(
+            type.label,
+            style: TextStyle(
+              color: _aiType == type
+                  ? Colors.blueGrey.shade900
+                  : Colors.blueGrey.shade300,
+              fontSize: 13,
+            ),
+          ),
+          icon: Icon(
+            type == _AiType.local ? Icons.computer : Icons.cloud,
+            size: 16,
+            color: _aiType == type
+                ? Colors.blueGrey.shade900
+                : Colors.blueGrey.shade400,
+          ),
+        );
+      }).toList(),
+      selected: {_aiType},
+      onSelectionChanged: (selection) {
+        setState(() => _aiType = selection.first);
+      },
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return Colors.amber;
+          }
+          return Colors.blueGrey.shade800;
+        }),
+        side: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const BorderSide(color: Colors.amber);
+          }
+          return BorderSide(color: Colors.blueGrey.shade700);
+        }),
+      ),
+    );
+  }
+
+  /// 233 服 AI 生成的最终房间串预览。
+  Widget _roomStringPreview() {
+    final roomString = _build233RoomString();
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.blueGrey.shade800,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.code, size: 14, color: Colors.blueGrey.shade400),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '房间串: $roomString',
+              style: TextStyle(
+                color: Colors.blueGrey.shade300,
+                fontSize: 12,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

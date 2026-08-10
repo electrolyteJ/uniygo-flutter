@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:developer' as console;
-import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
 import 'package:duelink/duelink.dart';
 import 'package:ocgcore/ocgcore.dart' show DuelEngine, ScriptLoader;
 import 'package:ygo_data/ygo_data.dart';
 
+import '../duelink_ai.dart';
 import 'card_data_loader.dart';
 
 /// AI 本地对局连接 — 实现 DuelConnection，模拟 ygopro 服务端。
@@ -46,26 +46,26 @@ class AiConnection implements DuelConnection {
   final _stateController = StreamController<ConnectionState>.broadcast();
 
   /// 显式指定的 ocgcore 动态库（测试环境传入，运行时默认为平台自带查找）。
-  final ffi.DynamicLibrary? lib;
+  final Object? lib;
 
   late final DuelEngine _engine;
-
-  AiConnection({this.lib, ICardService? cardService}) {
-    final cardLoader = CardDataLoader(cardService: cardService);
+  AiConnection({this.lib}) {
     _engine = DuelEngine(
       emit: _emitEngineMessage,
       splitMessages: splitGameMessages,
-      autoAnswer: aiAutoAnswer(cardLoader.levelOf),
       scriptLoader: ScriptLoader(),
-      cardReader: cardLoader.load,
-      onDuelEnd: () => _emit(YgoStocMsg.duelEnd()),
+      onDuelEnd: _emitDuelEndOnce,
     );
   }
 
   /// 引擎消息入口：原始字节解码为协议消息后入队派发。
   void _emitEngineMessage(Uint8List data) {
     try {
-      _emit(YgoStocMsg.gameMsg(StocGameMessage.decode(data)));
+      final gameMsg = StocGameMessage.decode(data);
+      _emit(YgoStocMsg.gameMsg(gameMsg));
+      if (gameMsg.func == MSG_WIN) {
+        _emitDuelEndOnce();
+      }
     } catch (e) {
       console.log('AiConnection: decode gameMsg failed: $e');
     }
@@ -80,9 +80,17 @@ class AiConnection implements DuelConnection {
   bool _humanReady = false;
   bool _roomJoined = false;
   bool _handPhaseStarted = false;
+  bool _duelEndEmitted = false;
   int _humanHandChoice = 0;
   int _aiHandChoice = 0;
   bool _humanGoFirst = true;
+
+  /// 测试钩子：固定 AI 猜拳出拳（1=剪刀 2=石头 3=布）。
+  ///
+  /// 为 null 时保持线上行为（按时间戳取模伪随机）。测试需要确定性
+  /// 地走「猜拳 → 选先攻」分支（AI 赢时不会发 SELECT_TP），可将其
+  /// 固定为输给人类的值，例如人类出石头时固定为 1（剪刀）。
+  int? fixedAiHandChoice;
 
   /// 房间规则参数 — 由 connect 的 URI 查询参数解析（缺省单局/不检查/不切洗）。
   late RoomOptions _roomOptions = RoomOptions.fromAiQuery(const {});
@@ -94,6 +102,10 @@ class AiConnection implements DuelConnection {
   ConnectionState _state = ConnectionState.disconnected;
 
   // ──────────── DuelConnection 接口 ────────────
+  CardConverter? _cardConverter;
+  void setCardConverter(CardConverter converter) {
+    _cardConverter = converter;
+  }
 
   @override
   Future<void> connect(Uri address) async {
@@ -101,7 +113,9 @@ class AiConnection implements DuelConnection {
     _roomOptions = RoomOptions.fromAiQuery(address.queryParameters);
     _state = ConnectionState.connecting;
     _stateController.add(_state);
-
+    final cardLoader = CardDataLoader(cardConverter: _cardConverter!);
+    _engine.setCardReader(cardLoader.load);
+    _engine.setAutoAnswer(aiAutoAnswer(cardLoader.levelOf));
     final ok = await _engine.init(lib);
     _state = ok ? ConnectionState.connected : ConnectionState.error;
     _stateController.add(_state);
@@ -122,16 +136,20 @@ class AiConnection implements DuelConnection {
         break;
       case CTOS_HS_READY:
         _humanReady = true;
-        _emit(YgoStocMsg.hsPlayerChange(
-          StocHsPlayerChange(pos: 0, state: HS_PLAYER_STATE_READY),
-        ));
+        _emit(
+          YgoStocMsg.hsPlayerChange(
+            StocHsPlayerChange(pos: 0, state: HS_PLAYER_STATE_READY),
+          ),
+        );
         _checkReady();
         break;
       case CTOS_HS_NOT_READY:
         _humanReady = false;
-        _emit(YgoStocMsg.hsPlayerChange(
-          StocHsPlayerChange(pos: 0, state: HS_PLAYER_STATE_NO_READY),
-        ));
+        _emit(
+          YgoStocMsg.hsPlayerChange(
+            StocHsPlayerChange(pos: 0, state: HS_PLAYER_STATE_NO_READY),
+          ),
+        );
         break;
       case CTOS_HS_START:
         _emit(YgoStocMsg.duelStart());
@@ -152,7 +170,6 @@ class AiConnection implements DuelConnection {
         _engine.endDuel();
         break;
     }
-    _flushPending();
   }
 
   @override
@@ -176,26 +193,34 @@ class AiConnection implements DuelConnection {
     _roomJoined = false;
     _humanReady = false;
     _handPhaseStarted = false;
+    _duelEndEmitted = false;
     _deck.clear();
     _humanHandChoice = 0;
     _aiHandChoice = 0;
     _humanGoFirst = true;
   }
 
+  void _emitDuelEndOnce() {
+    if (_duelEndEmitted) return;
+    _duelEndEmitted = true;
+    _emit(YgoStocMsg.duelEnd());
+  }
+
   // ──────────── 房间模拟 ────────────
 
-  /// AI 在人类玩家进房之后加入（若提前发送，BaseDuelService 在
-  /// RoomNotJoined 阶段会丢弃 playerEnter，大厅里看不到 AI）。
+  /// AI 在人类玩家进房之后立即加入。
+  ///
+  /// 消息通过 [_emit] 写入 pending 队列，与同批次的 JOIN_GAME / TYPE_CHANGE /
+  /// HS_PLAYER_ENTER(Human) 在同一个 timer 回调中派发，因此 BaseDuelService
+  /// 收到 AI 的 PLAYER_ENTER 时已经处于 RoomInLobby（非 RoomJoined），
+  /// 不会触发 RoomJoined._withPlayers 丢弃玩家列表的问题。
   void _scheduleAIJoin() {
-    Future<void>.delayed(const Duration(milliseconds: 100), () {
-      if (_state != ConnectionState.connected || !_roomJoined) return;
-      _emit(YgoStocMsg.hsPlayerEnter(
-        StocHsPlayerEnter(name: _aiName, pos: 1),
-      ));
-      _emit(YgoStocMsg.hsPlayerChange(
+    _emit(YgoStocMsg.hsPlayerEnter(StocHsPlayerEnter(name: _aiName, pos: 1)));
+    _emit(
+      YgoStocMsg.hsPlayerChange(
         StocHsPlayerChange(pos: 1, state: HS_PLAYER_STATE_READY),
-      ));
-    });
+      ),
+    );
   }
 
   void _onJoinGame() {
@@ -203,17 +228,32 @@ class AiConnection implements DuelConnection {
     _roomJoined = true;
 
     final options = _roomOptions;
-    _emit(YgoStocMsg.joinGame(StocJoinGame(
-      lflist: options.lfTableHash, rule: options.rule,
-      mode: options.mode, duelRule: options.duelRule,
-      noCheckDeck: options.noCheckDeck, noShuffleDeck: options.noShuffleDeck,
-      startLp: options.startLp, startHand: options.startHand,
-      drawCount: options.drawCount, timeLimit: options.timeLimit,
-    )));
-    _emit(YgoStocMsg.typeChange(StocTypeChange(isHost: true, selfType: SELF_TYPE_PLAYER1)));
-    _emit(YgoStocMsg.hsPlayerEnter(
-      StocHsPlayerEnter(name: _name.isNotEmpty ? _name : 'Human', pos: 0),
-    ));
+    _emit(
+      YgoStocMsg.joinGame(
+        StocJoinGame(
+          lflist: options.lfTableHash,
+          rule: options.rule,
+          mode: options.mode,
+          duelRule: options.duelRule,
+          noCheckDeck: options.noCheckDeck,
+          noShuffleDeck: options.noShuffleDeck,
+          startLp: options.startLp,
+          startHand: options.startHand,
+          drawCount: options.drawCount,
+          timeLimit: options.timeLimit,
+        ),
+      ),
+    );
+    _emit(
+      YgoStocMsg.typeChange(
+        StocTypeChange(isHost: true, selfType: SELF_TYPE_PLAYER1),
+      ),
+    );
+    _emit(
+      YgoStocMsg.hsPlayerEnter(
+        StocHsPlayerEnter(name: _name.isNotEmpty ? _name : 'Human', pos: 0),
+      ),
+    );
     _scheduleAIJoin();
   }
 
@@ -232,11 +272,14 @@ class AiConnection implements DuelConnection {
   }
 
   void _onHandResult() {
-    // AI 固定出剪刀（1）：人类出石头必胜，流程确定；平局按协议重新猜拳
-    _aiHandChoice = 1;
-    _emit(YgoStocMsg.handResult(StocHandResult(
-      meResult: _humanHandChoice, opResult: _aiHandChoice,
-    )));
+    // AI 随机出拳（1=剪刀 2=石头 3=布），避免固定出剪刀导致的无限平局。
+    _aiHandChoice =
+        fixedAiHandChoice ?? (DateTime.now().millisecondsSinceEpoch % 3) + 1;
+    _emit(
+      YgoStocMsg.handResult(
+        StocHandResult(meResult: _humanHandChoice, opResult: _aiHandChoice),
+      ),
+    );
 
     final h = _humanHandChoice, a = _aiHandChoice;
     Future<void>.delayed(const Duration(milliseconds: 900), () {
@@ -275,29 +318,43 @@ class AiConnection implements DuelConnection {
   void _beginDuel() {
     _emit(YgoStocMsg.duelStart());
     unawaited(() async {
-      final info = await _engine.startDuel(
-        List<int>.of(_deck),
-        startLp: _roomOptions.startLp,
-        startHand: _roomOptions.startHand,
-        drawCount: _roomOptions.drawCount,
-      );
-      if (info == null) return;
-      // ocgcore 不直接发出 MSG_START（由服务端合成），这里补发。
-      // playerType 与引擎保持一致：0 = 当前视角为先攻方（人类固定先攻）。
-      _emit(YgoStocMsg.gameMsg(StocGameMessage(
-        func: MSG_START,
-        innerMsg: MsgStart(
-          playerType: 0,
-          masterRule: _roomOptions.duelRule.value,
-          life1: info.lp0,
-          life2: info.lp1,
-          deckSize1: info.deck0,
-          extraSize1: info.extra0,
-          deckSize2: info.deck1,
-          extraSize2: info.extra1,
-        ),
-      )));
-      _engine.pump();
+      try {
+        console.log('AiConnection: starting duel with ${_deck.length} cards...');
+        final info = await _engine.startDuel(
+          List<int>.of(_deck),
+          startLp: _roomOptions.startLp,
+          startHand: _roomOptions.startHand,
+          drawCount: _roomOptions.drawCount,
+        );
+        if (info == null) {
+          console.log('AiConnection: startDuel returned null — '
+              'deck may be empty or engine init failed');
+          return;
+        }
+        console.log('AiConnection: duel started, emitting MSG_START');
+        // ocgcore 不直接发出 MSG_START（由服务端合成），这里补发。
+        // playerType 与引擎保持一致：0 = 当前视角为先攻方（人类固定先攻）。
+        _emit(
+          YgoStocMsg.gameMsg(
+            StocGameMessage(
+              func: MSG_START,
+              innerMsg: MsgStart(
+                playerType: 0,
+                masterRule: _roomOptions.duelRule.value,
+                life1: info.lp0,
+                life2: info.lp1,
+                deckSize1: info.deck0,
+                extraSize1: info.extra0,
+                deckSize2: info.deck1,
+                extraSize2: info.extra1,
+              ),
+            ),
+          ),
+        );
+        _engine.pump();
+      } catch (e) {
+        console.log('AiConnection: startDuel failed with exception: $e');
+      }
     }());
   }
 

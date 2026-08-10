@@ -11,14 +11,31 @@ import 'duel_field_world.dart';
 /// 场地内容（棋盘、卡槽）全部挂在 world 下。
 class DuelFlameGame extends FlameGame<DuelFieldWorld>
     with MouseMovementDetector {
-  static const _phaseLampSize = Size(132, 44);
+  static final _phaseLampSize = DuelFieldLayout.phaseLampSize;
 
-  /// 棋盘中心相对视口中心的下偏移量（还原效果图构图）。
-  static const _boardCenterOffsetY = 40.0;
+  /// 沉浸式布局参数：把卡槽阵列在「扣除 HUD 的可见区」内最大化铺满。
+  /// 所有数值均为世界/像素坐标（project3D 恒等时两者相等）。
+  //
+  /// 卡槽阵列内容尺寸（含 hover 中心缩放的小幅溢出与边距余量）。
+  /// 注：场地卡槽的 hover 上浮(lift)当前已关闭，仅 1.12 中心缩放，
+  /// 每边溢出约 4-6px，故高度取静态阵列 496 + 少量边距。
+  static const _boardContentWidth = 600.0; // 2 * (colX[6] + slotWidth/2 + 边距)
+  static const _boardContentHeight = 510.0; // 双方怪兽/魔陷两层 + EMZ + 边距
+  /// 视口四周需为 HUD 预留的不可侵占空间（对称水平预留，用于左右状态卡；
+  /// 不考虑检查器展开的覆盖）。
+  static const _horizontalReserved = 96.0;
+  static const _topReserved = 230.0; // 顶部 HUD + 对手手牌预留
+  static const _bottomReserved = 116.0; // 己方手牌栏 height:96 + 间隙
+  /// zoom 上下限。下限取很小的值：沉浸式相机的目的就是让卡槽阵列「恰好」
+  /// 装进扣除 HUD 的可见区，不应被下限强行放大而溢出到上下手牌栏。
+  static const _minZoom = 0.1;
+  static const _maxZoom = 2.6;
 
   final DuelFieldStore duelStore;
   final Function(FieldCard? card, int? code)? onCardSelect;
   final void Function(String zoneKey)? onZoneInspect;
+  final VoidCallback? onPhaseLampTap;
+  final bool Function()? isPhaseLampEnabled;
   ValueChanged<PlaymatAnchorData>? onAnchorsChanged;
   String? _lastAnchorSignature;
 
@@ -26,12 +43,16 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     required this.duelStore,
     this.onCardSelect,
     this.onZoneInspect,
+    this.onPhaseLampTap,
+    this.isPhaseLampEnabled,
     this.onAnchorsChanged,
   }) : super(
          world: DuelFieldWorld(
            duelStore: duelStore,
            onCardSelect: onCardSelect,
            onZoneInspect: onZoneInspect,
+           onPhaseLampTap: onPhaseLampTap,
+           isPhaseLampEnabled: isPhaseLampEnabled,
          ),
        ) {
     duelStore.addListener(_onDuelStateChanged);
@@ -51,7 +72,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    camera.viewfinder.position = Vector2(0, -_boardCenterOffsetY);
+    _applyImmersiveCamera();
     _emitAnchors();
   }
 
@@ -60,13 +81,50 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     _emitAnchors();
   }
 
+  /// Hot reload 支持：重建 world 全部子组件并强制重新上报锚点。
+  /// 由 Flame 内置的 [onHotReload] 钩子触发（GameWidget.reassemble →
+  /// game.onHotReload），无需在 Flutter State 中覆写 reassemble。
+  @override
+  void onHotReload() {
+    super.onHotReload();
+    world.reload();
+    _lastAnchorSignature = null;
+    _emitAnchors();
+  }
+
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
-    // 居中由 camera 自动完成，resize 只需重算 Flutter 侧锚点。
+    // 自适应 zoom：视口尺寸变化时重算，让卡槽阵列始终铺满可见区。
+    _applyImmersiveCamera();
     if (isLoaded) {
       _emitAnchors();
     }
+  }
+
+  /// 依据当前视口尺寸计算沉浸式 zoom 与 camera position。
+  ///
+  /// - zoom：取「可见区宽 / 棋盘内容宽」与「可见区高 / 棋盘内容高」的较小者，
+  ///   保证卡槽阵列完整可见且最大化铺满。
+  /// - position：把棋盘中心（世界原点）对齐到「扣除 HUD 的可见区中心」，
+  ///   水平方向对称预留（左右状态卡），因此 x 中心为 0。
+  void _applyImmersiveCamera() {
+    final vw = size.x;
+    final vh = size.y;
+    if (vw <= 0 || vh <= 0) return;
+
+    const res = _horizontalReserved;
+    final availW = (vw - res * 2).clamp(1.0, vw);
+    final availH = (vh - _topReserved - _bottomReserved).clamp(1.0, vh);
+    final zoomW = availW / _boardContentWidth;
+    final zoomH = availH / _boardContentHeight;
+    final zoom = (zoomW < zoomH ? zoomW : zoomH).clamp(_minZoom, _maxZoom);
+
+    camera.viewfinder.zoom = zoom;
+    // 可见区中心相对视口中心的像素偏移，换算成世界坐标（除以 zoom）。
+    // 水平预留对称，centerX = 0；y = (bottom - top)/2。
+    final centerY = (_bottomReserved - _topReserved) / (2 * zoom);
+    camera.viewfinder.position = Vector2(0, centerY);
   }
 
   /// 世界坐标 → widget 坐标（经由 camera viewfinder 变换）。
@@ -107,15 +165,23 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     const monsterY = DuelFieldLayout.monsterY;
     const stY = DuelFieldLayout.stY;
 
-    addRect('opp_extra', colX[0], -stY);
-    addRect('opp_removed', colX[0], -monsterY);
-    addRect('opp_grave', colX[6], -monsterY);
-    addRect('self_grave', colX[0], monsterY);
-    addRect('self_removed', colX[6], monsterY);
-    addRect('self_extra', colX[6], stY);
+    // SpellTrap 行: [EXTRA][S/T1-5][DECK] / [DECK][S/T5-1][EXTRA]
+    // Monster 行: FIELD 与 M1-5 同一水平线。
+    // 己方 [FIELD][M1-5][GRAVE]；对手 [GRAVE][M5-1][FIELD]
+    // EMZ 行 (y=0): [对手BANISH colX[0]][EMZ1 -84][EMZ2 +84][己方BANISH colX[6]]
 
-    addRect('${opponentController}_8_5', colX[6], -stY);
-    addRect('${selfController}_8_5', colX[0], stY);
+    addRect('opp_deck', colX[0], -stY);
+    addRect('opp_grave', colX[0], -monsterY);
+    addRect('opp_removed', colX[0], 0); // BANISH 移至 EMZ 行左侧
+    addRect('opp_extra', colX[6], -stY);
+
+    addRect('self_deck', colX[6], stY);
+    addRect('self_grave', colX[6], monsterY);
+    addRect('self_removed', colX[6], 0); // BANISH 移至 EMZ 行右侧（PhaseLamp 锚点）
+    addRect('self_extra', colX[0], stY);
+
+    addRect('${selfController}_8_5', colX[0], monsterY);
+    addRect('${opponentController}_8_5', colX[6], -monsterY);
 
     for (int i = 0; i < 5; i++) {
       addRect('${opponentController}_8_${4 - i}', colX[1 + i], -stY);
@@ -140,20 +206,20 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     slotRects['${opponentController}_4_6'] = emz2Rect;
 
     final phaseReference =
-        slotRects['self_removed'] ??
         slotRects['self_grave'] ??
+        slotRects['self_removed'] ??
         slotRects['${selfController}_4_4'];
     final phaseLampRect = phaseReference == null
         ? Rect.fromLTWH(
-            viewport.width * 0.73,
-            viewport.height * 0.53,
+            viewport.width * DuelFieldLayout.phaseLampFallbackRatio.dx,
+            viewport.height * DuelFieldLayout.phaseLampFallbackRatio.dy,
             _phaseLampSize.width,
             _phaseLampSize.height,
           )
         : Rect.fromCenter(
             center: Offset(
-              phaseReference.center.dx - 8,
-              phaseReference.center.dy - 42,
+              phaseReference.center.dx + DuelFieldLayout.phaseLampOffset.dx,
+              phaseReference.center.dy + DuelFieldLayout.phaseLampOffset.dy,
             ),
             width: _phaseLampSize.width,
             height: _phaseLampSize.height,
