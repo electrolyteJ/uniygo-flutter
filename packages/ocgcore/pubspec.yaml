@@ -45,4 +45,7 @@ flutter:
   assets:
     - web/libs/libocgcore.js
     - web/libs/libocgcore.wasm
-    - ../../vendor/scripts/
+    # 包内符号链接 → 根目录 vendor/scripts（避免资产路径越界）。
+    # 越界声明（../../vendor/scripts/）会触发 flutter run web dev 模式把
+    # 全部脚本复制到 app 源码目录（apps/uniygopro/vendor）。
+    - vendor/scripts/

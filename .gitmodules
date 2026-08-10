@@ -1,21 +1,21 @@
 [submodule "vendor/ocgcore"]
-	path = vendor/ocgcore
+	path = packages/ocgcore/vendor/ocgcore
 	url = git@github.com:Fluorohydride/ygopro-core.git
-[submodule "vendor/ocgcore-edo"]
-	path = vendor/ocgcore-edo
-	url = git@github.com:edo9300/ygopro-core.git
+[submodule "vendor/lua"]
+	path = packages/ocgcore/vendor/lua
+	url = https://github.com/lua/lua.git
 [submodule "vendor/scripts"]
-	path = vendor/scripts
+    path = packages/ocgcore/vendor/scripts
 	url = git@github.com:Fluorohydride/ygopro-scripts.git
+[submodule "vendor/ocgcore_edo"]
+	path = packages/ocgcore_edo/vendor/ocgcore
+	url = git@github.com:edo9300/ygopro-core.git
 [submodule "vendor/CardScripts"]
-	path = vendor/CardScripts
+	path = packages/ocgcore_edo/vendor/CardScripts
 	url = git@github.com:ProjectIgnis/CardScripts.git
 [submodule "vendor/Puzzles"]
-	path = vendor/Puzzles
+	path = packages/ocgcore_edo/vendor/Puzzles
 	url = git@github.com:ProjectIgnis/Puzzles.git
 [submodule "vendor/ygopro-card-list"]
 	path = vendor/ygopro-card-list
 	url = https://github.com/mycard/ygopro-card-list.git
-[submodule "vendor/lua"]
-	path = vendor/lua
-	url = https://github.com/lua/lua.git
