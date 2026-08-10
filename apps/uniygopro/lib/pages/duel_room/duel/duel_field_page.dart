@@ -9,8 +9,8 @@ import 'package:provider/provider.dart';
 
 import '../../../models/FieldCard.dart';
 import '../../../service_singleton.dart';
-import '../../../widgets/duel_room/hud/chain_stack_overlay.dart';
-import '../../../widgets/duel_room/hud/duel_log_drawer.dart';
+import '../../../widgets/duel_room/overlay/chain_stack_overlay.dart';
+import '../../../widgets/duel_room/inspector/duel_log_drawer.dart';
 import '../../../widgets/duel_room/field/duel_flame_game.dart';
 import '../../../widgets/duel_room/menus/field_action_popover.dart';
 import '../../../widgets/duel_room/menus/hand_action_popover.dart';
@@ -243,7 +243,7 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => duelStore.respondSelectPlace(
-                  select.player,
+                  option.controller,
                   option.zone,
                   option.sequence,
                 ),
@@ -609,11 +609,15 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
                 ),
               ),
             ),
-          Positioned.fill(
-            child: IgnorePointer(
-              child: ChainStackOverlay(chains: duelFieldStore.chains),
+          if (!showBlockingOverlay && duelFieldStore.confirmCards == null)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ChainStackOverlay(
+                  chains: duelFieldStore.chains,
+                  sealed: duelFieldStore.chainSealed,
+                ),
+              ),
             ),
-          ),
           if (duelFieldStore.showInspector)
             Positioned(
               left: 18,
