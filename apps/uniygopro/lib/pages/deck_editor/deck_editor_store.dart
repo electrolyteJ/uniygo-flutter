@@ -36,6 +36,8 @@ class DeckEditorStore extends ChangeNotifier {
   // ── 添加卡牌目标区域 ──
   String _addTargetZone = 'main'; // main, extra, side
 
+  final _soundService = ServiceSingleton.instance.uiSoundService;
+
   // ── UI 状态 ──
   bool _isLoading = false;
   String? _errorMessage;
@@ -186,6 +188,7 @@ class DeckEditorStore extends ChangeNotifier {
       final deckInfo = _toDeckInfo();
       final success = await _dataService.saveDeck(deckInfo);
       if (success) {
+        _soundService.playDeckSave();
         final validationErrors = await _validateForCurrentSession(deckInfo);
         _editingDeck.isDirty = false;
         final index = _decks.indexWhere(
@@ -204,10 +207,12 @@ class DeckEditorStore extends ChangeNotifier {
       } else {
         _errorMessage = '保存卡组失败';
         _lastSaveResult = const DeckEditorSaveResult(saved: false);
+        _soundService.playError();
       }
     } catch (e) {
       _errorMessage = '保存卡组失败: $e';
       _lastSaveResult = const DeckEditorSaveResult(saved: false);
+      _soundService.playError();
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -223,9 +228,10 @@ class DeckEditorStore extends ChangeNotifier {
       final extraCards = await _resolveCards(deckInfo.extraDeck);
       final sideCards = await _resolveCards(deckInfo.sideDeck);
       _replaceEditingDeck(deckInfo.deckName, mainCards, extraCards, sideCards);
-      _editingDeck.isDirty = true;
-      notifyListeners();
-    }
+    _editingDeck.isDirty = true;
+    notifyListeners();
+    _soundService.playCardRemove();
+  }
   }
 
   // ── 搜索操作 ──
@@ -325,6 +331,7 @@ class DeckEditorStore extends ChangeNotifier {
 
     _editingDeck.isDirty = true;
     notifyListeners();
+    _soundService.playCardAdd();
     return true;
   }
 
@@ -403,6 +410,7 @@ class DeckEditorStore extends ChangeNotifier {
   /// 清空卡组
   void clearDeck() {
     _editingDeck.clear();
+    _soundService.playDeckClear();
     notifyListeners();
   }
 
@@ -419,6 +427,7 @@ class DeckEditorStore extends ChangeNotifier {
     _editingDeck.extra.shuffle();
     _editingDeck.side.shuffle();
     _editingDeck.isDirty = true;
+    _soundService.playDeckShuffle();
     notifyListeners();
   }
 

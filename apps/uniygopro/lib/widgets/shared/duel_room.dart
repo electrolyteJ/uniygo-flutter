@@ -1,3 +1,6 @@
+import 'dart:developer' as console;
+
+import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -15,6 +18,7 @@ Widget buildBackButton(BuildContext context) {
     child: InkWell(
       borderRadius: BorderRadius.circular(20),
       onTap: () => {
+        ServiceSingleton.instance.uiSoundService.playDialogOpen(),
         backHomeDialog(context: context, title: '退出决斗', content: '是否确认退出当前决斗？'),
       },
       child: const Padding(
@@ -53,18 +57,25 @@ void backHomeDialog({
 }
 
 void backHome(BuildContext context, {bool surrenderOnExit = false}) {
+  ServiceSingleton.instance.uiSoundService.playBackNavigation();
   final duelService = ServiceSingleton.instance.duelService;
   if (surrenderOnExit) {
     duelService.surrender();
   }
   duelService.disconnect();
   final duelRoomState = context.read<DuelRoomStore>();
-  final duelStore = context.read<DuelFieldStore>();
+  final duelFieldStore = context.read<DuelFieldStore>();
   final duelChatStore = context.read<DuelChatStore>();
   final matchRoomStore = context.read<MatchStore>();
+  final duelResult = duelFieldStore.duelResult;
+  final isDuelEnded = duelRoomState.stage is RoomDuelEnded;
+  context.go('/');
+  console.log('backHome: isDuelEnded=$isDuelEnded, duelResult=$duelResult');
+  if (duelResult != null) {
+    context.go('/duel-result', extra: duelResult);
+  }
   duelRoomState.reset();
-  duelStore.reset();
+  duelFieldStore.reset();
   duelChatStore.reset();
   matchRoomStore.reset();
-  context.go('/');
 }

@@ -327,9 +327,10 @@ const int UPDATE_FLAG_OVERLAY_CARD = 0x10000;
 const int UPDATE_FLAG_COUNTERS = 0x20000;
 const int UPDATE_FLAG_OWNER = 0x40000;
 const int UPDATE_FLAG_STATUS = 0x80000;
-const int UPDATE_FLAG_LSCALE = 0x100000;
-const int UPDATE_FLAG_RSCALE = 0x200000;
-const int UPDATE_FLAG_LINK = 0x400000;
+// 0x100000: reserved (QUERY_IS_PUBLIC in older protocol versions, unused in current ocgcore)
+const int UPDATE_FLAG_LSCALE = 0x200000;
+const int UPDATE_FLAG_RSCALE = 0x400000;
+const int UPDATE_FLAG_LINK = 0x800000;
 
 // Phase values（阶段值，支持位掩码组合）
 const int PHASE_DRAW = 0x01;

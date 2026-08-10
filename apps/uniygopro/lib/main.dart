@@ -6,6 +6,8 @@ import 'package:uniygopro/pages/duel_room/duel_room_store.dart';
 import 'package:uniygopro/service_loader.registrations.g.dart';
 import 'package:uniygopro/pages/duel_room/waiting/duel_chat_store.dart';
 import 'package:uniygopro/pages/deck_editor/deck_editor_store.dart';
+import 'package:uniygopro/widgets/shared/card_image_loader.dart';
+import 'package:uniygopro/service_singleton.dart';
 import 'app.dart';
 import 'pages/create_room/match_store.dart';
 import 'pages/side/side_store.dart';
@@ -17,6 +19,11 @@ void main() async {
   final duelStore = DuelFieldStore();
   final chatStore = DuelChatStore();
   final duelRoomStore = DuelRoomStore();
+
+  // 注入统一图片加载器的 URL 解析器
+  CardImageLoader.I.urlResolver =
+      (int code) => ServiceSingleton.instance.dataService.getCardImageUrl(code);
+
   runApp(
     MultiProvider(
       providers: [

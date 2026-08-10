@@ -10,6 +10,7 @@ import 'package:ygo_card_baige/ygo_card_baige.dart';
 import 'package:ygo_data/ygo_data.dart';
 import 'package:ygo_deck_mycard/ygo_deck_mycard.dart';
 import 'services/DuelService.dart';
+import 'services/ui_sound_service.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 class ServiceSingleton {
   YgoDataService? _dataService;
@@ -34,6 +35,7 @@ class ServiceSingleton {
       );
 
   IPuzzleService? _puzzleService;
+  final uiSoundService = UISoundService();
 
   /// 残局目录服务（残局房列表/详情）。
   IPuzzleService get puzzleService =>

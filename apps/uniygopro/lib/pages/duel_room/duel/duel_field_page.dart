@@ -8,6 +8,7 @@ import 'package:flutter_portal/flutter_portal.dart';
 import 'package:provider/provider.dart';
 
 import '../../../models/FieldCard.dart';
+import '../../../service_singleton.dart';
 import '../../../widgets/duel_room/hud/chain_stack_overlay.dart';
 import '../../../widgets/duel_room/hud/duel_log_drawer.dart';
 import '../../../widgets/duel_room/field/duel_flame_game.dart';
@@ -100,6 +101,7 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
   void _revealTurnOrderHint(bool isFirst) {
     if (!mounted || _showTurnOrderHint) return;
     _isFirstTurn = isFirst;
+    ServiceSingleton.instance.uiSoundService.playTurnHint();
     setState(() => _showTurnOrderHint = true);
   }
 

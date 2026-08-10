@@ -16,6 +16,7 @@ import '../../../models/FieldCard.dart';
 import '../../../models/IdleAction.dart';
 import '../../../models/SelectState.dart';
 import '../../../models/duel_event.dart';
+import '../../../services/duel_sound_service.dart';
 import '../../../widgets/duel_room/inspector/zone_browser_modal.dart';
 import '../../../widgets/duel_room/menus/hand_action_menu.dart';
 import 'playmat_action_resolver.dart';
@@ -72,6 +73,8 @@ class DuelFieldStore extends ChangeNotifier {
   int selfLpEventId = 0;
   int opponentLpEventId = 0;
   final dataService = ServiceSingleton.instance.dataService;
+  final soundService = DuelSoundService();
+  final uiSound = ServiceSingleton.instance.uiSoundService;
 
   /// 卡组洗切信号：每次 MSG_SHUFFLE_DECK 自增，驱动场地洗牌动效。
   int deckShuffleTick = 0;
@@ -1664,7 +1667,8 @@ class DuelFieldStore extends ChangeNotifier {
   void handleServerMessage(YgoStocMsg msg) {
     final gameMsg = msg.gameMsg;
     if (gameMsg == null || gameMsg.innerMsg == null) {
-      return console.log('No game message payload');
+      console.log('No game message payload ${msg}');
+      return;
     }
     final innerMsg = gameMsg.innerMsg as Object;
     if (innerMsg is MsgUnimplemented) {
@@ -1677,30 +1681,37 @@ class DuelFieldStore extends ChangeNotifier {
       // 决斗事件 start
       case MSG_START:
         _handleStart(innerMsg);
+        soundService.playDuelStart();
         break;
       case MSG_NEW_TURN:
         _handleNewTurn(innerMsg);
+        soundService.playNewTurn();
         break;
       case MSG_NEW_PHASE:
         // 已通过 onDuelPhaseMessage 单独派发，避免这里重复记日志。
+        soundService.playNewPhase();
         break;
       case MSG_WAITING:
         _handleWaiting(innerMsg as MsgWait);
         break;
       case MSG_ATTACK:
         _handleAttack(innerMsg);
+        soundService.playAttack();
         break;
       case MSG_DAMAGE:
         _handleDamage(innerMsg);
+        soundService.playDamage();
         break;
       case MSG_RECOVER:
         _handleRecover(innerMsg);
+        soundService.playRecover();
         break;
       case MSG_LP_UPDATE:
         _handleLpUpdate(innerMsg);
         break;
       case MSG_PAY_LP_COST:
         _handlePayLife(innerMsg);
+        soundService.playDamage();
         break;
       case MSG_CONFIRM_CARDS:
       case MSG_CONFIRM_DECKTOP:
@@ -1710,6 +1721,7 @@ class DuelFieldStore extends ChangeNotifier {
       case MSG_CHAINING:
         final name = handleChaining(innerMsg);
         addLog('连锁发动 $name。');
+        soundService.playChain();
         break;
       case MSG_CHAINED:
         _handleChained(innerMsg as MsgChained);
@@ -1722,10 +1734,12 @@ class DuelFieldStore extends ChangeNotifier {
         break;
       case MSG_CHAIN_END:
         _handleChainEnd(innerMsg);
+        soundService.playChainEnd();
         break;
       case MSG_SUMMONING:
         final name = handleSummoning(innerMsg);
         addLog('正在召唤 $name。');
+        soundService.playSummon();
         break;
       case MSG_SUMMONED:
         _handleSummonFinished('召唤');
@@ -1733,6 +1747,7 @@ class DuelFieldStore extends ChangeNotifier {
       case MSG_SP_SUMMONING:
         final msg = innerMsg as MsgSpSummoning;
         _handleSummonPreparing(msg.code, msg.location, actionLabel: '特殊召唤');
+        soundService.playSpecialSummon();
         break;
       case MSG_SP_SUMMONED:
         _handleSummonFinished('特殊召唤');
@@ -1740,18 +1755,21 @@ class DuelFieldStore extends ChangeNotifier {
       case MSG_FLIP_SUMMONING:
         final msg = innerMsg as MsgFlipSummoning;
         _handleSummonPreparing(msg.code, msg.location, actionLabel: '反转召唤');
+        soundService.playFlipSummon();
         break;
       case MSG_FLIP_SUMMONED:
         _handleSummonFinished('反转召唤');
         break;
       case MSG_BATTLE:
         _handleBattle(innerMsg as MsgBattle);
+        soundService.playBattle();
         break;
       case MSG_HINT:
         _handleHint(innerMsg as MsgHint);
         break;
       case MSG_WIN:
         _handleWin(innerMsg as MsgWin);
+        soundService.playDuelWin();
         break;
       case MSG_RETRY:
         if (_restoreLastInteractiveMessage()) {
@@ -1762,6 +1780,7 @@ class DuelFieldStore extends ChangeNotifier {
         break;
       case MSG_SHUFFLE_DECK:
         _handleShuffleDeck(innerMsg);
+        soundService.playShuffleDeck();
         break;
       case MSG_BECOME_TARGET:
         _handleBecomeTarget(innerMsg as MsgBecomeTarget);
@@ -1771,6 +1790,7 @@ class DuelFieldStore extends ChangeNotifier {
         break;
       case MSG_DAMAGE_STEP_START:
         _handleDamageStepStart();
+        soundService.playDamageStep();
         break;
       case MSG_DAMAGE_STEP_END:
         _handleDamageStepEnd();
@@ -1779,6 +1799,7 @@ class DuelFieldStore extends ChangeNotifier {
       // 决斗场地  start
       case MSG_DRAW:
         _handleDraw(innerMsg);
+        soundService.playCardDraw();
         break;
       case MSG_UPDATE_DATA:
         _handleUpdateData(innerMsg as MsgUpdateData);
@@ -1791,6 +1812,7 @@ class DuelFieldStore extends ChangeNotifier {
         break;
       case MSG_MOVE:
         _handleMove(innerMsg);
+        soundService.playCardDestroy();
         break;
       case MSG_FIELD_DISABLED:
         _handleFieldDisabled(innerMsg as MsgFieldDisabled);
@@ -1798,12 +1820,14 @@ class DuelFieldStore extends ChangeNotifier {
       case MSG_POS_CHANGE:
         final card = handlePosChange(innerMsg);
         addLog('${card?.name} 表示形式变更。');
+        soundService.playPosChange();
         break;
       case MSG_SHUFFLE_HAND:
         _handleShuffleHand(innerMsg);
         break;
       case MSG_SET:
         _handleSet(innerMsg as MsgSet);
+        soundService.playSetCard();
         break;
       // 决斗场地  end
       // 选择事件  start
@@ -1874,6 +1898,12 @@ class DuelFieldStore extends ChangeNotifier {
         _rememberInteractiveMessage(gameMsg.func, innerMsg);
         break;
       // 选择事件  end
+      case MSG_TOSS_COIN:
+        soundService.playCoinToss();
+        break;
+      case MSG_TOSS_DICE:
+        soundService.playDice();
+        break;
       default:
         console.log('Unhandled  event: ${gameMsg.func}');
     }
@@ -2447,6 +2477,7 @@ class DuelFieldStore extends ChangeNotifier {
 
   void inspectCard(int code) {
     if (code <= 0) return;
+    uiSound.playDialogOpen();
     _inspectCardMut(code);
     notifyListeners();
   }
@@ -2521,6 +2552,7 @@ class DuelFieldStore extends ChangeNotifier {
   }
 
   void openZoneBrowser(String zoneKey) {
+    uiSound.playZoneOpen();
     _selectedHandSequence = null;
     _openZoneBrowserKey = zoneKey;
     _selectedZoneBrowserSequence = null;
@@ -2533,6 +2565,7 @@ class DuelFieldStore extends ChangeNotifier {
     if (_openZoneBrowserKey == null && _selectedZoneBrowserSequence == null) {
       return;
     }
+    uiSound.playZoneClose();
     _openZoneBrowserKey = null;
     _selectedZoneBrowserSequence = null;
     notifyListeners();
@@ -2550,6 +2583,11 @@ class DuelFieldStore extends ChangeNotifier {
       return;
     }
     _showPhaseMenu = !_showPhaseMenu;
+    if (_showPhaseMenu) {
+      uiSound.playMenuOpen();
+    } else {
+      uiSound.playMenuClose();
+    }
     _selectedHandSequence = null;
     _selectedFieldCard = null;
     notifyListeners();

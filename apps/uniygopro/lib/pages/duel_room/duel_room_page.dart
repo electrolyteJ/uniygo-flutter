@@ -2,13 +2,13 @@ import 'dart:async';
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:uniygopro/pages/duel_room/waiting/waiting_room_page.dart';
 import '../../service_singleton.dart';
 import '../../debug/ocgcore_web_debug.dart';
 import 'duel/duel_field_store.dart';
 import 'duel/duel_field_page.dart';
-import 'duel_result_page.dart';
 import 'waiting/duel_chat_store.dart';
 import 'duel_room_store.dart';
 import '../create_room/match_store.dart';
@@ -129,11 +129,8 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     final isInDuel = duel.stage is RoomInDuel;
     final isDuelEnded = duel.stage is RoomDuelEnded;
     final showDuelSurface = isInDuel || isDuelEnded;
-    final duelResult = duelFieldStore.duelResult;
     final content = isInDuel
         ? DuelFieldPage(duelRoomStore.players)
-        : isDuelEnded && duelResult != null
-        ? DuelResultPage(result: duelResult)
         : const WaitingRoomPage();
     return Scaffold(
       key: const ValueKey('duel-room-page'),

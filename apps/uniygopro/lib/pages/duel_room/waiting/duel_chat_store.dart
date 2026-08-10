@@ -4,6 +4,7 @@ import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../models/ChatMessage.dart';
+import '../../../service_singleton.dart';
 
 /// 对局/房间聊天消息仓库。
 ///
@@ -31,6 +32,7 @@ class DuelChatStore extends ChangeNotifier {
   }
 
   void addChat(int playerIndex, String name, String message) {
+    ServiceSingleton.instance.uiSoundService.playChatMessage();
     chatMessages.add(
       ChatMessage(
         playerIndex: playerIndex,

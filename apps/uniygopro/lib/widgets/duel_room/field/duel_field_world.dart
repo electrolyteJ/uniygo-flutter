@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flame/components.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Offset, Size;
 import '../../../models/FieldCard.dart';
 import '../../../pages/duel_room/duel/duel_field_store.dart';
+import '../../shared/card_image_loader.dart';
 import 'component/battle_presentation_component.dart';
 import 'component/board_mesh_component.dart';
 import 'component/zone_component.dart';
@@ -75,9 +75,8 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
   PhaseLampComponent? _phaseLamp;
   ZonesComponent? _zones;
 
-  /// 卡图图片缓存（按 card code 索引），跨 slot rebuild 共享。
-  final Map<int, ui.Image> _cardImageCache = {};
-  final Map<int, Completer<ui.Image?>> _cardImageLoading = {};
+  /// 卡图图片缓存（由 [CardImageLoader] 统一管理）。
+  CardImageLoader get _loader => CardImageLoader.I;
 
   DuelFieldWorld({
     required this.duelStore,
@@ -198,43 +197,10 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
   // ── 卡图图片缓存 ──────────────────────────────────────────────
 
   /// 同步获取已缓存的卡图（未加载时返回 null）。
-  ui.Image? getCachedCardImage(int code) => _cardImageCache[code];
+  ui.Image? getCachedCardImage(int code) => CardImageLoader.I.get(code);
 
-  /// 异步加载卡图：先查缓存，再查正在进行的加载，最后发起网络请求。
-  /// 同一 code 的并发请求只会发一次 HTTP，结果共享给所有等待者。
-  Future<ui.Image?> loadCardImage(int code) async {
-    final cached = _cardImageCache[code];
-    if (cached != null) return cached;
+  /// 异步加载卡图：委托给 [CardImageLoader]（统一缓存，跨 Flame / Flutter Widget 复用）。
+  Future<ui.Image?> loadCardImage(int code) => CardImageLoader.I.load(code);
 
-    final existing = _cardImageLoading[code];
-    if (existing != null) return existing.future;
-
-    final completer = Completer<ui.Image?>();
-    _cardImageLoading[code] = completer;
-    try {
-      final url = duelStore.getCardImageUrl(code);
-      final image = await _fetchNetworkImage(url);
-      if (image != null) _cardImageCache[code] = image;
-      completer.complete(image);
-      return image;
-    } catch (_) {
-      completer.complete(null);
-      return null;
-    } finally {
-      _cardImageLoading.remove(code);
-    }
-  }
-
-  Future<ui.Image?> _fetchNetworkImage(String url) async {
-    if (url.isEmpty) return null;
-    try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200) return null;
-      final codec = await ui.instantiateImageCodec(response.bodyBytes);
-      final frame = await codec.getNextFrame();
-      return frame.image;
-    } catch (_) {
-      return null;
-    }
-  }
+  // _fetchNetworkImage 已移除——网络请求统一由 CardImageLoader 负责。
 }

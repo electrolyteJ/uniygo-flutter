@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'deck_editor_store.dart';
 import 'deck_editor_session.dart';
+import '../../service_singleton.dart';
 import '../../widgets/deck_editor/deck_list_panel.dart';
 import '../../widgets/deck_editor/deck_edit_panel.dart';
 import '../../widgets/deck_editor/card_search_bar.dart';
@@ -254,6 +255,7 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
   }
 
   void _handleBack() {
+    ServiceSingleton.instance.uiSoundService.playBackNavigation();
     final store = context.read<DeckEditorStore>();
     if (Navigator.of(context).canPop()) {
       context.pop(store.lastSaveResult);
@@ -413,6 +415,7 @@ class _AppBarActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<DeckEditorStore>();
+    final sound = ServiceSingleton.instance.uiSoundService;
 
     return Row(
       children: [
@@ -421,7 +424,10 @@ class _AppBarActions extends StatelessWidget {
           icon: Icons.shuffle,
           tooltip: '洗切',
           onPressed: store.editingDeck.totalCount > 0
-              ? () => store.shuffleDeck()
+              ? () {
+                  sound.playButtonTap();
+                  store.shuffleDeck();
+                }
               : null,
         ),
         // 排序
@@ -429,7 +435,10 @@ class _AppBarActions extends StatelessWidget {
           icon: Icons.sort_by_alpha,
           tooltip: '排序',
           onPressed: store.editingDeck.totalCount > 0
-              ? () => store.sortDeck()
+              ? () {
+                  sound.playButtonTap();
+                  store.sortDeck();
+                }
               : null,
         ),
         // 清空
@@ -475,6 +484,7 @@ class _AppBarActions extends StatelessWidget {
   }
 
   void _confirmClear(BuildContext context, DeckEditorStore store) {
+    ServiceSingleton.instance.uiSoundService.playDialogOpen();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

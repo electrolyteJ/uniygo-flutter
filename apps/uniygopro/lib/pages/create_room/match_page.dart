@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'match_store.dart';
 import '../../services/match_service.dart';
+import '../../service_singleton.dart';
 
 class MatchPage extends StatefulWidget {
   const MatchPage({super.key});
@@ -16,6 +17,7 @@ class _MatchPageState extends State<MatchPage> {
   Future<void> _startMatch(String arena) async {
     final store = context.read<MatchStore>();
     store.startSearching(arena);
+    ServiceSingleton.instance.uiSoundService.playMatchStart();
 
     try {
       final result = await _matchService.match(
@@ -24,9 +26,11 @@ class _MatchPageState extends State<MatchPage> {
         secret: 'guest',
       );
       store.setMatchResult(result.address, result.port, result.password);
+      ServiceSingleton.instance.uiSoundService.playMatchFound();
       if (mounted) context.go('/duel-room');
     } catch (e) {
       store.stopSearching();
+      ServiceSingleton.instance.uiSoundService.playError();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('匹配失败: $e')),
@@ -42,7 +46,10 @@ class _MatchPageState extends State<MatchPage> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/'),
+          onPressed: () {
+            ServiceSingleton.instance.uiSoundService.playBackNavigation();
+            context.go('/');
+          },
         ),
         title: const Text('匹配对战'),
         backgroundColor: Colors.blueGrey.shade800,

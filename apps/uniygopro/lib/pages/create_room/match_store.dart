@@ -15,7 +15,6 @@ class MatchStore extends ChangeNotifier {
 
   GameServer? selectedServer;
   DuelEnvironment environment = DuelEnvironment.koishi;
-  String password = '';
 
   /// 是否为房主（创建房间模式）
   bool isHost = false;
@@ -76,7 +75,6 @@ class MatchStore extends ChangeNotifier {
     serverAddress = env.host;
     serverPort = env.port;
     serverPassword = password;
-    this.password = password;
     notifyListeners();
   }
 
@@ -94,7 +92,6 @@ class MatchStore extends ChangeNotifier {
     serverAddress = DuelEnvironment.puzzle.host;
     serverPort = DuelEnvironment.puzzle.port;
     serverPassword = '';
-    password = '';
     notifyListeners();
   }
 
@@ -106,7 +103,6 @@ class MatchStore extends ChangeNotifier {
     serverPassword = null;
     selectedServer = null;
     environment = DuelEnvironment.koishi;
-    password = '';
     isHost = false;
     roomName = '';
     username = 'Guest';

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
 import '../../config/servers.dart';
+import '../../service_singleton.dart';
 import '../../widgets/shared/create_room.dart';
 import '../../widgets/create_room/create_room_form.dart';
 import '../../widgets/create_room/env_selector.dart';
@@ -97,7 +98,10 @@ class _FreeRoomSheetState extends State<FreeRoomSheet>
                     indicatorColor: Colors.amber,
                     labelColor: Colors.white,
                     unselectedLabelColor: Colors.blueGrey.shade400,
-                    onTap: (_) => setState(() {}),
+                    onTap: (_) {
+                      ServiceSingleton.instance.uiSoundService.playTabSwitch();
+                      setState(() {});
+                    },
                     tabs: const [
                       Tab(text: '加入房间'),
                       Tab(text: '创建房间'),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../config/servers.dart';
+import '../service_singleton.dart';
 import '../widgets/shared/create_room.dart';
 import 'create_room/match_store.dart';
 import 'create_room/ai_room_sheet.dart';
@@ -35,7 +36,10 @@ class HomePage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.card_membership),
             tooltip: '卡组',
-            onPressed: () => context.go('/deck-editor'),
+            onPressed: () {
+              ServiceSingleton.instance.uiSoundService.playPageTransition();
+              context.go('/deck-editor');
+            },
           ),
         ],
       ),
@@ -84,6 +88,7 @@ class HomePage extends StatelessWidget {
   }
 
   void _onServerTap(BuildContext context, GameServer server) {
+    ServiceSingleton.instance.uiSoundService.playButtonTap();
     if (server.type == ServerType.puzzleRoom) {
       showRoomDialog(context, PuzzleRoomSheet(server: server));
     } else if (server.type == ServerType.aiRoom) {
