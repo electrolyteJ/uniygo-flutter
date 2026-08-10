@@ -152,7 +152,7 @@ class AiConnection implements DuelConnection {
         );
         break;
       case CTOS_HS_START:
-        _emit(YgoStocMsg.duelStart());
+        // STOC_DUEL_START 由 _startHandPhase 统一发送（幂等），避免重复
         _startHandPhase();
         break;
       case CTOS_HAND_RESULT:
@@ -265,9 +265,12 @@ class AiConnection implements DuelConnection {
   }
 
   void _startHandPhase() {
-    // HS_READY 与 HS_START 都可能触发，幂等保护避免重复发 SELECT_HAND
+    // HS_READY 与 HS_START 都可能触发，幂等保护避免重复发消息。
+    // 服务端进入对局时先下发 STOC_DUEL_START（RoomStartDuel），随后才开始猜拳。
+    // 正确顺序：RoomInLobby → RoomStartDuel → RoomSelectingHand → ...
     if (_handPhaseStarted) return;
     _handPhaseStarted = true;
+    _emit(YgoStocMsg.duelStart());
     _emit(YgoStocMsg.selectHand());
   }
 
@@ -316,7 +319,7 @@ class AiConnection implements DuelConnection {
   }
 
   void _beginDuel() {
-    _emit(YgoStocMsg.duelStart());
+    // STOC_DUEL_START 已在对局开始时（_startHandPhase）发送，这里不再重复下发。
     unawaited(() async {
       try {
         console.log('AiConnection: starting duel with ${_deck.length} cards...');

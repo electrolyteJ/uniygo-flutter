@@ -341,11 +341,11 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
                 );
               },
             ),
-            const Spacer(),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.topCenter,
-              child: Row(
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.topCenter,
+                child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   PlayerStatusCard(
@@ -385,10 +385,10 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
                     onRemovedTap: () =>
                         duelStore.openZoneBrowser('self_removed'),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
-            const Spacer(),
             RenderModeToggle(
               mode: _renderMode,
               onChanged: _handleRenderModeChanged,
