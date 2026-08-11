@@ -17,5 +17,5 @@
 	path = packages/ocgcore_edo/vendor/Puzzles
 	url = git@github.com:ProjectIgnis/Puzzles.git
 [submodule "vendor/ygopro-card-list"]
-	path = vendor/ygopro-card-list
+	path = packages/ygo_card_mycard/vendor/ygopro-card-list
 	url = https://github.com/mycard/ygopro-card-list.git
