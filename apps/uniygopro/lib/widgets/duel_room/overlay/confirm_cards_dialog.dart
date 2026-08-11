@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../image/card_image.dart';
+import '../../card_image.dart';
 
 /// 居中展示服务端要求查看的卡牌（MSG_CONFIRM_CARDS 等）。
 ///

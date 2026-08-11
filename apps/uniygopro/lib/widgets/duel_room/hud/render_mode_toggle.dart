@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 import '../field/playmat_field_view_data.dart';
 
 /// 渲染模式切换器：Prototype / Flame 3D 双段胶囊。
@@ -76,3 +77,8 @@ class RenderModeToggle extends StatelessWidget {
     );
   }
 }
+
+@Preview(name: 'RenderModeToggle', size: Size(220, 50), brightness: Brightness.dark)
+Widget _previewRenderModeToggle() => const RenderModeToggle(
+  mode: PlaymatRenderMode.prototype,
+);

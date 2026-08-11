@@ -1,6 +1,7 @@
 
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 class HandSelect extends StatelessWidget {
   final void Function(HandType) onSendHand;
@@ -53,3 +54,6 @@ class HandSelect extends StatelessWidget {
     );
   }
 }
+@Preview(name: 'HandSelect', size: Size(300, 200), brightness: Brightness.dark)
+Widget _previewHandSelect() => HandSelect(onSendHand: (_) {});
+

@@ -1,4 +1,5 @@
 import 'dart:developer' as console;
+import 'dart:typed_data';
 import 'package:ygo_data/ygo_data.dart';
 import 'package:ygo_card_mycard/src/card_dao.dart';
 import 'db/card_database.dart';
@@ -79,6 +80,12 @@ class CardService implements ICardService {
 
   @override
   String getCardImageUrl(int code) => config.getCardImageUrl(code);
+
+  @override
+  Future<Uint8List> getCardImage(int code) async {
+    final rep = await fetch(getCardImageUrl(code));
+    return rep.bodyBytes;
+  }
 
   @override
   Future<CardInfo?> getCard(int code) async {

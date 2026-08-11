@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../../../models/chain_link.dart';
-import '../../../image/card_image.dart';
+import '../../card_image.dart';
 
 /// 连锁堆叠展示组件。
 ///
@@ -246,3 +246,4 @@ class _PulseChainBadgeState extends State<_PulseChainBadge>
     );
   }
 }
+

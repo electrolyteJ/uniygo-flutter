@@ -3,8 +3,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../../../models/duel_menu.dart';
-import '../hud/cyber_button.dart';
-import '../../../image/card_image.dart';
+import '../../cyber_button.dart';
+import '../../card_image.dart';
 
 String _zoneTitle(String zoneKey) {
   switch (zoneKey) {
@@ -286,3 +286,4 @@ class _ZoneBrowserCardTile extends StatelessWidget {
     );
   }
 }
+

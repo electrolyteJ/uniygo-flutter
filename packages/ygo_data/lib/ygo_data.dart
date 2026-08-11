@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:service_loader/service_loader.dart';
 import 'card_info.dart';
 import 'deck_info.dart';
@@ -16,7 +18,7 @@ abstract class ICardService implements IService {
   set envType(dynamic value);
 
   String getCardImageUrl(int code);
-
+  Future<Uint8List> getCardImage(int code);
   Future<CardInfo?> getCard(int code);
 
   Future<List<CardInfo>> searchCards(String keyword);

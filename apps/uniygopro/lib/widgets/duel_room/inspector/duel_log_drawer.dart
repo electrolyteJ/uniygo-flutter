@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 class DuelLogDrawer extends StatelessWidget {
   final List<String> logs;
@@ -115,3 +116,6 @@ class DuelLogDrawer extends StatelessWidget {
     );
   }
 }
+@Preview(name: 'DuelLogDrawer', size: Size(400, 500), brightness: Brightness.dark)
+Widget _previewDuelLogDrawer() => DuelLogDrawer(logs: const []);
+

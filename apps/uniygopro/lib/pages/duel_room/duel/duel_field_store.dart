@@ -20,7 +20,25 @@ import '../../../image/card_image_loader.dart';
 import '../../../models/duel_event.dart';
 import '../../../services/duel_sound_service.dart';
 import '../../../models/field_zone_key.dart';
-import 'playmat_action_resolver.dart';
+class PlaymatResolvedAction {
+  final String label;
+  final int response;
+  final PlaymatResolvedActionKind kind;
+  final int? code;
+  final int? controller;
+  final int? location;
+  final int? sequence;
+
+  const PlaymatResolvedAction({
+    required this.label,
+    required this.response,
+    this.kind = PlaymatResolvedActionKind.unknown,
+    this.code,
+    this.controller,
+    this.location,
+    this.sequence,
+  });
+}
 
 /// 对局状态仓库（服务器驱动），全局唯一。
 ///
@@ -3021,11 +3039,7 @@ bool get isWaitingForInput => currentSelect != null;
   }
 
   List<PlaymatResolvedAction> _handActionsForSequence(int sequence) {
-    final actions = PlaymatActionResolver.resolveHandActions(
-      this,
-      myController,
-      sequence,
-    );
+    final actions = _resolveHandActions(sequence);
     // 魔法/陷阱卡：发动在上，盖放在下
     if (actions.length <= 1) return actions;
     final sorted = List<PlaymatResolvedAction>.of(actions);
@@ -3051,13 +3065,11 @@ bool get isWaitingForInput => currentSelect != null;
   }
 
   List<PlaymatResolvedAction> phaseActionsForCurrentWindow() {
-    return PlaymatActionResolver.resolvePhaseActions(this, myController);
+    return _resolvePhaseActions();
   }
 
   List<PlaymatResolvedAction> fieldActionsForCard(FieldCard fieldCard) {
-    final actions = PlaymatActionResolver.resolveFieldActions(
-      this,
-      myController,
+    final actions = _resolveFieldActions(
       fieldCard.controller,
       fieldCard.zone,
       fieldCard.sequence,
@@ -3078,6 +3090,182 @@ bool get isWaitingForInput => currentSelect != null;
       );
     }
     return actions;
+  }
+
+  List<PlaymatResolvedAction> _resolveHandActions(int sequence) {
+    if (!hasIdleCommandWindow || !ownsCurrentWindow(myController)) {
+      return const [];
+    }
+
+    return selectedIdleActions
+        .where(
+          (action) =>
+              action.controller == myController &&
+              action.location == CARD_ZONE_HAND &&
+              action.locationSequence == sequence,
+        )
+        .map(_resolveIdleAction)
+        .toList(growable: false);
+  }
+
+  List<PlaymatResolvedAction> _resolveFieldActions(
+    int controller,
+    int location,
+    int sequence,
+    int? code,
+  ) {
+    if (!ownsCurrentWindow(myController)) {
+      return const [];
+    }
+
+    final actions = <PlaymatResolvedAction>[];
+    if (hasIdleCommandWindow) {
+      final idleActions = selectedIdleActions
+          .where(
+            (action) =>
+                action.controller == controller && action.location == location,
+          )
+          .toList(growable: false);
+      final exactIdleActions = idleActions
+          .where((action) => action.locationSequence == sequence)
+          .map(_resolveIdleAction);
+      actions.addAll(exactIdleActions);
+      if (actions.isEmpty && code != null && code > 0) {
+        final codeMatchedActions = idleActions
+            .where((action) => action.code == code)
+            .map(_resolveIdleAction)
+            .toList(growable: false);
+        if (codeMatchedActions.length == 1) {
+          actions.addAll(codeMatchedActions);
+        }
+      }
+    }
+    if (hasBattleCommandWindow) {
+      actions.addAll(
+        selectedBattleActions
+            .where(
+              (action) =>
+                  action.attackerController == controller &&
+                  action.attackerLocation == location &&
+                  action.attackerSequence == sequence,
+            )
+            .map(_resolveBattleAction),
+      );
+    }
+    return actions;
+  }
+
+  List<PlaymatResolvedAction> _resolveZoneActions(
+    int controller,
+    int location,
+    int code,
+    int? sequence,
+  ) {
+    if (!ownsCurrentWindow(myController) || !_isBrowserZone(location)) {
+      return const [];
+    }
+
+    final actions = <PlaymatResolvedAction>[];
+    if (hasIdleCommandWindow) {
+      actions.addAll(
+        selectedIdleActions
+            .where(
+              (action) =>
+                  action.code == code &&
+                  action.controller == controller &&
+                  action.location == location &&
+                  (sequence == null || action.locationSequence == sequence),
+            )
+            .map(_resolveIdleAction),
+      );
+    }
+    if (hasBattleCommandWindow) {
+      actions.addAll(
+        selectedBattleActions
+            .where(
+              (action) =>
+                  action.type == 0 &&
+                  action.code == code &&
+                  action.attackerController == controller &&
+                  action.attackerLocation == location &&
+                  (sequence == null || action.attackerSequence == sequence),
+            )
+            .map(_resolveBattleAction),
+      );
+    }
+    return actions;
+  }
+
+  List<PlaymatResolvedAction> _resolvePhaseActions() {
+    if (!ownsCurrentWindow(myController)) {
+      return const [];
+    }
+
+    if (hasIdleCommandWindow) {
+      return [
+        if (enableBp)
+          const PlaymatResolvedAction(
+            label: '进入战斗阶段',
+            response: 6,
+            kind: PlaymatResolvedActionKind.toBattlePhase,
+          ),
+        if (enableEp)
+          const PlaymatResolvedAction(
+            label: '结束回合',
+            response: 7,
+            kind: PlaymatResolvedActionKind.toEndPhase,
+          ),
+      ];
+    }
+
+    if (hasBattleCommandWindow) {
+      return [
+        if (enableM2)
+          const PlaymatResolvedAction(
+            label: '进入主要阶段2',
+            response: 2,
+            kind: PlaymatResolvedActionKind.toMainPhase2,
+          ),
+        if (enableEp)
+          const PlaymatResolvedAction(
+            label: '结束回合',
+            response: 3,
+            kind: PlaymatResolvedActionKind.toEndPhase,
+          ),
+      ];
+    }
+
+    return const [];
+  }
+
+  PlaymatResolvedAction _resolveIdleAction(IdleAction action) {
+    return PlaymatResolvedAction(
+      label: action.label(myController),
+      response: action.sequence,
+      kind: action.kind,
+      code: action.code,
+      controller: action.controller,
+      location: action.location,
+      sequence: action.locationSequence,
+    );
+  }
+
+  PlaymatResolvedAction _resolveBattleAction(BattleAction action) {
+    return PlaymatResolvedAction(
+      label: action.label,
+      response: action.sequence,
+      kind: action.kind,
+      code: action.code,
+      controller: action.attackerController,
+      location: action.attackerLocation,
+      sequence: action.attackerSequence,
+    );
+  }
+
+  static bool _isBrowserZone(int location) {
+    return location == CARD_ZONE_GRAVE ||
+        location == CARD_ZONE_REMOVED ||
+        location == CARD_ZONE_EXTRA;
   }
 
   String _resolvedActionLabel(
@@ -3230,9 +3418,7 @@ bool get isWaitingForInput => currentSelect != null;
       return const [];
     }
 
-    return PlaymatActionResolver.resolveZoneActions(
-          this,
-          myController,
+    return _resolveZoneActions(
           controller,
           location,
           entry.code,

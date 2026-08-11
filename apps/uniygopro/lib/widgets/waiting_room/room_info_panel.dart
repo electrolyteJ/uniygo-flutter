@@ -137,3 +137,4 @@ class _InkInfoRow extends StatelessWidget {
     );
   }
 }
+

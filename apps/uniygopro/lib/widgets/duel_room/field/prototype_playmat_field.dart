@@ -4,7 +4,7 @@ import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 
 import '../../../models/field_card.dart';
-import '../../../image/card_image.dart';
+import '../../card_image.dart';
 import 'duel_field_background.dart';
 import 'duel_field_world.dart';
 import 'phase_lamp.dart';

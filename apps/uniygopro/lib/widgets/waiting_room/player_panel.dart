@@ -139,3 +139,4 @@ class PlayerPanel extends StatelessWidget {
     );
   }
 }
+

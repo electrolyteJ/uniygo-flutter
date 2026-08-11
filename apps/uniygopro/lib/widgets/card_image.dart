@@ -2,7 +2,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import 'card_image_loader.dart';
+import '../image/card_image_loader.dart';
+import 'package:flutter/widget_previews.dart';
 
 /// 统一卡片图片组件。
 ///
@@ -168,3 +169,6 @@ class _CardImageState extends State<CardImage> {
     );
   }
 }
+@Preview(name: 'CardImage', size: Size(200, 280), brightness: Brightness.dark)
+Widget _previewCardImage() => CardImage(code: 89631139, width: 180, height: 256);
+

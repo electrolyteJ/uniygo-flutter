@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:duelink_websocket/duelink_websocket.dart'
     show WebSocketDuelService;
 import 'package:service_loader/service_loader.dart';
@@ -27,14 +29,17 @@ class YgoDataService implements IService,IDeckService, ICardService, IBanlistSer
     _cardService.envType = value;
   }
 
+  @override
   Future<Map<int, LfTable>> getAllLfTable() async {
     return _banlistService.getAllLfTable();
   }
 
+  @override
   Future<LfTable?> getLfTable(int code) {
     return _banlistService.getLfTable(code);
   }
 
+  @override
   List<String> validateDeck(
     List<CardInfo> main,
     List<CardInfo> extra,
@@ -43,6 +48,12 @@ class YgoDataService implements IService,IDeckService, ICardService, IBanlistSer
     return _banlistService.validateDeck(main, extra, side);
   }
 
+  @override
+  Future<Uint8List> getCardImage(int code) {
+    return _cardService.getCardImage(code);
+  }
+
+  @override
   String getCardImageUrl(int code) {
     return _cardService.getCardImageUrl(code);
   }

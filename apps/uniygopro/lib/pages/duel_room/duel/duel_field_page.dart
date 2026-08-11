@@ -387,10 +387,6 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
   Widget _buildSelectModal(DuelFieldStore duelFieldStore, SelectState select) {
     final onInspectCard = duelFieldStore.inspectCard;
     switch (select.type) {
-      case SelectType.idleCmd:
-        return const SizedBox.shrink();
-      case SelectType.battleCmd:
-        return const SizedBox.shrink();
       case SelectType.card:
       case SelectType.tribute:
         return CardSelector(

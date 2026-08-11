@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../../config/servers.dart';
 import '../create_room/room_dialog.dart';
+import 'package:flutter/widget_previews.dart';
 
 /// Shared env selector row for both join and create forms.
 class EnvSelector extends StatelessWidget {
@@ -27,3 +28,6 @@ class EnvSelector extends StatelessWidget {
     );
   }
 }
+@Preview(name: 'EnvSelector', size: Size(300, 60), brightness: Brightness.dark)
+Widget _previewEnvSelector() => EnvSelector(value: DuelEnvironment.koishi, onChanged: (_) {});
+

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 class TpSelect extends StatelessWidget {
   final void Function(bool) onSendTp;
@@ -51,3 +52,6 @@ class TpSelect extends StatelessWidget {
     );
   }
 }
+@Preview(name: 'TpSelect', size: Size(300, 200), brightness: Brightness.dark)
+Widget _previewTpSelect() => TpSelect(onSendTp: (_) {});
+

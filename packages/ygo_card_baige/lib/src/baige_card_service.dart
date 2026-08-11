@@ -20,6 +20,12 @@ class CardService implements ICardService {
   String getCardImageUrl(int code) => CardImageCdn.picHalf(code);
 
   @override
+  getCardImage(int code) {
+    // TODO: implement getCardImage
+    throw UnimplementedError();
+  }
+
+  @override
   Future<CardInfo?> getCard(int code) => _client.fetchCard(code);
 
   @override

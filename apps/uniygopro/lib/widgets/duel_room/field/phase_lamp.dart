@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 class PhaseLamp extends StatelessWidget {
   final DuelPhase phase;
@@ -118,3 +119,6 @@ class PhaseLamp extends StatelessWidget {
     }
   }
 }
+@Preview(name: 'PhaseLamp', size: Size(80, 40), brightness: Brightness.dark)
+Widget _previewPhaseLamp() => PhaseLamp(phase: DuelPhase.m1, enabled: true, onTap: () {});
+

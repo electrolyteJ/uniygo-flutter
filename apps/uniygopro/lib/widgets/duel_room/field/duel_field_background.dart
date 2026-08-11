@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 /// 决斗场地背景：v10 设计稿的多层渐变光晕 + 压边 vignette，
 /// 位于场地与 HUD 之下，纯装饰。
@@ -134,3 +135,6 @@ class PlaymatVignette extends StatelessWidget {
     );
   }
 }
+
+@Preview(name: 'DuelFieldBackground', size: Size(400, 300), brightness: Brightness.dark)
+Widget _previewDuelFieldBackground() => const DuelFieldBackground();

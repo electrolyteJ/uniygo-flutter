@@ -3,7 +3,7 @@ import 'dart:developer' as console;
 import 'package:flutter/material.dart';
 
 import '../../../models/select_state.dart';
-import '../../../image/card_image.dart';
+import '../../card_image.dart';
 
 class CardSelector extends StatefulWidget {
   final SelectState select;
@@ -49,20 +49,9 @@ class _CardSelectorState extends State<CardSelector> {
     return LayoutBuilder(
       builder: (context, constraints) {
         const itemWidth = 108.0;
-        const horizontalPadding = 32.0;
-        // 弹窗最小宽度按 3 张卡片计算，卡片少时居中展示而不缩窄。
-        const minCardCount = 3;
         final count = select.options.length;
-        final contentWidth = itemWidth * count;
-        final wrapsContent =
-            contentWidth <= constraints.maxWidth - horizontalPadding;
-        final minWidth = itemWidth * minCardCount + horizontalPadding;
-        final panelWidth = wrapsContent
-            ? (contentWidth + horizontalPadding).clamp(
-                minWidth,
-                constraints.maxWidth,
-              )
-            : constraints.maxWidth;
+        final panelWidth = (itemWidth * count + 32.0)
+            .clamp(itemWidth * 3 + 32.0, constraints.maxWidth);
         return Container(
           width: panelWidth,
           padding: const EdgeInsets.all(16),
@@ -84,23 +73,17 @@ class _CardSelectorState extends State<CardSelector> {
               const SizedBox(height: 12),
               SizedBox(
                 height: 144,
-                child: wrapsContent
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          for (var i = 0; i < count; i++)
-                            _buildCardItem(i, select),
-                        ],
-                      )
-                    : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            for (var i = 0; i < count; i++)
-                              _buildCardItem(i, select),
-                          ],
-                        ),
-                      ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Center(
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < count; i++)
+                          _buildCardItem(i, select),
+                      ],
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 8),
               Wrap(

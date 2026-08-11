@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/chat_message.dart';
+import 'package:flutter/widget_previews.dart';
 
 /// 聊天面板：纯 UI，消息列表与发送动作均由业务侧注入。
 class ChatPanel extends StatefulWidget {
@@ -164,3 +165,6 @@ class _ChatPanelState extends State<ChatPanel> {
     );
   }
 }
+@Preview(name: 'ChatPanel', size: Size(360, 400), brightness: Brightness.dark)
+Widget _previewChatPanel() => ChatPanel(messages: const [], onSend: (_) {});
+

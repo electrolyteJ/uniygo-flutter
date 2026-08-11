@@ -1,3 +1,5 @@
+import 'idle_action.dart';
+
 class BattleAction {
   final int type;
   final int sequence;
@@ -26,4 +28,28 @@ class BattleAction {
     this.targetSequence = 0,
     this.targetPosition = 0,
   });
+
+  String get label {
+    switch (type) {
+      case 0:
+        return '发动效果';
+      case 1:
+        return directAttack ? '直接攻击' : '攻击';
+      default:
+        return '行动 #$sequence';
+    }
+  }
+
+  PlaymatResolvedActionKind get kind {
+    switch (type) {
+      case 0:
+        return PlaymatResolvedActionKind.activate;
+      case 1:
+        return directAttack
+            ? PlaymatResolvedActionKind.directAttack
+            : PlaymatResolvedActionKind.attack;
+      default:
+        return PlaymatResolvedActionKind.unknown;
+    }
+  }
 }
