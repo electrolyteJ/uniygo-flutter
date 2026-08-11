@@ -36,7 +36,7 @@ class DeckEditorStore extends ChangeNotifier {
   // ── 添加卡牌目标区域 ──
   String _addTargetZone = 'main'; // main, extra, side
 
-  final _soundService = ServiceSingleton.instance.uiSoundService;
+  final _soundService = ServiceSingleton.instance.ygoSoundService;
 
   // ── UI 状态 ──
   bool _isLoading = false;

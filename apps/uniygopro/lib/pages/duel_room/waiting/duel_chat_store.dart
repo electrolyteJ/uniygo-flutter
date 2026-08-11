@@ -32,7 +32,7 @@ class DuelChatStore extends ChangeNotifier {
   }
 
   void addChat(int playerIndex, String name, String message) {
-    ServiceSingleton.instance.uiSoundService.playChatMessage();
+    ServiceSingleton.instance.ygoSoundService.playChatMessage();
     chatMessages.add(
       ChatMessage(
         playerIndex: playerIndex,

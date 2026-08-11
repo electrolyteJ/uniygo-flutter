@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>uniygopro - 超炫酷 3D 大师级游戏王决斗 UI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;700&family=Noto+Sans+SC:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #02050a;
+      --cyan-glow: #00f0ff;
+      --gold-glow: #ffd700;
+      --crimson-glow: #ff0055;
+      --purple-glow: #b026ff;
+      --panel-dark: rgba(8, 12, 20, 0.94);
+      --panel-border: rgba(0, 240, 255, 0.35);
+      --text-main: #f0f6fc;
+      --text-dim: #8b9bb4;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      font-family: 'Rajdhani', 'Noto Sans SC', sans-serif;
+      background-color: var(--bg-deep);
+      color: var(--text-main);
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background-image: 
+        radial-gradient(circle at 50% 35%, rgba(0, 240, 255, 0.16) 0%, transparent 60%),
+        radial-gradient(circle at 50% 85%, rgba(176, 38, 255, 0.12) 0%, transparent 50%),
+        linear-gradient(to bottom, #020408, #070c16, #020407);
+    }
+
+    /* 顶部 极简紧凑 赛博阶段与导航条 */
+    .header-bar {
+      height: 40px;
+      background: linear-gradient(90deg, rgba(6, 11, 20, 0.98), rgba(16, 26, 42, 0.95), rgba(6, 11, 20, 0.98));
+      border-bottom: 1.5px solid var(--panel-border);
+      box-shadow: 0 2px 16px rgba(0, 240, 255, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+
+    .duel-meta-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Orbitron', sans-serif;
+    }
+
+    .turn-badge {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.3), rgba(0, 100, 200, 0.1));
+      border: 1px solid var(--cyan-glow);
+      color: var(--cyan-glow);
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-weight: 800;
+      font-size: 11px;
+      letter-spacing: 1px;
+    }
+
+    .timer-badge {
+      color: var(--gold-glow);
+      font-weight: 700;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* 阶段指示节点 */
+    .phase-tracker {
+      display: flex;
+      gap: 6px;
+    }
+
+    .phase-node {
+      padding: 3px 12px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      border-radius: 3px;
+      color: var(--text-dim);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.25s ease;
+    }
+
+    .phase-node.active {
+      color: #fff;
+      background: linear-gradient(135deg, #00f0ff, #0077ff);
+      border-color: #ffffff;
+      box-shadow: 0 0 14px var(--cyan-glow);
+    }
+
+    /* 工作区 */
+    .workspace {
+      flex: 1;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 左侧 卡片 3D Inspector (可收缩/展开) */
+    .inspector-panel {
+      width: 250px;
+      background: var(--panel-dark);
+      border-right: 1.5px solid var(--panel-border);
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      gap: 10px;
+      box-shadow: 6px 0 30px rgba(0, 0, 0, 0.7);
+      z-index: 20;
+    }
+
+    .inspector-header {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--cyan-glow);
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+      padding-bottom: 6px;
+    }
+
+    .card-hologram-frame {
+      width: 150px;
+      height: 218px;
+      margin: 0 auto;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 2px solid var(--cyan-glow);
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+      position: relative;
+      background: #0d1624;
+    }
+
+    .card-hologram-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .card-details-box {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .card-title-text {
+      font-size: 15px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-wrap {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .badge-chip {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: rgba(255, 215, 0, 0.15);
+      border: 1px solid var(--gold-glow);
+      color: var(--gold-glow);
+    }
+
+    .stats-dashboard {
+      display: flex;
+      justify-content: space-around;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .atk-val { color: var(--crimson-glow); }
+    .def-val { color: var(--cyan-glow); }
+
+    .desc-scrollbox {
+      font-size: 11px;
+      color: var(--text-dim);
+      line-height: 1.5;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      max-height: 160px;
+      overflow-y: auto;
+    }
+
+    /* 右侧 决斗战场 Area */
+    .arena-viewport {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 8px 14px;
+      position: relative;
+    }
+
+    /* 极简紧凑 悬浮 HUD 玩家 LP 与名字（角落微型化，不占用主战场空间） */
+    .compact-player-hud {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(8, 14, 24, 0.9);
+      border: 1px solid rgba(0, 240, 255, 0.4);
+      padding: 5px 12px;
+      border-radius: 20px;
+      backdrop-filter: blur(8px);
+      z-index: 30;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.6);
+    }
+
+    .compact-player-hud.top-opponent {
+      top: 14px;
+      left: 16px;
+      border-color: rgba(255, 61, 113, 0.5);
+    }
+
+    .compact-player-hud.bottom-self {
+      bottom: 84px;
+      left: 16px;
+      border-color: var(--cyan-glow);
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.4);
+    }
+
+    .hud-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #00f0ff, #0077ff);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 900;
+      font-size: 13px;
+      border: 1.5px solid var(--cyan-glow);
+    }
+
+    .hud-name {
+      font-size: 12px;
+      font-weight: 800;
+      max-width: 110px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .hud-lp-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hud-lp-val {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 15px;
+      font-weight: 900;
+      color: var(--cyan-glow);
+    }
+
+    .compact-counts {
+      display: flex;
+      gap: 6px;
+      font-size: 10px;
+      color: var(--text-dim);
+      border-left: 1px solid rgba(255, 255, 255, 0.15);
+      padding-left: 8px;
+    }
+
+    .compact-counts span { color: #fff; font-weight: 800; }
+
+    /* 右侧 决斗日志与战报 Drawer (浮动展开) */
+    .battle-log-drawer {
+      position: absolute;
+      top: 14px;
+      right: 16px;
+      width: 220px;
+      background: rgba(8, 14, 24, 0.9);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 8px;
+      padding: 10px;
+      backdrop-filter: blur(10px);
+      z-index: 30;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+    }
+
+    .log-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--gold-glow);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .log-content {
+      font-size: 10px;
+      color: var(--text-dim);
+      line-height: 1.5;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    .log-entry { margin-bottom: 4px; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 2px; }
+    .log-entry.highlight { color: var(--cyan-glow); }
+
+    /* 3D 透视 Master Rule 5 战场 Grid Mat */
+    .field-3d-stage {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      perspective: 850px;
+      position: relative;
+    }
+
+    .grid-3d-mat {
+      transform: rotateX(43deg) scale(0.96);
+      transform-style: preserve-3d;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 26px 36px;
+      background: radial-gradient(ellipse at center, rgba(0, 240, 255, 0.12) 0%, rgba(6, 10, 18, 0.97) 80%);
+      border-radius: 20px;
+      border: 2px solid rgba(0, 240, 255, 0.45);
+      box-shadow: 0 40px 90px rgba(0, 0, 0, 0.9), inset 0 0 60px rgba(0, 240, 255, 0.3);
+      position: relative;
+    }
+
+    /* 阵营能量线 */
+    .center-divider {
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--cyan-glow), var(--purple-glow), transparent);
+      box-shadow: 0 0 14px var(--cyan-glow);
+    }
+
+    .mat-row-3d {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+    }
+
+    /* 3D 卡位 Slot Component */
+    .slot-3d {
+      width: 68px;
+      height: 96px;
+      border-radius: 6px;
+      border: 1.5px solid rgba(0, 240, 255, 0.35);
+      background: rgba(0, 240, 255, 0.04);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.6);
+    }
+
+    .slot-3d:hover {
+      transform: translateZ(28px) scale(1.12);
+      border-color: var(--cyan-glow);
+      box-shadow: 0 20px 35px rgba(0, 240, 255, 0.7);
+      background: rgba(0, 240, 255, 0.18);
+    }
+
+    .slot-3d.emz {
+      border-color: var(--gold-glow);
+      background: rgba(255, 215, 0, 0.08);
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+    }
+
+    .slot-3d.has-card {
+      border-style: solid;
+      border-color: rgba(255, 255, 255, 0.7);
+    }
+
+    .slot-3d.defense .card-render-img {
+      transform: rotate(90deg);
+    }
+
+    .card-render-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 5px;
+    }
+
+    .slot-tag {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.35);
+      font-weight: 800;
+    }
+
+    .atk-badge-3d {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      background: rgba(0, 0, 0, 0.95);
+      border: 1px solid var(--crimson-glow);
+      color: var(--crimson-glow);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 9px;
+      font-weight: 900;
+      padding: 2px 5px;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(255, 0, 85, 0.6);
+    }
+
+    /* 连锁 Chain 栈 Stack 指示器 Mockup */
+    .chain-stack-indicator {
+      position: absolute;
+      top: 48%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      gap: 10px;
+      z-index: 50;
+      pointer-events: none;
+    }
+
+    .chain-badge {
+      background: rgba(10, 16, 26, 0.95);
+      border: 1.5px solid var(--gold-glow);
+      color: var(--gold-glow);
+      padding: 6px 14px;
+      border-radius: 16px;
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 900;
+      font-size: 12px;
+      box-shadow: 0 0 20px rgba(255, 215, 0, 0.7);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.06); }
+      100% { transform: scale(1); }
+    }
+
+    /* 手牌 3D 弧形展开栏 (Hand Cards Arc Rail) */
+    .hand-arc-rail {
+      height: 84px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 8px;
+      padding-bottom: 4px;
+      z-index: 20;
+    }
+
+    .hand-card-item {
+      width: 56px;
+      height: 78px;
+      border-radius: 5px;
+      border: 1.5px solid var(--gold-glow);
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
+      position: relative;
+    }
+
+    .hand-card-item:hover {
+      transform: translateY(-20px) scale(1.22);
+      box-shadow: 0 12px 30px rgba(0, 240, 255, 0.8);
+      border-color: var(--cyan-glow);
+      z-index: 30;
+    }
+
+    .hand-card-item img { width: 100%; height: 100%; object-fit: cover; }
+
+    /* 右下角 快捷控制面板 */
+    .action-command-panel {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      display: flex;
+      gap: 8px;
+      z-index: 30;
+    }
+
+    .btn-command {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.3), rgba(0, 119, 182, 0.5));
+      border: 1.5px solid var(--cyan-glow);
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 800;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 15px rgba(0, 240, 255, 0.3);
+    }
+
+    .btn-command:hover {
+      background: linear-gradient(135deg, var(--cyan-glow), #0077ff);
+      box-shadow: 0 0 25px rgba(0, 240, 255, 0.8);
+      transform: translateY(-2px);
+    }
+
+    .btn-command.alt {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: var(--text-dim);
+    }
+
+    .btn-command.alt:hover {
+      border-color: #fff;
+      color: #fff;
+    }
+
+    /* 指令弹窗 Overlay */
+    .action-modal-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(2, 4, 8, 0.75);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+
+    .action-modal-overlay.active { display: flex; }
+
+    .action-modal-card {
+      background: var(--panel-dark);
+      border: 2px solid var(--cyan-glow);
+      border-radius: 12px;
+      padding: 24px;
+      width: 320px;
+      text-align: center;
+      box-shadow: 0 0 40px rgba(0, 240, 255, 0.5);
+    }
+
+    .modal-head-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 15px;
+      font-weight: 900;
+      color: var(--cyan-glow);
+      margin-bottom: 16px;
+    }
+
+    .modal-actions-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 1. 顶部 赛博金属阶段导航条 -->
+  <header class="header-bar">
+    <div class="duel-meta-info">
+      <div class="turn-badge">TURN 3 - YOUR TURN</div>
+      <div class="timer-badge">⏱ 118s</div>
+    </div>
+
+    <div class="phase-tracker">
+      <div class="phase-node">DP</div>
+      <div class="phase-node">SP</div>
+      <div class="phase-node active">MAIN 1</div>
+      <div class="phase-node">BATTLE</div>
+      <div class="phase-node">MAIN 2</div>
+      <div class="phase-node">END</div>
+    </div>
+  </header>
+
+  <!-- 2. 主界面工作区 -->
+  <main class="workspace">
+    <!-- 左侧 全能卡片 3D Inspector -->
+    <aside class="inspector-panel">
+      <div class="inspector-header">
+        <span>❖ CARD INSPECTOR</span>
+      </div>
+      <div class="card-hologram-frame">
+        <img id="insp-img" class="card-hologram-img" src="https://images.ygoprodeck.com/images/cards/90020065.jpg" alt="Blue-Eyes Chaos MAX Dragon">
+      </div>
+      <div class="card-details-box">
+        <h3 id="insp-name" class="card-title-text">青眼混沌极光龙</h3>
+        <div class="badge-wrap">
+          <span id="insp-kind" class="badge-chip">Ritual / Effect</span>
+          <span id="insp-level" class="badge-chip">★ 8</span>
+          <span id="insp-attr" class="badge-chip">DARK / 龙族</span>
+        </div>
+        <div class="stats-dashboard">
+          <span class="atk-val">ATK / <span id="insp-atk">4000</span></span>
+          <span class="def-val">DEF / <span id="insp-def">0</span></span>
+        </div>
+        <div id="insp-desc" class="desc-scrollbox">
+          「混沌」仪式魔法卡降临。此卡不用仪式召唤不能特殊召唤。
+①：此卡不会成为对方的效果的对象，不会被对方的效果破坏。
+②：此卡向守备表示怪兽攻击的场合，给与攻击力超过那个守备力的数值的2倍数值的战斗伤害。
+        </div>
+      </div>
+    </aside>
+
+    <!-- 右侧 决斗 3D 战场竞技场 -->
+    <section class="arena-viewport">
+      <!-- 极简紧凑 悬浮 HUD 对方 LP 与名字（角落微型化，不占用中心空间） -->
+      <div class="compact-player-hud top-opponent">
+        <div class="hud-avatar">K</div>
+        <div class="hud-name">海马濑人</div>
+        <div class="hud-lp-box">
+          <div class="hud-lp-val">8000</div>
+        </div>
+        <div class="compact-counts">
+          <div>D:<span>35</span></div>
+          <div>EX:<span>15</span></div>
+          <div>GY:<span>2</span></div>
+        </div>
+      </div>
+
+      <!-- 右上角 浮动决斗战报 Log Drawer -->
+      <div class="battle-log-drawer">
+        <div class="log-title">
+          <span>❖ DUEL LOG</span>
+          <span>LIVE</span>
+        </div>
+        <div class="log-content">
+          <div class="log-entry">Main Phase 1 开始。</div>
+          <div class="log-entry highlight">海马发动了「龙之溪谷」。</div>
+          <div class="log-entry">游戏连锁发动「效果遮蒙者」。</div>
+          <div class="log-entry highlight">青眼混沌极光龙 攻击力 4000。</div>
+        </div>
+      </div>
+
+      <!-- 3D 透视 Master Rule 5 战场 Grid Mat -->
+      <div class="field-3d-stage">
+        <!-- 连锁 Stack 徽章指示 Mockup -->
+        <div class="chain-stack-indicator">
+          <div class="chain-badge">CHAIN 1: 龙之溪谷</div>
+          <div class="chain-badge" style="border-color: var(--cyan-glow); color: var(--cyan-glow);">CHAIN 2: 效果遮蒙者</div>
+        </div>
+
+        <div class="grid-3d-mat">
+          <!-- 对手魔陷区 (5格) -->
+          <div class="mat-row-3d">
+            <div class="slot-3d"><span class="slot-tag">EX</span></div>
+            <div class="slot-3d"><span class="slot-tag">S/T 5</span></div>
+            <div class="slot-3d has-card">
+              <img class="card-render-img" src="https://images.ygoprodeck.com/images/cards_back/back.jpg" alt="Set">
+            </div>
+            <div class="slot-3d"><span class="slot-tag">S/T 3</span></div>
+            <div class="slot-3d"><span class="slot-tag">S/T 2</span></div>
+            <div class="slot-3d"><span class="slot-tag">S/T 1</span></div>
+            <div class="slot-3d has-card" onclick="selectCard('龙之溪谷', 'https://images.ygoprodeck.com/images/cards/98259786.jpg', 'Field / Spell', '-', 'SPELL / 场地魔法', '-', '-', '1回合1次，丢弃1张手卡，从卡组把1只龙族怪兽送去墓地。')">
+              <img class="card-render-img" src="https://images.ygoprodeck.com/images/cards/98259786.jpg" alt="Dragon Ravine">
+            </div>
+          </div>
+
+          <!-- 对手怪兽区 (5格) -->
+          <div class="mat-row-3d">
+            <div class="slot-3d"><span class="slot-tag">Banish</span></div>
+            <div class="slot-3d"><span class="slot-tag">M 5</span></div>
+            <div class="slot-3d has-card" onclick="selectCard('青眼究极龙', 'https://images.ygoprodeck.com/images/cards/23995346.jpg', 'Fusion / Monster', '★ 12', 'LIGHT / 龙族', 4500, 3800, '「青眼白龙」＋「青眼白龙」＋「青眼白龙」')">
+              <img class="card-render-img" src="https://images.ygoprodeck.com/images/cards/23995346.jpg" alt="Ultimate Dragon">
+              <div class="atk-badge-3d">4500</div>
+            </div>
+            <div class="slot-3d has-card" onclick="selectCard('青眼白龙', 'https://images.ygoprodeck.com/images/cards/89631139.jpg', 'Normal / Monster', '★ 8', 'LIGHT / 龙族', 3000, 2500, '以高攻击力著称的传说之龙。')">
+              <img class="card-render-img" src="https://images.ygoprodeck.com/images/cards/89631139.jpg" alt="Blue-Eyes">
+              <div class="atk-badge-3d">3000</div>
+            </div>
+            <div class="slot-3d"><span class="slot-tag">M 2</span></div>
+            <div class="slot-3d"><span class="slot-tag">M 1</span></div>
+            <div class="slot-3d"><span class="slot-tag">Grave</span></div>
+          </div>
+
+          <!-- 中央阵营分割线 -->
+          <div class="center-divider"></div>
+
+          <!-- 额外怪兽区 (EMZ 2格) -->
+          <div class="mat-row-3d">
+            <div class="slot-3d emz has-card" style="margin-right: 150px;" onclick="selectCard('访问码语者', 'https://images.ygoprodeck.com/images/cards/86066372.jpg', 'Link / Effect', 'LINK-4', 'DARK / 电子界族', 5300, 0, '此卡连接召唤成功的场合，以成为素材的1只连接怪兽为对象才能发动。此卡的攻击力上升那个连接标记数量×1000。')">
+              <img class="card-render-img" src="https://images.ygoprodeck.com/images/cards/86066372.jpg" alt="Accesscode Talker">
+              <div class="atk-badge-3d">5300</div>
+            </div>
+            <div class="slot-3d emz"><span class="slot-tag">EMZ 2</span></div>
+          </div>
+
+          <!-- 己方怪兽区 (5格) -->
+          <div class="mat-row-3d">
+            <div class="slot-3d"><span class="slot-tag">Grave</span></div>
+            <div class="slot-3d has-card" onclick="selectCard('青眼混沌极光龙', 'https://images.ygoprodeck.com/images/cards/90020065.jpg', 'Ritual / Effect', '★ 8', 'DARK / 龙族', 4000, 0, '「混沌」仪式魔法卡降临。此卡不用仪式召唤不能特殊召唤。攻击守备怪兽造成2倍贯穿伤害。')">
+              <img class="card-render-img" src="https://images.ygoprodeck.com/images/cards/90020065.jpg" alt="Chaos MAX">
+              <div class="atk-badge-3d">4000</div>
+            </div>
+            <div class="slot-3d"><span class="slot-tag">M 2</span></div>
+            <div class="slot-3d has-card defense" onclick="selectCard('青眼亚白龙', 'https://images.ygoprodeck.com/images/cards/38517737.jpg', 'Effect / Monster', '★ 8', 'LIGHT / 龙族', 3000, 2500, '展示手卡1只「青眼白龙」特殊召唤。1回合1次，破坏对方场上1只怪兽。')">
+              <img class="card-render-img" src="https://images.ygoprodeck.com/images/cards/38517737.jpg" alt="Alternative Dragon">
+              <div class="atk-badge-3d">3000</div>
+            </div>
+            <div class="slot-3d"><span class="slot-tag">M 4</span></div>
+            <div class="slot-3d"><span class="slot-tag">M 5</span></div>
+            <div class="slot-3d"><span class="slot-tag">Banish</span></div>
+          </div>
+
+          <!-- 己方魔陷区 (5格) -->
+          <div class="mat-row-3d">
+            <div class="slot-3d"><span class="slot-tag">Field</span></div>
+            <div class="slot-3d"><span class="slot-tag">S/T 1</span></div>
+            <div class="slot-3d has-card" onclick="selectCard('混沌形式', 'https://images.ygoprodeck.com/images/cards/21082832.jpg', 'Ritual / Spell', '-', 'SPELL / 仪式魔法', '-', '-', '「青眼混沌极光龙」降临所必需。从手卡把等级合计直到8以上的怪兽解放。')">
+              <img class="card-render-img" src="https://images.ygoprodeck.com/images/cards/21082832.jpg" alt="Chaos Form">
+            </div>
+            <div class="slot-3d"><span class="slot-tag">S/T 3</span></div>
+            <div class="slot-3d"><span class="slot-tag">S/T 4</span></div>
+            <div class="slot-3d"><span class="slot-tag">S/T 5</span></div>
+            <div class="slot-3d"><span class="slot-tag">DECK</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 极简紧凑 悬浮 HUD 己方 LP 与名字 -->
+      <div class="compact-player-hud bottom-self">
+        <div class="hud-avatar" style="background: linear-gradient(135deg, #ffd700, #ff9800);">Y</div>
+        <div class="hud-name">武藤游戏</div>
+        <div class="hud-lp-box">
+          <div class="hud-lp-val">8000</div>
+        </div>
+        <div class="compact-counts">
+          <div>D:<span>34</span></div>
+          <div>EX:<span>15</span></div>
+          <div>GY:<span>1</span></div>
+        </div>
+      </div>
+
+      <!-- 底部手牌弧形展开栏 -->
+      <div class="hand-arc-rail">
+        <div class="hand-card-item" onclick="selectCard('死者苏生', 'https://images.ygoprodeck.com/images/cards/83764718.jpg', 'Normal / Spell', '-', 'SPELL', '-', '-', '以墓地1只怪兽为对象特殊召唤。')">
+          <img src="https://images.ygoprodeck.com/images/cards/83764718.jpg" alt="Monster Reborn">
+        </div>
+        <div class="hand-card-item" onclick="selectCard('融合', 'https://images.ygoprodeck.com/images/cards/24094653.jpg', 'Normal / Spell', '-', 'SPELL', '-', '-', '从自己的手卡・场上将融合怪兽决定的融合素材怪兽送去墓地，从额外卡组融合召唤。')">
+          <img src="https://images.ygoprodeck.com/images/cards/24094653.jpg" alt="Polymerization">
+        </div>
+        <div class="hand-card-item" onclick="selectCard('效果遮蒙者', 'https://images.ygoprodeck.com/images/cards/97268402.jpg', 'Tuner / Effect', '★ 1', 'LIGHT / 魔法师族', 0, 0, '主要阶段将此卡从手卡送去墓地，选择对方场上1只效果怪兽效果无效。')">
+          <img src="https://images.ygoprodeck.com/images/cards/97268402.jpg" alt="Effect Veiler">
+        </div>
+        <div class="hand-card-item" onclick="selectCard('黑魔导少女', 'https://images.ygoprodeck.com/images/cards/38033121.jpg', 'Effect / Monster', '★ 6', 'DARK / 魔法师族', 2000, 1700, '此卡的攻击力上升双方墓地的「黑魔导士」「黑混沌之魔术师」数量×300。')">
+          <img src="https://images.ygoprodeck.com/images/cards/38033121.jpg" alt="Dark Magician Girl">
+        </div>
+      </div>
+
+      <!-- 右下角 操作命令浮动条 -->
+      <div class="action-command-panel">
+        <button class="btn-command" onclick="toggleModal(true)">❖ 行动指令</button>
+        <button class="btn-command alt">战斗阶段 (BP)</button>
+        <button class="btn-command alt">结束回合 (EP)</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- 指令弹窗 Overlay -->
+  <div class="action-modal-overlay" id="modal" onclick="if(event.target===this) toggleModal(false)">
+    <div class="action-modal-card">
+      <div class="modal-head-title">❖ 请选择行动</div>
+      <div class="modal-actions-list">
+        <button class="btn-command" onclick="alert('执行：通常召唤'); toggleModal(false)">通常召唤</button>
+        <button class="btn-command" onclick="alert('执行：特殊召唤'); toggleModal(false)">特殊召唤</button>
+        <button class="btn-command" onclick="alert('执行：发动效果'); toggleModal(false)">发动卡片效果</button>
+        <button class="btn-command" onclick="alert('执行：盖放'); toggleModal(false)">盖放卡片</button>
+        <button class="btn-command alt" onclick="toggleModal(false)">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function selectCard(name, imgUrl, kind, level, attr, atk, def, desc) {
+      document.getElementById('insp-name').innerText = name;
+      document.getElementById('insp-img').src = imgUrl;
+      document.getElementById('insp-kind').innerText = kind;
+      document.getElementById('insp-level').innerText = level;
+      document.getElementById('insp-attr').innerText = attr;
+      document.getElementById('insp-atk').innerText = atk;
+      document.getElementById('insp-def').innerText = def;
+      document.getElementById('insp-desc').innerText = desc;
+    }
+
+    function toggleModal(show) {
+      const modal = document.getElementById('modal');
+      if (show) modal.classList.add('active');
+      else modal.classList.remove('active');
+    }
+  </script>
+</body>
+</html>

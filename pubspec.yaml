@@ -16,7 +16,7 @@ workspace:
   - packages/duelink_websocket
   - packages/duelink_socket
   - packages/duelink_ai
-  - packages/duelink_puzzle
+  - packages/duelink_ai_edo
   - packages/ocgcore
   - packages/wasm_bridge
   - packages/ygo_storage

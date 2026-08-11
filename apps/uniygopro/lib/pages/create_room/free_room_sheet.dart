@@ -77,7 +77,7 @@ class _FreeRoomSheetState extends State<FreeRoomSheet>
   Widget _buildJoinForm() {
     return JoinRoomForm(
       env: _env,
-      onTapFeedback: ServiceSingleton.instance.uiSoundService.playButtonTap,
+      onTapFeedback: ServiceSingleton.instance.ygoSoundService.playButtonTap,
       onJoin: (password) => _enterRoom(roomOptions: null, password: password),
     );
   }
@@ -89,7 +89,7 @@ class _FreeRoomSheetState extends State<FreeRoomSheet>
       onSaveRecord: RoomHistoryStore.add,
       onDeleteRecord: RoomHistoryStore.remove,
       banlistOptionsLoader: _loadBanlistOptions,
-      onTapFeedback: ServiceSingleton.instance.uiSoundService.playButtonTap,
+      onTapFeedback: ServiceSingleton.instance.ygoSoundService.playButtonTap,
       onEnterRoom: ({required options, required roomName, required password}) =>
           _enterRoom(
         roomOptions: options,
@@ -155,7 +155,7 @@ class _FreeRoomSheetState extends State<FreeRoomSheet>
                     labelColor: Colors.white,
                     unselectedLabelColor: Colors.blueGrey.shade400,
                     onTap: (_) {
-                      ServiceSingleton.instance.uiSoundService.playTabSwitch();
+                      ServiceSingleton.instance.ygoSoundService.playTabSwitch();
                       setState(() {});
                     },
                     tabs: const [

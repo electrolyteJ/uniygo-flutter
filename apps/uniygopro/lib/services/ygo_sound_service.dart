@@ -1,7 +1,8 @@
 import 'package:audioplayers/audioplayers.dart';
 
-class UISoundService {
-  static const _basePath = 'sounds/ui/';
+class YgoSoundService {
+  static const _uiBasePath = 'sounds/ui/';
+  static const _duelBasePath = 'sounds/duel/';
 
   final _pool = <String, AudioPlayer>{};
 
@@ -18,7 +19,13 @@ class UISoundService {
   Future<void> _play(String assetName) async {
     final player = _acquire(assetName);
     await player.stop();
-    await player.play(AssetSource('$_basePath$assetName'));
+    await player.play(AssetSource('$_uiBasePath$assetName'));
+  }
+
+  Future<void> _playDuel(String assetName) async {
+    final player = _acquire(assetName);
+    await player.stop();
+    await player.play(AssetSource('$_duelBasePath$assetName'));
   }
 
   Future<void> playButtonTap() => _play('button_tap.wav');
@@ -51,6 +58,29 @@ class UISoundService {
   Future<void> playMatchFound() => _play('match_found.wav');
   Future<void> playMatchStart() => _play('match_start.wav');
   Future<void> playTurnHint() => _play('turn_hint.wav');
+
+//duel sounds
+  Future<void> playDuelStart() => _playDuel('duel_start.wav');
+  Future<void> playNewTurn() => _playDuel('new_turn.wav');
+  Future<void> playNewPhase() => _playDuel('new_phase.wav');
+  Future<void> playCardDraw() => _playDuel('card_draw.wav');
+  Future<void> playSummon() => _playDuel('summon.wav');
+  Future<void> playSpecialSummon() => _playDuel('special_summon.wav');
+  Future<void> playFlipSummon() => _playDuel('flip_summon.wav');
+  Future<void> playSetCard() => _playDuel('set_card.wav');
+  Future<void> playAttack() => _playDuel('attack.wav');
+  Future<void> playBattle() => _playDuel('battle.wav');
+  Future<void> playDamage() => _playDuel('damage.wav');
+  Future<void> playRecover() => _playDuel('recover.wav');
+  Future<void> playChain() => _playDuel('chain.wav');
+  Future<void> playChainEnd() => _playDuel('chain_end.wav');
+  Future<void> playDuelWin() => _playDuel('duel_win.wav');
+  Future<void> playCoinToss() => _playDuel('coin_toss.wav');
+  Future<void> playDice() => _playDuel('dice.wav');
+  Future<void> playCardDestroy() => _playDuel('card_destroy.wav');
+  Future<void> playPosChange() => _playDuel('pos_change.wav');
+  Future<void> playDamageStep() => _playDuel('damage_step.wav');
+  Future<void> playShuffleDeck() => _playDuel('shuffle_deck.wav');
 
   void dispose() {
     for (final player in _pool.values) {

@@ -305,7 +305,7 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
   }
 
   void _handleBack() {
-    ServiceSingleton.instance.uiSoundService.playBackNavigation();
+    ServiceSingleton.instance.ygoSoundService.playBackNavigation();
     final store = context.read<DeckEditorStore>();
     if (Navigator.of(context).canPop()) {
       context.pop(store.lastSaveResult);
@@ -465,7 +465,7 @@ class _AppBarActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<DeckEditorStore>();
-    final sound = ServiceSingleton.instance.uiSoundService;
+    final sound = ServiceSingleton.instance.ygoSoundService;
 
     return Row(
       children: [
@@ -534,7 +534,7 @@ class _AppBarActions extends StatelessWidget {
   }
 
   void _confirmClear(BuildContext context, DeckEditorStore store) {
-    ServiceSingleton.instance.uiSoundService.playDialogOpen();
+    ServiceSingleton.instance.ygoSoundService.playDialogOpen();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

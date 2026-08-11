@@ -29,5 +29,5 @@ class PuzzleDuelService extends BaseDuelService {
 
 @OnServiceRegister()
 onServiceRegister() {
-  console.log('duelink_puzzle.dart onServiceRegister');
+  console.log('duelink_ai_edo.dart onServiceRegister');
 }

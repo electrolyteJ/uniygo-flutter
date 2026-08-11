@@ -99,7 +99,7 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
   void _revealTurnOrderHint(bool isFirst) {
     if (!mounted || _showTurnOrderHint) return;
     _isFirstTurn = isFirst;
-    ServiceSingleton.instance.uiSoundService.playTurnHint();
+    ServiceSingleton.instance.ygoSoundService.playTurnHint();
     setState(() => _showTurnOrderHint = true);
   }
 

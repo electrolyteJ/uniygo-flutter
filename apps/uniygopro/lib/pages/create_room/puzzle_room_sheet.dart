@@ -2,7 +2,7 @@
 // Puzzle Room Sheet (残局选择 + 详情 + 启动)
 // ────────────────────────────────────────────────────────────
 
-import 'package:duelink_puzzle/duelink_puzzle.dart';
+import 'package:duelink_ai_edo/duelink_puzzle.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';

@@ -17,7 +17,7 @@ class _MatchPageState extends State<MatchPage> {
   Future<void> _startMatch(String arena) async {
     final store = context.read<MatchStore>();
     store.startSearching(arena);
-    ServiceSingleton.instance.uiSoundService.playMatchStart();
+    ServiceSingleton.instance.ygoSoundService.playMatchStart();
 
     try {
       final result = await _matchService.match(
@@ -26,11 +26,11 @@ class _MatchPageState extends State<MatchPage> {
         secret: 'guest',
       );
       store.setMatchResult(result.address, result.port, result.password);
-      ServiceSingleton.instance.uiSoundService.playMatchFound();
+      ServiceSingleton.instance.ygoSoundService.playMatchFound();
       if (mounted) context.go('/duel-room');
     } catch (e) {
       store.stopSearching();
-      ServiceSingleton.instance.uiSoundService.playError();
+      ServiceSingleton.instance.ygoSoundService.playError();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('匹配失败: $e')),
@@ -47,7 +47,7 @@ class _MatchPageState extends State<MatchPage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            ServiceSingleton.instance.uiSoundService.playBackNavigation();
+            ServiceSingleton.instance.ygoSoundService.playBackNavigation();
             context.go('/');
           },
         ),

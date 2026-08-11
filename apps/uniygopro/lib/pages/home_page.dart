@@ -37,7 +37,7 @@ class HomePage extends StatelessWidget {
             icon: const Icon(Icons.card_membership),
             tooltip: '卡组',
             onPressed: () {
-              ServiceSingleton.instance.uiSoundService.playPageTransition();
+              ServiceSingleton.instance.ygoSoundService.playPageTransition();
               context.go('/deck-editor');
             },
           ),
@@ -88,8 +88,8 @@ class HomePage extends StatelessWidget {
   }
 
   void _onServerTap(BuildContext context, GameServer server) {
-    ServiceSingleton.instance.uiSoundService.playButtonTap();
-    ServiceSingleton.instance.uiSoundService.playDialogOpen();
+    ServiceSingleton.instance.ygoSoundService.playButtonTap();
+    ServiceSingleton.instance.ygoSoundService.playDialogOpen();
     if (server.type == ServerType.puzzleRoom) {
       showRoomDialog(context, PuzzleRoomSheet(server: server));
     } else if (server.type == ServerType.aiRoom) {

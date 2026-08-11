@@ -116,7 +116,7 @@ class _MatchJoinSheetState extends State<MatchJoinSheet> {
               label: '开始匹配',
               connecting: _connecting,
               onTapFeedback:
-                  ServiceSingleton.instance.uiSoundService.playButtonTap,
+                  ServiceSingleton.instance.ygoSoundService.playButtonTap,
               onPressed: () => _join(context),
             ),
           ],

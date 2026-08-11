@@ -1,4 +1,3 @@
-
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
@@ -20,7 +19,14 @@ class HandSelect extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text('猜拳', style: TextStyle(color: Colors.amber, fontSize: 14, fontWeight: FontWeight.bold)),
+          Text(
+            '猜拳',
+            style: TextStyle(
+              color: Colors.amber,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -37,7 +43,12 @@ class HandSelect extends StatelessWidget {
     );
   }
 
-  Widget _handButton(HandType hand, String emoji, String label, void Function(HandType) onTap) {
+  Widget _handButton(
+    HandType hand,
+    String emoji,
+    String label,
+    void Function(HandType) onTap,
+  ) {
     return GestureDetector(
       key: ValueKey('hand-select-${hand.name}'),
       onTap: enabled ? () => onTap(hand) : null,
@@ -48,12 +59,15 @@ class HandSelect extends StatelessWidget {
             child: Text(emoji, style: const TextStyle(fontSize: 28)),
           ),
           const SizedBox(height: 4),
-          Text(label, style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 12)),
+          Text(
+            label,
+            style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 12),
+          ),
         ],
       ),
     );
   }
 }
+
 @Preview(name: 'HandSelect', size: Size(300, 200), brightness: Brightness.dark)
 Widget _previewHandSelect() => HandSelect(onSendHand: (_) {});
-

@@ -9,10 +9,8 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ygo_data/ygo_data.dart';
 import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
-
-import 'package:service_loader/service_loader.dart';
-
 import '../../service_singleton.dart';
+import '../../util/ygo_data_util.dart';
 import 'duel_room_exit.dart';
 import 'duel/duel_field_store.dart';
 
@@ -277,8 +275,8 @@ class DuelRoomStore extends ChangeNotifier {
         );
         return;
       }
-      final mainBytes = _deckToBytes(result.main.map((c) => c.code).toList());
-      final extraBytes = _deckToBytes(result.extra.map((c) => c.code).toList());
+      final mainBytes = deckToBytes(result.main.map((c) => c.code).toList());
+      final extraBytes = deckToBytes(result.extra.map((c) => c.code).toList());
       duelFieldStore.setKnownSelfExtraDeckCodes(
         result.extra.map((c) => c.code).toList(),
       );
@@ -287,15 +285,6 @@ class DuelRoomStore extends ChangeNotifier {
     }
   }
 
-  /// 把卡组中的卡片代码编码成服务端需要的 little-endian 字节序列。
-  Uint8List _deckToBytes(List<int> codes) {
-    final bytes = Uint8List(codes.length * 4);
-    final bd = ByteData.view(bytes.buffer);
-    for (int i = 0; i < codes.length; i++) {
-      bd.setInt32(i * 4, codes[i], Endian.little);
-    }
-    return bytes;
-  }
 
   String? errorMessage;
   void setError(int type, int code) {

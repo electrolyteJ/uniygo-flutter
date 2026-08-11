@@ -263,7 +263,7 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
                               : '连接 233 服 AI',
                           connecting: _connecting,
                           onTapFeedback:
-                              ServiceSingleton.instance.uiSoundService.playButtonTap,
+                              ServiceSingleton.instance.ygoSoundService.playButtonTap,
                           onPressed: () => _start(),
                         ),
                       ],

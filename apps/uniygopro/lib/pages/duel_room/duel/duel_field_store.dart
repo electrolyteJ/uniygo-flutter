@@ -18,8 +18,8 @@ import '../../../models/idle_action.dart';
 import '../../../models/select_state.dart';
 import '../../../image/card_image_loader.dart';
 import '../../../models/duel_event.dart';
-import '../../../services/duel_sound_service.dart';
 import '../../../models/field_zone_key.dart';
+import '../../../services/ygo_sound_service.dart';
 class PlaymatResolvedAction {
   final String label;
   final int response;
@@ -100,8 +100,7 @@ class DuelFieldStore extends ChangeNotifier {
   int selfLpEventId = 0;
   int opponentLpEventId = 0;
   final dataService = ServiceSingleton.instance.dataService;
-  final soundService = DuelSoundService();
-  final uiSound = ServiceSingleton.instance.uiSoundService;
+  final ygoSoundService = ServiceSingleton.instance.ygoSoundService;
 
   /// 卡组洗切信号：每次 MSG_SHUFFLE_DECK 自增，驱动场地洗牌动效。
   int deckShuffleTick = 0;
@@ -1739,37 +1738,37 @@ bool get isWaitingForInput => currentSelect != null;
       // 决斗事件 start
       case MSG_START:
         _handleStart(innerMsg);
-        soundService.playDuelStart();
+        ygoSoundService.playDuelStart();
         break;
       case MSG_NEW_TURN:
         _handleNewTurn(innerMsg);
-        soundService.playNewTurn();
+        ygoSoundService.playNewTurn();
         break;
       case MSG_NEW_PHASE:
         // 已通过 onDuelPhaseMessage 单独派发，避免这里重复记日志。
-        soundService.playNewPhase();
+        ygoSoundService.playNewPhase();
         break;
       case MSG_WAITING:
         _handleWaiting(innerMsg as MsgWait);
         break;
       case MSG_ATTACK:
         _handleAttack(innerMsg);
-        soundService.playAttack();
+        ygoSoundService.playAttack();
         break;
       case MSG_DAMAGE:
         _handleDamage(innerMsg);
-        soundService.playDamage();
+        ygoSoundService.playDamage();
         break;
       case MSG_RECOVER:
         _handleRecover(innerMsg);
-        soundService.playRecover();
+        ygoSoundService.playRecover();
         break;
       case MSG_LP_UPDATE:
         _handleLpUpdate(innerMsg);
         break;
       case MSG_PAY_LP_COST:
         _handlePayLife(innerMsg);
-        soundService.playDamage();
+        ygoSoundService.playDamage();
         break;
       case MSG_CONFIRM_CARDS:
       case MSG_CONFIRM_DECKTOP:
@@ -1780,7 +1779,7 @@ bool get isWaitingForInput => currentSelect != null;
         chainSealed = false;
         final name = handleChaining(innerMsg);
         addLog('连锁发动 $name。');
-        soundService.playChain();
+        ygoSoundService.playChain();
         break;
       case MSG_CHAINED:
         _handleChained(innerMsg as MsgChained);
@@ -1794,12 +1793,12 @@ bool get isWaitingForInput => currentSelect != null;
         break;
       case MSG_CHAIN_END:
         _handleChainEnd(innerMsg);
-        soundService.playChainEnd();
+        ygoSoundService.playChainEnd();
         break;
       case MSG_SUMMONING:
         final name = handleSummoning(innerMsg);
         addLog('正在召唤 $name。');
-        soundService.playSummon();
+        ygoSoundService.playSummon();
         break;
       case MSG_SUMMONED:
         _handleSummonFinished('召唤');
@@ -1807,7 +1806,7 @@ bool get isWaitingForInput => currentSelect != null;
       case MSG_SP_SUMMONING:
         final msg = innerMsg as MsgSpSummoning;
         _handleSummonPreparing(msg.code, msg.location, actionLabel: '特殊召唤');
-        soundService.playSpecialSummon();
+        ygoSoundService.playSpecialSummon();
         break;
       case MSG_SP_SUMMONED:
         _handleSummonFinished('特殊召唤');
@@ -1815,21 +1814,21 @@ bool get isWaitingForInput => currentSelect != null;
       case MSG_FLIP_SUMMONING:
         final msg = innerMsg as MsgFlipSummoning;
         _handleSummonPreparing(msg.code, msg.location, actionLabel: '反转召唤');
-        soundService.playFlipSummon();
+        ygoSoundService.playFlipSummon();
         break;
       case MSG_FLIP_SUMMONED:
         _handleSummonFinished('反转召唤');
         break;
       case MSG_BATTLE:
         _handleBattle(innerMsg as MsgBattle);
-        soundService.playBattle();
+        ygoSoundService.playBattle();
         break;
       case MSG_HINT:
         _handleHint(innerMsg as MsgHint);
         break;
       case MSG_WIN:
         _handleWin(innerMsg as MsgWin);
-        soundService.playDuelWin();
+        ygoSoundService.playDuelWin();
         break;
       case MSG_RETRY:
         if (_restoreLastInteractiveMessage()) {
@@ -1840,7 +1839,7 @@ bool get isWaitingForInput => currentSelect != null;
         break;
       case MSG_SHUFFLE_DECK:
         _handleShuffleDeck(innerMsg);
-        soundService.playShuffleDeck();
+        ygoSoundService.playShuffleDeck();
         break;
       case MSG_BECOME_TARGET:
         _handleBecomeTarget(innerMsg as MsgBecomeTarget);
@@ -1850,7 +1849,7 @@ bool get isWaitingForInput => currentSelect != null;
         break;
       case MSG_DAMAGE_STEP_START:
         _handleDamageStepStart();
-        soundService.playDamageStep();
+        ygoSoundService.playDamageStep();
         break;
       case MSG_DAMAGE_STEP_END:
         _handleDamageStepEnd();
@@ -1859,7 +1858,7 @@ bool get isWaitingForInput => currentSelect != null;
       // 决斗场地  start
       case MSG_DRAW:
         _handleDraw(innerMsg);
-        soundService.playCardDraw();
+        ygoSoundService.playCardDraw();
         break;
       case MSG_UPDATE_DATA:
         _handleUpdateData(innerMsg as MsgUpdateData);
@@ -1872,7 +1871,7 @@ bool get isWaitingForInput => currentSelect != null;
         break;
       case MSG_MOVE:
         _handleMove(innerMsg);
-        soundService.playCardDestroy();
+        ygoSoundService.playCardDestroy();
         break;
       case MSG_FIELD_DISABLED:
         _handleFieldDisabled(innerMsg as MsgFieldDisabled);
@@ -1880,14 +1879,14 @@ bool get isWaitingForInput => currentSelect != null;
       case MSG_POS_CHANGE:
         final card = handlePosChange(innerMsg);
         addLog('${card?.name} 表示形式变更。');
-        soundService.playPosChange();
+        ygoSoundService.playPosChange();
         break;
       case MSG_SHUFFLE_HAND:
         _handleShuffleHand(innerMsg);
         break;
       case MSG_SET:
         _handleSet(innerMsg as MsgSet);
-        soundService.playSetCard();
+        ygoSoundService.playSetCard();
         break;
       // 决斗场地  end
       // 选择事件  start
@@ -1959,10 +1958,10 @@ bool get isWaitingForInput => currentSelect != null;
         break;
       // 选择事件  end
       case MSG_TOSS_COIN:
-        soundService.playCoinToss();
+        ygoSoundService.playCoinToss();
         break;
       case MSG_TOSS_DICE:
-        soundService.playDice();
+        ygoSoundService.playDice();
         break;
       default:
         console.log('Unhandled  event: ${gameMsg.func}');
@@ -2563,7 +2562,7 @@ bool get isWaitingForInput => currentSelect != null;
 
   void inspectCard(int code) {
     if (code <= 0) return;
-    uiSound.playDialogOpen();
+    ygoSoundService.playDialogOpen();
     _inspectCardMut(code);
     notifyListeners();
   }
@@ -2930,7 +2929,7 @@ bool get isWaitingForInput => currentSelect != null;
   }
 
   void openZoneBrowser(String zoneKey) {
-    uiSound.playZoneOpen();
+    ygoSoundService.playZoneOpen();
     _selectedHandSequence = null;
     _openZoneBrowserKey = zoneKey;
     _selectedZoneBrowserSequence = null;
@@ -2943,7 +2942,7 @@ bool get isWaitingForInput => currentSelect != null;
     if (_openZoneBrowserKey == null && _selectedZoneBrowserSequence == null) {
       return;
     }
-    uiSound.playZoneClose();
+    ygoSoundService.playZoneClose();
     _openZoneBrowserKey = null;
     _selectedZoneBrowserSequence = null;
     notifyListeners();
@@ -2962,9 +2961,9 @@ bool get isWaitingForInput => currentSelect != null;
     }
     _showPhaseMenu = !_showPhaseMenu;
     if (_showPhaseMenu) {
-      uiSound.playMenuOpen();
+      ygoSoundService.playMenuOpen();
     } else {
-      uiSound.playMenuClose();
+      ygoSoundService.playMenuClose();
     }
     _selectedHandSequence = null;
     _selectedFieldCard = null;

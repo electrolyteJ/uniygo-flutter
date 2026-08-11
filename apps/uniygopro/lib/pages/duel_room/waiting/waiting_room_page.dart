@@ -17,7 +17,7 @@ class WaitingRoomPage extends StatelessWidget {
   const WaitingRoomPage({super.key});
 
   void _onToggleAutomation(bool value, ValueChanged<bool> action) {
-    final sound = ServiceSingleton.instance.uiSoundService;
+    final sound = ServiceSingleton.instance.ygoSoundService;
     if (value) {
       sound.playToggleOn();
     } else {

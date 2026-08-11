@@ -40,7 +40,7 @@ void backHomeDialog({
 }
 
 void backHome(BuildContext context, {bool surrenderOnExit = false}) {
-  ServiceSingleton.instance.uiSoundService.playBackNavigation();
+  ServiceSingleton.instance.ygoSoundService.playBackNavigation();
   final duelService = ServiceSingleton.instance.duelService;
   if (surrenderOnExit) {
     duelService.surrender();
