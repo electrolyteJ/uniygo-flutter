@@ -19,7 +19,6 @@ import '../../../models/select_state.dart';
 import '../../../image/card_image_loader.dart';
 import '../../../models/duel_event.dart';
 import '../../../models/field_zone_key.dart';
-import '../../../services/ygo_sound_service.dart';
 class PlaymatResolvedAction {
   final String label;
   final int response;
@@ -95,6 +94,7 @@ class DuelFieldStore extends ChangeNotifier {
   BattlePresentation? battlePresentation;
   bool inDamageStep = false;
   Timer? _battlePresentationTimer;
+  Timer? _confirmTimer;
   int selfLpDelta = 0;
   int opponentLpDelta = 0;
   int selfLpEventId = 0;
@@ -135,18 +135,29 @@ class DuelFieldStore extends ChangeNotifier {
   /// 就地选择（高亮手牌/场上卡代替 CardSelector 弹窗）时已勾选的选项下标。
   final Set<int> _inlineSelectedOptionIndices = {};
 
-  /// 服务端要求展示的卡牌弹窗（MSG_CONFIRM_CARDS 等）。
-  /// 非 null 时场地页居中弹窗展示，[Timer] 到期自动关闭。
-  ConfirmCards? confirmCards;
-  Timer? _confirmCardsTimer;
+  /// MSG_CONFIRM_CARDS 多张卡组/额外卡的弹窗（panel_confirm）。
+  ConfirmPanel? confirmPanel;
+
+  /// 卡组顶部 / 额外卡组顶部浮动预览的卡密列表。
+  List<int> floatPreviewCodes = [];
+  int floatPreviewOwner = 0;
+  bool floatPreviewIsExtra = false;
+
+  /// field_confirm 阶段需要高亮的场上卡槽 key 集合。
+  Set<String> confirmedFieldSlotKeys = {};
+
+  /// field_confirm 阶段需要高亮的手牌序列号集合。
+  Set<int> confirmedHandSequences = {};
+
+  /// confirmedHandSequences 对应的玩家编号 (0=己方, 1=对方)。
+  int confirmedHandOwner = 0;
+
+  /// 是否处于 decktop/extratop 浮动预览阶段（区别于 field_confirm）。
+  bool get isFloatPreview => floatPreviewCodes.isNotEmpty;
   DuelResultSummary? duelResult;
   final List<int> _announceCardBlockedCodes = [];
 
-  /// 最近一次等待用户处理的交互消息，供 MSG_RETRY 时恢复选择 UI。
-  int? _lastInteractiveFunc;
-  dynamic _lastInteractiveMsg;
-
-bool get isWaitingForInput => currentSelect != null;
+  bool get isWaitingForInput => currentSelect != null;
   bool get hasIdleCommandWindow => currentSelect?.type == SelectType.idleCmd;
   bool get hasBattleCommandWindow =>
       currentSelect?.type == SelectType.battleCmd;
@@ -204,6 +215,8 @@ bool get isWaitingForInput => currentSelect != null;
     inDamageStep = false;
     _battlePresentationTimer?.cancel();
     _battlePresentationTimer = null;
+    _confirmTimer?.cancel();
+    _confirmTimer = null;
     selfLpDelta = 0;
     opponentLpDelta = 0;
     selfLpEventId = 0;
@@ -217,12 +230,8 @@ bool get isWaitingForInput => currentSelect != null;
     _inlineSelectedOptionIndices.clear();
     _announceCardBlockedCodes.clear();
     _resetLocalUiState();
-    confirmCards = null;
-    _confirmCardsTimer?.cancel();
-    _confirmCardsTimer = null;
+    confirmPanel = null;
     duelResult = null;
-    _lastInteractiveFunc = null;
-    _lastInteractiveMsg = null;
     duelLogs.clear();
     _phaseSub?.cancel();
     _msgSub?.cancel();
@@ -1011,60 +1020,6 @@ bool get isWaitingForInput => currentSelect != null;
     _duelService?.playGameResponse(response);
   }
 
-  void _rememberInteractiveMessage(int func, dynamic msg) {
-    _lastInteractiveFunc = func;
-    _lastInteractiveMsg = msg;
-  }
-
-  bool _restoreLastInteractiveMessage() {
-    final func = _lastInteractiveFunc;
-    final msg = _lastInteractiveMsg;
-    if (func == null || msg == null) return false;
-    switch (func) {
-      case MSG_SELECT_IDLE_CMD:
-        _handleSelectIdleCmd(msg as MsgSelectIdleCmd);
-        return true;
-      case MSG_SELECT_BATTLE_CMD:
-        _handleSelectBattleCmd(msg as MsgSelectBattleCmd);
-        return true;
-      case MSG_SELECT_CARD:
-      case MSG_SELECT_CHAIN:
-      case MSG_SELECT_EFFECTYN:
-      case MSG_SELECT_YES_NO:
-      case MSG_SELECT_PLACE:
-        _handleSelectGeneric(func, msg);
-        return true;
-      case MSG_SELECT_POSITION:
-        _handleSelectPosition(msg as MsgSelectPosition);
-        return true;
-      case MSG_SELECT_TRIBUTE:
-        _handleSelectTribute(msg as MsgSelectTribute);
-        return true;
-      case MSG_SELECT_COUNTER:
-        _handleSelectCounter(msg as MsgSelectCounter);
-        return true;
-      case MSG_SELECT_SUM:
-        _handleSelectSum(msg as MsgSelectSum);
-        return true;
-      case MSG_SORT_CARD:
-        _handleSortCard(msg as MsgSortCard);
-        return true;
-      case MSG_SELECT_OPTION:
-        _handleSelectOption(msg);
-        return true;
-      case MSG_ANNOUNCE_CARD:
-        _handleAnnounceCard(msg as MsgAnnounceCard);
-        return true;
-      case MSG_SELECT_UNSELECT_CARD:
-        _handleSelectUnselectCard(msg);
-        return true;
-      case MSG_SELECT_DISFIELD:
-        _handleSelectDisfield(msg);
-        return true;
-    }
-    return false;
-  }
-
   void respondIdleCmd(int sequence) {
     _sendResponse(CtosGameMsgResponse.selectIdleCmd(sequence));
     clearSelect();
@@ -1831,11 +1786,7 @@ bool get isWaitingForInput => currentSelect != null;
         ygoSoundService.playDuelWin();
         break;
       case MSG_RETRY:
-        if (_restoreLastInteractiveMessage()) {
-          addLog('操作无效，请重新选择。');
-        } else {
-          console.log('MSG_RETRY without restorable local selection, ignored.');
-        }
+        addLog('操作无效，请重新选择。');
         break;
       case MSG_SHUFFLE_DECK:
         _handleShuffleDeck(innerMsg);
@@ -1857,24 +1808,32 @@ bool get isWaitingForInput => currentSelect != null;
       // 决斗事件 end
       // 决斗场地  start
       case MSG_DRAW:
-        _handleDraw(innerMsg);
+        {
+          final msg = innerMsg as MsgDraw;
+          applyDraw(msg);
+          addLog('${_playerNameOf(msg.player)} 抽了 ${msg.count} 张卡。');
+        }
         ygoSoundService.playCardDraw();
         break;
       case MSG_UPDATE_DATA:
-        _handleUpdateData(innerMsg as MsgUpdateData);
+        applyUpdateData(innerMsg as MsgUpdateData);
         break;
       case MSG_UPDATE_CARD:
-        _handleUpdateCard(innerMsg as MsgUpdateCard);
+        applyUpdateCard(innerMsg as MsgUpdateCard);
         break;
       case MSG_RELOAD_FIELD:
-        _handleReloadField(innerMsg as MsgReloadField);
+        applyReloadField(innerMsg as MsgReloadField);
         break;
       case MSG_MOVE:
-        _handleMove(innerMsg);
+        applyMove(innerMsg as MsgMove);
         ygoSoundService.playCardDestroy();
         break;
       case MSG_FIELD_DISABLED:
-        _handleFieldDisabled(innerMsg as MsgFieldDisabled);
+        {
+          final msg = innerMsg as MsgFieldDisabled;
+          applyFieldDisabled(msg);
+          addLog('区域禁用状态已更新。');
+        }
         break;
       case MSG_POS_CHANGE:
         final card = handlePosChange(innerMsg);
@@ -1882,7 +1841,7 @@ bool get isWaitingForInput => currentSelect != null;
         ygoSoundService.playPosChange();
         break;
       case MSG_SHUFFLE_HAND:
-        _handleShuffleHand(innerMsg);
+        applyShuffleHand(innerMsg as MsgShuffleHand);
         break;
       case MSG_SET:
         _handleSet(innerMsg as MsgSet);
@@ -1891,70 +1850,52 @@ bool get isWaitingForInput => currentSelect != null;
       // 决斗场地  end
       // 选择事件  start
       case MSG_SELECT_IDLE_CMD:
-        if (!_isLocalSelectionMessage(gameMsg.func, innerMsg)) break;
-        _handleSelectIdleCmd(innerMsg);
-        _rememberInteractiveMessage(gameMsg.func, innerMsg);
+        applyIdleCmd(innerMsg as MsgSelectIdleCmd);
         break;
       case MSG_SELECT_BATTLE_CMD:
-        if (!_isLocalSelectionMessage(gameMsg.func, innerMsg)) break;
-        _handleSelectBattleCmd(innerMsg);
-        _rememberInteractiveMessage(gameMsg.func, innerMsg);
+        applyBattleCmd(innerMsg as MsgSelectBattleCmd);
         break;
       case MSG_SELECT_CARD:
+        applySelectCard(innerMsg as MsgSelectCard);
+        break;
       case MSG_SELECT_CHAIN:
+        applySelectChain(innerMsg as MsgSelectChain);
+        break;
       case MSG_SELECT_EFFECTYN:
+        applySelectEffectYn(innerMsg as MsgSelectEffectYn);
+        break;
       case MSG_SELECT_YES_NO:
+        applySelectYesNo(innerMsg as MsgSelectYesNo);
+      break;
       case MSG_SELECT_PLACE:
-        if (!_isLocalSelectionMessage(gameMsg.func, innerMsg)) break;
-        _handleSelectGeneric(gameMsg.func, innerMsg);
-        if (currentSelect?.player == myController) {
-          _rememberInteractiveMessage(gameMsg.func, innerMsg);
-        }
+        applySelectPlace(innerMsg as MsgSelectPlace);
         break;
       case MSG_SELECT_POSITION:
-        if (!_isLocalSelectionMessage(gameMsg.func, innerMsg)) break;
-        _handleSelectPosition(innerMsg as MsgSelectPosition);
-        _rememberInteractiveMessage(gameMsg.func, innerMsg);
+        applySelectPosition(innerMsg as MsgSelectPosition);
         break;
       case MSG_SELECT_TRIBUTE:
-        if (!_isLocalSelectionMessage(gameMsg.func, innerMsg)) break;
-        _handleSelectTribute(innerMsg as MsgSelectTribute);
-        _rememberInteractiveMessage(gameMsg.func, innerMsg);
+        applySelectTribute(innerMsg as MsgSelectTribute);
         break;
       case MSG_SELECT_COUNTER:
-        if (!_isLocalSelectionMessage(gameMsg.func, innerMsg)) break;
-        _handleSelectCounter(innerMsg as MsgSelectCounter);
-        _rememberInteractiveMessage(gameMsg.func, innerMsg);
+        applySelectCounter(innerMsg as MsgSelectCounter);
         break;
       case MSG_SELECT_SUM:
-        if (!_isLocalSelectionMessage(gameMsg.func, innerMsg)) break;
-        _handleSelectSum(innerMsg as MsgSelectSum);
-        _rememberInteractiveMessage(gameMsg.func, innerMsg);
+        applySelectSum(innerMsg as MsgSelectSum);
         break;
       case MSG_SORT_CARD:
-        if (!_isLocalSelectionMessage(gameMsg.func, innerMsg)) break;
-        _handleSortCard(innerMsg as MsgSortCard);
-        _rememberInteractiveMessage(gameMsg.func, innerMsg);
+        applySortCard(innerMsg as MsgSortCard);
         break;
       case MSG_SELECT_OPTION:
-        if (!_isLocalSelectionMessage(gameMsg.func, innerMsg)) break;
-        _handleSelectOption(innerMsg);
-        _rememberInteractiveMessage(gameMsg.func, innerMsg);
+        applySelectOption(innerMsg as MsgSelectOption);
         break;
       case MSG_ANNOUNCE_CARD:
-        if (!_isLocalSelectionMessage(gameMsg.func, innerMsg)) break;
-        _handleAnnounceCard(innerMsg as MsgAnnounceCard);
-        _rememberInteractiveMessage(gameMsg.func, innerMsg);
+        applyAnnounceCard(innerMsg as MsgAnnounceCard);
         break;
       case MSG_SELECT_UNSELECT_CARD:
-        if (!_isLocalSelectionMessage(gameMsg.func, innerMsg)) break;
-        _handleSelectUnselectCard(innerMsg);
-        _rememberInteractiveMessage(gameMsg.func, innerMsg);
+        applySelectUnselectCard(innerMsg as MsgSelectUnselectCard);
         break;
       case MSG_SELECT_DISFIELD:
-        if (!_isLocalSelectionMessage(gameMsg.func, innerMsg)) break;
-        _handleSelectDisfield(innerMsg);
-        _rememberInteractiveMessage(gameMsg.func, innerMsg);
+        applySelectDisfield(innerMsg as MsgSelectPlace);
         break;
       // 选择事件  end
       case MSG_TOSS_COIN:
@@ -1967,52 +1908,6 @@ bool get isWaitingForInput => currentSelect != null;
         console.log('Unhandled  event: ${gameMsg.func}');
     }
     notifyListeners();
-  }
-
-  bool _isLocalSelectionMessage(int func, dynamic msg) {
-    final player = _selectionPlayerOf(func, msg);
-    if (player == null || player == myController) {
-      return true;
-    }
-    console.log('Skip selection event for opponent: func=$func player=$player');
-    return false;
-  }
-
-  int? _selectionPlayerOf(int func, dynamic msg) {
-    switch (func) {
-      case MSG_SELECT_IDLE_CMD:
-        return (msg as MsgSelectIdleCmd).player;
-      case MSG_SELECT_BATTLE_CMD:
-        return (msg as MsgSelectBattleCmd).player;
-      case MSG_SELECT_CARD:
-        return (msg as MsgSelectCard).player;
-      case MSG_SELECT_CHAIN:
-        return (msg as MsgSelectChain).player;
-      case MSG_SELECT_EFFECTYN:
-        return (msg as MsgSelectEffectYn).player;
-      case MSG_SELECT_YES_NO:
-        return (msg as MsgSelectYesNo).player;
-      case MSG_SELECT_PLACE:
-      case MSG_SELECT_DISFIELD:
-        return (msg as MsgSelectPlace).player;
-      case MSG_SELECT_POSITION:
-        return (msg as MsgSelectPosition).player;
-      case MSG_SELECT_TRIBUTE:
-        return (msg as MsgSelectTribute).player;
-      case MSG_SELECT_COUNTER:
-        return (msg as MsgSelectCounter).player;
-      case MSG_SELECT_SUM:
-        return (msg as MsgSelectSum).player;
-      case MSG_SORT_CARD:
-        return (msg as MsgSortCard).player;
-      case MSG_SELECT_OPTION:
-        return (msg as MsgSelectOption).player;
-      case MSG_ANNOUNCE_CARD:
-        return (msg as MsgAnnounceCard).player;
-      case MSG_SELECT_UNSELECT_CARD:
-        return (msg as MsgSelectUnselectCard).player;
-    }
-    return null;
   }
 
   void _handleStart(dynamic data) {
@@ -2045,30 +1940,8 @@ bool get isWaitingForInput => currentSelect != null;
     addLog('${_playerNameOf(msg.player)} 的回合。');
   }
 
-  void _handleDraw(dynamic data) {
-    final msg = data as MsgDraw;
-    applyDraw(msg);
-    addLog('${_playerNameOf(msg.player)} 抽了 ${msg.count} 张卡。');
-  }
-
-  void _handleUpdateData(MsgUpdateData msg) {
-    applyUpdateData(msg);
-  }
-
-  void _handleUpdateCard(MsgUpdateCard msg) {
-    applyUpdateCard(msg);
-  }
-
-  void _handleReloadField(MsgReloadField msg) {
-    applyReloadField(msg);
-  }
-
   void _handleWaiting(MsgWait msg) {
     addLog('等待对手操作。');
-  }
-
-  void _handleMove(dynamic data) {
-    applyMove(data as MsgMove);
   }
 
   void _handleAttack(dynamic data) {
@@ -2149,21 +2022,89 @@ bool get isWaitingForInput => currentSelect != null;
     };
     addLog('$owner 确认了 $zoneLabel 的 ${msg.count} 张卡。');
     if (msg.skipPanel == 1) {
-      // 服务端要求跳过确认弹窗（卡片已通过其他途径展示过），仅记录日志。
-      console.log('跳过确认弹窗，直接记录日志。');
       return;
     }
-    confirmCards = ConfirmCards(
-      title: '$owner 展示的 $zoneLabel',
-      codes: msg.cards.map((card) => card.code).toList(),
-    );
-    _confirmCardsTimer?.cancel();
-    _confirmCardsTimer = Timer(const Duration(seconds: 1), () {
-      confirmCards = null;
-      _confirmCardsTimer = null;
+
+    _confirmTimer?.cancel();
+
+    if (func == MSG_CONFIRM_DECKTOP) {
+      _showFloatPreview(msg, isExtra: false);
+      return;
+    }
+
+    if (func == MSG_CONFIRM_EXTRATOP) {
+      _showFloatPreview(msg, isExtra: true);
+      return;
+    }
+
+    final fieldSlotKeys = <String>{};
+    final handSequences = <int>{};
+    final panelCodes = <int>{};
+
+    for (final card in msg.cards) {
+      final location = card.location;
+      final controller = card.controller;
+      final sequence = card.sequence;
+
+      if ((location & (CARD_ZONE_DECK | CARD_ZONE_EXTRA)) != 0) {
+        final isDeck = (location & CARD_ZONE_DECK) != 0;
+        if (msg.count == 1) {
+          _showFloatPreview(msg, isExtra: !isDeck);
+          return;
+        }
+        panelCodes.add(card.code);
+      } else if (_isOnFieldLocation(location)) {
+        final current = fieldCards[_fieldCardKey(controller, location, sequence)];
+        if (current != null && (current.position & POS_FACEUP) == 0) {
+          fieldSlotKeys.add(_fieldCardKey(controller, location, sequence));
+        }
+      } else if ((location & CARD_ZONE_HAND) != 0) {
+        handSequences.add(sequence);
+      }
+    }
+
+    if (fieldSlotKeys.isNotEmpty || handSequences.isNotEmpty) {
+      confirmedFieldSlotKeys = fieldSlotKeys;
+      confirmedHandSequences = handSequences;
+      confirmedHandOwner = msg.player;
+      notifyListeners();
+
+      _confirmTimer = Timer(const Duration(milliseconds: 1500), () {
+        confirmedFieldSlotKeys = {};
+        confirmedHandSequences = {};
+        confirmedHandOwner = 0;
+        notifyListeners();
+
+        if (panelCodes.isNotEmpty) {
+          confirmPanel = ConfirmPanel(
+            title: '$owner 展示的卡片',
+            codes: panelCodes.toList(),
+          );
+          notifyListeners();
+        }
+      });
+    } else if (panelCodes.isNotEmpty) {
+      confirmPanel = ConfirmPanel(
+        title: '$owner 展示的卡片',
+        codes: panelCodes.toList(),
+      );
+      notifyListeners();
+    }
+  }
+
+  void _showFloatPreview(MsgConfirmCards msg, {required bool isExtra}) {
+    floatPreviewCodes = msg.cards.map((card) => card.code).toList();
+    floatPreviewOwner = msg.player;
+    floatPreviewIsExtra = isExtra;
+    notifyListeners();
+
+    final count = floatPreviewCodes.length;
+    final interval = count > 5 ? 200 : 750;
+    final totalMs = count * interval + 500;
+    _confirmTimer = Timer(Duration(milliseconds: totalMs), () {
+      floatPreviewCodes = [];
       notifyListeners();
     });
-    notifyListeners();
   }
 
   void _syncConfirmedCard(CardInfo card) {
@@ -2214,10 +2155,14 @@ bool get isWaitingForInput => currentSelect != null;
   }
 
   /// 关闭确认弹窗（服务端已在收到消息时自动确认）。
-  void dismissConfirmCards() {
-    _confirmCardsTimer?.cancel();
-    _confirmCardsTimer = null;
-    confirmCards = null;
+  void dismissConfirmPanel() {
+    _confirmTimer?.cancel();
+    confirmPanel = null;
+    confirmedFieldSlotKeys = {};
+    confirmedHandSequences = {};
+    confirmedHandOwner = 0;
+    floatPreviewCodes = [];
+    notifyListeners();
   }
 
   void _handleChained(MsgChained msg) {
@@ -2282,64 +2227,7 @@ bool get isWaitingForInput => currentSelect != null;
     addLog(didWin ? '决斗胜利。' : '决斗失败。');
   }
 
-  void _handleSelectIdleCmd(dynamic data) {
-    applyIdleCmd(data as MsgSelectIdleCmd);
-  }
 
-  void _handleSelectBattleCmd(dynamic data) {
-    applyBattleCmd(data as MsgSelectBattleCmd);
-  }
-
-  void _handleSelectGeneric(int func, dynamic data) {
-    switch (func) {
-      case MSG_SELECT_CARD:
-        _handleSelectCard(data as MsgSelectCard);
-        break;
-      case MSG_SELECT_CHAIN:
-        _handleSelectChain(data as MsgSelectChain);
-        break;
-      case MSG_SELECT_EFFECTYN:
-        _handleSelectEffectYn(data as MsgSelectEffectYn);
-        break;
-      case MSG_SELECT_YES_NO:
-        _handleSelectYesNo(data as MsgSelectYesNo);
-        break;
-      case MSG_SELECT_PLACE:
-        _handleSelectPlace(data as MsgSelectPlace);
-        break;
-      default:
-        console.log('Unhandled select message: $func');
-    }
-  }
-
-  void _handleSelectPlace(MsgSelectPlace msg) {
-    applySelectPlace(msg);
-  }
-
-  void _handleSelectCard(MsgSelectCard msg) {
-    applySelectCard(msg);
-  }
-
-  void _handleSelectChain(MsgSelectChain msg) {
-    applySelectChain(msg);
-  }
-
-  void _handleSelectEffectYn(MsgSelectEffectYn msg) {
-    applySelectEffectYn(msg);
-  }
-
-  void _handleSelectYesNo(MsgSelectYesNo msg) {
-    applySelectYesNo(msg);
-  }
-
-  void _handleSelectPosition(MsgSelectPosition msg) {
-    applySelectPosition(msg);
-  }
-
-  void _handleFieldDisabled(MsgFieldDisabled msg) {
-    applyFieldDisabled(msg);
-    addLog('区域禁用状态已更新。');
-  }
 
   void _handleSet(MsgSet msg) {
     if (msg.code > 0) {
@@ -2347,26 +2235,6 @@ bool get isWaitingForInput => currentSelect != null;
     }
     final name = getCardInfo(msg.code)?.name ?? '卡片';
     addLog('$name 已盖放。');
-  }
-
-  void _handleSelectTribute(MsgSelectTribute msg) {
-    applySelectTribute(msg);
-  }
-
-  void _handleSelectCounter(MsgSelectCounter msg) {
-    applySelectCounter(msg);
-  }
-
-  void _handleSelectSum(MsgSelectSum msg) {
-    applySelectSum(msg);
-  }
-
-  void _handleSortCard(MsgSortCard msg) {
-    applySortCard(msg);
-  }
-
-  void _handleAnnounceCard(MsgAnnounceCard msg) {
-    applyAnnounceCard(msg);
   }
 
   void _handleBattle(MsgBattle msg) {
@@ -2422,10 +2290,6 @@ bool get isWaitingForInput => currentSelect != null;
     chains.clear();
   }
 
-  void _handleShuffleHand(dynamic data) {
-    applyShuffleHand(data as MsgShuffleHand);
-  }
-
   void _handleShuffleDeck(dynamic data) {
     final msg = data as MsgShuffleDeck;
     addLog('${_playerNameOf(msg.player)} 洗切了卡组。');
@@ -2479,18 +2343,6 @@ bool get isWaitingForInput => currentSelect != null;
         },
       );
     }
-  }
-
-  void _handleSelectOption(dynamic data) {
-    applySelectOption(data as MsgSelectOption);
-  }
-
-  void _handleSelectUnselectCard(dynamic data) {
-    applySelectUnselectCard(data as MsgSelectUnselectCard);
-  }
-
-  void _handleSelectDisfield(dynamic data) {
-    applySelectDisfield(data as MsgSelectPlace);
   }
 
   void _applyLpChange(int player, int delta) {
@@ -3478,7 +3330,7 @@ bool get isWaitingForInput => currentSelect != null;
       notifyListeners();
     });
     _msgSub = _duelService?.onServerMessage.listen((msg) {
-      console.log('Received server message: $msg ${msg.gameMsg?.func}');
+      // console.log('Received server message: $msg ${msg.gameMsg?.func}');
       handleServerMessage(msg);
     });
   }

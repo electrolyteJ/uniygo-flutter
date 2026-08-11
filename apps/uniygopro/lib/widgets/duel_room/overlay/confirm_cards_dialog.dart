@@ -2,28 +2,33 @@ import 'package:flutter/material.dart';
 
 import '../../card_image.dart';
 
-/// 居中展示服务端要求查看的卡牌（MSG_CONFIRM_CARDS 等）。
+/// 居中展示服务端要求查看的卡牌（MSG_CONFIRM_CARDS 多张非场上卡）。
 ///
-/// 服务端已在收到消息时自动确认（空响应），这里仅作展示：
-/// 点击卡牌可打开详情，点右上角 X 或空白处关闭。
+/// 参考经典 ygopro C++ 客户端 behavior：卡组/额外卡组中的多张卡
+/// 通过弹窗展示，玩家点击任意处关闭（`actionSignal.Wait`）。
 class ConfirmCardsDialog extends StatelessWidget {
   final String title;
   final List<int> codes;
-  /// 卡名解析（由业务侧注入，避免组件反向依赖 store）。
   final String Function(int code) cardNameBuilder;
+  final VoidCallback? onDismiss;
 
   const ConfirmCardsDialog({
     super.key,
     required this.title,
     required this.codes,
     required this.cardNameBuilder,
+    this.onDismiss,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 720,
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pop(),
+      child: Center(
+        child: GestureDetector(
+          onTap: () {},
+          child: Container(
+            width: 720,
         constraints: const BoxConstraints(maxWidth: 720, maxHeight: 560),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -69,6 +74,23 @@ class ConfirmCardsDialog extends StatelessWidget {
                     fontFamily: 'Orbitron',
                   ),
                 ),
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: const Color(0x22FFFFFF),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      color: Color(0xFF8B9BB4),
+                      size: 16,
+                    ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -106,6 +128,8 @@ class ConfirmCardsDialog extends StatelessWidget {
                     ),
             ),
           ],
+        ),
+      ),
         ),
       ),
     );

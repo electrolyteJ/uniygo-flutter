@@ -34,6 +34,9 @@ class PrototypePlaymatField extends StatefulWidget {
   /// 放置选择（MSG_SELECT_PLACE）中的可放置空槽位 id 集合。
   final Set<String> placeTargetSlotIds;
 
+  /// 确认展示（MSG_CONFIRM_CARDS 场上卡）时需要高亮的槽位 id 集合。
+  final Set<String> confirmedSlotIds;
+
   /// 点击可放置槽位的回调（槽位 id 为 `controller_zone_sequence`）。
   final void Function(String slotId)? onPlaceSlotTap;
 
@@ -56,6 +59,7 @@ class PrototypePlaymatField extends StatefulWidget {
     this.selectableSlotIds = const {},
     this.checkedSlotIds = const {},
     this.placeTargetSlotIds = const {},
+    this.confirmedSlotIds = const {},
     this.onPlaceSlotTap,
   });
 
@@ -442,6 +446,8 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
     final isChecked = matchIds.any(widget.checkedSlotIds.contains);
     final isSelectable =
         !isChecked && matchIds.any(widget.selectableSlotIds.contains);
+    final isConfirmed =
+        !isChecked && !isSelectable && matchIds.any(widget.confirmedSlotIds.contains);
     String? placeTargetId;
     if (!isChecked && !isSelectable) {
       for (final id in matchIds) {
@@ -466,6 +472,8 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
         decoration: BoxDecoration(
           color: isChecked
               ? const Color(0x40FFD700)
+              : isConfirmed
+              ? const Color(0x22FFFFFF)
               : (isSelectable || isPlaceTarget)
               ? const Color(0x1F00F0FF)
               : hasCard
@@ -475,6 +483,8 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
           border: Border.all(
             color: isChecked
                 ? const Color(0xFFFFD700)
+                : isConfirmed
+                ? Colors.white.withValues(alpha: 0.85)
                 : (isSelectable || isPlaceTarget)
                 ? const Color(0xFF00F0FF)
                 : isSelected
@@ -484,6 +494,8 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
                 : (isEmz ? const Color(0x99FFD700) : const Color(0x5900F0FF)),
             width: isChecked
                 ? 2.5
+                : isConfirmed
+                ? 3.0
                 : (isSelectable || isPlaceTarget || isSelected)
                 ? 2
                 : 1.3,
@@ -491,6 +503,8 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
           boxShadow: [
             if (isChecked)
               const BoxShadow(color: Color(0x66FFD700), blurRadius: 22),
+            if (isConfirmed)
+              const BoxShadow(color: Color(0x88FFFFFF), blurRadius: 30),
             if (isSelectable || isPlaceTarget || isSelected)
               const BoxShadow(color: Color(0x6600F0FF), blurRadius: 22),
             BoxShadow(

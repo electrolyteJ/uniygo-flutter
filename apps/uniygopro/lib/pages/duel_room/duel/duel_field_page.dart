@@ -32,6 +32,7 @@ import '../../../widgets/duel_room/menus/duel_field_popover_layout.dart';
 import '../../../models/select_state.dart';
 import '../../../widgets/duel_room/overlay/card_selector.dart';
 import '../../../widgets/duel_room/overlay/confirm_cards_dialog.dart';
+import '../../../widgets/duel_room/overlay/confirm_floating_card.dart';
 import '../../../widgets/duel_room/overlay/announce_card_dialog.dart';
 import '../../../widgets/duel_room/overlay/position_selector.dart';
 import '../../../widgets/duel_room/overlay/turn_order_hint.dart';
@@ -179,6 +180,7 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
           selectableSlotIds: duelStore.inlineSelectableFieldKeys,
           checkedSlotIds: duelStore.inlineSelectedFieldKeys,
           placeTargetSlotIds: duelStore.placeTargetFieldKeys,
+          confirmedSlotIds: duelStore.confirmedFieldSlotKeys,
           onPlaceSlotTap: duelStore.respondSelectPlaceKey,
         );
       case PlaymatRenderMode.flame:
@@ -546,6 +548,11 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
             child: HandCardsBar(
               cardsVisible: false,
               handCodes: duelFieldStore.opponentHand,
+              highlightedSequences: duelFieldStore
+                      .confirmedHandOwner != duelFieldStore.myController &&
+                  duelFieldStore.confirmedHandSequences.isNotEmpty
+                  ? duelFieldStore.confirmedHandSequences
+                  : const {},
             ),
           ),
 
@@ -585,8 +592,11 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
               overlayVisible:
                   duelFieldStore.selectedHandSequence != null &&
                   handActionEntries.isNotEmpty,
-              highlightedSequences:
-                  selectPromptMode == SelectPromptMode.inline
+              highlightedSequences: duelFieldStore
+                      .confirmedHandOwner == duelFieldStore.myController &&
+                  duelFieldStore.confirmedHandSequences.isNotEmpty
+                  ? duelFieldStore.confirmedHandSequences
+                  : selectPromptMode == SelectPromptMode.inline
                   ? duelFieldStore.inlineSelectableHandSequences
                   : const {},
               checkedSequences: selectPromptMode == SelectPromptMode.inline
@@ -646,23 +656,30 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
                 selectPromptMode,
               ),
             ),
-          if (duelFieldStore.confirmCards != null)
+          if (duelFieldStore.confirmPanel != null)
             Positioned.fill(
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.65),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                  child: ConfirmCardsDialog(
-                    title: duelFieldStore.confirmCards!.title,
-                    codes: duelFieldStore.confirmCards!.codes,
-                    cardNameBuilder: (code) =>
-                        duelFieldStore.getCardInfo(code)?.name ?? 'Card #$code',
+              child: GestureDetector(
+                onTap: () => duelFieldStore.dismissConfirmPanel(),
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                    child: ConfirmCardsDialog(
+                      title: duelFieldStore.confirmPanel!.title,
+                      codes: duelFieldStore.confirmPanel!.codes,
+                      cardNameBuilder: (code) =>
+                          duelFieldStore.getCardInfo(code)?.name ??
+                          'Card #$code',
+                      onDismiss: () => duelFieldStore.dismissConfirmPanel(),
+                    ),
                   ),
                 ),
               ),
             ),
+          if (duelFieldStore.isFloatPreview)
+            _buildFloatPreview(duelFieldStore),
           if (selectPromptMode != SelectPromptMode.modal &&
-              duelFieldStore.confirmCards == null)
+              duelFieldStore.confirmPanel == null)
             Positioned.fill(
               child: IgnorePointer(
                 child: ChainStackOverlay(
@@ -707,4 +724,42 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
       ),
     );
   }
+
+  Widget _buildFloatPreview(DuelFieldStore store) {
+    final isSelf = store.floatPreviewOwner == store.myController;
+    final zoneKey = store.floatPreviewIsExtra
+        ? (isSelf ? 'self_extra' : 'opp_extra')
+        : (isSelf ? 'self_deck' : 'opp_deck');
+    final zoneRect = _fieldAnchors?.slotRects[zoneKey];
+
+    double? top, bottom, left, right;
+    if (zoneRect != null) {
+      top = zoneRect.top - 200;
+      left = zoneRect.center.dx - 75;
+    } else {
+      if (isSelf) {
+        bottom = 30;
+        right = 30;
+      } else {
+        top = 120;
+        right = 30;
+      }
+    }
+
+    return Positioned(
+      top: top,
+      bottom: bottom,
+      left: left,
+      right: right,
+      child: ConfirmFloatingCard(
+        codes: store.floatPreviewCodes,
+        title: store.floatPreviewIsExtra ? '额外卡组顶部' : '卡组顶部',
+        cardNameBuilder: (code) =>
+            store.getCardInfo(code)?.name ?? 'Card #$code',
+        onDismiss: () => store.dismissConfirmPanel(),
+        autoCloseSeconds: 0.75,
+      ),
+    );
+  }
 }
+
