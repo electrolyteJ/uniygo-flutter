@@ -1492,7 +1492,7 @@ bool get isWaitingForInput => currentSelect != null;
           SelectOption(
             code: _cardCodeFromDescriptionValue(msg.codes[index]) ?? 0,
             sequence: index,
-            label: '${msg.codes[index]}',
+            label: '选项 ${index + 1}',
           ),
       ],
       min: 1,
@@ -2550,6 +2550,7 @@ bool get isWaitingForInput => currentSelect != null;
         zoneKeyOf(option.controller, option.zone, option.sequence),
       );
     }
+    // 卡组、墓地、额外、除外等区域不可直接点击，应通过弹窗选择
     return false;
   }
 
