@@ -13,7 +13,7 @@ import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
 import 'package:service_loader/service_loader.dart';
 
 import '../../service_singleton.dart';
-import '../../widgets/shared/duel_room.dart';
+import 'duel_room_exit.dart';
 import 'duel/duel_field_store.dart';
 
 /// 决斗房间状态仓库。

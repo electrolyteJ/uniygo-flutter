@@ -5,30 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../pages/duel_room/duel/duel_field_store.dart';
-import '../../pages/duel_room/waiting/duel_chat_store.dart';
-import '../../pages/duel_room/duel_room_store.dart';
-import '../../pages/create_room/match_store.dart';
 import '../../service_singleton.dart';
+import '../create_room/match_store.dart';
+import 'duel/duel_field_store.dart';
+import 'duel_room_store.dart';
+import 'waiting/duel_chat_store.dart';
 
-Widget buildBackButton(BuildContext context) {
-  return Material(
-    color: Colors.black54,
-    borderRadius: BorderRadius.circular(20),
-    child: InkWell(
-      borderRadius: BorderRadius.circular(20),
-      onTap: () => {
-        ServiceSingleton.instance.uiSoundService.playDialogOpen(),
-        backHomeDialog(context: context, title: '退出决斗', content: '是否确认退出当前决斗？'),
-      },
-      child: const Padding(
-        padding: EdgeInsets.all(8),
-        child: Icon(Icons.arrow_back, color: Colors.white, size: 24),
-      ),
-    ),
-  );
-}
-
+/// 退出决斗前的确认弹窗。
 void backHomeDialog({
   required BuildContext context,
   required String title,

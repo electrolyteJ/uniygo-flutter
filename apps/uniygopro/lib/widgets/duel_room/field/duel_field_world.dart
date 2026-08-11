@@ -4,8 +4,9 @@ import 'package:flame/components.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Offset, Size;
 import '../../../models/FieldCard.dart';
+import '../../../models/field_zone_key.dart';
 import '../../../pages/duel_room/duel/duel_field_store.dart';
-import '../../shared/card_image_loader.dart';
+import '../../../image/card_image_loader.dart';
 import 'component/battle_presentation_component.dart';
 import 'component/board_mesh_component.dart';
 import 'component/zone_component.dart';
@@ -151,12 +152,11 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
   void rebuildField() => _zones?.rebuild();
 
   Vector2? boardPositionForSlotId(String slotId) {
-    final parts = slotId.split('_');
-    if (parts.length != 3) return null;
-    final controller = int.tryParse(parts[0]);
-    final zone = int.tryParse(parts[1]);
-    final sequence = int.tryParse(parts[2]);
-    if (controller == null || zone == null || sequence == null) return null;
+    final parsed = parseZoneKey(slotId);
+    if (parsed == null) return null;
+    final controller = parsed.controller;
+    final zone = parsed.zone;
+    final sequence = parsed.sequence;
 
     const colX = DuelFieldLayout.colX;
     final isSelf = controller == duelStore.myController;

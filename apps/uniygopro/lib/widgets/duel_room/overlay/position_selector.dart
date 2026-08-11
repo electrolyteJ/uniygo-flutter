@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
 import '../../../models/SelectState.dart';
-import '../../shared/card_image.dart';
+import '../../../image/card_image.dart';
 
 class PositionSelector extends StatelessWidget {
   final SelectState? select;

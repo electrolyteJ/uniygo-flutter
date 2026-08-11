@@ -4,6 +4,7 @@ import 'package:flame/text.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../models/BattlePresentation.dart';
+import '../../../../models/field_zone_key.dart';
 import '../../../../pages/duel_room/duel/duel_field_store.dart';
 import '../duel_field_world.dart';
 
@@ -144,9 +145,7 @@ class BattlePresentationComponent extends Component
   }
 
   bool _slotBelongsToSelf(String slotId) {
-    final parts = slotId.split('_');
-    if (parts.length != 3) return false;
-    return int.tryParse(parts[0]) == duelStore.myController;
+    return parseZoneKey(slotId)?.controller == duelStore.myController;
   }
 
   Offset _beamControlPoint(Offset start, Offset end) {

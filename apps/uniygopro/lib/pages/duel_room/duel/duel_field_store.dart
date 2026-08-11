@@ -12,15 +12,16 @@ import '../../../models/BattlePresentation.dart';
 import '../../../models/ChainLink.dart';
 import '../../../models/DuelResultSummary.dart';
 import '../../../models/confirm_cards.dart';
+import '../../../models/duel_menu.dart';
 import '../../../models/FieldCard.dart';
 import '../../../models/IdleAction.dart';
 import '../../../models/SelectState.dart';
-import '../../../widgets/shared/card_image_loader.dart';
+import '../../../image/card_image_loader.dart';
 import '../../../models/duel_event.dart';
 import '../../../services/duel_sound_service.dart';
-import '../../../widgets/duel_room/inspector/zone_browser_modal.dart';
-import '../../../widgets/duel_room/menus/hand_action_menu.dart';
+import '../../../models/field_zone_key.dart';
 import 'playmat_action_resolver.dart';
+
 /// 对局状态仓库（服务器驱动），全局唯一。
 ///
 /// 战场部分：场上卡片、手牌、墓地/除外/额外卡组数量、LP、阶段、连锁，
@@ -109,6 +110,9 @@ class DuelFieldStore extends ChangeNotifier {
   bool _showInspector = false;
   bool _showPhaseMenu = false;
 
+  /// 就地选择（高亮手牌/场上卡代替 CardSelector 弹窗）时已勾选的选项下标。
+  final Set<int> _inlineSelectedOptionIndices = {};
+
   /// 服务端要求展示的卡牌弹窗（MSG_CONFIRM_CARDS 等）。
   /// 非 null 时场地页居中弹窗展示，[Timer] 到期自动关闭。
   ConfirmCards? confirmCards;
@@ -120,7 +124,7 @@ class DuelFieldStore extends ChangeNotifier {
   int? _lastInteractiveFunc;
   dynamic _lastInteractiveMsg;
 
-  bool get isWaitingForInput => currentSelect != null;
+bool get isWaitingForInput => currentSelect != null;
   bool get hasIdleCommandWindow => currentSelect?.type == SelectType.idleCmd;
   bool get hasBattleCommandWindow =>
       currentSelect?.type == SelectType.battleCmd;
@@ -188,6 +192,7 @@ class DuelFieldStore extends ChangeNotifier {
     enableM2 = false;
     enableEp = false;
     currentSelect = null;
+    _inlineSelectedOptionIndices.clear();
     _announceCardBlockedCodes.clear();
     _resetLocalUiState();
     confirmCards = null;
@@ -698,7 +703,7 @@ class DuelFieldStore extends ChangeNotifier {
   String _fieldCardKey(int controller, int zone, int sequence) {
     final normalizedZone = _normalizeFieldZone(zone);
     final normalizedSequence = _normalizeFieldSequence(zone, sequence);
-    return '${controller}_${normalizedZone}_$normalizedSequence';
+    return zoneKeyOf(controller, normalizedZone, normalizedSequence);
   }
 
   List<int>? _zoneCodeListFor(int controller, int location) {
@@ -869,7 +874,7 @@ class DuelFieldStore extends ChangeNotifier {
   String? handleSummoning(dynamic data) {
     final msg = data as MsgSummoning;
     lastSummonKey =
-        '${msg.location.controller}_${msg.location.location}_${msg.location.sequence}';
+        zoneKeyOf(msg.location.controller, msg.location.location, msg.location.sequence);
     unawaited(ensureCardInfo(msg.code));
     final name = getCardInfo(msg.code)?.name ?? '怪兽';
     return name;
@@ -975,6 +980,7 @@ class DuelFieldStore extends ChangeNotifier {
   /// 清除当前选择请求。
   void clearSelect() {
     currentSelect = null;
+    _inlineSelectedOptionIndices.clear();
     _announceCardBlockedCodes.clear();
     notifyListeners();
   }
@@ -1296,7 +1302,9 @@ class DuelFieldStore extends ChangeNotifier {
           code: chain.code,
           controller: chain.location.controller,
           zone: chain.location.location,
-          sequence: chain.response,
+          // 就地高亮需要真实场上/手牌位置；连锁响应值与选项下标一致，
+          // 提交时仍按下标回传。
+          sequence: chain.location.sequence,
           label: '连锁${chain.effectDescription}',
         ),
       );
@@ -1549,6 +1557,10 @@ class DuelFieldStore extends ChangeNotifier {
       immediateSingleToggle: true,
       initialSelectedIndices: initiallySelected,
     );
+    // 就地选择模式下同步已勾选项，保证高亮与「完成」门槛一致。
+    _inlineSelectedOptionIndices
+      ..clear()
+      ..addAll(initiallySelected);
   }
 
   void applySelectDisfield(MsgSelectPlace msg) {
@@ -2034,11 +2046,11 @@ class DuelFieldStore extends ChangeNotifier {
   void _handleAttack(dynamic data) {
     final msg = data as MsgAttack;
     lastAttackFrom =
-        '${msg.attacker.controller}_${msg.attacker.location}_${msg.attacker.sequence}';
+        zoneKeyOf(msg.attacker.controller, msg.attacker.location, msg.attacker.sequence);
 
     if (msg.target != null) {
       lastAttackTo =
-          '${msg.target!.controller}_${msg.target!.location}_${msg.target!.sequence}';
+          zoneKeyOf(msg.target!.controller, msg.target!.location, msg.target!.sequence);
     } else {
       lastAttackTo = null;
     }
@@ -2198,7 +2210,7 @@ class DuelFieldStore extends ChangeNotifier {
     required String actionLabel,
   }) {
     lastSummonKey =
-        '${location.controller}_${location.location}_${location.sequence}';
+        zoneKeyOf(location.controller, location.location, location.sequence);
     if (code > 0) {
       unawaited(ensureCardInfo(code));
     }
@@ -2339,9 +2351,9 @@ class DuelFieldStore extends ChangeNotifier {
       'hasDefender=${msg.hasDefender}',
     );
     final attackerSlotId =
-        '${msg.attacker.controller}_${msg.attacker.location}_${msg.attacker.sequence}';
+        zoneKeyOf(msg.attacker.controller, msg.attacker.location, msg.attacker.sequence);
     final defenderSlotId = msg.hasDefender
-        ? '${msg.defender.controller}_${msg.defender.location}_${msg.defender.sequence}'
+        ? zoneKeyOf(msg.defender.controller, msg.defender.location, msg.defender.sequence)
         : null;
     battlePresentation =
         (battlePresentation ??
@@ -2501,9 +2513,295 @@ class DuelFieldStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ──────────────────────────────────────────
+  // 就地选择（高亮手牌/场上卡代替 CardSelector 弹窗）
+  // ──────────────────────────────────────────
+
+  /// 支持就地选择的类型。排序/计数器/效果选项等交互复杂或没有
+  /// 场上位置，仍走 CardSelector 弹窗。
+  static const _inlineSelectTypes = {
+    SelectType.chain,
+    SelectType.card,
+    SelectType.tribute,
+    SelectType.unselect,
+    SelectType.sum,
+  };
+
+  /// 当前选择是否可以就地进行：类型受支持，且所有选项都落在
+  /// 己方手牌或双方场上（怪兽/魔陷区）的可见位置。
+  /// 任一选项落在卡组/墓地/除外/对方手牌等不可直接点击的区域时，
+  /// 整体回退到弹窗选择。
+  bool get inlineSelectActive {
+    final select = currentSelect;
+    if (select == null ||
+        !_inlineSelectTypes.contains(select.type) ||
+        select.options.isEmpty) {
+      return false;
+    }
+    return select.options.every(_isInlineVisibleOption);
+  }
+
+  bool _isInlineVisibleOption(SelectOption option) {
+    if (option.zone == CARD_ZONE_HAND) {
+      return option.controller == myController;
+    }
+    if (option.zone == CARD_ZONE_MZONE || option.zone == CARD_ZONE_SZONE) {
+      return fieldCards.containsKey(
+        zoneKeyOf(option.controller, option.zone, option.sequence),
+      );
+    }
+    return false;
+  }
+
+  /// 就地选择中可点击的己方手牌下标。
+  Set<int> get inlineSelectableHandSequences {
+    if (!inlineSelectActive) return const {};
+    return {
+      for (final option in currentSelect!.options)
+        if (option.zone == CARD_ZONE_HAND &&
+            option.controller == myController)
+          option.sequence,
+    };
+  }
+
+  /// 就地选择中可点击的场上卡 key（`controller_zone_sequence`）。
+  Set<String> get inlineSelectableFieldKeys {
+    if (!inlineSelectActive) return const {};
+    return {
+      for (final option in currentSelect!.options)
+        if (option.zone == CARD_ZONE_MZONE ||
+            option.zone == CARD_ZONE_SZONE)
+          zoneKeyOf(option.controller, option.zone, option.sequence),
+    };
+  }
+
+  /// 就地选择中已勾选的手牌下标 / 场上卡 key（用于高亮样式）。
+  Set<int> get inlineSelectedHandSequences {
+    final select = currentSelect;
+    if (select == null) return const {};
+    return {
+      for (final index in _inlineSelectedOptionIndices)
+        if (index < select.options.length)
+          if (select.options[index] case final option
+              when option.zone == CARD_ZONE_HAND &&
+                  option.controller == myController)
+            option.sequence,
+    };
+  }
+
+  Set<String> get inlineSelectedFieldKeys {
+    final select = currentSelect;
+    if (select == null) return const {};
+    return {
+      for (final index in _inlineSelectedOptionIndices)
+        if (index < select.options.length)
+          if (select.options[index] case final option
+              when option.zone == CARD_ZONE_MZONE ||
+                  option.zone == CARD_ZONE_SZONE)
+            zoneKeyOf(option.controller, option.zone, option.sequence),
+    };
+  }
+
+  int get inlineSelectedCount => _inlineSelectedOptionIndices.length;
+
+  /// 当前为放置选择（MSG_SELECT_PLACE）时的可放置槽位 key 集合，
+  /// 供场地组件直接高亮对应槽位。
+  Set<String> get placeTargetFieldKeys {
+    final select = currentSelect;
+    if (select?.type != SelectType.place) return const {};
+    return {
+      for (final option in select!.options)
+        if (option.zone == CARD_ZONE_MZONE || option.zone == CARD_ZONE_SZONE)
+          zoneKeyOf(option.controller, option.zone, option.sequence),
+    };
+  }
+
+  /// 点击可放置槽位（场地组件直接回调，key 为 `controller_zone_sequence`）。
+  void respondSelectPlaceKey(String key) {
+    final select = currentSelect;
+    if (select?.type != SelectType.place) return;
+    for (final option in select!.options) {
+      if (zoneKeyOf(option.controller, option.zone, option.sequence) == key) {
+        respondSelectPlace(option.controller, option.zone, option.sequence);
+        return;
+      }
+    }
+  }
+
+  bool get inlineSelectCanConfirm {
+    final select = currentSelect;
+    return select != null &&
+        _inlineSelectedOptionIndices.length >= select.min;
+  }
+
+  /// 选择提示的统一呈现方式：页面只消费该结果插入 [SelectPromptLayer]，
+  /// 不再各自判断放置/就地/模态的互斥关系。
+  SelectPromptMode get selectPromptMode {
+    final select = currentSelect;
+    // 阶段指令窗口由阶段菜单/场上操作处理，不出选择提示。
+    if (select == null || hasPhaseCommandWindow) {
+      return SelectPromptMode.none;
+    }
+    if (select.type == SelectType.place && placeTargetFieldKeys.isNotEmpty) {
+      return SelectPromptMode.place;
+    }
+    if (inlineSelectActive) return SelectPromptMode.inline;
+    return SelectPromptMode.modal;
+  }
+
+  /// 就地选择的提示文案。
+  String get inlineSelectHint {
+    final select = currentSelect!;
+    final count = _inlineSelectedOptionIndices.length;
+    switch (select.type) {
+      case SelectType.chain:
+        return '选择要连锁的卡';
+      case SelectType.tribute:
+        return select.max == 1
+            ? '请选择解放的怪兽'
+            : '选择解放的怪兽 ($count/${select.max})';
+      case SelectType.unselect:
+        return '已选择 $count 张卡，点卡切换，满足条件后完成';
+      case SelectType.sum:
+        return '按等级合计选择卡 ($count/${select.max})';
+      default:
+        return select.max == 1
+            ? '请选择 1 张卡'
+            : '选择 ${select.min}-${select.max} 张卡 ($count/${select.max})';
+    }
+  }
+
+  int? _inlineOptionIndexForHand(int sequence) {
+    final select = currentSelect;
+    if (select == null) return null;
+    for (var i = 0; i < select.options.length; i++) {
+      final option = select.options[i];
+      if (option.zone == CARD_ZONE_HAND &&
+          option.controller == myController &&
+          option.sequence == sequence) {
+        return i;
+      }
+    }
+    return null;
+  }
+
+  int? _inlineOptionIndexForField(FieldCard card) {
+    final select = currentSelect;
+    if (select == null) return null;
+    for (var i = 0; i < select.options.length; i++) {
+      final option = select.options[i];
+      if (option.controller == card.controller &&
+          option.zone == card.zone &&
+          option.sequence == card.sequence) {
+        return i;
+      }
+    }
+    return null;
+  }
+
+  /// 就地选择模式下点击手牌：可选中则按当前选择语义处理，
+  /// 否则仅检视卡片详情。
+  void handleInlineHandCardTap(int sequence, int code) {
+    final index = _inlineOptionIndexForHand(sequence);
+    if (index == null) {
+      _inspectCardMut(code, preserveHandSelection: true);
+      notifyListeners();
+      return;
+    }
+    _applyInlineOptionTap(index, code);
+  }
+
+  /// 就地选择模式下点击场上卡：可选中则按当前选择语义处理，
+  /// 否则仅检视卡片详情。
+  void handleInlineFieldCardTap(FieldCard card) {
+    final index = _inlineOptionIndexForField(card);
+    if (index == null) {
+      _inspectCardMut(card.code);
+      notifyListeners();
+      return;
+    }
+    _applyInlineOptionTap(index, card.code);
+  }
+
+  void _applyInlineOptionTap(int index, int code) {
+    final select = currentSelect;
+    if (select == null) return;
+    _inspectCardMut(code);
+    switch (select.type) {
+      case SelectType.chain:
+        // 连锁：点卡即发动，响应为选项下标（与 response 一一对应）。
+        respondSelectChain(index);
+        return;
+      case SelectType.unselect:
+        // 解除选择：点卡即向服务端切换勾选状态。
+        respondSelectUnselectCard(index);
+        return;
+      default:
+        break;
+    }
+    // 单选：点卡即提交；多选：本地勾选后由确认按钮提交。
+    if (select.min == 1 && select.max == 1) {
+      _respondInlineMulti([index]);
+      return;
+    }
+    if (_inlineSelectedOptionIndices.contains(index)) {
+      _inlineSelectedOptionIndices.remove(index);
+    } else if (_inlineSelectedOptionIndices.length < select.max) {
+      _inlineSelectedOptionIndices.add(index);
+    }
+    notifyListeners();
+  }
+
+  /// 多选确认：按选项下标升序提交已勾选的卡。
+  void confirmInlineSelect() {
+    if (!inlineSelectCanConfirm) return;
+    _respondInlineMulti(_inlineSelectedOptionIndices.toList()..sort());
+  }
+
+  /// 解除选择（unselect）的「完成」：向服务端确认当前勾选结果。
+  void finishInlineUnselect() {
+    final select = currentSelect;
+    if (select?.type != SelectType.unselect || !inlineSelectCanConfirm) {
+      return;
+    }
+    respondSelectUnselectCard(null);
+  }
+
+  /// 取消当前就地选择（等价于弹窗的「取消」）。
+  void cancelInlineSelect() {
+    final select = currentSelect;
+    if (select == null || !select.cancelable) return;
+    switch (select.type) {
+      case SelectType.chain:
+        respondSelectChain(-1);
+      case SelectType.unselect:
+        respondSelectUnselectCard(null);
+      case SelectType.sum:
+        respondSelectSum(const []);
+      default:
+        respondSelectCard(const []);
+    }
+  }
+
+  void _respondInlineMulti(List<int> indices) {
+    switch (currentSelect?.type) {
+      case SelectType.tribute:
+        respondSelectTribute(indices);
+      case SelectType.sum:
+        respondSelectSum(indices);
+      default:
+        respondSelectCard(indices);
+    }
+  }
+
   // ---- 手牌 ----
 
   void handleHandCardTap(int sequence, int code) {
+    // 就地选择窗口优先：高亮卡点击即选择/连锁，其余卡仅检视。
+    if (inlineSelectActive) {
+      handleInlineHandCardTap(sequence, code);
+      return;
+    }
     _selectedHandSequence = sequence;
     _openZoneBrowserKey = null;
     _selectedZoneBrowserSequence = null;
@@ -2529,6 +2827,11 @@ class DuelFieldStore extends ChangeNotifier {
   }
 
   void handleFieldCardTap(FieldCard? fieldCard, int? code) {
+    // 就地选择窗口优先：高亮卡点击即选择/连锁，其余卡仅检视。
+    if (fieldCard != null && inlineSelectActive) {
+      handleInlineFieldCardTap(fieldCard);
+      return;
+    }
     final effectiveCode = code ?? fieldCard?.code;
     if (effectiveCode != null) {
       _inspectCardMut(effectiveCode);
@@ -2754,14 +3057,14 @@ class DuelFieldStore extends ChangeNotifier {
 
   // ---- 菜单条目构建 ----
 
-  List<HandActionMenuEntry> buildHandActionMenuEntries() {
+  List<ActionMenuEntry> buildHandActionMenuEntries() {
     final selectedSequence = _selectedHandSequence;
     final cardInfo = selectedSequence == null
         ? null
         : cardInfoForHandSequence(selectedSequence);
     return handActionsForCurrentSelection()
         .map(
-          (action) => HandActionMenuEntry(
+          (action) => ActionMenuEntry(
             label: _resolvedActionLabel(action, cardInfo),
             onTap: () {
               _selectedHandSequence = null;
@@ -2774,10 +3077,10 @@ class DuelFieldStore extends ChangeNotifier {
         .toList();
   }
 
-  List<HandActionMenuEntry> buildPhaseActionMenuEntries() {
+  List<ActionMenuEntry> buildPhaseActionMenuEntries() {
     return phaseActionsForCurrentWindow()
         .map(
-          (action) => HandActionMenuEntry(
+          (action) => ActionMenuEntry(
             label: action.label,
             onTap: () {
               _showPhaseMenu = false;
@@ -2789,7 +3092,7 @@ class DuelFieldStore extends ChangeNotifier {
         .toList(growable: false);
   }
 
-  List<HandActionMenuEntry> buildFieldActionEntries() {
+  List<ActionMenuEntry> buildFieldActionEntries() {
     final fieldCard = _selectedFieldCard;
     if (fieldCard == null) {
       return const [];
@@ -2798,7 +3101,7 @@ class DuelFieldStore extends ChangeNotifier {
     console.log('dispatchResolvedAction: $cardInfo}');
     return fieldActionsForCard(fieldCard)
         .map(
-          (action) => HandActionMenuEntry(
+          (action) => ActionMenuEntry(
             label: _resolvedActionLabel(action, cardInfo),
             onTap: () => dispatchResolvedAction(action),
           ),
@@ -2862,7 +3165,7 @@ class DuelFieldStore extends ChangeNotifier {
     ];
   }
 
-  List<ZoneBrowserActionEntry> zoneBrowserActionsForSelection(
+  List<ActionMenuEntry> zoneBrowserActionsForSelection(
     String zoneKey,
     List<ZoneBrowserCardEntry> entries,
   ) {
@@ -2899,7 +3202,7 @@ class DuelFieldStore extends ChangeNotifier {
         )
         .map((action) {
           final cardInfo = getCardInfo(entry.code);
-          return ZoneBrowserActionEntry(
+          return ActionMenuEntry(
             label: _resolvedActionLabel(action, cardInfo),
             onTap: () => dispatchResolvedAction(action, closeZoneBrowser: true),
           );

@@ -1,3 +1,5 @@
+import 'field_zone_key.dart';
+
 class FieldCard {
   final int code;
   final int controller;
@@ -23,5 +25,5 @@ class FieldCard {
     this.name,
   });
 
-  String get key => '${controller}_${zone}_$sequence';
+  String get key => zoneKeyOf(controller, zone, sequence);
 }

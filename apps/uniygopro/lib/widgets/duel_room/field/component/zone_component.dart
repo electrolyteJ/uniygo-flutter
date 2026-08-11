@@ -7,9 +7,24 @@ import 'package:flame/events.dart';
 import 'package:flame/text.dart';
 import 'package:flutter/material.dart';
 import '../../../../models/FieldCard.dart';
+import '../../../../models/field_zone_key.dart';
 import '../../../../pages/duel_room/duel/duel_field_store.dart';
 import '../duel_field_world.dart';
 import 'deck_shuffle_effect.dart';
+
+/// 卡槽高亮态：驱动选择/放置类交互的槽位描边与发光。
+enum CardSlotHighlight {
+  none,
+
+  /// 就地选择中可选中（连锁/选卡/解放等）。
+  selectable,
+
+  /// 就地选择多选中已勾选。
+  checked,
+
+  /// 放置选择（MSG_SELECT_PLACE）中的可放置空槽位。
+  placeTarget,
+}
 
 /// 场地区域组件：持有全部卡槽（[CardSlotComponent]），负责按
 /// [DuelFieldStore] 构建槽位布局、重建，以及鼠标移动时的视差重投影。
@@ -78,7 +93,7 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
     const stY = DuelFieldLayout.stY;
 
     FieldCard? getCard(int c, int z, int s) =>
-        duelStore.fieldCards['${c}_${z}_$s'];
+        duelStore.fieldCards[zoneKeyOf(c, z, s)];
 
     // SpellTrap 行(-stY/+stY)：仅保留 [EXTRA][S/T..][DECK]。
     // Monster 行(-monsterY/+monsterY)：FIELD 与 M1..5 同一水平线。
@@ -98,6 +113,7 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
         'S/T ${5 - i}',
         colX[1 + i],
         -stY,
+        slotKeys: [zoneKeyOf(opponentController, 8, 4 - i)],
       );
     }
     _addSlot(
@@ -131,9 +147,16 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
         colX[1 + i],
         -monsterY,
         isMonster: true,
+        slotKeys: [zoneKeyOf(opponentController, 4, 4 - i)],
       );
     }
-    _addSlot(getCard(opponentController, 8, 5), 'Field', colX[6], -monsterY);
+    _addSlot(
+      getCard(opponentController, 8, 5),
+      'Field',
+      colX[6],
+      -monsterY,
+      slotKeys: ['${opponentController}_8_5'],
+    );
     // EMZ + BANISH 行 (y=0，双方 BANISH 与 EM1/EM2 同一水平)
     _addSlot(
       _zonePreviewCard(
@@ -149,11 +172,35 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
     final emz1 =
         duelStore.fieldCards['${opponentController}_4_5'] ??
         duelStore.fieldCards['${selfController}_4_5'];
-    _addSlot(emz1, 'EMZ 1', -84.0, 0, isMonster: true, isEMZ: true);
+    // EMZ 为双方共享的物理槽位，同一槽位可能匹配双方任一 controller 的
+    // 选择/放置目标。
+    _addSlot(
+      emz1,
+      'EMZ 1',
+      -84.0,
+      0,
+      isMonster: true,
+      isEMZ: true,
+      slotKeys: [
+        '${selfController}_4_5',
+        '${opponentController}_4_5',
+      ],
+    );
     final emz2 =
         duelStore.fieldCards['${opponentController}_4_6'] ??
         duelStore.fieldCards['${selfController}_4_6'];
-    _addSlot(emz2, 'EMZ 2', 84.0, 0, isMonster: true, isEMZ: true);
+    _addSlot(
+      emz2,
+      'EMZ 2',
+      84.0,
+      0,
+      isMonster: true,
+      isEMZ: true,
+      slotKeys: [
+        '${selfController}_4_6',
+        '${opponentController}_4_6',
+      ],
+    );
     _addSlot(
       _zonePreviewCard(
         'self_removed',
@@ -167,7 +214,13 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
     );
 
     // 己方 Monster 行 (monsterY)
-    _addSlot(getCard(selfController, 8, 5), 'Field', colX[0], monsterY);
+    _addSlot(
+      getCard(selfController, 8, 5),
+      'Field',
+      colX[0],
+      monsterY,
+      slotKeys: ['${selfController}_8_5'],
+    );
     for (int i = 0; i < 5; i++) {
       _addSlot(
         getCard(selfController, 4, i),
@@ -175,6 +228,7 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
         colX[1 + i],
         monsterY,
         isMonster: true,
+        slotKeys: ['${selfController}_4_$i'],
       );
     }
     _addSlot(
@@ -202,7 +256,13 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
       onTapOverride: () => onZoneInspect?.call('self_extra'),
     );
     for (int i = 0; i < 5; i++) {
-      _addSlot(getCard(selfController, 8, i), 'S/T ${i + 1}', colX[1 + i], stY);
+      _addSlot(
+        getCard(selfController, 8, i),
+        'S/T ${i + 1}',
+        colX[1 + i],
+        stY,
+        slotKeys: ['${selfController}_8_$i'],
+      );
     }
     _addSlot(
       _deckPreviewCard(selfController),
@@ -256,8 +316,27 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
     double y, {
     bool isMonster = false,
     bool isEMZ = false,
+    List<String> slotKeys = const [],
     VoidCallback? onTapOverride,
   }) {
+    // 高亮与点击下沉到槽位本身：就地选择（连锁/选卡/解放等）与
+    // 放置选择（MSG_SELECT_PLACE）不再由页面覆盖层绘制。
+    var highlight = CardSlotHighlight.none;
+    VoidCallback? placeTap;
+    for (final key in slotKeys) {
+      if (duelStore.inlineSelectedFieldKeys.contains(key)) {
+        highlight = CardSlotHighlight.checked;
+        break;
+      }
+      if (highlight == CardSlotHighlight.none) {
+        if (duelStore.inlineSelectableFieldKeys.contains(key)) {
+          highlight = CardSlotHighlight.selectable;
+        } else if (duelStore.placeTargetFieldKeys.contains(key)) {
+          highlight = CardSlotHighlight.placeTarget;
+          placeTap = () => duelStore.respondSelectPlaceKey(key);
+        }
+      }
+    }
     final slot = CardSlotComponent(
       card: card,
       label: label,
@@ -265,7 +344,11 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
       boardY: y,
       isMonster: isMonster,
       isEMZ: isEMZ,
-      onTap: onTapOverride ?? () => onCardSelect?.call(card, card?.code),
+      highlight: highlight,
+      onTap:
+          onTapOverride ??
+          placeTap ??
+          () => onCardSelect?.call(card, card?.code),
     )..position = world.project3D(x, y);
     _slots.add(slot);
     add(slot);
@@ -323,6 +406,7 @@ class CardSlotComponent extends PositionComponent
   final double boardY;
   final bool isMonster;
   final bool isEMZ;
+  final CardSlotHighlight highlight;
   final VoidCallback? onTap;
 
   bool _hovered = false;
@@ -342,6 +426,7 @@ class CardSlotComponent extends PositionComponent
     required this.boardY,
     this.isMonster = false,
     this.isEMZ = false,
+    this.highlight = CardSlotHighlight.none,
     this.onTap,
   }) : super(
          size: Vector2(DuelFieldLayout.slotWidth, DuelFieldLayout.slotHeight),
@@ -464,7 +549,40 @@ class CardSlotComponent extends PositionComponent
       _renderCardBody(canvas, cardW, cardH);
     }
 
+    // 4. 选择/放置高亮：在槽位本体上绘制发光、填充与描边，
+    // 与页面手牌栏的高亮视觉语言一致（青=可选，金=已勾选）。
+    if (highlight != CardSlotHighlight.none) {
+      _renderHighlight(canvas, slotRRect);
+    }
+
     canvas.restore();
+  }
+
+  void _renderHighlight(Canvas canvas, RRect slotRRect) {
+    final isChecked = highlight == CardSlotHighlight.checked;
+    final color = isChecked
+        ? const Color(0xFFFFD700)
+        : const Color(0xFF00F0FF);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        slotRRect.outerRect.inflate(8),
+        const Radius.circular(12),
+      ),
+      Paint()
+        ..color = color.withValues(alpha: 0.45)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+    );
+    canvas.drawRRect(
+      slotRRect.inflate(3),
+      Paint()..color = color.withValues(alpha: isChecked ? 0.22 : 0.12),
+    );
+    canvas.drawRRect(
+      slotRRect.inflate(3),
+      Paint()
+        ..color = color
+        ..strokeWidth = isChecked ? 2.5 : 2.0
+        ..style = PaintingStyle.stroke,
+    );
   }
 
   void _renderCardBody(Canvas canvas, double w, double h) {

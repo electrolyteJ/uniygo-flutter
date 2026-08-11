@@ -2,22 +2,9 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../../../models/duel_menu.dart';
 import '../hud/cyber_button.dart';
-import '../../shared/card_image.dart';
-
-class ZoneBrowserCardEntry {
-  final int sequence;
-  final int code;
-
-  const ZoneBrowserCardEntry({required this.sequence, required this.code});
-}
-
-class ZoneBrowserActionEntry {
-  final String label;
-  final VoidCallback onTap;
-
-  const ZoneBrowserActionEntry({required this.label, required this.onTap});
-}
+import '../../../image/card_image.dart';
 
 String _zoneTitle(String zoneKey) {
   switch (zoneKey) {
@@ -45,7 +32,7 @@ class ZoneBrowserModal extends StatelessWidget {
   final void Function(int sequence, int code) onCardTap;
   final VoidCallback onClose;
   final String Function(int code)? cardNameBuilder;
-  final List<ZoneBrowserActionEntry> selectedActions;
+  final List<ActionMenuEntry> selectedActions;
 
   /// 该区域服务端记录的卡片总数。
   /// 当列表为空但总数大于 0 时（例如对手额外卡组为里侧），

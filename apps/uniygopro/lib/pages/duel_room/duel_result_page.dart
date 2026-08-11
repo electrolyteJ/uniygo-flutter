@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/DuelResultSummary.dart';
-import '../../widgets/shared/duel_room.dart';
+import 'duel_room_exit.dart';
 
 class DuelResultPage extends StatelessWidget {
   final DuelResultSummary result;

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../../../pages/duel_room/duel/duel_field_store.dart';
-import '../../shared/card_image.dart';
+import '../../../image/card_image.dart';
 
 /// 居中展示服务端要求查看的卡牌（MSG_CONFIRM_CARDS 等）。
 ///
@@ -11,16 +9,18 @@ import '../../shared/card_image.dart';
 class ConfirmCardsDialog extends StatelessWidget {
   final String title;
   final List<int> codes;
+  /// 卡名解析（由业务侧注入，避免组件反向依赖 store）。
+  final String Function(int code) cardNameBuilder;
 
   const ConfirmCardsDialog({
     super.key,
     required this.title,
     required this.codes,
+    required this.cardNameBuilder,
   });
 
   @override
   Widget build(BuildContext context) {
-    final duelStore = context.watch<DuelFieldStore>();
     return Center(
       child: Container(
         width: 720,
@@ -100,9 +100,7 @@ class ConfirmCardsDialog extends StatelessWidget {
                         final code = codes[index];
                         return _ConfirmCardTile(
                           code: code,
-                          name:
-                              duelStore.getCardInfo(code)?.name ??
-                              'Card #$code',
+                          name: cardNameBuilder(code),
                         );
                       },
                     ),

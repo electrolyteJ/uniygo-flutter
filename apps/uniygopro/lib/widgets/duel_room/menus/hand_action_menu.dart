@@ -3,17 +3,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
+import '../../../models/duel_menu.dart';
 import '../hud/cyber_button.dart';
 
-class HandActionMenuEntry {
-  final String label;
-  final VoidCallback onTap;
-
-  const HandActionMenuEntry({required this.label, required this.onTap});
-}
-
 class HandActionMenu extends StatelessWidget {
-  final List<HandActionMenuEntry> actions;
+  final List<ActionMenuEntry> actions;
 
   const HandActionMenu({super.key, required this.actions});
 
@@ -79,9 +73,9 @@ class HandActionMenu extends StatelessWidget {
 )
 Widget handActionMenuPreview() => HandActionMenu(
   actions: const [
-    HandActionMenuEntry(label: '攻击', onTap: _noop),
-    HandActionMenuEntry(label: '守备表示', onTap: _noop),
-    HandActionMenuEntry(label: '发动效果', onTap: _noop),
+    ActionMenuEntry(label: '攻击', onTap: _noop),
+    ActionMenuEntry(label: '守备表示', onTap: _noop),
+    ActionMenuEntry(label: '发动效果', onTap: _noop),
   ],
 );
 

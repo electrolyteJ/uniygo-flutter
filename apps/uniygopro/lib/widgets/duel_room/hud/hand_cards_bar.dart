@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 
-import '../../shared/card_image.dart';
+import '../../../image/card_image.dart';
 
 class HandCardsBar extends StatefulWidget {
   final List<int> handCodes;
@@ -24,6 +24,13 @@ class HandCardsBar extends StatefulWidget {
   /// 是否显示 [overlayContent]。仅在卡片被选中时生效。
   final bool overlayVisible;
 
+  /// 就地选择模式（连锁/选卡等）：可选中的手牌下标。
+  /// 非空时这些卡高亮上浮，其余手牌置灰弱化。
+  final Set<int> highlightedSequences;
+
+  /// 就地选择模式中已勾选的手牌下标（比高亮更强的选中态）。
+  final Set<int> checkedSequences;
+
   const HandCardsBar({
     super.key,
     required this.handCodes,
@@ -32,6 +39,8 @@ class HandCardsBar extends StatefulWidget {
     this.cardsVisible = true,
     this.overlayContent,
     this.overlayVisible = false,
+    this.highlightedSequences = const {},
+    this.checkedSequences = const {},
   });
 
   @override
@@ -65,6 +74,11 @@ class _HandCardsBarState extends State<HandCardsBar> {
               final isSelected = widget.selectedCardSequence == index;
               final isHovered = _hoveredSequence == index;
               final isActive = isSelected || isHovered;
+              final selectionMode = widget.highlightedSequences.isNotEmpty;
+              final isHighlighted =
+                  selectionMode && widget.highlightedSequences.contains(index);
+              final isChecked = widget.checkedSequences.contains(index);
+              final isDimmed = selectionMode && !isHighlighted;
 
               // 100% 还原大师级弧形逻辑 (Convex Arc)
               final centerIndex = (widget.handCodes.length - 1) / 2;
@@ -100,7 +114,12 @@ class _HandCardsBarState extends State<HandCardsBar> {
                         ..setEntry(3, 2, 0.001) // 3D 视角透视深度
                         ..translateByDouble(
                           0.0,
-                          -yArc - (isActive ? 22.0 : 0.0),
+                          -yArc -
+                              (isActive
+                                  ? 22.0
+                                  : isHighlighted
+                                  ? 14.0
+                                  : 0.0),
                           0.0,
                           1.0,
                         )
@@ -118,32 +137,56 @@ class _HandCardsBarState extends State<HandCardsBar> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(5),
                           border: Border.all(
-                            // isActive 时使用 --cyan-glow (#00f0ff)，默认使用 --gold-glow (#ffd700)
-                            color: isActive
+                            // isActive/选中态使用 --cyan-glow (#00f0ff)，默认使用 --gold-glow (#ffd700)
+                            color: isChecked
+                                ? const Color(0xFF00F0FF)
+                                : isActive
+                                ? const Color(0xFF00F0FF)
+                                : isHighlighted
                                 ? const Color(0xFF00F0FF)
                                 : const Color(0xFFFFD700),
-                            width: 1.5,
+                            width: isChecked ? 2.5 : 1.5,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              // isActive 时增强赛博发光: 0 12px 30px rgba(0, 240, 255, 0.8)
+                              // isActive/高亮时增强赛博发光: 0 12px 30px rgba(0, 240, 255, 0.8)
                               // 默认时: 0 6px 16px rgba(0, 0, 0, 0.7)
-                              color: isActive
+                              color:
+                                  (isActive || isHighlighted || isChecked)
                                   ? const Color(
                                       0xFF00F0FF,
-                                    ).withValues(alpha: 0.8)
+                                    ).withValues(alpha: isChecked ? 0.9 : 0.7)
                                   : Colors.black.withValues(
                                       alpha: 0.7,
                                     ),
-                              blurRadius: isActive ? 30 : 16,
-                              offset: Offset(0, isActive ? 12 : 6),
+                              blurRadius:
+                                  (isActive || isHighlighted || isChecked)
+                                  ? 30
+                                  : 16,
+                              offset: Offset(
+                                0,
+                                (isActive || isHighlighted || isChecked)
+                                    ? 12
+                                    : 6,
+                              ),
                             ),
                           ],
                         ),
                         clipBehavior: Clip.antiAlias,
-                        child: widget.cardsVisible
-                            ? CardImage(code: code, width: 64, height: 90)
-                            : const _CardBack(width: 64, height: 90),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            widget.cardsVisible
+                                ? CardImage(code: code, width: 64, height: 90)
+                                : const _CardBack(width: 64, height: 90),
+                            if (isDimmed)
+                              IgnorePointer(
+                                child: ColoredBox(
+                                  color: Colors.black.withValues(alpha: 0.55),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

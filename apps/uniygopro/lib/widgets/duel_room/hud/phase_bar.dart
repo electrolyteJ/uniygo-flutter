@@ -1,24 +1,23 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../pages/duel_room/duel/duel_field_store.dart';
 
+/// 顶部居中回合徽章（回合数 + 当前行动方）。
 class PhaseBar extends StatelessWidget {
-  const PhaseBar({super.key});
+  final int turnCount;
+  final bool isMyTurn;
+
+  const PhaseBar({super.key, required this.turnCount, required this.isMyTurn});
 
   @override
   Widget build(BuildContext context) {
-    final duelStore = context.watch<DuelFieldStore>();
-    final isMyTurn = duelStore.currentPlayer == duelStore.myController;
-
     // v10: .turn-chip —— 顶部居中悬浮胶囊（回合徽章 + 计时）。
     return SizedBox(
       height: 64,
-      child: Center(child: _buildTurnChip(duelStore, isMyTurn)),
+      child: Center(child: _buildTurnChip()),
     );
   }
 
-  Widget _buildTurnChip(DuelFieldStore duelStore, bool isMyTurn) {
+  Widget _buildTurnChip() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(999),
       child: BackdropFilter(
@@ -50,7 +49,7 @@ class PhaseBar extends StatelessWidget {
                   border: Border.all(color: const Color(0x7000F0FF)),
                 ),
                 child: Text(
-                  'TURN ${duelStore.turnCount} · ${isMyTurn ? 'YOUR TURN' : 'OPPONENT'}',
+                  'TURN $turnCount · ${isMyTurn ? 'YOUR TURN' : 'OPPONENT'}',
                   style: const TextStyle(
                     color: Color(0xFF00F0FF),
                     fontSize: 13,

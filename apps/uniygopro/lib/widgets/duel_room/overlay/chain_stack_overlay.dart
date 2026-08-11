@@ -1,10 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../models/ChainLink.dart';
-import '../../../pages/duel_room/duel/duel_field_store.dart';
-import '../../shared/card_image.dart';
+import '../../../image/card_image.dart';
 
 /// 连锁堆叠展示组件。
 ///
@@ -17,8 +15,15 @@ class ChainStackOverlay extends StatefulWidget {
   final List<ChainLink> chains;
   /// 连锁组建阶段已结束（MSG_CHAIN_SOLVING 之后），此时可以展示完整连锁链条。
   final bool chainSealed;
+  /// 卡名解析（由业务侧注入，避免组件反向依赖 store）。
+  final String Function(int code) cardNameBuilder;
 
-  const ChainStackOverlay({super.key, required this.chains, required this.chainSealed});
+  const ChainStackOverlay({
+    super.key,
+    required this.chains,
+    required this.chainSealed,
+    required this.cardNameBuilder,
+  });
 
   @override
   State<ChainStackOverlay> createState() => _ChainStackOverlayState();
@@ -91,7 +96,6 @@ class _ChainStackOverlayState extends State<ChainStackOverlay>
     if (_snapshot == null) return const SizedBox.shrink();
 
     final displayChains = _snapshot!;
-    final duelStore = context.watch<DuelFieldStore>();
 
     return FadeTransition(
       opacity: _fadeAnim,
@@ -107,9 +111,7 @@ class _ChainStackOverlayState extends State<ChainStackOverlay>
                 _PulseChainBadge(
                   index: i + 1,
                   code: displayChains[i].code,
-                  name:
-                      duelStore.getCardInfo(displayChains[i].code)?.name ??
-                      'Card #${displayChains[i].code}',
+                  name: widget.cardNameBuilder(displayChains[i].code),
                   color: const Color(0xFFFFD700),
                 ),
               ],

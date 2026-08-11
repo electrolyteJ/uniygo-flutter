@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import 'hand_action_menu.dart';
+import '../../../models/duel_menu.dart';
 
 class PhaseActionMenu extends StatelessWidget {
-  final List<HandActionMenuEntry> actions;
+  final List<ActionMenuEntry> actions;
 
   const PhaseActionMenu({super.key, required this.actions});
 

@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:ygo_data/card_info.dart';
-import '../../shared/card_image.dart';
+import '../../../image/card_image.dart';
 
 class CardDetailDrawer extends StatelessWidget {
   final CardInfo? cardInfo;

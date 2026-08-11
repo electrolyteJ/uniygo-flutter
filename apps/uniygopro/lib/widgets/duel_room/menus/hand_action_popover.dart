@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../models/duel_menu.dart';
 import 'hand_action_menu.dart';
 
 class HandActionPopover extends StatelessWidget {
   static const double menuWidth = 220;
 
-  final List<HandActionMenuEntry> actions;
+  final List<ActionMenuEntry> actions;
 
   /// 锚点在 popover 坐标系内的 x 位置（用于对齐底部箭头）。
   /// 为空时箭头居中。

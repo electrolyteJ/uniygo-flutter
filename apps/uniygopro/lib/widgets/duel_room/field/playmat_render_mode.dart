@@ -1,1 +1,0 @@
-enum PlaymatRenderMode { prototype, flame }

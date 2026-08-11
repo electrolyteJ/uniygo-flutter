@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../field/playmat_render_mode.dart';
+import '../field/playmat_field_view_data.dart';
 
 /// 渲染模式切换器：Prototype / Flame 3D 双段胶囊。
 ///

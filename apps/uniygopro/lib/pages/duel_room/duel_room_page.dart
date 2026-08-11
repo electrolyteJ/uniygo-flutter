@@ -12,7 +12,7 @@ import 'duel/duel_field_page.dart';
 import 'waiting/duel_chat_store.dart';
 import 'duel_room_store.dart';
 import '../create_room/match_store.dart';
-import '../../widgets/shared/duel_room.dart';
+import 'duel_room_exit.dart';
 
 class DuelRoomPage extends StatefulWidget {
   const DuelRoomPage({super.key});

@@ -1,5 +1,8 @@
 import '../../../models/FieldCard.dart';
 
+/// 场地渲染模式：Flutter widget 原型版 / Flame 3D 版。
+enum PlaymatRenderMode { prototype, flame }
+
 class PlaymatFieldViewData {
   final Map<String, FieldCard> fieldCards;
   final int selfController;

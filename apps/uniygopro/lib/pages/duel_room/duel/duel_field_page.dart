@@ -1,13 +1,12 @@
-import 'dart:developer' as console;
 import 'dart:ui';
 
-import 'package:duelink/duelink.dart'
-    show PlayerType, CARD_ZONE_MZONE, CARD_ZONE_SZONE, PlayerInfo;
+import 'package:duelink/duelink.dart' show PlayerType, PlayerInfo;
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:provider/provider.dart';
 
 import '../../../models/FieldCard.dart';
+import '../../../models/duel_menu.dart';
 import '../../../service_singleton.dart';
 import '../../../widgets/duel_room/overlay/chain_stack_overlay.dart';
 import '../../../widgets/duel_room/inspector/duel_log_drawer.dart';
@@ -25,8 +24,8 @@ import '../../../widgets/duel_room/hud/player_status_card.dart';
 import '../../../widgets/duel_room/hud/render_mode_toggle.dart';
 import '../../../widgets/duel_room/field/playmat_anchor_data.dart';
 import '../../../widgets/duel_room/field/playmat_field_view_data.dart';
-import '../../../widgets/duel_room/field/playmat_render_mode.dart';
-import '../../../widgets/shared/duel_room.dart';
+import '../../../widgets/duel_room/overlay/select_prompt_layer.dart';
+import '../duel_room_exit.dart';
 import '../duel_room_store.dart';
 import 'duel_field_store.dart';
 import '../../../widgets/duel_room/menus/duel_field_popover_layout.dart';
@@ -54,7 +53,6 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
   static const double _opponentHandGap = 10.0;
   static const double _inspectorTop = 124.0;
   static const double _logDrawerTop = 126.0;
-  static const double _placeHintTop = 136.0;
 
   late final DuelFieldStore duelStore;
 
@@ -178,6 +176,10 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
           selectedSlotId: duelStore.selectedFieldCard == null
               ? null
               : fieldSlotId(duelStore.selectedFieldCard!),
+          selectableSlotIds: duelStore.inlineSelectableFieldKeys,
+          checkedSlotIds: duelStore.inlineSelectedFieldKeys,
+          placeTargetSlotIds: duelStore.placeTargetFieldKeys,
+          onPlaceSlotTap: duelStore.respondSelectPlaceKey,
         );
       case PlaymatRenderMode.flame:
         return FlamePlaymatField(
@@ -209,118 +211,6 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
       duelStore.myController,
     );
     return Rect.fromCenter(center: fallback, width: 68, height: 96);
-  }
-
-  List<SelectOption> _activePlaceOptions(DuelFieldStore duelStore) {
-    final select = duelStore.currentSelect;
-    if (select?.type != SelectType.place) {
-      return const <SelectOption>[];
-    }
-    return select!.options
-        .where(
-          (option) =>
-              option.zone == CARD_ZONE_MZONE || option.zone == CARD_ZONE_SZONE,
-        )
-        .toList(growable: false);
-  }
-
-  Widget _buildPlaceTargetOverlay(
-    SelectState select,
-    List<SelectOption> options,
-  ) {
-    final slotRects = _fieldAnchors?.slotRects;
-    if (slotRects == null || options.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        for (final option in options)
-          if (slotRects['${option.controller}_${option.zone}_${option.sequence}']
-              case final rect?)
-            Positioned.fromRect(
-              rect: rect.inflate(6),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => duelStore.respondSelectPlace(
-                  option.controller,
-                  option.zone,
-                  option.sequence,
-                ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0x2200F0FF),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xFF00F0FF),
-                      width: 2,
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x6600F0FF),
-                        blurRadius: 18,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  alignment: Alignment.topCenter,
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    option.label ?? '放置',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-      ],
-    );
-  }
-
-  Widget _buildPlaceSelectionHint(
-    SelectState select,
-    List<SelectOption> options,
-  ) {
-    return Positioned(
-      top: _placeHintTop,
-      left: 0,
-      right: 0,
-      child: IgnorePointer(
-        child: Center(
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 420),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xE6111722),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x66000000),
-                  blurRadius: 20,
-                  offset: Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Text(
-              _fieldAnchors == null
-                  ? '正在准备可放置区域...'
-                  : '请选择放置区域${options.length == 1 ? '' : '（可选 ${options.length} 处）'}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildTopHud(bool isMyTurn) {
@@ -368,7 +258,10 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
                         duelStore.openZoneBrowser('opp_removed'),
                   ),
                   const SizedBox(width: 16),
-                  const PhaseBar(),
+                  PhaseBar(
+                    turnCount: duelStore.turnCount,
+                    isMyTurn: isMyTurn,
+                  ),
                   const SizedBox(width: 16),
                   PlayerStatusCard(
                     name: '武藤游戏',
@@ -428,6 +321,116 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
     );
   }
 
+  // ---- 选择提示组装 ----
+
+  /// 把 store 的选择态组装成 [SelectPromptLayer] 的纯 UI props，
+  /// 选择响应（respondXxx）的分发全部收口在这里。
+  Widget _buildSelectPromptLayer(
+    DuelFieldStore duelFieldStore,
+    SelectPromptMode mode,
+  ) {
+    final select = duelFieldStore.currentSelect;
+    switch (mode) {
+      case SelectPromptMode.none:
+        return const SizedBox.shrink();
+      case SelectPromptMode.place:
+        return SelectPromptLayer(
+          mode: mode,
+          placeTargetCount: duelFieldStore.placeTargetFieldKeys.length,
+        );
+      case SelectPromptMode.inline:
+        // 多选（非单张、非连锁、非解除选择）才需要本地确认按钮。
+        final showConfirm = select != null &&
+            select.type != SelectType.chain &&
+            select.type != SelectType.unselect &&
+            !(select.min == 1 && select.max == 1);
+        return SelectPromptLayer(
+          mode: mode,
+          inlineHint: duelFieldStore.inlineSelectHint,
+          inlineCancelLabel: select?.cancelable == true
+              ? (select!.type == SelectType.chain ? '不连锁' : '取消')
+              : null,
+          inlineShowFinish:
+              select?.type == SelectType.unselect && select!.finishable,
+          inlineShowConfirm: showConfirm,
+          inlineCanConfirm: duelFieldStore.inlineSelectCanConfirm,
+          onInlineCancel: duelFieldStore.cancelInlineSelect,
+          onInlineFinish: duelFieldStore.finishInlineUnselect,
+          onInlineConfirm: duelFieldStore.confirmInlineSelect,
+        );
+      case SelectPromptMode.modal:
+        return SelectPromptLayer(
+          mode: mode,
+          modalChild:
+              select == null ? null : _buildSelectModal(duelFieldStore, select),
+        );
+    }
+  }
+
+  /// 模态选择弹窗：选项落在不可直接点击的区域的回退，
+  /// 以及排序/计数器/效果选项等复杂交互。
+  Widget _buildSelectModal(DuelFieldStore duelFieldStore, SelectState select) {
+    final onInspectCard = duelFieldStore.inspectCard;
+    switch (select.type) {
+      case SelectType.position:
+        return PositionSelector(
+          select: select,
+          onSelect: (position) =>
+              duelFieldStore.respondSelectPosition(position),
+        );
+      case SelectType.effectYn:
+        return YesNoDialog(
+          message: '是否发动效果？',
+          cardCode:
+              select.options.isNotEmpty ? select.options.first.code : null,
+          onInspectCard: onInspectCard,
+          onYes: () => duelFieldStore.respondSelectEffectYn(true),
+          onNo: () => duelFieldStore.respondSelectEffectYn(false),
+        );
+      case SelectType.yesNo:
+        return YesNoDialog(
+          message: '是否执行？',
+          cardCode:
+              select.options.isNotEmpty ? select.options.first.code : null,
+          onInspectCard: onInspectCard,
+          onYes: () => duelFieldStore.respondSelectYesNo(true),
+          onNo: () => duelFieldStore.respondSelectYesNo(false),
+        );
+      case SelectType.option:
+        return CardSelector(
+          select: select,
+          onSelect: (sequences) => duelFieldStore.respondSelectOption(
+            sequences.isNotEmpty ? sequences.first : 0,
+          ),
+          onCancel: () => duelFieldStore.respondSelectOption(0),
+          onInspectCard: onInspectCard,
+        );
+      case SelectType.announceCard:
+        return AnnounceCardDialog(
+          onSearch: duelFieldStore.searchAnnounceCards,
+          onSelect: duelFieldStore.respondAnnounceCard,
+          onInspectCard: onInspectCard,
+        );
+      case SelectType.counter:
+        return CardSelector(
+          select: select,
+          onSelect: (sequences) =>
+              duelFieldStore.respondSelectCounter(sequences),
+          onCancel: () => duelFieldStore.respondSelectCounter([]),
+          onInspectCard: onInspectCard,
+        );
+      case SelectType.sort:
+        return CardSelector(
+          select: select,
+          onSelect: (sequences) => duelFieldStore.respondSortCard(sequences),
+          onCancel: () => duelFieldStore.respondSortCard([]),
+          onInspectCard: onInspectCard,
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final duelFieldStore = context.watch<DuelFieldStore>();
@@ -450,7 +453,7 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
         ? const <ZoneBrowserCardEntry>[]
         : duelFieldStore.zoneBrowserEntriesFor(zoneBrowserKey);
     final zoneBrowserActions = zoneBrowserKey == null
-        ? const <ZoneBrowserActionEntry>[]
+        ? const <ActionMenuEntry>[]
         : duelFieldStore.zoneBrowserActionsForSelection(
             zoneBrowserKey,
             zoneBrowserEntries,
@@ -458,15 +461,9 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
     final handActionEntries = duelFieldStore.buildHandActionMenuEntries();
     final phaseActionEntries = duelFieldStore.buildPhaseActionMenuEntries();
     final fieldActionEntries = duelFieldStore.buildFieldActionEntries();
-    final activePlaceOptions = _activePlaceOptions(duelFieldStore);
-    final currentSelect = duelFieldStore.currentSelect;
-    final showDirectPlaceSelection =
-        currentSelect?.type == SelectType.place &&
-        activePlaceOptions.isNotEmpty;
-    final showBlockingOverlay =
-        duelFieldStore.isWaitingForInput &&
-        !duelFieldStore.hasPhaseCommandWindow &&
-        (!showDirectPlaceSelection || _fieldAnchors == null);
+    // 选择提示统一由 SelectPromptLayer 收口：呈现方式（放置横幅/就地操作栏/
+    // 模态弹窗）由 store 判定，页面只区分 none 与 modal（modal 期间隐藏连锁叠层）。
+    final selectPromptMode = duelFieldStore.selectPromptMode;
     final topInset = MediaQuery.of(context).padding.top;
     final opponentHandTop = topInset + _topHudBodyHeight + _opponentHandGap;
     // viewport 仅用于 anchors 缺失时的 fallback 比例估算；
@@ -503,13 +500,6 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
             ),
           ),
 
-          if (showDirectPlaceSelection)
-            Positioned.fill(
-              child: _buildPlaceTargetOverlay(
-                currentSelect!,
-                activePlaceOptions,
-              ),
-            ),
           if (hasFieldAnchors &&
               duelFieldStore.showPhaseMenu &&
               phaseActionEntries.isNotEmpty)
@@ -546,6 +536,13 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
               overlayVisible:
                   duelFieldStore.selectedHandSequence != null &&
                   handActionEntries.isNotEmpty,
+              highlightedSequences:
+                  selectPromptMode == SelectPromptMode.inline
+                  ? duelFieldStore.inlineSelectableHandSequences
+                  : const {},
+              checkedSequences: selectPromptMode == SelectPromptMode.inline
+                  ? duelFieldStore.inlineSelectedHandSequences
+                  : const {},
             ),
           ),
           Positioned(
@@ -593,9 +590,13 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
               cardNameBuilder: (code) =>
                   duelFieldStore.getCardInfo(code)?.name ?? 'Card #$code',
             ),
-          if (showDirectPlaceSelection)
-            _buildPlaceSelectionHint(currentSelect!, activePlaceOptions),
-          if (showBlockingOverlay) _buildDuelOverlay(context, duelFieldStore),
+          if (selectPromptMode != SelectPromptMode.none)
+            Positioned.fill(
+              child: _buildSelectPromptLayer(
+                duelFieldStore,
+                selectPromptMode,
+              ),
+            ),
           if (duelFieldStore.confirmCards != null)
             Positioned.fill(
               child: Container(
@@ -605,16 +606,21 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
                   child: ConfirmCardsDialog(
                     title: duelFieldStore.confirmCards!.title,
                     codes: duelFieldStore.confirmCards!.codes,
+                    cardNameBuilder: (code) =>
+                        duelFieldStore.getCardInfo(code)?.name ?? 'Card #$code',
                   ),
                 ),
               ),
             ),
-          if (!showBlockingOverlay && duelFieldStore.confirmCards == null)
+          if (selectPromptMode != SelectPromptMode.modal &&
+              duelFieldStore.confirmCards == null)
             Positioned.fill(
               child: IgnorePointer(
                 child: ChainStackOverlay(
                   chains: duelFieldStore.chains,
                   chainSealed: duelFieldStore.chainSealed,
+                  cardNameBuilder: (code) =>
+                      duelFieldStore.getCardInfo(code)?.name ?? 'Card #$code',
                 ),
               ),
             ),
@@ -651,128 +657,5 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
         ],
       ),
     );
-  }
-
-  Widget _buildDuelOverlay(BuildContext context, DuelFieldStore duelStore) {
-    final select = duelStore.currentSelect;
-    console.log('当前选中类型 ${select?.type.name}');
-    if (select == null) return const SizedBox.shrink();
-    return Positioned.fill(
-      child: Container(
-        color: Colors.black.withValues(alpha: 0.65),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: _buildSelectWidget(
-              select,
-              duelStore,
-              onInspectCard: duelStore.inspectCard,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSelectWidget(
-    SelectState select,
-    DuelFieldStore duelStore, {
-    required void Function(int code) onInspectCard,
-  }) {
-    switch (select.type) {
-      case SelectType.idleCmd:
-        return const SizedBox.shrink();
-      case SelectType.battleCmd:
-        return const SizedBox.shrink();
-      case SelectType.card:
-      case SelectType.tribute:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => duelStore.respondSelectCard(sequences),
-          onCancel: () => duelStore.respondSelectCard([]),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.unselect:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => duelStore.respondSelectUnselectCard(
-            sequences.isEmpty ? null : sequences.first,
-          ),
-          onCancel: () => duelStore.respondSelectUnselectCard(null),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.chain:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => duelStore.respondSelectChain(
-            sequences.isNotEmpty ? sequences.first : -1,
-          ),
-          onCancel: () => duelStore.respondSelectChain(-1),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.position:
-        return PositionSelector(
-          select: select,
-          onSelect: (position) => duelStore.respondSelectPosition(position),
-        );
-      case SelectType.effectYn:
-        return YesNoDialog(
-          message: '是否发动效果？',
-          cardCode: select.options.isNotEmpty
-              ? select.options.first.code
-              : null,
-          onInspectCard: onInspectCard,
-          onYes: () => duelStore.respondSelectEffectYn(true),
-          onNo: () => duelStore.respondSelectEffectYn(false),
-        );
-      case SelectType.yesNo:
-        return YesNoDialog(
-          message: '是否执行？',
-          cardCode: select.options.isNotEmpty
-              ? select.options.first.code
-              : null,
-          onInspectCard: onInspectCard,
-          onYes: () => duelStore.respondSelectYesNo(true),
-          onNo: () => duelStore.respondSelectYesNo(false),
-        );
-      case SelectType.option:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => duelStore.respondSelectOption(
-            sequences.isNotEmpty ? sequences.first : 0,
-          ),
-          onCancel: () => duelStore.respondSelectOption(0),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.announceCard:
-        return AnnounceCardDialog(
-          onSearch: duelStore.searchAnnounceCards,
-          onSelect: duelStore.respondAnnounceCard,
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.place:
-        return const SizedBox.shrink();
-      case SelectType.sum:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => duelStore.respondSelectSum(sequences),
-          onCancel: () => duelStore.respondSelectSum([]),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.counter:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => duelStore.respondSelectCounter(sequences),
-          onCancel: () => duelStore.respondSelectCounter([]),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.sort:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => duelStore.respondSortCard(sequences),
-          onCancel: () => duelStore.respondSortCard([]),
-          onInspectCard: onInspectCard,
-        );
-    }
   }
 }

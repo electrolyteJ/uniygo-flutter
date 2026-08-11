@@ -4,7 +4,7 @@ import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 
 import '../../../models/FieldCard.dart';
-import '../../shared/card_image.dart';
+import '../../../image/card_image.dart';
 import 'duel_field_background.dart';
 import 'duel_field_world.dart';
 import 'phase_lamp.dart';
@@ -25,6 +25,18 @@ class PrototypePlaymatField extends StatefulWidget {
   /// 青色选中光环 (zone-ring)。
   final String? selectedSlotId;
 
+  /// 就地选择（连锁/选卡/解放等）中可点击的槽位 id 集合。
+  final Set<String> selectableSlotIds;
+
+  /// 就地选择多选中已勾选的槽位 id 集合。
+  final Set<String> checkedSlotIds;
+
+  /// 放置选择（MSG_SELECT_PLACE）中的可放置空槽位 id 集合。
+  final Set<String> placeTargetSlotIds;
+
+  /// 点击可放置槽位的回调（槽位 id 为 `controller_zone_sequence`）。
+  final void Function(String slotId)? onPlaceSlotTap;
+
   /// 阶段指示灯数据：阶段、是否可点击、点击回调。
   /// PhaseLamp 直接在字段内渲染（定位到 self_grave / 我方墓地卡槽右上角）。
   final DuelPhase phase;
@@ -41,6 +53,10 @@ class PrototypePlaymatField extends StatefulWidget {
     this.onZoneTap,
     this.onAnchorsChanged,
     this.selectedSlotId,
+    this.selectableSlotIds = const {},
+    this.checkedSlotIds = const {},
+    this.placeTargetSlotIds = const {},
+    this.onPlaceSlotTap,
   });
 
   @override
@@ -360,6 +376,7 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
         const SizedBox(width: gap),
         _buildSlot(
           slotId: '${widget.data.selfController}_4_5',
+          altSlotIds: ['${widget.data.opponentController}_4_5'],
           label: 'EMZ 1',
           card:
               widget.data.cardAt(widget.data.opponentController, 4, 5) ??
@@ -369,6 +386,7 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
         const SizedBox(width: gap),
         _buildSlot(
           slotId: '${widget.data.selfController}_4_6',
+          altSlotIds: ['${widget.data.opponentController}_4_6'],
           label: 'EMZ 2',
           card:
               widget.data.cardAt(widget.data.opponentController, 4, 6) ??
@@ -413,11 +431,32 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
     required String label,
     required FieldCard? card,
     bool isEmz = false,
+    List<String> altSlotIds = const [],
   }) {
     final hasCard = card != null && card.code > 0;
     final isSelected = widget.selectedSlotId == slotId;
+    // 高亮与点击落在槽位本身：就地选择（连锁/选卡/解放等）与
+    // 放置选择（MSG_SELECT_PLACE）不再由页面覆盖层绘制。
+    // EMZ 为双方共享的物理槽位，需同时匹配双方 controller 的 key。
+    final matchIds = [slotId, ...altSlotIds];
+    final isChecked = matchIds.any(widget.checkedSlotIds.contains);
+    final isSelectable =
+        !isChecked && matchIds.any(widget.selectableSlotIds.contains);
+    String? placeTargetId;
+    if (!isChecked && !isSelectable) {
+      for (final id in matchIds) {
+        if (widget.placeTargetSlotIds.contains(id)) {
+          placeTargetId = id;
+          break;
+        }
+      }
+    }
+    final placeSlotId = placeTargetId;
+    final isPlaceTarget = placeSlotId != null;
     return GestureDetector(
-      onTap: () => widget.onFieldCardTap?.call(card, card?.code),
+      onTap: isPlaceTarget
+          ? () => widget.onPlaceSlotTap?.call(placeSlotId)
+          : () => widget.onFieldCardTap?.call(card, card?.code),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         key: _slotKey(slotId),
@@ -425,20 +464,34 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
         height: _slotHeight,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: hasCard
+          color: isChecked
+              ? const Color(0x40FFD700)
+              : (isSelectable || isPlaceTarget)
+              ? const Color(0x1F00F0FF)
+              : hasCard
               ? Colors.black
               : (isEmz ? const Color(0x14FFD700) : const Color(0x0F00F0FF)),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected
+            color: isChecked
+                ? const Color(0xFFFFD700)
+                : (isSelectable || isPlaceTarget)
+                ? const Color(0xFF00F0FF)
+                : isSelected
                 ? const Color(0xFF00F0FF)
                 : hasCard
                 ? Colors.white.withValues(alpha: 0.56)
                 : (isEmz ? const Color(0x99FFD700) : const Color(0x5900F0FF)),
-            width: isSelected ? 2 : 1.3,
+            width: isChecked
+                ? 2.5
+                : (isSelectable || isPlaceTarget || isSelected)
+                ? 2
+                : 1.3,
           ),
           boxShadow: [
-            if (isSelected)
+            if (isChecked)
+              const BoxShadow(color: Color(0x66FFD700), blurRadius: 22),
+            if (isSelectable || isPlaceTarget || isSelected)
               const BoxShadow(color: Color(0x6600F0FF), blurRadius: 22),
             BoxShadow(
               color: (isEmz
