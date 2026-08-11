@@ -1,16 +1,27 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
-/// 顶部居中回合徽章（回合数 + 当前行动方）。
+/// 顶部居中回合徽章（回合数 + 当前行动方 + 剩余时间）。
 class PhaseBar extends StatelessWidget {
   final int turnCount;
   final bool isMyTurn;
+  final int leftTimeSeconds;
 
-  const PhaseBar({super.key, required this.turnCount, required this.isMyTurn});
+  const PhaseBar({
+    super.key,
+    required this.turnCount,
+    required this.isMyTurn,
+    this.leftTimeSeconds = 0,
+  });
+
+  String _formatTime(int totalSeconds) {
+    final m = totalSeconds ~/ 60;
+    final s = totalSeconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
-    // v10: .turn-chip —— 顶部居中悬浮胶囊（回合徽章 + 计时）。
     return SizedBox(
       height: 64,
       child: Center(child: _buildTurnChip()),
@@ -18,6 +29,10 @@ class PhaseBar extends StatelessWidget {
   }
 
   Widget _buildTurnChip() {
+    final showTimer = leftTimeSeconds > 0;
+    final urgent = leftTimeSeconds > 0 && leftTimeSeconds <= 30;
+    final timerColor = urgent ? const Color(0xFFFF4D4D) : const Color(0xFFFFD700);
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(999),
       child: BackdropFilter(
@@ -59,16 +74,18 @@ class PhaseBar extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 14),
-              const Text(
-                '⏱ 118s',
-                style: TextStyle(
-                  color: Color(0xFFFFD700),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Orbitron',
+              if (showTimer) ...[
+                const SizedBox(width: 14),
+                Text(
+                  '⏱ ${_formatTime(leftTimeSeconds)}',
+                  style: TextStyle(
+                    color: timerColor,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Orbitron',
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

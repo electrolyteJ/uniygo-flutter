@@ -214,6 +214,20 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
   }
 
   Widget _buildTopHud(bool isMyTurn) {
+    final mc = duelStore.myController;
+    final selfName = widget.players
+        .where((p) => p.pos == mc)
+        .map((p) => p.name)
+        .firstOrNull ?? '我方';
+    final oppName = widget.players
+        .where((p) => p.pos == 1 - mc)
+        .map((p) => p.name)
+        .firstOrNull ?? '对方';
+    // 当前回合玩家的剩余时间
+    final currentTurnPlayer = duelStore.currentPlayer;
+    final turnTimeLeft = currentTurnPlayer == mc
+        ? duelStore.selfTimeLeft
+        : duelStore.opponentTimeLeft;
     return Positioned(
       top: 0,
       left: 0,
@@ -241,7 +255,7 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   PlayerStatusCard(
-                    name: '海马濑人',
+                    name: oppName,
                     lp: duelStore.opponentLp,
                     lpDelta: duelStore.opponentLpDelta,
                     lpEventId: duelStore.opponentLpEventId,
@@ -261,10 +275,11 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
                   PhaseBar(
                     turnCount: duelStore.turnCount,
                     isMyTurn: isMyTurn,
+                    leftTimeSeconds: turnTimeLeft,
                   ),
                   const SizedBox(width: 16),
                   PlayerStatusCard(
-                    name: '武藤游戏',
+                    name: selfName,
                     lp: duelStore.selfLp,
                     lpDelta: duelStore.selfLpDelta,
                     lpEventId: duelStore.selfLpEventId,

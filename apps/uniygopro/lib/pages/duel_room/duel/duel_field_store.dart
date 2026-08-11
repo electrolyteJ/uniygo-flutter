@@ -58,6 +58,11 @@ class DuelFieldStore extends ChangeNotifier {
   DuelPhase phase = DuelPhase.idle;
   int turnCount = 0;
 
+  /// 回合剩余时间（秒），由 STOC_TIME_LIMIT 驱动。0=无限制。
+  int selfTimeLeft = 0;
+  int opponentTimeLeft = 0;
+  Timer? _timeLimitTimer;
+
   /// 己方引擎玩家编号（0/1），由 MSG_START 的 playerType 确定
   /// （低 nibble 0 = 引擎 0 号玩家 = 惯例先攻方）。房间座位号 ≠ 引擎编号，
   /// 不能从 selfPlayer.pos 推断。
@@ -1694,6 +1699,12 @@ bool get isWaitingForInput => currentSelect != null;
 
   /// 服务器原始消息入口：解码为 [DuelEvent] 后分发。
   void handleServerMessage(YgoStocMsg msg) {
+    // STOC_TIME_LIMIT 不在 GameMsg 内，单独处理
+    final timeLimit = msg.timeLimit;
+    if (timeLimit != null) {
+      _handleTimeLimit(timeLimit);
+      return;
+    }
     final gameMsg = msg.gameMsg;
     if (gameMsg == null || gameMsg.innerMsg == null) {
       console.log('No game message payload ${msg}');
@@ -2425,6 +2436,32 @@ bool get isWaitingForInput => currentSelect != null;
 
   void _handleBecomeTarget(MsgBecomeTarget msg) {
     addLog('${msg.count} 张卡成为效果对象。');
+  }
+
+  void _handleTimeLimit(StocTimeLimit msg) {
+    final left = msg.leftTime;
+    if (msg.player == myController) {
+      selfTimeLeft = left;
+    } else {
+      opponentTimeLeft = left;
+    }
+    _timeLimitTimer?.cancel();
+    if (left > 0) {
+      _timeLimitTimer = Timer.periodic(
+        const Duration(seconds: 1),
+        (_) {
+          if (msg.player == myController) {
+            if (selfTimeLeft > 0) selfTimeLeft--;
+          } else {
+            if (opponentTimeLeft > 0) opponentTimeLeft--;
+          }
+          if (selfTimeLeft <= 0 && opponentTimeLeft <= 0) {
+            _timeLimitTimer?.cancel();
+          }
+          notifyListeners();
+        },
+      );
+    }
   }
 
   void _handleSelectOption(dynamic data) {
