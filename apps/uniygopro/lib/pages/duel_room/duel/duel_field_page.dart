@@ -372,6 +372,36 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
   Widget _buildSelectModal(DuelFieldStore duelFieldStore, SelectState select) {
     final onInspectCard = duelFieldStore.inspectCard;
     switch (select.type) {
+      case SelectType.idleCmd:
+        return const SizedBox.shrink();
+      case SelectType.battleCmd:
+        return const SizedBox.shrink();
+      case SelectType.card:
+      case SelectType.tribute:
+        return CardSelector(
+          select: select,
+          onSelect: (sequences) => duelFieldStore.respondSelectCard(sequences),
+          onCancel: () => duelFieldStore.respondSelectCard([]),
+          onInspectCard: onInspectCard,
+        );
+      case SelectType.unselect:
+        return CardSelector(
+          select: select,
+          onSelect: (sequences) => duelFieldStore.respondSelectUnselectCard(
+            sequences.isEmpty ? null : sequences.first,
+          ),
+          onCancel: () => duelFieldStore.respondSelectUnselectCard(null),
+          onInspectCard: onInspectCard,
+        );
+      case SelectType.chain:
+        return CardSelector(
+          select: select,
+          onSelect: (sequences) => duelFieldStore.respondSelectChain(
+            sequences.isNotEmpty ? sequences.first : -1,
+          ),
+          onCancel: () => duelFieldStore.respondSelectChain(-1),
+          onInspectCard: onInspectCard,
+        );
       case SelectType.position:
         return PositionSelector(
           select: select,
@@ -409,6 +439,14 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
         return AnnounceCardDialog(
           onSearch: duelFieldStore.searchAnnounceCards,
           onSelect: duelFieldStore.respondAnnounceCard,
+          onInspectCard: onInspectCard,
+        );
+      case SelectType.sum:
+        return CardSelector(
+          select: select,
+          onSelect: (sequences) =>
+              duelFieldStore.respondSelectSum(sequences),
+          onCancel: () => duelFieldStore.respondSelectSum([]),
           onInspectCard: onInspectCard,
         );
       case SelectType.counter:
