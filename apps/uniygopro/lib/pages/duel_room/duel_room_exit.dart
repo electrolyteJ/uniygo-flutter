@@ -59,6 +59,7 @@ void backHome(BuildContext context, {bool surrenderOnExit = false}) {
   }
   duelRoomState.reset();
   duelFieldStore.reset();
+  duelChatStore.cancelChat();
   duelChatStore.reset();
   matchRoomStore.reset();
 }

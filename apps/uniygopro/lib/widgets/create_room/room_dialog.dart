@@ -5,8 +5,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../service_singleton.dart';
-
 Widget sheetContainer({required Widget child}) {
   // 用 Material 而非 DecoratedBox：ListTile 家族（ListTile/SwitchListTile/
   // ExpansionTile 等）会把背景与 ink 水波绘制在最近的 Material 祖先上，
@@ -23,7 +21,6 @@ Widget sheetContainer({required Widget child}) {
 /// 以居中弹窗（Dialog）展示建房/加入房间面板，替代底部弹窗。
 /// Dialog 背景透明，由内部 [sheetContainer] 提供实际背景与圆角。
 Future<T?> showRoomDialog<T>(BuildContext context, Widget child) {
-  ServiceSingleton.instance.uiSoundService.playDialogOpen();
   return showDialog<T>(
     context: context,
     barrierDismissible: true,
@@ -82,6 +79,7 @@ Widget connectButton({
   required String label,
   required bool connecting,
   required VoidCallback onPressed,
+  VoidCallback? onTapFeedback,
 }) {
   return SizedBox(
     height: 48,
@@ -90,7 +88,7 @@ Widget connectButton({
       onPressed: connecting
           ? null
           : () {
-              ServiceSingleton.instance.uiSoundService.playButtonTap();
+              onTapFeedback?.call();
               onPressed();
             },
       icon: connecting

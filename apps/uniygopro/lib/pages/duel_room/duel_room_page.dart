@@ -82,6 +82,21 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     duelRoomStore.bindRoomStageChange(context);
     duelFieldStore.bindServerMessage(context);
 
+    // 服务器聊天消息 → 聊天仓库（发送者名字按房间玩家列表解析）。
+    duelChatStore.bindChatServerMessages((msg) {
+      final chat = msg.chat;
+      if (chat != null) {
+        final player = duelRoomStore.players
+            .where((p) => p.pos == chat.player)
+            .toList();
+        final name = chat.player < 0
+            ? 'System'
+            : (player.isNotEmpty ? player.first.name : '[${chat.player}]');
+        duelChatStore.addChat(chat.player, name, chat.message);
+      }
+      duelChatStore.markChanged();
+    });
+
     // 房间玩家列表（用于日志文案中的玩家名）随房间阶段异步更新，
     // 通过监听 duelRoomStore 同步到对局仓库。
     duelRoomStore.addListener(_syncPlayersFromRoom);

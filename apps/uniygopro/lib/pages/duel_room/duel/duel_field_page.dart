@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:provider/provider.dart';
 
-import '../../../models/FieldCard.dart';
+import '../../../models/field_card.dart';
 import '../../../models/duel_menu.dart';
 import '../../../service_singleton.dart';
 import '../../../widgets/duel_room/overlay/chain_stack_overlay.dart';
@@ -29,7 +29,7 @@ import '../duel_room_exit.dart';
 import '../duel_room_store.dart';
 import 'duel_field_store.dart';
 import '../../../widgets/duel_room/menus/duel_field_popover_layout.dart';
-import '../../../models/SelectState.dart';
+import '../../../models/select_state.dart';
 import '../../../widgets/duel_room/overlay/card_selector.dart';
 import '../../../widgets/duel_room/overlay/confirm_cards_dialog.dart';
 import '../../../widgets/duel_room/overlay/announce_card_dialog.dart';

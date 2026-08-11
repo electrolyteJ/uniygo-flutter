@@ -1,4 +1,4 @@
-import 'FieldCard.dart';
+import 'field_card.dart';
 
 /// 场上卡槽 key（`controller_zone_sequence`）的编解码。
 /// 场上卡定位、就地选择高亮、槽位点击回调等跨层共用的 key 格式

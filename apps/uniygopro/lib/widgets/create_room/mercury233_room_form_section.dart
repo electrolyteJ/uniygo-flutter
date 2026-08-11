@@ -1,20 +1,24 @@
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
-import 'package:uniygopro/service_singleton.dart';
-import 'package:uniygopro/widgets/create_room/mercury233_room_spec.dart';
-import 'package:uniygopro/widgets/create_room/mercury233_room_string_codec.dart';
-import 'package:uniygopro/widgets/shared/create_room.dart';
+
+import '../../models/mercury233_room_spec.dart';
+import '../../models/mercury233_room_string_codec.dart';
+import 'room_dialog.dart';
 
 class Mercury233RoomFormSection extends StatefulWidget {
   final Mercury233RoomSpec spec;
   final String? errorText;
   final ValueChanged<Mercury233RoomSpec> onSpecChanged;
 
+  /// 禁限卡表选项加载（由业务侧提供数据源）；为空时使用内置默认选项。
+  final Future<List<Mercury233BanlistOption>> Function()? banlistOptionsLoader;
+
   const Mercury233RoomFormSection({
     super.key,
     required this.spec,
     required this.errorText,
     required this.onSpecChanged,
+    this.banlistOptionsLoader,
   });
 
   @override
@@ -67,17 +71,17 @@ class _Mercury233RoomFormSectionState extends State<Mercury233RoomFormSection> {
   }
 
   Future<void> _loadBanlistOptions() async {
+    final loader = widget.banlistOptionsLoader;
+    if (loader == null) return;
     try {
-      final tables = await ServiceSingleton.instance.dataService
-          .getAllLfTable();
+      final options = await loader();
       if (!mounted) return;
 
-      if (tables.isEmpty) {
+      if (options.isEmpty) {
         _scheduleBanlistRetry();
         return;
       }
 
-      final options = buildMercury233BanlistOptions(tables.values);
       final selected = _resolveBanlistOption(widget.spec.banlist, options);
       setState(() {
         _banlistOptions = options;

@@ -1,7 +1,7 @@
 import 'package:duelink/duelink.dart';
 
-import '../../../models/BattleAction.dart';
-import '../../../models/IdleAction.dart';
+import '../../../models/battle_action.dart';
+import '../../../models/idle_action.dart';
 import 'duel_field_store.dart';
 
 class PlaymatResolvedAction {

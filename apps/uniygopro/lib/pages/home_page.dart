@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../config/servers.dart';
 import '../service_singleton.dart';
-import '../widgets/shared/create_room.dart';
+import '../widgets/create_room/room_dialog.dart';
 import 'create_room/match_store.dart';
 import 'create_room/ai_room_sheet.dart';
 import 'create_room/free_room_sheet.dart';
@@ -89,6 +89,7 @@ class HomePage extends StatelessWidget {
 
   void _onServerTap(BuildContext context, GameServer server) {
     ServiceSingleton.instance.uiSoundService.playButtonTap();
+    ServiceSingleton.instance.uiSoundService.playDialogOpen();
     if (server.type == ServerType.puzzleRoom) {
       showRoomDialog(context, PuzzleRoomSheet(server: server));
     } else if (server.type == ServerType.aiRoom) {

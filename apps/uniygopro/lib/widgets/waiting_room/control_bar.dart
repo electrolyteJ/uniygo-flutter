@@ -1,8 +1,6 @@
-import 'dart:developer' as console;
-
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart';
-import '../shared/waiting_room.dart';
+import 'automation_switch.dart';
 class ControlBar extends StatelessWidget {
   final bool isHost;
   final PlayerType selfType;

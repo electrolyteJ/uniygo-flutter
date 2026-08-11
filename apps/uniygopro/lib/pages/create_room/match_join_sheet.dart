@@ -7,9 +7,10 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:uniygopro/widgets/create_room/password_field.dart';
 import '../../config/servers.dart';
+import '../../service_singleton.dart';
 import '../../services/match_service.dart';
 import 'match_store.dart';
-import '../../widgets/shared/create_room.dart';
+import '../../widgets/create_room/room_dialog.dart';
 
 class MatchJoinSheet extends StatefulWidget {
   final GameServer server;
@@ -114,6 +115,8 @@ class _MatchJoinSheetState extends State<MatchJoinSheet> {
             connectButton(
               label: '开始匹配',
               connecting: _connecting,
+              onTapFeedback:
+                  ServiceSingleton.instance.uiSoundService.playButtonTap,
               onPressed: () => _join(context),
             ),
           ],

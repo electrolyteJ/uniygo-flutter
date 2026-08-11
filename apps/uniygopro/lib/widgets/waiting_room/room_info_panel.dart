@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:duelink/duelink.dart';
-import 'package:ygo_data/lf_table.dart';
-import '../../pages/duel_room/waiting/banlist_detail_dialog.dart';
+import 'package:duelink/duelink.dart' hide CardInfo;
+import 'package:ygo_data/ygo_data.dart' show CardInfo, LfTable;
+import 'banlist_detail_dialog.dart';
 
 class RoomInfoPanel extends StatelessWidget {
   final RoomOptions opts;
   final LfTable? lfTable;
+  final Future<CardInfo?> Function(int code) cardLoader;
 
-  const RoomInfoPanel({super.key, required this.opts, this.lfTable});
+  const RoomInfoPanel({
+    super.key,
+    required this.opts,
+    this.lfTable,
+    required this.cardLoader,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +60,11 @@ class RoomInfoPanel extends StatelessWidget {
             text: '禁限卡表: ${lfTable?.name ?? "不限制"}',
             enabled: lfTable != null,
             onTap: lfTable != null
-                ? () => BanlistDetailDialog.show(context, lfTable: lfTable!)
+                ? () => BanlistDetailDialog.show(
+                    context,
+                    lfTable: lfTable!,
+                    cardLoader: cardLoader,
+                  )
                 : null,
           ),
           _infoRow(Icons.check_circle, '检查卡组: ${opts.noCheckDeck ? "否" : "是"}'),

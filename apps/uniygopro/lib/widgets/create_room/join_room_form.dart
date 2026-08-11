@@ -2,21 +2,25 @@
 
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
-import 'package:uniygopro/widgets/create_room/password_field.dart';
 
 import '../../config/servers.dart';
-import '../../pages/create_room/match_store.dart';
-import '../shared/create_room.dart';
+import 'password_field.dart';
+import '../create_room/room_dialog.dart';
 
 class JoinRoomForm extends StatefulWidget {
-  final GameServer server;
   final DuelEnvironment env;
+
+  /// 加入成功后业务侧写 MatchStore + 跳转的回调（入参为已编码密码）。
+  final ValueChanged<String> onJoin;
+
+  /// 按钮点击反馈（如音效），由业务侧注入。
+  final VoidCallback? onTapFeedback;
+
   const JoinRoomForm({
     super.key,
-    required this.server,
     required this.env,
+    required this.onJoin,
+    this.onTapFeedback,
   });
 
   @override
@@ -42,9 +46,7 @@ class _JoinRoomFormState extends State<JoinRoomForm> {
     super.dispose();
   }
 
-  Future<void> _join(BuildContext context) async {
-    final matchStore = context.read<MatchStore>();
-    final server = widget.server;
+  void _join() {
     final env = widget.env;
 
     // AI 本地人机对战：无需密码，直接进入（密码内容被 AiConnection 忽略）
@@ -53,9 +55,7 @@ class _JoinRoomFormState extends State<JoinRoomForm> {
         _connecting = true;
         _error = null;
       });
-      matchStore.selectServer(server, env, RoomPassword.encodeJoin());
-      Navigator.of(context).pop();
-      if (context.mounted) context.go('/duel-room');
+      widget.onJoin(RoomPassword.encodeJoin());
       return;
     }
 
@@ -76,9 +76,7 @@ class _JoinRoomFormState extends State<JoinRoomForm> {
         : env.useEncodedPassword
         ? RoomPassword.encodeJoin(roomId: pw, secret: 0)
         : pw;
-    matchStore.selectServer(server, env, password);
-    Navigator.of(context).pop();
-    if (context.mounted) context.go('/duel-room');
+    widget.onJoin(password);
   }
 
   @override
@@ -96,7 +94,8 @@ class _JoinRoomFormState extends State<JoinRoomForm> {
           connectButton(
             label: '开始人机对战',
             connecting: _connecting,
-            onPressed: () => _join(context),
+            onTapFeedback: widget.onTapFeedback,
+            onPressed: _join,
           ),
         ],
       );
@@ -113,7 +112,7 @@ class _JoinRoomFormState extends State<JoinRoomForm> {
                 ? '例如 M#房名 或 OT,MR5#房名'
                 : null,
             icon: Icons.lock,
-            onSubmitted: (_) => _join(context),
+            onSubmitted: (_) => _join(),
           ),
           if (_error != null)
             Padding(
@@ -127,7 +126,8 @@ class _JoinRoomFormState extends State<JoinRoomForm> {
           connectButton(
             label: '加入房间',
             connecting: _connecting,
-            onPressed: () => _join(context),
+            onTapFeedback: widget.onTapFeedback,
+            onPressed: _join,
           ),
         ],
       ),

@@ -1,12 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:ygo_data/card_info.dart';
 import '../../models/deck_model.dart';
-import '../../pages/deck_editor/deck_editor_store.dart';
 import 'deck_zone_widget.dart';
 
 class DeckEditPanel extends StatefulWidget {
-  const DeckEditPanel({super.key});
+  final EditingDeck deck;
+  final VoidCallback onShuffle;
+  final VoidCallback onSort;
+  final VoidCallback onClear;
+  final String Function(int code) cardImageUrlOf;
+  final String? Function(CardInfo card) banlistStatusOf;
+  final void Function(CardInfo card, {String? targetZone}) onAddCard;
+  final void Function(String zone, CardInfo card) onRemoveCard;
+
+  const DeckEditPanel({
+    super.key,
+    required this.deck,
+    required this.onShuffle,
+    required this.onSort,
+    required this.onClear,
+    required this.cardImageUrlOf,
+    required this.banlistStatusOf,
+    required this.onAddCard,
+    required this.onRemoveCard,
+  });
 
   @override
   State<DeckEditPanel> createState() => _DeckEditPanelState();
@@ -34,8 +51,7 @@ class _DeckEditPanelState extends State<DeckEditPanel>
   }
 
   void _pushSnapshot() {
-    final deck = context.read<DeckEditorStore>().editingDeck;
-    _undoStack.add(_DeckSnapshot.fromDeck(deck));
+    _undoStack.add(_DeckSnapshot.fromDeck(widget.deck));
     if (_undoStack.length > _maxHistory) {
       _undoStack.removeAt(0);
     }
@@ -44,8 +60,7 @@ class _DeckEditPanelState extends State<DeckEditPanel>
 
   @override
   Widget build(BuildContext context) {
-    final store = context.watch<DeckEditorStore>();
-    final deck = store.editingDeck;
+    final deck = widget.deck;
 
     return Container(
       decoration: const BoxDecoration(
@@ -60,16 +75,28 @@ class _DeckEditPanelState extends State<DeckEditPanel>
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: const [
-                DeckZoneWidget(type: DeckZoneType.main),
-                DeckZoneWidget(type: DeckZoneType.extra),
-                DeckZoneWidget(type: DeckZoneType.side),
+              children: [
+                _buildZone(DeckZoneType.main, deck.main),
+                _buildZone(DeckZoneType.extra, deck.extra),
+                _buildZone(DeckZoneType.side, deck.side),
               ],
             ),
           ),
-          _buildActionBar(store, deck),
+          _buildActionBar(deck),
         ],
       ),
+    );
+  }
+
+  Widget _buildZone(DeckZoneType type, List<CardInfo> cards) {
+    return DeckZoneWidget(
+      type: type,
+      cards: cards,
+      cardImageUrlOf: widget.cardImageUrlOf,
+      banlistStatusOf: widget.banlistStatusOf,
+      onAcceptCard: (card, zone) =>
+          widget.onAddCard(card, targetZone: zone),
+      onRemoveCard: widget.onRemoveCard,
     );
   }
 
@@ -95,7 +122,7 @@ class _DeckEditPanelState extends State<DeckEditPanel>
     );
   }
 
-  Widget _buildActionBar(DeckEditorStore store, EditingDeck deck) {
+  Widget _buildActionBar(EditingDeck deck) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: const BoxDecoration(
@@ -109,24 +136,24 @@ class _DeckEditPanelState extends State<DeckEditPanel>
           _DeckAction(
             icon: Icons.shuffle,
             label: '洗切',
-            onTap: deck.totalCount > 0 ? () => store.shuffleDeck() : null,
+            onTap: deck.totalCount > 0 ? widget.onShuffle : null,
           ),
           _DeckAction(
             icon: Icons.sort_by_alpha,
             label: '排序',
-            onTap: deck.totalCount > 0 ? () => store.sortDeck() : null,
+            onTap: deck.totalCount > 0 ? widget.onSort : null,
           ),
           _DeckAction(
             icon: Icons.delete_outline,
             label: '清空',
-            onTap: deck.totalCount > 0 ? () => _confirmClear(store) : null,
+            onTap: deck.totalCount > 0 ? _confirmClear : null,
           ),
         ],
       ),
     );
   }
 
-  void _confirmClear(DeckEditorStore store) {
+  void _confirmClear() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -140,7 +167,7 @@ class _DeckEditPanelState extends State<DeckEditPanel>
           FilledButton(
             onPressed: () {
               _pushSnapshot();
-              store.clearDeck();
+              widget.onClear();
               Navigator.pop(context);
             },
             style: FilledButton.styleFrom(

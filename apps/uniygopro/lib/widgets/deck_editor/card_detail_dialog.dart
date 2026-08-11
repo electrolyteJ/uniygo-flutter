@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:ygo_data/card_info.dart';
-import '../../pages/deck_editor/deck_editor_store.dart';
 
 /// 卡牌详情弹窗
 /// 支持显示卡牌完整信息、禁限状态、添加到卡组
@@ -9,12 +7,16 @@ class CardDetailDialog extends StatelessWidget {
   final CardInfo card;
   final bool showAddButton;
   final String? defaultZone;
+  final String? banlistStatus;
+  final String? imageUrl;
 
   const CardDetailDialog({
     super.key,
     required this.card,
     this.showAddButton = true,
     this.defaultZone,
+    this.banlistStatus,
+    this.imageUrl,
   });
 
   /// 显示卡牌详情弹窗
@@ -23,6 +25,8 @@ class CardDetailDialog extends StatelessWidget {
     required CardInfo card,
     bool showAddButton = true,
     String? defaultZone,
+    String? banlistStatus,
+    String? imageUrl,
   }) {
     return showDialog(
       context: context,
@@ -30,6 +34,8 @@ class CardDetailDialog extends StatelessWidget {
         card: card,
         showAddButton: showAddButton,
         defaultZone: defaultZone,
+        banlistStatus: banlistStatus,
+        imageUrl: imageUrl,
       ),
     );
   }
@@ -37,15 +43,9 @@ class CardDetailDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    DeckEditorStore? store;
-    try {
-      store = Provider.of<DeckEditorStore>(context, listen: false);
-    } catch (_) {
-      store = null;
-    }
-    final banlistStatus = store?.getBanlistStatus(card);
+    final banlistStatus = this.banlistStatus;
     final imageUrl =
-        store?.getCardImageUrl(card.code) ??
+        this.imageUrl ??
         'https://cdn02.moecube.com:444/images/ygopro-images-zh-CN/${card.code}.jpg';
     final screenSize = MediaQuery.of(context).size;
     final isSmallScreen = screenSize.width < 600;

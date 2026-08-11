@@ -1,16 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:ygo_data/deck_info.dart';
-import '../../pages/deck_editor/deck_editor_store.dart';
 
 class DeckListPanel extends StatelessWidget {
-  const DeckListPanel({super.key});
+  final List<DeckInfo> decks;
+  final String? currentDeckName;
+  final bool isLocked;
+  final void Function(String name) onSelectDeck;
+  final void Function(String name) onCreateDeck;
+  final void Function(String name) onDeleteDeck;
+
+  const DeckListPanel({
+    super.key,
+    required this.decks,
+    required this.currentDeckName,
+    required this.isLocked,
+    required this.onSelectDeck,
+    required this.onCreateDeck,
+    required this.onDeleteDeck,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final store = context.watch<DeckEditorStore>();
-    final isLocked = store.lockDeckSelection;
-
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF2A3A4A),
@@ -56,18 +66,18 @@ class DeckListPanel extends StatelessWidget {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              itemCount: store.decks.length,
+              itemCount: decks.length,
               itemBuilder: (context, index) {
-                final deck = store.decks[index];
+                final deck = decks[index];
                 return _DeckListItem(
                   deck: deck,
-                  isSelected: store.currentDeck?.deckName == deck.deckName,
+                  isSelected: currentDeckName == deck.deckName,
                   onTap: isLocked
                       ? null
-                      : () => store.selectDeck(deck.deckName),
+                      : () => onSelectDeck(deck.deckName),
                   onDelete: isLocked
                       ? null
-                      : () => _confirmDelete(context, store, deck),
+                      : () => _confirmDelete(context, deck),
                 );
               },
             ),
@@ -106,7 +116,7 @@ class DeckListPanel extends StatelessWidget {
             onPressed: () {
               final name = controller.text.trim();
               if (name.isNotEmpty) {
-                context.read<DeckEditorStore>().createDeck(name);
+                onCreateDeck(name);
                 Navigator.pop(context);
               }
             },
@@ -123,7 +133,6 @@ class DeckListPanel extends StatelessWidget {
 
   void _confirmDelete(
     BuildContext context,
-    DeckEditorStore store,
     DeckInfo deck,
   ) {
     showDialog(
@@ -139,7 +148,7 @@ class DeckListPanel extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () {
-              store.deleteDeck(deck.deckName);
+              onDeleteDeck(deck.deckName);
               Navigator.pop(context);
             },
             style: FilledButton.styleFrom(

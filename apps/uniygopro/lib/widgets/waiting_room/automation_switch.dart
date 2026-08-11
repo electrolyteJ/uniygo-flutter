@@ -1,8 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-import '../../service_singleton.dart';
-
 Widget buildAutomationSwitch({
   required String label,
   required bool value,
@@ -39,17 +37,7 @@ Widget buildAutomationSwitch({
       const SizedBox(width: 4),
       Switch(
         value: value,
-        onChanged: enabled
-            ? (v) {
-                final sound = ServiceSingleton.instance.uiSoundService;
-                if (v) {
-                  sound.playToggleOn();
-                } else {
-                  sound.playToggleOff();
-                }
-                onChanged(v);
-              }
-            : null,
+        onChanged: enabled ? onChanged : null,
         thumbColor: thumbColor,
         trackColor: trackColor,
         overlayColor: overlayColor,

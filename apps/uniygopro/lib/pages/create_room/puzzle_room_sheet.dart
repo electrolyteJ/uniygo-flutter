@@ -9,7 +9,7 @@ import 'package:provider/provider.dart';
 
 import '../../config/servers.dart';
 import '../../service_singleton.dart';
-import '../../widgets/shared/create_room.dart';
+import '../../widgets/create_room/room_dialog.dart';
 import 'match_store.dart';
 
 /// 残局房面板 — 列出 vendor/Puzzles 残局合集，选择后进入本地残局对局。

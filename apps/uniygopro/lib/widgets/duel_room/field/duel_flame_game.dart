@@ -1,7 +1,7 @@
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
-import '../../../models/FieldCard.dart';
+import '../../../models/field_card.dart';
 import '../../../pages/duel_room/duel/duel_field_store.dart';
 import 'playmat_anchor_data.dart';
 import 'duel_field_world.dart';

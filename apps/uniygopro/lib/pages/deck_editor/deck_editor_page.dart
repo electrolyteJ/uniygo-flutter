@@ -37,6 +37,7 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final store = context.watch<DeckEditorStore>();
 
     final canPop = Navigator.of(context).canPop();
     return PopScope<Object?>(
@@ -59,48 +60,89 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
           backgroundColor: Colors.blueGrey.shade800,
           foregroundColor: Colors.white,
         ),
-        body: _buildResponsiveLayout(theme),
+        body: _buildResponsiveLayout(theme, store),
       ),
     );
   }
 
-  Widget _buildResponsiveLayout(ThemeData theme) {
+  Widget _buildResponsiveLayout(ThemeData theme, DeckEditorStore store) {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 600) {
-          return _buildMobileLayout(theme);
+          return _buildMobileLayout(theme, store);
         } else {
-          return _buildDesktopLayout(theme);
+          return _buildDesktopLayout(theme, store);
         }
       },
     );
   }
 
   // ── 桌面版布局 ──
-  Widget _buildDesktopLayout(ThemeData theme) {
+  Widget _buildDesktopLayout(ThemeData theme, DeckEditorStore store) {
     return Row(
       children: [
         // 左侧：卡组列表 (240px)
-        const SizedBox(width: 240, child: DeckListPanel()),
+        SizedBox(
+          width: 240,
+          child: DeckListPanel(
+            decks: store.decks,
+            currentDeckName: store.currentDeck?.deckName,
+            isLocked: store.lockDeckSelection,
+            onSelectDeck: store.selectDeck,
+            onCreateDeck: store.createDeck,
+            onDeleteDeck: store.deleteDeck,
+          ),
+        ),
         // 中间：搜索 + 结果
-        Expanded(child: _buildMainContent(theme)),
+        Expanded(child: _buildMainContent(theme, store)),
         // 右侧：卡组编辑区 (380px)
-        const SizedBox(width: 380, child: DeckEditPanel()),
+        SizedBox(
+          width: 380,
+          child: DeckEditPanel(
+            deck: store.editingDeck,
+            onShuffle: store.shuffleDeck,
+            onSort: store.sortDeck,
+            onClear: store.clearDeck,
+            cardImageUrlOf: store.getCardImageUrl,
+            banlistStatusOf: store.getBanlistStatus,
+            onAddCard: store.addCard,
+            onRemoveCard: store.removeCard,
+          ),
+        ),
       ],
     );
   }
 
+  Widget _buildSearchBar(DeckEditorStore store) {
+    return CardSearchBar(
+      onSearch: store.searchCards,
+      isGridView: store.isGridView,
+      onToggleViewMode: store.toggleViewMode,
+      availableBanlists: store.availableBanlists,
+      selectedBanlist: store.selectedBanlist,
+      selectedBanlistHash: store.selectedBanlistHash,
+      onSelectBanlist: store.selectBanlist,
+      isLoadingBanlists: store.isLoadingBanlists,
+      currentEnvironmentCode: store.currentEnvironmentCode,
+      onSetEnvironment: store.setEnvironment,
+      filter: store.filter,
+      onUpdateFilter: store.updateFilter,
+      onResetFilters: store.resetSearchFilters,
+      cardLoader: ServiceSingleton.instance.dataService.getCard,
+    );
+  }
+
   // ── 主内容区 ──
-  Widget _buildMainContent(ThemeData theme) {
+  Widget _buildMainContent(ThemeData theme, DeckEditorStore store) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // 顶部栏
         _buildAppBar(theme),
         // 搜索栏
-        const CardSearchBar(),
+        _buildSearchBar(store),
         // 搜索结果
-        Expanded(child: _buildSearchResults()),
+        Expanded(child: _buildSearchResults(store)),
       ],
     );
   }
@@ -132,46 +174,54 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
   }
 
   // ── 搜索结果 ──
-  Widget _buildSearchResults() {
-    return Consumer<DeckEditorStore>(
-      builder: (context, store, child) {
-        if (store.searchResults.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.search,
-                  size: 48,
-                  color: Colors.white.withValues(alpha: 0.3),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '输入关键词搜索卡牌',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
+  Widget _buildSearchResults(DeckEditorStore store) {
+    if (store.searchResults.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search,
+              size: 48,
+              color: Colors.white.withValues(alpha: 0.3),
             ),
+            const SizedBox(height: 16),
+            Text(
+              '输入关键词搜索卡牌',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return store.isGridView
+        ? CardGridView(
+            cards: store.searchResults,
+            banlistStatusOf: store.getBanlistStatus,
+            cardImageUrlOf: store.getCardImageUrl,
+            onAddCard: store.addCard,
+          )
+        : CardListView(
+            cards: store.searchResults,
+            banlistStatusOf: store.getBanlistStatus,
+            cardImageUrlOf: store.getCardImageUrl,
+            onAddCard: store.addCard,
           );
-        }
-        return store.isGridView ? const CardGridView() : const CardListView();
-      },
-    );
   }
 
   // ── 手机版布局 ──
-  Widget _buildMobileLayout(ThemeData theme) {
+  Widget _buildMobileLayout(ThemeData theme, DeckEditorStore store) {
     return Column(
       children: [
         // 顶部栏
         _buildMobileAppBar(theme),
         // 搜索栏
-        const CardSearchBar(),
+        _buildSearchBar(store),
         // 搜索结果
-        Expanded(child: _buildSearchResults()),
+        Expanded(child: _buildSearchResults(store)),
         // 底部卡组信息栏
         _buildMobileDeckBar(theme),
       ],

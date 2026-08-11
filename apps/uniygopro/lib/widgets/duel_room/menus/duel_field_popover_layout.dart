@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/rendering.dart';
 
-import '../../../models/FieldCard.dart';
+import '../../../models/field_card.dart';
 
 String fieldSlotId(FieldCard fieldCard) {
   return '${fieldCard.controller}_${fieldCard.zone}_${fieldCard.sequence}';

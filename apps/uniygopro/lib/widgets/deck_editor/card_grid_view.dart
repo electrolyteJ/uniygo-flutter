@@ -1,18 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:ygo_data/card_info.dart';
-import '../../pages/deck_editor/deck_editor_store.dart';
 import 'banlist_status_badge.dart';
 import 'card_detail_dialog.dart';
 
 class CardGridView extends StatelessWidget {
-  const CardGridView({super.key});
+  final List<CardInfo> cards;
+  final String? Function(CardInfo card) banlistStatusOf;
+  final String Function(int code) cardImageUrlOf;
+  final void Function(CardInfo card) onAddCard;
+
+  const CardGridView({
+    super.key,
+    required this.cards,
+    required this.banlistStatusOf,
+    required this.cardImageUrlOf,
+    required this.onAddCard,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final store = context.watch<DeckEditorStore>();
     final theme = Theme.of(context);
-    final cards = store.searchResults;
 
     if (cards.isEmpty) {
       return Center(
@@ -47,7 +54,12 @@ class CardGridView extends StatelessWidget {
       itemCount: cards.length,
       itemBuilder: (context, index) {
         final card = cards[index];
-        return _CardGridItem(card: card);
+        return _CardGridItem(
+          card: card,
+          banlistStatusOf: banlistStatusOf,
+          cardImageUrlOf: cardImageUrlOf,
+          onAddCard: onAddCard,
+        );
       },
     );
   }
@@ -55,15 +67,22 @@ class CardGridView extends StatelessWidget {
 
 class _CardGridItem extends StatelessWidget {
   final CardInfo card;
+  final String? Function(CardInfo card) banlistStatusOf;
+  final String Function(int code) cardImageUrlOf;
+  final void Function(CardInfo card) onAddCard;
 
-  const _CardGridItem({required this.card});
+  const _CardGridItem({
+    required this.card,
+    required this.banlistStatusOf,
+    required this.cardImageUrlOf,
+    required this.onAddCard,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final store = context.watch<DeckEditorStore>();
     final theme = Theme.of(context);
-    final banlistStatus = store.getBanlistStatus(card);
-    final imageUrl = store.getCardImageUrl(card.code);
+    final banlistStatus = banlistStatusOf(card);
+    final imageUrl = cardImageUrlOf(card.code);
 
     return LongPressDraggable<CardInfo>(
       data: card,
@@ -99,10 +118,16 @@ class _CardGridItem extends StatelessWidget {
       },
       child: InkWell(
         onTap: () {
-          store.addCard(card);
+          onAddCard(card);
         },
         onDoubleTap: () {
-          CardDetailDialog.show(context, card: card, showAddButton: false);
+          CardDetailDialog.show(
+            context,
+            card: card,
+            showAddButton: false,
+            banlistStatus: banlistStatus,
+            imageUrl: imageUrl,
+          );
         },
         borderRadius: BorderRadius.circular(8),
         child: _buildCardContent(context, theme, banlistStatus, imageUrl),

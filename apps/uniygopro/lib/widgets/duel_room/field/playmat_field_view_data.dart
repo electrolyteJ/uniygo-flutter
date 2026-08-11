@@ -1,4 +1,4 @@
-import '../../../models/FieldCard.dart';
+import '../../../models/field_card.dart';
 
 /// 场地渲染模式：Flutter widget 原型版 / Flame 3D 版。
 enum PlaymatRenderMode { prototype, flame }

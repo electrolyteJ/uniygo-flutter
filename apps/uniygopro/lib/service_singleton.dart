@@ -5,11 +5,11 @@ import 'package:duelink_socket/duelink_socket.dart' show SocketDuelService;
 import 'package:duelink_websocket/duelink_websocket.dart'
     show WebSocketDuelService;
 import 'package:service_loader/service_loader.dart';
-import 'package:uniygopro/services/YgoDataService.dart';
+import 'package:uniygopro/services/ygo_data_service.dart';
 import 'package:ygo_card_baige/ygo_card_baige.dart';
 import 'package:ygo_data/ygo_data.dart';
 import 'package:ygo_deck_mycard/ygo_deck_mycard.dart';
-import 'services/DuelService.dart';
+import 'services/duel_service.dart';
 import 'services/ui_sound_service.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 class ServiceSingleton {

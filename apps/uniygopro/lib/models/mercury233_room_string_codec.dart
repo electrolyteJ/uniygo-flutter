@@ -1,5 +1,5 @@
 import 'package:duelink/duelink.dart';
-import 'package:uniygopro/widgets/create_room/mercury233_room_spec.dart';
+import 'mercury233_room_spec.dart';
 
 class Mercury233RoomStringResult {
   final String value;

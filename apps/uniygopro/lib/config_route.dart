@@ -1,7 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:uniygopro/pages/duel_room/duel_room_page.dart';
 import 'package:uniygopro/pages/duel_room/duel_result_page.dart';
-import 'package:uniygopro/models/DuelResultSummary.dart';
+import 'package:uniygopro/models/duel_result_summary.dart';
 import 'pages/home_page.dart';
 import 'pages/create_room/match_page.dart';
 import 'pages/side/side_page.dart';

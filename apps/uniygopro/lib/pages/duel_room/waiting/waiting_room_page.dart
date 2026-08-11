@@ -1,6 +1,6 @@
-import 'dart:developer' as console;
-
+import 'package:duelink/duelink.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:ygo_data/lf_table.dart';
 
@@ -9,21 +9,94 @@ import '../../../widgets/waiting_room/control_bar.dart';
 import '../../../widgets/waiting_room/player_panel.dart';
 import '../../../widgets/waiting_room/room_info_panel.dart';
 import '../duel_room_store.dart';
+import '../../deck_editor/deck_editor_session.dart';
+import '../../../service_singleton.dart';
+import 'duel_chat_store.dart';
 
 class WaitingRoomPage extends StatelessWidget {
   const WaitingRoomPage({super.key});
 
+  void _onToggleAutomation(bool value, ValueChanged<bool> action) {
+    final sound = ServiceSingleton.instance.uiSoundService;
+    if (value) {
+      sound.playToggleOn();
+    } else {
+      sound.playToggleOff();
+    }
+    action(value);
+  }
+
+  /// 编辑当前所选卡组：打开卡组编辑器，保存后刷新卡组校验。
+  Future<void> _onEditDeck(
+    BuildContext context,
+    DuelRoomStore duelRoomStore,
+  ) async {
+    final result = await context.push<DeckEditorSaveResult?>(
+      '/deck-editor',
+      extra: DeckEditorRouteArgs(
+        initialDeckName: duelRoomStore.selectedDeckName,
+        validationContext: duelRoomStore.roomOptions == null
+            ? null
+            : DeckValidationContext(
+                noCheckDeck: duelRoomStore.roomOptions!.noCheckDeck,
+                lfTableHash: duelRoomStore.roomOptions!.lfTableHash,
+              ),
+        lockDeckSelection: true,
+        lockDeckName: true,
+      ),
+    );
+    if (context.mounted && (result?.saved ?? false)) {
+      await duelRoomStore.refreshSelectedDeckValidation(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final duelRoomStore = context.watch<DuelRoomStore>();
+    final duelChatStore = context.watch<DuelChatStore>();
     final opts = duelRoomStore.roomOptions;
     final mySlotVal = duelRoomStore.selfType.slot;
+    final stage = duelRoomStore.stage;
+    final showHandResults = stage is RoomSelectingHand ||
+        stage is RoomHandResult ||
+        stage is RoomSelectingTurn;
     return Column(
       children: [
         Expanded(
           child: Row(
             children: [
-              Expanded(flex: 3, child: PlayerPanel(mySlot: mySlotVal)),
+              Expanded(
+                flex: 3,
+                child: PlayerPanel(
+                  mySlot: mySlotVal,
+                  players: duelRoomStore.players,
+                  showHandResults: showHandResults,
+                  isSelectingHand: stage is RoomSelectingHand,
+                  isSelectingTurn: stage is RoomSelectingTurn,
+                  myHandResult: duelRoomStore.myHandResult,
+                  opponentHandResult: duelRoomStore.opponentHandResult,
+                  isHost: duelRoomStore.isHost,
+                  onKick: duelRoomStore.kickPlayer,
+                  deckSelectionEnabled: !duelRoomStore.isSelfReady,
+                  decks: duelRoomStore.availableDecks,
+                  selectedDeckName: duelRoomStore.selectedDeckName,
+                  onSelectDeck: (value) {
+                    if (value != null) {
+                      duelRoomStore.selectDeck(context, value);
+                    }
+                  },
+                  onEditDeck: duelRoomStore.selectedDeckName == null
+                      ? null
+                      : () => _onEditDeck(context, duelRoomStore),
+                  deckInvalidationResult:
+                      duelRoomStore.invalidationDeckResult,
+                  handSelectEnabled: !duelRoomStore.autoHandEnabled,
+                  onSendHand: duelRoomStore.sendHand,
+                  turnSelectEnabled: !duelRoomStore.autoTurnOrderEnabled,
+                  onSendTp: duelRoomStore.sendTp,
+                  observerCount: duelRoomStore.observerCount,
+                ),
+              ),
               Expanded(
                 flex: 4,
                 child: Column(
@@ -35,10 +108,16 @@ class WaitingRoomPage extends StatelessWidget {
                           return RoomInfoPanel(
                             opts: opts,
                             lfTable: snapshot.data,
+                            cardLoader: ServiceSingleton.instance.dataService.getCard,
                           );
                         },
                       ),
-                    Expanded(child: ChatPanel()),
+                    Expanded(
+                      child: ChatPanel(
+                        messages: duelChatStore.chatMessages,
+                        onSend: duelChatStore.sendChat,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -54,9 +133,9 @@ class WaitingRoomPage extends StatelessWidget {
           autoTurnOrderEnabled: duelRoomStore.autoTurnOrderEnabled,
           autoDuelEnabled: duelRoomStore.autoDuelEnabled,
           toggleReady: duelRoomStore.toggleReady,
-          onToggleAutoHand: duelRoomStore.setAutoHandEnabled,
-          onToggleAutoTurnOrder: duelRoomStore.setAutoTurnOrderEnabled,
-          onToggleAutoDuel: duelRoomStore.setAutoDuelEnabled,
+          onToggleAutoHand: (v) => _onToggleAutomation(v, duelRoomStore.setAutoHandEnabled),
+          onToggleAutoTurnOrder: (v) => _onToggleAutomation(v, duelRoomStore.setAutoTurnOrderEnabled),
+          onToggleAutoDuel: (v) => _onToggleAutomation(v, duelRoomStore.setAutoDuelEnabled),
           onStartDuel: duelRoomStore.startDuel,
           onBecomeDuelist: duelRoomStore.becomeDuelist,
           onBecomeObserver: duelRoomStore.becomeObserver,

@@ -2,22 +2,54 @@
 
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
-import 'package:uniygopro/widgets/create_room/password_field.dart';
-import 'package:uniygopro/widgets/create_room/mercury233_room_form_section.dart';
-import 'package:uniygopro/widgets/create_room/mercury233_room_spec.dart';
-import 'package:uniygopro/widgets/create_room/mercury233_room_string_codec.dart';
-import 'package:uniygopro/widgets/create_room/room_history_list.dart';
-import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
+
 import '../../config/servers.dart';
-import '../../pages/create_room/match_store.dart';
-import '../../pages/create_room/room_history.dart';
-import '../shared/create_room.dart';
+import '../../models/created_room_record.dart';
+import '../../models/mercury233_room_spec.dart';
+import '../../models/mercury233_room_string_codec.dart';
+import 'password_field.dart';
+import 'mercury233_room_form_section.dart';
+import 'room_history_list.dart';
+import '../create_room/room_dialog.dart';
+
+/// 创建成功后业务侧写 MatchStore + 跳转的回调。
+typedef EnterRoomCallback = void Function({
+  required RoomOptions options,
+  required String roomName,
+  required String password,
+});
 
 class CreateRoomForm extends StatefulWidget {
-  final GameServer server;
   final DuelEnvironment env;
-  const CreateRoomForm({super.key, required this.server, required this.env});
+
+  /// 加载历史记录（由业务侧提供持久化实现）。
+  final Future<List<CreatedRoomRecord>> Function() historyLoader;
+
+  /// 保存/置顶一条历史记录。
+  final Future<void> Function(CreatedRoomRecord record) onSaveRecord;
+
+  /// 删除一条历史记录。
+  final Future<void> Function(CreatedRoomRecord record) onDeleteRecord;
+
+  /// 创建成功后的业务动作（写 MatchStore + 导航）。
+  final EnterRoomCallback onEnterRoom;
+
+  /// 禁限卡表加载（由业务侧提供数据源）。
+  final Future<List<Mercury233BanlistOption>> Function()? banlistOptionsLoader;
+
+  /// 按钮点击反馈（如音效），由业务侧注入。
+  final VoidCallback? onTapFeedback;
+
+  const CreateRoomForm({
+    super.key,
+    required this.env,
+    required this.historyLoader,
+    required this.onSaveRecord,
+    required this.onDeleteRecord,
+    required this.onEnterRoom,
+    this.banlistOptionsLoader,
+    this.onTapFeedback,
+  });
 
   @override
   State<CreateRoomForm> createState() => _CreateRoomFormState();
@@ -53,12 +85,12 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
   }
 
   Future<void> _loadHistory() async {
-    final records = await RoomHistoryStore.load();
+    final records = await widget.historyLoader();
     if (mounted) setState(() => _history = records);
   }
 
   Future<void> _saveRecord(CreatedRoomRecord record) async {
-    await RoomHistoryStore.add(record);
+    await widget.onSaveRecord(record);
     await _loadHistory();
   }
 
@@ -113,7 +145,7 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
   }
 
   Future<void> _deleteFromHistory(CreatedRoomRecord record) async {
-    await RoomHistoryStore.remove(record);
+    await widget.onDeleteRecord(record);
     await _loadHistory();
   }
 
@@ -208,18 +240,17 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
     return pw;
   }
 
-  /// 写入 MatchStore 并跳转到决斗房间页。
+  /// 通知业务侧进入房间（写 MatchStore + 导航由调用方负责）。
   void _enterRoom({
     required RoomOptions options,
     required String roomName,
     required String password,
   }) {
-    final matchStore = context.read<MatchStore>();
-    matchStore.configureCreatedRoom(roomOptions: options, roomName: roomName);
-    matchStore.selectServer(widget.server, widget.env, password);
-
-    Navigator.of(context).pop();
-    if (context.mounted) context.go('/duel-room');
+    widget.onEnterRoom(
+      options: options,
+      roomName: roomName,
+      password: password,
+    );
   }
 
   @override
@@ -240,6 +271,7 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
             Mercury233RoomFormSection(
               spec: _mercury233Spec,
               errorText: _error,
+              banlistOptionsLoader: widget.banlistOptionsLoader,
               onSpecChanged: (next) => setState(() {
                 _mercury233Spec = next;
                 _error = null;
@@ -359,6 +391,7 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
           connectButton(
             label: '创建房间',
             connecting: _connecting,
+            onTapFeedback: widget.onTapFeedback,
             onPressed: () => _create(context),
           ),
         ],

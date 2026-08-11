@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:service_loader/service_loader.dart';
-import 'package:uniygopro/service_singleton.dart';
-import 'package:ygo_data/lf_table.dart';
-import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 import 'package:ygo_data/ygo_data.dart';
-import '../../../widgets/deck_editor/card_detail_dialog.dart';
+import '../deck_editor/card_detail_dialog.dart';
 
 /// 禁限卡表详情弹窗
 ///
@@ -12,14 +8,24 @@ import '../../../widgets/deck_editor/card_detail_dialog.dart';
 /// 按限制类型分组的卡片列表。支持 TabBar 和垂直堆叠两种视图模式。
 class BanlistDetailDialog extends StatefulWidget {
   final LfTable lfTable;
+  final Future<CardInfo?> Function(int code) cardLoader;
 
-  const BanlistDetailDialog({super.key, required this.lfTable});
+  const BanlistDetailDialog({
+    super.key,
+    required this.lfTable,
+    required this.cardLoader,
+  });
 
   /// 显示禁限卡表详情弹窗
-  static Future<void> show(BuildContext context, {required LfTable lfTable}) {
+  static Future<void> show(
+    BuildContext context, {
+    required LfTable lfTable,
+    required Future<CardInfo?> Function(int code) cardLoader,
+  }) {
     return showDialog(
       context: context,
-      builder: (context) => BanlistDetailDialog(lfTable: lfTable),
+      builder: (context) =>
+          BanlistDetailDialog(lfTable: lfTable, cardLoader: cardLoader),
     );
   }
 
@@ -220,9 +226,9 @@ class _BanlistDetailDialogState extends State<BanlistDetailDialog>
           child: TabBarView(
             controller: _tabController,
             children: [
-              _CardGrid(items: forbidden),
-              _CardGrid(items: limited),
-              _CardGrid(items: semiLimited),
+              _CardGrid(items: forbidden, cardLoader: widget.cardLoader),
+              _CardGrid(items: limited, cardLoader: widget.cardLoader),
+              _CardGrid(items: semiLimited, cardLoader: widget.cardLoader),
             ],
           ),
         ),
@@ -248,7 +254,7 @@ class _BanlistDetailDialogState extends State<BanlistDetailDialog>
               color: theme.colorScheme.error,
             ),
             const SizedBox(height: 8),
-            _CardWrap(items: forbidden),
+            _CardWrap(items: forbidden, cardLoader: widget.cardLoader),
             const SizedBox(height: 16),
           ],
           if (limited.isNotEmpty) ...[
@@ -258,7 +264,7 @@ class _BanlistDetailDialogState extends State<BanlistDetailDialog>
               color: Colors.orange,
             ),
             const SizedBox(height: 8),
-            _CardWrap(items: limited),
+            _CardWrap(items: limited, cardLoader: widget.cardLoader),
             const SizedBox(height: 16),
           ],
           if (semiLimited.isNotEmpty) ...[
@@ -268,7 +274,7 @@ class _BanlistDetailDialogState extends State<BanlistDetailDialog>
               color: Colors.yellow.shade700,
             ),
             const SizedBox(height: 8),
-            _CardWrap(items: semiLimited),
+            _CardWrap(items: semiLimited, cardLoader: widget.cardLoader),
             const SizedBox(height: 16),
           ],
           if (widget.lfTable.lfInfos.isEmpty)
@@ -357,8 +363,9 @@ class _SectionHeader extends StatelessWidget {
 
 class _CardGrid extends StatelessWidget {
   final List<LfInfo> items;
+  final Future<CardInfo?> Function(int code) cardLoader;
 
-  const _CardGrid({required this.items});
+  const _CardGrid({required this.items, required this.cardLoader});
 
   @override
   Widget build(BuildContext context) {
@@ -381,7 +388,12 @@ class _CardGrid extends StatelessWidget {
         ),
         itemCount: items.length,
         itemBuilder: (context, index) =>
-            _CardTile(info: items[index], allItems: items, index: index),
+            _CardTile(
+              info: items[index],
+              allItems: items,
+              index: index,
+              cardLoader: cardLoader,
+            ),
       ),
     );
   }
@@ -389,8 +401,9 @@ class _CardGrid extends StatelessWidget {
 
 class _CardWrap extends StatelessWidget {
   final List<LfInfo> items;
+  final Future<CardInfo?> Function(int code) cardLoader;
 
-  const _CardWrap({required this.items});
+  const _CardWrap({required this.items, required this.cardLoader});
 
   @override
   Widget build(BuildContext context) {
@@ -413,7 +426,12 @@ class _CardWrap extends StatelessWidget {
             return SizedBox(
               width: width,
               height: height,
-              child: _CardTile(info: items[i], allItems: items, index: i),
+              child: _CardTile(
+                info: items[i],
+                allItems: items,
+                index: i,
+                cardLoader: cardLoader,
+              ),
             );
           }),
         );
@@ -426,11 +444,13 @@ class _CardTile extends StatelessWidget {
   final LfInfo info;
   final List<LfInfo> allItems;
   final int index;
+  final Future<CardInfo?> Function(int code) cardLoader;
 
   const _CardTile({
     required this.info,
     required this.allItems,
     required this.index,
+    required this.cardLoader,
   });
 
   static const _imageBaseUrl =
@@ -450,6 +470,7 @@ class _CardTile extends StatelessWidget {
                 context,
                 allItems: allItems,
                 startIndex: index,
+                cardLoader: cardLoader,
               );
             },
             child: ClipRRect(
@@ -489,22 +510,28 @@ class _CardTile extends StatelessWidget {
 class _CardDetailNavigator extends StatefulWidget {
   final List<LfInfo> allItems;
   final int startIndex;
+  final Future<CardInfo?> Function(int code) cardLoader;
 
   const _CardDetailNavigator({
     required this.allItems,
     required this.startIndex,
+    required this.cardLoader,
   });
 
   static void show(
     BuildContext context, {
     required List<LfInfo> allItems,
     required int startIndex,
+    required Future<CardInfo?> Function(int code) cardLoader,
   }) {
     showDialog(
       context: context,
       barrierColor: Colors.black54,
-      builder: (_) =>
-          _CardDetailNavigator(allItems: allItems, startIndex: startIndex),
+      builder: (_) => _CardDetailNavigator(
+        allItems: allItems,
+        startIndex: startIndex,
+        cardLoader: cardLoader,
+      ),
     );
   }
 
@@ -514,7 +541,6 @@ class _CardDetailNavigator extends StatefulWidget {
 
 class _CardDetailNavigatorState extends State<_CardDetailNavigator> {
   late int _currentIndex;
-  final _dataService = ServiceSingleton.instance.dataService;
 
   @override
   void initState() {
@@ -559,7 +585,7 @@ class _CardDetailNavigatorState extends State<_CardDetailNavigator> {
           mainAxisSize: MainAxisSize.min,
           children: [
             FutureBuilder(
-              future: _dataService.getCard(info.code),
+              future: widget.cardLoader(info.code),
               builder: (context, snapshot) {
                 if (snapshot.connectionState != ConnectionState.done) {
                   return const Center(child: CircularProgressIndicator());

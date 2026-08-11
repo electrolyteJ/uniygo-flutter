@@ -5,12 +5,19 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
+import 'package:duelink/duelink.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
 import '../../config/servers.dart';
+import '../../models/mercury233_room_spec.dart';
 import '../../service_singleton.dart';
-import '../../widgets/shared/create_room.dart';
+import '../../widgets/create_room/room_dialog.dart';
 import '../../widgets/create_room/create_room_form.dart';
 import '../../widgets/create_room/env_selector.dart';
 import '../../widgets/create_room/join_room_form.dart';
+import 'match_store.dart';
+import 'room_history_store.dart';
 
 class FreeRoomSheet extends StatefulWidget {
   final GameServer server;
@@ -41,6 +48,55 @@ class _FreeRoomSheetState extends State<FreeRoomSheet>
   void dispose() {
     _tabCtrl?.dispose();
     super.dispose();
+  }
+
+  /// 加入/创建成功后：写 MatchStore、关闭弹层并进入决斗房间。
+  void _enterRoom({
+    required RoomOptions? roomOptions,
+    String? roomName,
+    required String password,
+  }) {
+    final matchStore = context.read<MatchStore>();
+    if (roomOptions != null) {
+      matchStore.configureCreatedRoom(
+        roomOptions: roomOptions,
+        roomName: roomName ?? '',
+      );
+    }
+    matchStore.selectServer(widget.server, _env, password);
+
+    Navigator.of(context).pop();
+    if (context.mounted) context.go('/duel-room');
+  }
+
+  Future<List<Mercury233BanlistOption>> _loadBanlistOptions() async {
+    final tables = await ServiceSingleton.instance.dataService.getAllLfTable();
+    return buildMercury233BanlistOptions(tables.values);
+  }
+
+  Widget _buildJoinForm() {
+    return JoinRoomForm(
+      env: _env,
+      onTapFeedback: ServiceSingleton.instance.uiSoundService.playButtonTap,
+      onJoin: (password) => _enterRoom(roomOptions: null, password: password),
+    );
+  }
+
+  Widget _buildCreateForm() {
+    return CreateRoomForm(
+      env: _env,
+      historyLoader: RoomHistoryStore.load,
+      onSaveRecord: RoomHistoryStore.add,
+      onDeleteRecord: RoomHistoryStore.remove,
+      banlistOptionsLoader: _loadBanlistOptions,
+      onTapFeedback: ServiceSingleton.instance.uiSoundService.playButtonTap,
+      onEnterRoom: ({required options, required roomName, required password}) =>
+          _enterRoom(
+        roomOptions: options,
+        roomName: roomName,
+        password: password,
+      ),
+    );
   }
 
   @override
@@ -117,14 +173,14 @@ class _FreeRoomSheetState extends State<FreeRoomSheet>
                       child: KeyedSubtree(
                         key: ValueKey('${_env.name}-$currentTab'),
                         child: currentTab == 0
-                            ? JoinRoomForm(server: widget.server, env: _env)
-                            : CreateRoomForm(server: widget.server, env: _env),
+                            ? _buildJoinForm()
+                            : _buildCreateForm(),
                       ),
                     ),
                   ),
                 ] else ...[
                   const SizedBox(height: 16),
-                  JoinRoomForm(server: widget.server, env: _env),
+                  _buildJoinForm(),
                 ],
               ],
             );

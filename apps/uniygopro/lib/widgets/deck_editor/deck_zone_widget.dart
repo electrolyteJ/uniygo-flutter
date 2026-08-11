@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:ygo_data/card_info.dart';
-import '../../pages/deck_editor/deck_editor_store.dart';
 import 'banlist_status_badge.dart';
 import 'card_detail_dialog.dart';
 
@@ -9,8 +7,21 @@ enum DeckZoneType { main, extra, side }
 
 class DeckZoneWidget extends StatelessWidget {
   final DeckZoneType type;
+  final List<CardInfo> cards;
+  final String Function(int code) cardImageUrlOf;
+  final String? Function(CardInfo card) banlistStatusOf;
+  final void Function(CardInfo card, String zone) onAcceptCard;
+  final void Function(String zone, CardInfo card) onRemoveCard;
 
-  const DeckZoneWidget({super.key, required this.type});
+  const DeckZoneWidget({
+    super.key,
+    required this.type,
+    required this.cards,
+    required this.cardImageUrlOf,
+    required this.banlistStatusOf,
+    required this.onAcceptCard,
+    required this.onRemoveCard,
+  });
 
   String get _zoneName {
     switch (type) {
@@ -25,23 +36,6 @@ class DeckZoneWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = context.watch<DeckEditorStore>();
-    final deck = store.editingDeck;
-
-    List<CardInfo> cards;
-
-    switch (type) {
-      case DeckZoneType.main:
-        cards = deck.main;
-        break;
-      case DeckZoneType.extra:
-        cards = deck.extra;
-        break;
-      case DeckZoneType.side:
-        cards = deck.side;
-        break;
-    }
-
     return DragTarget<CardInfo>(
       onWillAcceptWithDetails: (details) {
         final card = details.data;
@@ -53,7 +47,7 @@ class DeckZoneWidget extends StatelessWidget {
       },
       onAcceptWithDetails: (details) {
         final card = details.data;
-        store.addCard(card, targetZone: _zoneName);
+        onAcceptCard(card, _zoneName);
       },
       builder: (context, candidateData, rejectedData) {
         final isOver = candidateData.isNotEmpty;
@@ -96,7 +90,13 @@ class DeckZoneWidget extends StatelessWidget {
                         itemCount: cards.length,
                         itemBuilder: (context, index) {
                           final card = cards[index];
-                          return _DeckCardItem(card: card, type: type);
+                          return _DeckCardItem(
+                            card: card,
+                            type: type,
+                            cardImageUrlOf: cardImageUrlOf,
+                            banlistStatusOf: banlistStatusOf,
+                            onRemoveCard: onRemoveCard,
+                          );
                         },
                       ),
               ),
@@ -111,14 +111,22 @@ class DeckZoneWidget extends StatelessWidget {
 class _DeckCardItem extends StatelessWidget {
   final CardInfo card;
   final DeckZoneType type;
+  final String Function(int code) cardImageUrlOf;
+  final String? Function(CardInfo card) banlistStatusOf;
+  final void Function(String zone, CardInfo card) onRemoveCard;
 
-  const _DeckCardItem({required this.card, required this.type});
+  const _DeckCardItem({
+    required this.card,
+    required this.type,
+    required this.cardImageUrlOf,
+    required this.banlistStatusOf,
+    required this.onRemoveCard,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final store = context.watch<DeckEditorStore>();
-    final imageUrl = store.getCardImageUrl(card.code);
-    final banlistStatus = store.getBanlistStatus(card);
+    final imageUrl = cardImageUrlOf(card.code);
+    final banlistStatus = banlistStatusOf(card);
 
     return LongPressDraggable<CardInfo>(
       data: card,
@@ -148,7 +156,7 @@ class _DeckCardItem extends StatelessWidget {
       onDragStarted: () {},
       child: InkWell(
         onTap: () => _showCardDetail(context, card),
-        onLongPress: () => _removeCard(context, store),
+        onLongPress: _removeCard,
         borderRadius: BorderRadius.circular(6),
         child: Container(
           decoration: BoxDecoration(
@@ -188,7 +196,7 @@ class _DeckCardItem extends StatelessWidget {
                 top: 2,
                 right: 2,
                 child: GestureDetector(
-                  onTap: () => _removeCard(context, store),
+                  onTap: _removeCard,
                   child: Container(
                     width: 18,
                     height: 18,
@@ -211,17 +219,23 @@ class _DeckCardItem extends StatelessWidget {
     );
   }
 
-  void _removeCard(BuildContext context, DeckEditorStore store) {
+  void _removeCard() {
     final typeName = type == DeckZoneType.main
         ? 'main'
         : type == DeckZoneType.extra
         ? 'extra'
         : 'side';
-    store.removeCard(typeName, card);
+    onRemoveCard(typeName, card);
   }
 
   void _showCardDetail(BuildContext context, CardInfo card) {
-    CardDetailDialog.show(context, card: card, showAddButton: false);
+    CardDetailDialog.show(
+      context,
+      card: card,
+      showAddButton: false,
+      banlistStatus: banlistStatusOf(card),
+      imageUrl: cardImageUrlOf(card.code),
+    );
   }
 
   int _min(int a, int b) => a < b ? a : b;

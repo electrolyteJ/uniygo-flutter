@@ -11,7 +11,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/servers.dart';
-import '../../widgets/shared/create_room.dart';
+import '../../service_singleton.dart';
+import '../../widgets/create_room/room_dialog.dart';
 import 'match_store.dart';
 
 /// AI 类型选择
@@ -261,6 +262,8 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
                               ? '开始人机对战'
                               : '连接 233 服 AI',
                           connecting: _connecting,
+                          onTapFeedback:
+                              ServiceSingleton.instance.uiSoundService.playButtonTap,
                           onPressed: () => _start(),
                         ),
                       ],

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../../models/ChatMessage.dart';
+import '../../../models/chat_message.dart';
 import '../../../service_singleton.dart';
 
 /// 对局/房间聊天消息仓库。

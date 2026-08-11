@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 
-import '../../pages/create_room/room_history.dart';
+import '../../models/created_room_record.dart';
 
 /// 创建房间表单顶部的历史记录横滑列表。
 ///

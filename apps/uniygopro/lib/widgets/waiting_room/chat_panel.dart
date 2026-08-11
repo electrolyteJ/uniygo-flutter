@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../pages/duel_room/waiting/duel_chat_store.dart';
-import '../../pages/duel_room/duel_room_store.dart';
 
+import '../../models/chat_message.dart';
+
+/// 聊天面板：纯 UI，消息列表与发送动作均由业务侧注入。
 class ChatPanel extends StatefulWidget {
-  const ChatPanel({super.key});
+  final List<ChatMessage> messages;
+  final ValueChanged<String> onSend;
+
+  const ChatPanel({super.key, required this.messages, required this.onSend});
 
   @override
   State<ChatPanel> createState() => _ChatPanelState();
@@ -13,46 +16,40 @@ class ChatPanel extends StatefulWidget {
 class _ChatPanelState extends State<ChatPanel> {
   late final TextEditingController chatCtrl;
   late final ScrollController chatScrollCtrl;
-  late final DuelChatStore duelChatStore;
 
   @override
   void initState() {
     super.initState();
     chatCtrl = TextEditingController();
     chatScrollCtrl = ScrollController();
-    duelChatStore = context.read<DuelChatStore>();
-    final duelRoomStore = context.read<DuelRoomStore>();
-    duelChatStore.bindChatServerMessages((msg) {
-      if (msg.chat != null) {
-        final chat = msg.chat!;
-        final player = duelRoomStore.players
-            .where((p) => p.pos == chat.player)
-            .toList();
-        final name = chat.player < 0
-            ? 'System'
-            : (player.isNotEmpty ? player.first.name : '[${chat.player}]');
-        duelChatStore.addChat(chat.player, name, chat.message);
+  }
 
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (chatScrollCtrl.hasClients) {
-            chatScrollCtrl.animateTo(
-              chatScrollCtrl.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOut,
-            );
-          }
-        });
-      }
-      duelChatStore.markChanged();
-    });
+  @override
+  void didUpdateWidget(covariant ChatPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.messages.length != oldWidget.messages.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (chatScrollCtrl.hasClients) {
+          chatScrollCtrl.animateTo(
+            chatScrollCtrl.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     chatCtrl.dispose();
     chatScrollCtrl.dispose();
-    duelChatStore?.cancelChat();
     super.dispose();
+  }
+
+  void _send() {
+    widget.onSend(chatCtrl.text);
+    chatCtrl.clear();
   }
 
   Color _chatColor(int playerIndex) {
@@ -70,7 +67,7 @@ class _ChatPanelState extends State<ChatPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final duelChatStore = context.watch<DuelChatStore>();
+    final messages = widget.messages;
     return Container(
       color: Colors.blueGrey.shade900,
       child: Column(
@@ -96,9 +93,9 @@ class _ChatPanelState extends State<ChatPanel> {
             child: ListView.builder(
               controller: chatScrollCtrl,
               padding: const EdgeInsets.all(8),
-              itemCount: duelChatStore.chatMessages.length,
+              itemCount: messages.length,
               itemBuilder: (ctx, i) {
-                final msg = duelChatStore.chatMessages[i];
+                final msg = messages[i];
                 final color = _chatColor(msg.playerIndex);
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
@@ -148,20 +145,14 @@ class _ChatPanelState extends State<ChatPanel> {
                         borderSide: BorderSide.none,
                       ),
                     ),
-                    onSubmitted: (_) {
-                      duelChatStore.sendChat(chatCtrl.text);
-                      chatCtrl.clear();
-                    },
+                    onSubmitted: (_) => _send(),
                   ),
                 ),
                 const SizedBox(width: 6),
                 IconButton(
                   icon: const Icon(Icons.send, size: 20),
                   color: Colors.amber,
-                  onPressed: () {
-                    duelChatStore.sendChat(chatCtrl.text);
-                    chatCtrl.clear();
-                  },
+                  onPressed: _send,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),

@@ -6,7 +6,7 @@ import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
 import 'package:flame/text.dart';
 import 'package:flutter/material.dart';
-import '../../../../models/FieldCard.dart';
+import '../../../../models/field_card.dart';
 import '../../../../models/field_zone_key.dart';
 import '../../../../pages/duel_room/duel/duel_field_store.dart';
 import '../duel_field_world.dart';

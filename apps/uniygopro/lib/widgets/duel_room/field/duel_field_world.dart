@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flame/components.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Offset, Size;
-import '../../../models/FieldCard.dart';
+import '../../../models/field_card.dart';
 import '../../../models/field_zone_key.dart';
 import '../../../pages/duel_room/duel/duel_field_store.dart';
 import '../../../image/card_image_loader.dart';
