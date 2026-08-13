@@ -30,3 +30,4 @@ workspace:
   - apps/holoduel
   - apps/mdduel
   - apps/duel_room1
+  - apps/duel_room2

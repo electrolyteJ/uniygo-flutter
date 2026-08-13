@@ -1,0 +1,26 @@
+{
+  "phase_dp": "抽卡阶段",
+  "@phase_dp": {
+    "description": "Draw Phase"
+  },
+  "phase_sp": "准备阶段",
+  "@phase_sp": {
+    "description": "Standby Phase"
+  },
+  "phase_m1": "主要阶段 1",
+  "@phase_m1": {
+    "description": "Main Phase 1"
+  },
+  "phase_bp": "战斗阶段",
+  "@phase_bp": {
+    "description": "Battle Phase"
+  },
+  "phase_m2": "主要阶段 2",
+  "@phase_m2": {
+    "description": "Main Phase 2"
+  },
+  "phase_ep": "结束阶段",
+  "@phase_ep": {
+    "description": "End Phase"
+  }
+}
