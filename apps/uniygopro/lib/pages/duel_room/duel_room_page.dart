@@ -2,12 +2,15 @@ import 'dart:async';
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:uniygopro/pages/duel_room/waiting/waiting_room_page.dart';
+import '../../constants.dart';
 import '../../service_singleton.dart';
 import '../../debug/ocgcore_web_debug.dart';
-import 'duel/duel_field_store.dart';
+import 'duel/bloc/duel_bloc.dart';
+import 'duel/bloc/duel_event.dart';
 import 'duel/duel_field_page.dart';
 import 'waiting/duel_chat_store.dart';
 import 'duel_room_store.dart';
@@ -25,7 +28,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
   final IDuelService _duelService = ServiceSingleton.instance.duelService;
   late final DuelRoomStore duelRoomStore;
   late final DuelChatStore duelChatStore;
-  late final DuelFieldStore duelFieldStore;
+  late final DuelBloc duelBloc;
   late final MatchStore matchRoomStore;
 
   @override
@@ -35,8 +38,8 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     duelRoomStore.bind(_duelService);
     duelChatStore = context.read<DuelChatStore>();
     duelChatStore.bind(_duelService);
-    duelFieldStore = context.read<DuelFieldStore>();
-    duelFieldStore.bind(_duelService);
+    duelBloc = context.read<DuelBloc>();
+    duelBloc.add(DuelServiceBound(_duelService));
     matchRoomStore = context.read<MatchStore>();
     _connect();
   }
@@ -80,7 +83,12 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
     setState(() {});
 
     duelRoomStore.bindRoomStageChange(context);
-    duelFieldStore.bindServerMessage(context);
+    // 阶段广播的本地化文案由页面注入 resolver，Bloc/核心不持有 BuildContext。
+    duelBloc.add(
+      DuelServerMessagesBound(
+        phaseNameResolver: (phase) => getDuelPhaseText(context, phase),
+      ),
+    );
 
     // 服务器聊天消息 → 聊天仓库（发送者名字按房间玩家列表解析）。
     duelChatStore.bindChatServerMessages((msg) {
@@ -107,7 +115,7 @@ class _DuelRoomPageState extends State<DuelRoomPage> {
   }
 
   void _syncPlayersFromRoom() {
-    duelFieldStore.syncPlayers(duelRoomStore.players);
+    duelBloc.add(DuelPlayersSynced(duelRoomStore.players));
   }
 
   String _roomTitle(DuelRoomStore duelRoomStore, MatchStore match) {

@@ -2,12 +2,14 @@ import 'dart:developer' as console;
 
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../service_singleton.dart';
 import '../create_room/match_store.dart';
-import 'duel/duel_field_store.dart';
+import 'duel/bloc/duel_bloc.dart';
+import 'duel/bloc/duel_event.dart';
 import 'duel_room_store.dart';
 import 'waiting/duel_chat_store.dart';
 
@@ -47,10 +49,10 @@ void backHome(BuildContext context, {bool surrenderOnExit = false}) {
   }
   duelService.disconnect();
   final duelRoomState = context.read<DuelRoomStore>();
-  final duelFieldStore = context.read<DuelFieldStore>();
+  final duelBloc = context.read<DuelBloc>();
   final duelChatStore = context.read<DuelChatStore>();
   final matchRoomStore = context.read<MatchStore>();
-  final duelResult = duelFieldStore.duelResult;
+  final duelResult = duelBloc.state.duelResult;
   final isDuelEnded = duelRoomState.stage is RoomDuelEnded;
   context.go('/');
   console.log('backHome: isDuelEnded=$isDuelEnded, duelResult=$duelResult');
@@ -58,7 +60,7 @@ void backHome(BuildContext context, {bool surrenderOnExit = false}) {
     context.go('/duel-result', extra: duelResult);
   }
   duelRoomState.reset();
-  duelFieldStore.reset();
+  duelBloc.add(const DuelResetRequested());
   duelChatStore.cancelChat();
   duelChatStore.reset();
   matchRoomStore.reset();

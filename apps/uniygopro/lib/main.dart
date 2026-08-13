@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
 import 'package:duelink/duelink.dart';
-import 'package:uniygopro/pages/duel_room/duel/duel_field_store.dart';
+import 'package:uniygopro/pages/duel_room/duel/bloc/duel_bloc.dart';
 import 'package:uniygopro/pages/duel_room/duel_room_store.dart';
 import 'package:uniygopro/service_loader.registrations.g.dart';
 import 'package:uniygopro/pages/duel_room/waiting/duel_chat_store.dart';
@@ -16,7 +17,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   registerAllServices();
-  final duelStore = DuelFieldStore();
+  final duelBloc = DuelBloc();
   final chatStore = DuelChatStore();
   final duelRoomStore = DuelRoomStore();
 
@@ -29,7 +30,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => MatchStore()),
         ChangeNotifierProvider.value(value: duelRoomStore),
-        ChangeNotifierProvider.value(value: duelStore),
+        BlocProvider.value(value: duelBloc),
         ChangeNotifierProvider.value(value: chatStore),
         ChangeNotifierProvider(create: (_) => SideStore()),
         ChangeNotifierProvider(create: (_) => DeckEditorStore()),

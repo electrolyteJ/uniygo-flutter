@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:duelink/duelink.dart' hide CardInfo;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ygo_data/ygo_data.dart';
@@ -12,7 +13,8 @@ import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
 import '../../service_singleton.dart';
 import '../../util/ygo_data_util.dart';
 import 'duel_room_exit.dart';
-import 'duel/duel_field_store.dart';
+import 'duel/bloc/duel_bloc.dart';
+import 'duel/bloc/duel_event.dart';
 
 /// 决斗房间状态仓库。
 class DuelRoomStore extends ChangeNotifier {
@@ -248,7 +250,7 @@ class DuelRoomStore extends ChangeNotifier {
     if (isSelfReady) {
       _duelService?.unready();
     } else {
-      final duelFieldStore = context.read<DuelFieldStore>();
+      final duelBloc = context.read<DuelBloc>();
       if (invalidationDeckResult?.isNotEmpty == true) {
         if (context.mounted) {
           final firstError = invalidationDeckResult!.first;
@@ -277,8 +279,10 @@ class DuelRoomStore extends ChangeNotifier {
       }
       final mainBytes = deckToBytes(result.main.map((c) => c.code).toList());
       final extraBytes = deckToBytes(result.extra.map((c) => c.code).toList());
-      duelFieldStore.setKnownSelfExtraDeckCodes(
-        result.extra.map((c) => c.code).toList(),
+      duelBloc.add(
+        DuelKnownSelfExtraDeckCodesSet(
+          result.extra.map((c) => c.code).toList(),
+        ),
       );
       _duelService?.submitDeck(mainBytes, extraBytes);
       _duelService?.ready();

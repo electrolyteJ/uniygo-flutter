@@ -6,19 +6,19 @@ import 'package:flutter/cupertino.dart';
 import 'package:uniygopro/service_singleton.dart';
 import 'package:ygo_data/card_info.dart' as pkg;
 
-import '../../../constants.dart';
 import '../../../models/battle_action.dart';
 import '../../../models/battle_presentation.dart';
 import '../../../models/chain_link.dart';
+import '../../../models/duel_menu.dart';
 import '../../../models/duel_result_summary.dart';
 import '../../../models/confirm_cards.dart';
-import '../../../models/duel_menu.dart';
 import '../../../models/field_card.dart';
 import '../../../models/idle_action.dart';
 import '../../../models/select_state.dart';
 import '../../../image/card_image_loader.dart';
 import '../../../models/duel_event.dart';
 import '../../../models/field_zone_key.dart';
+import 'bloc/duel_effect.dart';
 class PlaymatResolvedAction {
   final String label;
   final int response;
@@ -45,7 +45,31 @@ class PlaymatResolvedAction {
 /// 以及对局渲染需要的卡片信息（缓存收敛在 dataService）。
 /// 选择部分：服务端下发的当前选择题、可执行行动，并把 UI 的选择
 /// 重新编码成对应的对局响应消息发回服务端。
-class DuelFieldStore extends ChangeNotifier {
+///
+/// 注意：本类是 [DuelBloc] 内部持有的可变逻辑核心，不再是
+/// ChangeNotifier，也不应被 widget 直接订阅/注入。所有状态变化通过
+/// [markChanged] → [onChanged] 回调通知 Bloc 发射新的 [DuelState]。
+class DuelFieldStore {
+  /// 状态变更回调，由 [DuelBloc] 装配（替代原 ChangeNotifier 的通知）。
+  VoidCallback? onChanged;
+
+  /// 标记状态已变化（原 notifyListeners 的等价物）。
+  void markChanged() => onChanged?.call();
+
+  /// 回合计时器心跳回调，由 [DuelBloc] 装配。与 [onChanged] 分开，
+  /// 让订阅方可以跳过每秒一次的计时 tick（只有时间显示需要它）。
+  VoidCallback? onTimerTick;
+
+  /// 标记仅有计时字段变化（selfTimeLeft/opponentTimeLeft）。
+  void markTimerTick() => onTimerTick?.call();
+
+  /// 一次性副作用回调（音效、回包等），由 [DuelBloc] 装配。
+  /// 副作用不进状态快照，避免被重复消费。
+  void Function(DuelEffect effect)? onEffect;
+
+  /// 播放决斗音效（具体播放实现由 UI 层映射）。
+  void _sound(DuelSound sound) => onEffect?.call(DuelSoundEffect(sound));
+
   // ──────────────────────────────────────────
   // 战场状态
   // ──────────────────────────────────────────
@@ -100,7 +124,6 @@ class DuelFieldStore extends ChangeNotifier {
   int selfLpEventId = 0;
   int opponentLpEventId = 0;
   final dataService = ServiceSingleton.instance.dataService;
-  final ygoSoundService = ServiceSingleton.instance.ygoSoundService;
 
   /// 卡组洗切信号：每次 MSG_SHUFFLE_DECK 自增，驱动场地洗牌动效。
   int deckShuffleTick = 0;
@@ -173,8 +196,6 @@ class DuelFieldStore extends ChangeNotifier {
   bool get showPhaseMenu => _showPhaseMenu;
   List<int> get announceCardBlockedCodes =>
       List<int>.unmodifiable(_announceCardBlockedCodes);
-  IDuelService? _duelService;
-
   bool ownsCurrentWindow(int player) => currentSelect?.player == player;
   bool canOpenPhaseMenuFor(int player) =>
       ownsCurrentWindow(player) && hasPhaseCommandWindow;
@@ -183,8 +204,15 @@ class DuelFieldStore extends ChangeNotifier {
   // 生命周期
   // ──────────────────────────────────────────
 
-  void bind(IDuelService duelService) {
-    _duelService = duelService;
+  /// 应用服务器阶段广播（由 [DuelBloc] 订阅阶段流后转入）。
+  /// [phaseName] 为本地化后的阶段名，非空时写入决斗日志。
+  ///
+  /// 阶段合法性（enableBp/enableM2/enableEp）只由服务端下发的
+  /// MSG_SELECT_IDLE_CMD / MSG_SELECT_BATTLE_CMD 驱动，这里不做本地推断。
+  void applyPhase(DuelPhase phase, String? phaseName) {
+    this.phase = phase;
+    if (phaseName?.isNotEmpty == true) addLog('$phaseName 开始。');
+    markChanged();
   }
 
   /// 清空当前对局状态，供离开房间或新对局开始时使用。
@@ -233,17 +261,10 @@ class DuelFieldStore extends ChangeNotifier {
     confirmPanel = null;
     duelResult = null;
     duelLogs.clear();
-    _phaseSub?.cancel();
-    _msgSub?.cancel();
     players = [];
     deckShuffleTick = 0;
     deckShufflePlayer = 0;
-    notifyListeners();
-  }
-
-  /// 供页面在批量字段赋值后显式触发刷新。
-  void markChanged() {
-    notifyListeners();
+    markChanged();
   }
 
   void _resetLocalUiState() {
@@ -268,14 +289,10 @@ class DuelFieldStore extends ChangeNotifier {
   Future<void> ensureCardInfo(int code) async {
     try {
       final info = await dataService.getCard(code);
-      if (info != null) notifyListeners();
+      if (info != null) markChanged();
     } catch (e) {
       console.log('Failed to load card info for $code: $e');
     }
-  }
-
-  String getCardImageUrl(int code) {
-    return dataService.getCardImageUrl(code);
   }
 
   // ──────────────────────────────────────────
@@ -701,7 +718,7 @@ class DuelFieldStore extends ChangeNotifier {
     if (selfExtraCodes.isEmpty) {
       selfExtraCodes.addAll(codes);
       selfExtra = codes.length;
-      notifyListeners();
+      markChanged();
       return;
     }
     for (var i = 0; i < selfExtraCodes.length && i < codes.length; i++) {
@@ -709,7 +726,7 @@ class DuelFieldStore extends ChangeNotifier {
         selfExtraCodes[i] = codes[i];
       }
     }
-    notifyListeners();
+    markChanged();
   }
 
   bool _isOnFieldLocation(int location) {
@@ -945,12 +962,12 @@ class DuelFieldStore extends ChangeNotifier {
       defense: card.defense,
       name: card.name,
     );
-    notifyListeners();
+    markChanged();
   }
 
   void removeFieldCard(int controller, int zone, int sequence) {
     fieldCards.remove(_fieldCardKey(controller, zone, sequence));
-    notifyListeners();
+    markChanged();
   }
 
   /// 读取可被浏览的公共区域卡片代码列表。
@@ -987,7 +1004,7 @@ class DuelFieldStore extends ChangeNotifier {
     this.selfExtra = selfExtra;
     this.oppDeck = oppDeck;
     this.oppExtra = oppExtra;
-    notifyListeners();
+    markChanged();
   }
 
   // ──────────────────────────────────────────
@@ -998,7 +1015,7 @@ class DuelFieldStore extends ChangeNotifier {
   void setSelect(SelectState select) {
     currentSelect = select;
     _preloadSelectImages(select);
-    notifyListeners();
+    markChanged();
   }
 
   /// 预热 CardSelector 中所有卡片图片到 [CardImageLoader] 全局缓存。
@@ -1013,11 +1030,11 @@ class DuelFieldStore extends ChangeNotifier {
     currentSelect = null;
     _inlineSelectedOptionIndices.clear();
     _announceCardBlockedCodes.clear();
-    notifyListeners();
+    markChanged();
   }
 
   void _sendResponse(CtosGameMsgResponse response) {
-    _duelService?.playGameResponse(response);
+    onEffect?.call(DuelSendGameResponse(response));
   }
 
   void respondIdleCmd(int sequence) {
@@ -1652,7 +1669,7 @@ class DuelFieldStore extends ChangeNotifier {
   /// 记录对局日志并触发刷新。
   void addLog(String log) {
     duelLogs.add(log);
-    notifyListeners();
+    markChanged();
   }
 
   /// 同步房间玩家列表，供日志文案解析玩家名。
@@ -1693,37 +1710,37 @@ class DuelFieldStore extends ChangeNotifier {
       // 决斗事件 start
       case MSG_START:
         _handleStart(innerMsg);
-        ygoSoundService.playDuelStart();
+        _sound(DuelSound.duelStart);
         break;
       case MSG_NEW_TURN:
         _handleNewTurn(innerMsg);
-        ygoSoundService.playNewTurn();
+        _sound(DuelSound.newTurn);
         break;
       case MSG_NEW_PHASE:
         // 已通过 onDuelPhaseMessage 单独派发，避免这里重复记日志。
-        ygoSoundService.playNewPhase();
+        _sound(DuelSound.newPhase);
         break;
       case MSG_WAITING:
         _handleWaiting(innerMsg as MsgWait);
         break;
       case MSG_ATTACK:
         _handleAttack(innerMsg);
-        ygoSoundService.playAttack();
+        _sound(DuelSound.attack);
         break;
       case MSG_DAMAGE:
         _handleDamage(innerMsg);
-        ygoSoundService.playDamage();
+        _sound(DuelSound.damage);
         break;
       case MSG_RECOVER:
         _handleRecover(innerMsg);
-        ygoSoundService.playRecover();
+        _sound(DuelSound.recover);
         break;
       case MSG_LP_UPDATE:
         _handleLpUpdate(innerMsg);
         break;
       case MSG_PAY_LP_COST:
         _handlePayLife(innerMsg);
-        ygoSoundService.playDamage();
+        _sound(DuelSound.damage);
         break;
       case MSG_CONFIRM_CARDS:
       case MSG_CONFIRM_DECKTOP:
@@ -1734,7 +1751,7 @@ class DuelFieldStore extends ChangeNotifier {
         chainSealed = false;
         final name = handleChaining(innerMsg);
         addLog('连锁发动 $name。');
-        ygoSoundService.playChain();
+        _sound(DuelSound.chain);
         break;
       case MSG_CHAINED:
         _handleChained(innerMsg as MsgChained);
@@ -1748,12 +1765,12 @@ class DuelFieldStore extends ChangeNotifier {
         break;
       case MSG_CHAIN_END:
         _handleChainEnd(innerMsg);
-        ygoSoundService.playChainEnd();
+        _sound(DuelSound.chainEnd);
         break;
       case MSG_SUMMONING:
         final name = handleSummoning(innerMsg);
         addLog('正在召唤 $name。');
-        ygoSoundService.playSummon();
+        _sound(DuelSound.summon);
         break;
       case MSG_SUMMONED:
         _handleSummonFinished('召唤');
@@ -1761,7 +1778,7 @@ class DuelFieldStore extends ChangeNotifier {
       case MSG_SP_SUMMONING:
         final msg = innerMsg as MsgSpSummoning;
         _handleSummonPreparing(msg.code, msg.location, actionLabel: '特殊召唤');
-        ygoSoundService.playSpecialSummon();
+        _sound(DuelSound.specialSummon);
         break;
       case MSG_SP_SUMMONED:
         _handleSummonFinished('特殊召唤');
@@ -1769,28 +1786,28 @@ class DuelFieldStore extends ChangeNotifier {
       case MSG_FLIP_SUMMONING:
         final msg = innerMsg as MsgFlipSummoning;
         _handleSummonPreparing(msg.code, msg.location, actionLabel: '反转召唤');
-        ygoSoundService.playFlipSummon();
+        _sound(DuelSound.flipSummon);
         break;
       case MSG_FLIP_SUMMONED:
         _handleSummonFinished('反转召唤');
         break;
       case MSG_BATTLE:
         _handleBattle(innerMsg as MsgBattle);
-        ygoSoundService.playBattle();
+        _sound(DuelSound.battle);
         break;
       case MSG_HINT:
         _handleHint(innerMsg as MsgHint);
         break;
       case MSG_WIN:
         _handleWin(innerMsg as MsgWin);
-        ygoSoundService.playDuelWin();
+        _sound(DuelSound.duelWin);
         break;
       case MSG_RETRY:
         addLog('操作无效，请重新选择。');
         break;
       case MSG_SHUFFLE_DECK:
         _handleShuffleDeck(innerMsg);
-        ygoSoundService.playShuffleDeck();
+        _sound(DuelSound.shuffleDeck);
         break;
       case MSG_BECOME_TARGET:
         _handleBecomeTarget(innerMsg as MsgBecomeTarget);
@@ -1800,7 +1817,7 @@ class DuelFieldStore extends ChangeNotifier {
         break;
       case MSG_DAMAGE_STEP_START:
         _handleDamageStepStart();
-        ygoSoundService.playDamageStep();
+        _sound(DuelSound.damageStep);
         break;
       case MSG_DAMAGE_STEP_END:
         _handleDamageStepEnd();
@@ -1813,7 +1830,7 @@ class DuelFieldStore extends ChangeNotifier {
           applyDraw(msg);
           addLog('${_playerNameOf(msg.player)} 抽了 ${msg.count} 张卡。');
         }
-        ygoSoundService.playCardDraw();
+        _sound(DuelSound.cardDraw);
         break;
       case MSG_UPDATE_DATA:
         applyUpdateData(innerMsg as MsgUpdateData);
@@ -1826,7 +1843,7 @@ class DuelFieldStore extends ChangeNotifier {
         break;
       case MSG_MOVE:
         applyMove(innerMsg as MsgMove);
-        ygoSoundService.playCardDestroy();
+        _sound(DuelSound.cardDestroy);
         break;
       case MSG_FIELD_DISABLED:
         {
@@ -1838,14 +1855,14 @@ class DuelFieldStore extends ChangeNotifier {
       case MSG_POS_CHANGE:
         final card = handlePosChange(innerMsg);
         addLog('${card?.name} 表示形式变更。');
-        ygoSoundService.playPosChange();
+        _sound(DuelSound.posChange);
         break;
       case MSG_SHUFFLE_HAND:
         applyShuffleHand(innerMsg as MsgShuffleHand);
         break;
       case MSG_SET:
         _handleSet(innerMsg as MsgSet);
-        ygoSoundService.playSetCard();
+        _sound(DuelSound.setCard);
         break;
       // 决斗场地  end
       // 选择事件  start
@@ -1899,15 +1916,15 @@ class DuelFieldStore extends ChangeNotifier {
         break;
       // 选择事件  end
       case MSG_TOSS_COIN:
-        ygoSoundService.playCoinToss();
+        _sound(DuelSound.coinToss);
         break;
       case MSG_TOSS_DICE:
-        ygoSoundService.playDice();
+        _sound(DuelSound.dice);
         break;
       default:
         console.log('Unhandled  event: ${gameMsg.func}');
     }
-    notifyListeners();
+    markChanged();
   }
 
   void _handleStart(dynamic data) {
@@ -2067,20 +2084,20 @@ class DuelFieldStore extends ChangeNotifier {
       confirmedFieldSlotKeys = fieldSlotKeys;
       confirmedHandSequences = handSequences;
       confirmedHandOwner = msg.player;
-      notifyListeners();
+      markChanged();
 
       _confirmTimer = Timer(const Duration(milliseconds: 1500), () {
         confirmedFieldSlotKeys = {};
         confirmedHandSequences = {};
         confirmedHandOwner = 0;
-        notifyListeners();
+        markChanged();
 
         if (panelCodes.isNotEmpty) {
           confirmPanel = ConfirmPanel(
             title: '$owner 展示的卡片',
             codes: panelCodes.toList(),
           );
-          notifyListeners();
+          markChanged();
         }
       });
     } else if (panelCodes.isNotEmpty) {
@@ -2088,7 +2105,7 @@ class DuelFieldStore extends ChangeNotifier {
         title: '$owner 展示的卡片',
         codes: panelCodes.toList(),
       );
-      notifyListeners();
+      markChanged();
     }
   }
 
@@ -2096,14 +2113,14 @@ class DuelFieldStore extends ChangeNotifier {
     floatPreviewCodes = msg.cards.map((card) => card.code).toList();
     floatPreviewOwner = msg.player;
     floatPreviewIsExtra = isExtra;
-    notifyListeners();
+    markChanged();
 
     final count = floatPreviewCodes.length;
     final interval = count > 5 ? 200 : 750;
     final totalMs = count * interval + 500;
     _confirmTimer = Timer(Duration(milliseconds: totalMs), () {
       floatPreviewCodes = [];
-      notifyListeners();
+      markChanged();
     });
   }
 
@@ -2162,7 +2179,7 @@ class DuelFieldStore extends ChangeNotifier {
     confirmedHandSequences = {};
     confirmedHandOwner = 0;
     floatPreviewCodes = [];
-    notifyListeners();
+    markChanged();
   }
 
   void _handleChained(MsgChained msg) {
@@ -2339,7 +2356,7 @@ class DuelFieldStore extends ChangeNotifier {
           if (selfTimeLeft <= 0 && opponentTimeLeft <= 0) {
             _timeLimitTimer?.cancel();
           }
-          notifyListeners();
+          markTimerTick();
         },
       );
     }
@@ -2365,7 +2382,7 @@ class DuelFieldStore extends ChangeNotifier {
       battlePresentation = null;
       lastAttackFrom = null;
       lastAttackTo = null;
-      notifyListeners();
+      markChanged();
     });
   }
 
@@ -2409,14 +2426,14 @@ class DuelFieldStore extends ChangeNotifier {
   void dismissInspector() {
     if (!_showInspector) return;
     _showInspector = false;
-    notifyListeners();
+    markChanged();
   }
 
   void inspectCard(int code) {
     if (code <= 0) return;
-    ygoSoundService.playDialogOpen();
+    _sound(DuelSound.dialogOpen);
     _inspectCardMut(code);
-    notifyListeners();
+    markChanged();
   }
 
   // ──────────────────────────────────────────
@@ -2612,7 +2629,7 @@ class DuelFieldStore extends ChangeNotifier {
     final index = _inlineOptionIndexForHand(sequence);
     if (index == null) {
       _inspectCardMut(code, preserveHandSelection: true);
-      notifyListeners();
+      markChanged();
       return;
     }
     _applyInlineOptionTap(index, code);
@@ -2624,7 +2641,7 @@ class DuelFieldStore extends ChangeNotifier {
     final index = _inlineOptionIndexForField(card);
     if (index == null) {
       _inspectCardMut(card.code);
-      notifyListeners();
+      markChanged();
       return;
     }
     _applyInlineOptionTap(index, card.code);
@@ -2656,7 +2673,7 @@ class DuelFieldStore extends ChangeNotifier {
     } else if (_inlineSelectedOptionIndices.length < select.max) {
       _inlineSelectedOptionIndices.add(index);
     }
-    notifyListeners();
+    markChanged();
   }
 
   /// 多选确认：按选项下标升序提交已勾选的卡。
@@ -2715,7 +2732,7 @@ class DuelFieldStore extends ChangeNotifier {
     _selectedFieldCard = null;
     _showPhaseMenu = false;
     _inspectCardMut(code, preserveHandSelection: true);
-    notifyListeners();
+    markChanged();
   }
 
   void handleHandCardDoubleTap(int sequence, int code) {
@@ -2730,7 +2747,7 @@ class DuelFieldStore extends ChangeNotifier {
     _selectedFieldCard = null;
     _showPhaseMenu = false;
     respondCurrentCommand(action.response);
-    notifyListeners();
+    markChanged();
   }
 
   void handleFieldCardTap(FieldCard? fieldCard, int? code) {
@@ -2757,7 +2774,7 @@ class DuelFieldStore extends ChangeNotifier {
     _selectedHandSequence = null;
     _selectedZoneBrowserSequence = null;
     _showPhaseMenu = false;
-    notifyListeners();
+    markChanged();
   }
 
   static bool isBrowsableZone(String zoneKey) {
@@ -2781,30 +2798,30 @@ class DuelFieldStore extends ChangeNotifier {
   }
 
   void openZoneBrowser(String zoneKey) {
-    ygoSoundService.playZoneOpen();
+    _sound(DuelSound.zoneOpen);
     _selectedHandSequence = null;
     _openZoneBrowserKey = zoneKey;
     _selectedZoneBrowserSequence = null;
     _selectedFieldCard = null;
     _showPhaseMenu = false;
-    notifyListeners();
+    markChanged();
   }
 
   void closeZoneBrowser() {
     if (_openZoneBrowserKey == null && _selectedZoneBrowserSequence == null) {
       return;
     }
-    ygoSoundService.playZoneClose();
+    _sound(DuelSound.zoneClose);
     _openZoneBrowserKey = null;
     _selectedZoneBrowserSequence = null;
-    notifyListeners();
+    markChanged();
   }
 
   void inspectZoneBrowserCard(int sequence, int code) {
     _selectedZoneBrowserSequence = sequence;
     _selectedFieldCard = null;
     _inspectCardMut(code, preserveZoneBrowser: true);
-    notifyListeners();
+    markChanged();
   }
 
   void togglePhaseMenu() {
@@ -2813,13 +2830,13 @@ class DuelFieldStore extends ChangeNotifier {
     }
     _showPhaseMenu = !_showPhaseMenu;
     if (_showPhaseMenu) {
-      ygoSoundService.playMenuOpen();
+      _sound(DuelSound.menuOpen);
     } else {
-      ygoSoundService.playMenuClose();
+      _sound(DuelSound.menuClose);
     }
     _selectedHandSequence = null;
     _selectedFieldCard = null;
-    notifyListeners();
+    markChanged();
   }
 
   /// 当出现更高优先级的选择窗口（非阶段指令）时，本地弹层应当让位。
@@ -2842,7 +2859,7 @@ class DuelFieldStore extends ChangeNotifier {
     _selectedFieldCard = null;
     _openZoneBrowserKey = null;
     _showPhaseMenu = false;
-    notifyListeners();
+    markChanged();
   }
 
   List<PlaymatResolvedAction> handActionsForCurrentSelection() {
@@ -3147,7 +3164,7 @@ class DuelFieldStore extends ChangeNotifier {
               _selectedHandSequence = null;
               _showPhaseMenu = false;
               respondCurrentCommand(action.response);
-              notifyListeners();
+              markChanged();
             },
           ),
         )
@@ -3162,7 +3179,7 @@ class DuelFieldStore extends ChangeNotifier {
             onTap: () {
               _showPhaseMenu = false;
               respondCurrentCommand(action.response);
-              notifyListeners();
+              markChanged();
             },
           ),
         )
@@ -3201,7 +3218,7 @@ class DuelFieldStore extends ChangeNotifier {
       _openZoneBrowserKey = null;
       _selectedZoneBrowserSequence = null;
     }
-    notifyListeners();
+    markChanged();
   }
 
   List<ZoneBrowserCardEntry> zoneBrowserEntriesFor(String zoneKey) {
@@ -3317,21 +3334,4 @@ class DuelFieldStore extends ChangeNotifier {
     return null;
   }
 
-  StreamSubscription<YgoStocMsg>? _msgSub;
-  StreamSubscription<DuelPhase>? _phaseSub;
-  void bindServerMessage(BuildContext context) {
-    _phaseSub = _duelService?.onDuelPhaseMessage.listen((phase) {
-      if (!context.mounted) return;
-      this.phase = phase;
-      // 阶段合法性（enableBp/enableM2/enableEp）只由服务端下发的
-      // MSG_SELECT_IDLE_CMD / MSG_SELECT_BATTLE_CMD 驱动，这里不做本地推断。
-      final phaseName = getDuelPhaseText(context, phase);
-      if (phaseName?.isNotEmpty == true) addLog('$phaseName 开始。');
-      notifyListeners();
-    });
-    _msgSub = _duelService?.onServerMessage.listen((msg) {
-      // console.log('Received server message: $msg ${msg.gameMsg?.func}');
-      handleServerMessage(msg);
-    });
-  }
 }

@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../models/battle_presentation.dart';
 import '../../../../models/field_zone_key.dart';
-import '../../../../pages/duel_room/duel/duel_field_store.dart';
+import '../../../../pages/duel_room/duel/bloc/duel_bloc.dart';
+import '../../../../pages/duel_room/duel/bloc/duel_state.dart';
 import '../duel_field_world.dart';
 
 class BattlePresentationComponent extends Component
@@ -28,14 +29,17 @@ class BattlePresentationComponent extends Component
     ),
   );
 
-  final DuelFieldStore duelStore;
+  final DuelBloc duelBloc;
+
+  /// 当前对局状态快照（便捷访问，等价于 duelBloc.state）。
+  DuelState get duelStore => duelBloc.state;
 
   double _elapsed = 0;
   double _impactTime = 0;
   BattlePresentation? _lastPresentation;
   bool _wasInDamageStep = false;
 
-  BattlePresentationComponent({required this.duelStore}) : super(priority: 30);
+  BattlePresentationComponent({required this.duelBloc}) : super(priority: 30);
 
   @override
   void update(double dt) {

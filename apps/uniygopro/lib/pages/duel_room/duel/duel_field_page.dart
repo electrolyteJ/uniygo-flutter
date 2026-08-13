@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:duelink/duelink.dart' show PlayerType, PlayerInfo;
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_portal/flutter_portal.dart';
-import 'package:provider/provider.dart';
 
 import '../../../models/field_card.dart';
 import '../../../models/duel_menu.dart';
@@ -27,7 +28,10 @@ import '../../../widgets/duel_room/field/playmat_field_view_data.dart';
 import '../../../widgets/duel_room/overlay/select_prompt_layer.dart';
 import '../duel_room_exit.dart';
 import '../duel_room_store.dart';
-import 'duel_field_store.dart';
+import 'bloc/duel_bloc.dart';
+import 'bloc/duel_effect.dart';
+import 'bloc/duel_event.dart';
+import 'bloc/duel_state.dart';
 import '../../../widgets/duel_room/menus/duel_field_popover_layout.dart';
 import '../../../models/select_state.dart';
 import '../../../widgets/duel_room/overlay/card_selector.dart';
@@ -38,8 +42,8 @@ import '../../../widgets/duel_room/overlay/position_selector.dart';
 import '../../../widgets/duel_room/overlay/turn_order_hint.dart';
 import '../../../widgets/duel_room/overlay/yes_no_dialog.dart';
 
-/// 决斗场地页：负责 store 接线、Flame 游戏生命周期与整体布局。
-/// 选择/检视/菜单等交互状态由 [DuelFieldStore] 直接持有，
+/// 决斗场地页：负责 bloc 接线、Flame 游戏生命周期与整体布局。
+/// 选择/检视/菜单等交互状态由 [DuelBloc] 持有（状态见 [DuelState]），
 /// 弹层几何计算见 duel_field_popover_layout.dart。
 class DuelFieldPage extends StatefulWidget {
   final List<PlayerInfo> players;
@@ -55,8 +59,9 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
   static const double _inspectorTop = 124.0;
   static const double _logDrawerTop = 126.0;
 
-  late final DuelFieldStore duelStore;
+  late final DuelBloc duelBloc;
 
+  StreamSubscription<DuelEffect>? _effectSub;
   DuelFlameGame? _flameGame;
   PlaymatAnchorData? _fieldAnchors;
   PlaymatRenderMode _renderMode = PlaymatRenderMode.flame;
@@ -68,9 +73,79 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
   @override
   void initState() {
     super.initState();
-    duelStore = context.read<DuelFieldStore>();
+    duelBloc = context.read<DuelBloc>();
+    // 核心产生的音效副作用在这里映射到具体播放实现。
+    _effectSub = duelBloc.effects.listen(_handleDuelEffect);
     _scheduleTurnOrderHint();
   }
+
+  @override
+  void dispose() {
+    _effectSub?.cancel();
+    super.dispose();
+  }
+
+  void _handleDuelEffect(DuelEffect effect) {
+    if (effect is! DuelSoundEffect) return;
+    final sound = ServiceSingleton.instance.ygoSoundService;
+    switch (effect.sound) {
+      case DuelSound.duelStart:
+        sound.playDuelStart();
+      case DuelSound.newTurn:
+        sound.playNewTurn();
+      case DuelSound.newPhase:
+        sound.playNewPhase();
+      case DuelSound.attack:
+        sound.playAttack();
+      case DuelSound.damage:
+        sound.playDamage();
+      case DuelSound.recover:
+        sound.playRecover();
+      case DuelSound.chain:
+        sound.playChain();
+      case DuelSound.chainEnd:
+        sound.playChainEnd();
+      case DuelSound.summon:
+        sound.playSummon();
+      case DuelSound.specialSummon:
+        sound.playSpecialSummon();
+      case DuelSound.flipSummon:
+        sound.playFlipSummon();
+      case DuelSound.battle:
+        sound.playBattle();
+      case DuelSound.duelWin:
+        sound.playDuelWin();
+      case DuelSound.shuffleDeck:
+        sound.playShuffleDeck();
+      case DuelSound.damageStep:
+        sound.playDamageStep();
+      case DuelSound.cardDraw:
+        sound.playCardDraw();
+      case DuelSound.cardDestroy:
+        sound.playCardDestroy();
+      case DuelSound.posChange:
+        sound.playPosChange();
+      case DuelSound.setCard:
+        sound.playSetCard();
+      case DuelSound.coinToss:
+        sound.playCoinToss();
+      case DuelSound.dice:
+        sound.playDice();
+      case DuelSound.dialogOpen:
+        sound.playDialogOpen();
+      case DuelSound.zoneOpen:
+        sound.playZoneOpen();
+      case DuelSound.zoneClose:
+        sound.playZoneClose();
+      case DuelSound.menuOpen:
+        sound.playMenuOpen();
+      case DuelSound.menuClose:
+        sound.playMenuClose();
+    }
+  }
+
+  /// 当前对局状态快照（便捷访问，等价于 duelBloc.state）。
+  DuelState get duelStore => duelBloc.state;
 
   /// 进入场地页后读取先后攻信息，居中弹出一次提示。
   /// 观战者不提示；信息尚未到达时挂一次监听兜底。
@@ -115,10 +190,11 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
 
   DuelFlameGame _ensureFlameGame() {
     return _flameGame ??= DuelFlameGame(
-      duelStore: duelStore,
-      onCardSelect: duelStore.handleFieldCardTap,
-      onZoneInspect: duelStore.handleZoneInspect,
-      onPhaseLampTap: duelStore.togglePhaseMenu,
+      duelBloc: duelBloc,
+      onCardSelect: (card, code) =>
+          duelBloc.add(DuelFieldCardTapped(card, code)),
+      onZoneInspect: (key) => duelBloc.add(DuelZoneInspectHandled(key)),
+      onPhaseLampTap: () => duelBloc.add(const DuelPhaseMenuToggled()),
       isPhaseLampEnabled: _canTapPhaseLamp,
       onAnchorsChanged: _handleAnchorsChanged,
     );
@@ -170,9 +246,10 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
           data: fieldViewData,
           phase: duelStore.phase,
           phaseLampEnabled: _canTapPhaseLamp(),
-          onPhaseLampTap: duelStore.togglePhaseMenu,
-          onFieldCardTap: duelStore.handleFieldCardTap,
-          onZoneTap: duelStore.handleZoneInspect,
+          onPhaseLampTap: () => duelBloc.add(const DuelPhaseMenuToggled()),
+          onFieldCardTap: (card, code) =>
+              duelBloc.add(DuelFieldCardTapped(card, code)),
+          onZoneTap: (key) => duelBloc.add(DuelZoneInspectHandled(key)),
           onAnchorsChanged: _handleAnchorsChanged,
           selectedSlotId: duelStore.selectedFieldCard == null
               ? null
@@ -181,7 +258,8 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
           checkedSlotIds: duelStore.inlineSelectedFieldKeys,
           placeTargetSlotIds: duelStore.placeTargetFieldKeys,
           confirmedSlotIds: duelStore.confirmedFieldSlotKeys,
-          onPlaceSlotTap: duelStore.respondSelectPlaceKey,
+          onPlaceSlotTap: (key) =>
+              duelBloc.add(DuelSelectPlaceKeyResponded(key)),
         );
       case PlaymatRenderMode.flame:
         return FlamePlaymatField(
@@ -225,11 +303,6 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
         .where((p) => p.pos == 1 - mc)
         .map((p) => p.name)
         .firstOrNull ?? '对方';
-    // 当前回合玩家的剩余时间
-    final currentTurnPlayer = duelStore.currentPlayer;
-    final turnTimeLeft = currentTurnPlayer == mc
-        ? duelStore.selfTimeLeft
-        : duelStore.opponentTimeLeft;
     return Positioned(
       top: 0,
       left: 0,
@@ -268,16 +341,25 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
                     extraCount: duelStore.oppExtra,
                     graveCount: duelStore.oppGrave,
                     removedCount: duelStore.oppRemoved,
-                    onExtraTap: () => duelStore.openZoneBrowser('opp_extra'),
-                    onGraveTap: () => duelStore.openZoneBrowser('opp_grave'),
-                    onRemovedTap: () =>
-                        duelStore.openZoneBrowser('opp_removed'),
+                    onExtraTap: () =>
+                        duelBloc.add(const DuelZoneBrowserOpened('opp_extra')),
+                    onGraveTap: () =>
+                        duelBloc.add(const DuelZoneBrowserOpened('opp_grave')),
+                    onRemovedTap: () => duelBloc.add(
+                      const DuelZoneBrowserOpened('opp_removed'),
+                    ),
                   ),
                   const SizedBox(width: 16),
-                  PhaseBar(
-                    turnCount: duelStore.turnCount,
-                    isMyTurn: isMyTurn,
-                    leftTimeSeconds: turnTimeLeft,
+                  // 时间每秒变化，PhaseBar 独立订阅计时 tick，
+                  // 避免整页跟着每秒重建。
+                  BlocBuilder<DuelBloc, DuelState>(
+                    builder: (context, s) => PhaseBar(
+                      turnCount: s.turnCount,
+                      isMyTurn: isMyTurn,
+                      leftTimeSeconds: s.currentPlayer == mc
+                          ? s.selfTimeLeft
+                          : s.opponentTimeLeft,
+                    ),
                   ),
                   const SizedBox(width: 16),
                   PlayerStatusCard(
@@ -292,10 +374,15 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
                     extraCount: duelStore.selfExtra,
                     graveCount: duelStore.selfGrave,
                     removedCount: duelStore.selfRemoved,
-                    onExtraTap: () => duelStore.openZoneBrowser('self_extra'),
-                    onGraveTap: () => duelStore.openZoneBrowser('self_grave'),
-                    onRemovedTap: () =>
-                        duelStore.openZoneBrowser('self_removed'),
+                    onExtraTap: () => duelBloc.add(
+                      const DuelZoneBrowserOpened('self_extra'),
+                    ),
+                    onGraveTap: () => duelBloc.add(
+                      const DuelZoneBrowserOpened('self_grave'),
+                    ),
+                    onRemovedTap: () => duelBloc.add(
+                      const DuelZoneBrowserOpened('self_removed'),
+                    ),
                   ),
                   ],
                 ),
@@ -343,7 +430,7 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
   /// 把 store 的选择态组装成 [SelectPromptLayer] 的纯 UI props，
   /// 选择响应（respondXxx）的分发全部收口在这里。
   Widget _buildSelectPromptLayer(
-    DuelFieldStore duelFieldStore,
+    DuelState duelFieldStore,
     SelectPromptMode mode,
   ) {
     final select = duelFieldStore.currentSelect;
@@ -371,9 +458,12 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
               select?.type == SelectType.unselect && select!.finishable,
           inlineShowConfirm: showConfirm,
           inlineCanConfirm: duelFieldStore.inlineSelectCanConfirm,
-          onInlineCancel: duelFieldStore.cancelInlineSelect,
-          onInlineFinish: duelFieldStore.finishInlineUnselect,
-          onInlineConfirm: duelFieldStore.confirmInlineSelect,
+          onInlineCancel: () =>
+              duelBloc.add(const DuelInlineSelectCancelled()),
+          onInlineFinish: () =>
+              duelBloc.add(const DuelInlineUnselectFinished()),
+          onInlineConfirm: () =>
+              duelBloc.add(const DuelInlineSelectConfirmed()),
         );
       case SelectPromptMode.modal:
         return SelectPromptLayer(
@@ -386,40 +476,46 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
 
   /// 模态选择弹窗：选项落在不可直接点击的区域的回退，
   /// 以及排序/计数器/效果选项等复杂交互。
-  Widget _buildSelectModal(DuelFieldStore duelFieldStore, SelectState select) {
-    final onInspectCard = duelFieldStore.inspectCard;
+  Widget _buildSelectModal(DuelState duelFieldStore, SelectState select) {
+    void onInspectCard(int code) => duelBloc.add(DuelCardInspected(code));
     switch (select.type) {
       case SelectType.card:
       case SelectType.tribute:
         return CardSelector(
           select: select,
-          onSelect: (sequences) => duelFieldStore.respondSelectCard(sequences),
-          onCancel: () => duelFieldStore.respondSelectCard([]),
+          onSelect: (sequences) =>
+              duelBloc.add(DuelSelectCardResponded(sequences)),
+          onCancel: () => duelBloc.add(const DuelSelectCardResponded([])),
           onInspectCard: onInspectCard,
         );
       case SelectType.unselect:
         return CardSelector(
           select: select,
-          onSelect: (sequences) => duelFieldStore.respondSelectUnselectCard(
-            sequences.isEmpty ? null : sequences.first,
+          onSelect: (sequences) => duelBloc.add(
+            DuelSelectUnselectCardResponded(
+              sequences.isEmpty ? null : sequences.first,
+            ),
           ),
-          onCancel: () => duelFieldStore.respondSelectUnselectCard(null),
+          onCancel: () =>
+              duelBloc.add(const DuelSelectUnselectCardResponded(null)),
           onInspectCard: onInspectCard,
         );
       case SelectType.chain:
         return CardSelector(
           select: select,
-          onSelect: (sequences) => duelFieldStore.respondSelectChain(
-            sequences.isNotEmpty ? sequences.first : -1,
+          onSelect: (sequences) => duelBloc.add(
+            DuelSelectChainResponded(
+              sequences.isNotEmpty ? sequences.first : -1,
+            ),
           ),
-          onCancel: () => duelFieldStore.respondSelectChain(-1),
+          onCancel: () => duelBloc.add(const DuelSelectChainResponded(-1)),
           onInspectCard: onInspectCard,
         );
       case SelectType.position:
         return PositionSelector(
           select: select,
           onSelect: (position) =>
-              duelFieldStore.respondSelectPosition(position),
+              duelBloc.add(DuelSelectPositionResponded(position)),
         );
       case SelectType.effectYn:
         return YesNoDialog(
@@ -427,8 +523,8 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
           cardCode:
               select.options.isNotEmpty ? select.options.first.code : null,
           onInspectCard: onInspectCard,
-          onYes: () => duelFieldStore.respondSelectEffectYn(true),
-          onNo: () => duelFieldStore.respondSelectEffectYn(false),
+          onYes: () => duelBloc.add(const DuelSelectEffectYnResponded(true)),
+          onNo: () => duelBloc.add(const DuelSelectEffectYnResponded(false)),
         );
       case SelectType.yesNo:
         return YesNoDialog(
@@ -436,45 +532,48 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
           cardCode:
               select.options.isNotEmpty ? select.options.first.code : null,
           onInspectCard: onInspectCard,
-          onYes: () => duelFieldStore.respondSelectYesNo(true),
-          onNo: () => duelFieldStore.respondSelectYesNo(false),
+          onYes: () => duelBloc.add(const DuelSelectYesNoResponded(true)),
+          onNo: () => duelBloc.add(const DuelSelectYesNoResponded(false)),
         );
       case SelectType.option:
         return CardSelector(
           select: select,
-          onSelect: (sequences) => duelFieldStore.respondSelectOption(
-            sequences.isNotEmpty ? sequences.first : 0,
+          onSelect: (sequences) => duelBloc.add(
+            DuelSelectOptionResponded(
+              sequences.isNotEmpty ? sequences.first : 0,
+            ),
           ),
-          onCancel: () => duelFieldStore.respondSelectOption(0),
+          onCancel: () => duelBloc.add(const DuelSelectOptionResponded(0)),
           onInspectCard: onInspectCard,
         );
       case SelectType.announceCard:
         return AnnounceCardDialog(
           onSearch: duelFieldStore.searchAnnounceCards,
-          onSelect: duelFieldStore.respondAnnounceCard,
+          onSelect: (code) => duelBloc.add(DuelAnnounceCardResponded(code)),
           onInspectCard: onInspectCard,
         );
       case SelectType.sum:
         return CardSelector(
           select: select,
           onSelect: (sequences) =>
-              duelFieldStore.respondSelectSum(sequences),
-          onCancel: () => duelFieldStore.respondSelectSum([]),
+              duelBloc.add(DuelSelectSumResponded(sequences)),
+          onCancel: () => duelBloc.add(const DuelSelectSumResponded([])),
           onInspectCard: onInspectCard,
         );
       case SelectType.counter:
         return CardSelector(
           select: select,
           onSelect: (sequences) =>
-              duelFieldStore.respondSelectCounter(sequences),
-          onCancel: () => duelFieldStore.respondSelectCounter([]),
+              duelBloc.add(DuelSelectCounterResponded(sequences)),
+          onCancel: () => duelBloc.add(const DuelSelectCounterResponded([])),
           onInspectCard: onInspectCard,
         );
       case SelectType.sort:
         return CardSelector(
           select: select,
-          onSelect: (sequences) => duelFieldStore.respondSortCard(sequences),
-          onCancel: () => duelFieldStore.respondSortCard([]),
+          onSelect: (sequences) =>
+              duelBloc.add(DuelSortCardResponded(sequences)),
+          onCancel: () => duelBloc.add(const DuelSortCardResponded([])),
           onInspectCard: onInspectCard,
         );
       default:
@@ -484,7 +583,11 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
 
   @override
   Widget build(BuildContext context) {
-    final duelFieldStore = context.watch<DuelFieldStore>();
+    // 计时 tick（isTimerTick）每秒一次，整页跳过该发射的重建；
+    // 时间显示由 PhaseBar 内的独立 BlocBuilder 订阅负责。
+    return BlocBuilder<DuelBloc, DuelState>(
+      buildWhen: (prev, next) => !next.isTimerTick,
+      builder: (context, duelFieldStore) {
     final inspectedCardCode = duelFieldStore.inspectedCardCode;
     final inspectedCardInfo = inspectedCardCode == null
         ? duelFieldStore.inspectedCardInfo
@@ -496,7 +599,7 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
     if (duelFieldStore.needsHigherPriorityDismiss) {
       // build 期间不能改状态，推迟到帧末让本地弹层让位。
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) duelFieldStore.clearLocalUi();
+        if (mounted) duelBloc.add(const DuelLocalUiCleared());
       });
     }
     final zoneBrowserKey = duelFieldStore.openZoneBrowserKey;
@@ -585,7 +688,8 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
             child: HandCardsBar(
               handCodes: duelFieldStore.selfHand,
               selectedCardSequence: duelFieldStore.selectedHandSequence,
-              onCardTap: duelFieldStore.handleHandCardTap,
+              onCardTap: (sequence, code) =>
+                  duelBloc.add(DuelHandCardTapped(sequence, code)),
               overlayContent: handActionEntries.isEmpty
                   ? null
                   : HandActionPopover(actions: handActionEntries),
@@ -642,8 +746,9 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
               zoneBrowserKey: zoneBrowserKey,
               cards: zoneBrowserEntries,
               selectedCardSequence: duelFieldStore.selectedZoneBrowserSequence,
-              onCardTap: duelFieldStore.inspectZoneBrowserCard,
-              onClose: duelFieldStore.closeZoneBrowser,
+              onCardTap: (sequence, code) =>
+                  duelBloc.add(DuelZoneBrowserCardInspected(sequence, code)),
+              onClose: () => duelBloc.add(const DuelZoneBrowserClosed()),
               selectedActions: zoneBrowserActions,
               hiddenCount: duelFieldStore.hiddenCountForZoneKey(zoneBrowserKey),
               cardNameBuilder: (code) =>
@@ -659,7 +764,8 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
           if (duelFieldStore.confirmPanel != null)
             Positioned.fill(
               child: GestureDetector(
-                onTap: () => duelFieldStore.dismissConfirmPanel(),
+                onTap: () =>
+                    duelBloc.add(const DuelConfirmPanelDismissed()),
                 child: Container(
                   color: Colors.black.withValues(alpha: 0.65),
                   child: BackdropFilter(
@@ -670,7 +776,8 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
                       cardNameBuilder: (code) =>
                           duelFieldStore.getCardInfo(code)?.name ??
                           'Card #$code',
-                      onDismiss: () => duelFieldStore.dismissConfirmPanel(),
+                      onDismiss: () =>
+                          duelBloc.add(const DuelConfirmPanelDismissed()),
                     ),
                   ),
                 ),
@@ -698,7 +805,7 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
               child: CardDetailDrawer(
                 cardInfo: inspectedCardInfo,
                 cardCode: inspectedCardCode,
-                onClose: duelFieldStore.dismissInspector,
+                onClose: () => duelBloc.add(const DuelInspectorDismissed()),
               ),
             ),
           Positioned(
@@ -723,9 +830,11 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
         ],
       ),
     );
+      },
+    );
   }
 
-  Widget _buildFloatPreview(DuelFieldStore store) {
+  Widget _buildFloatPreview(DuelState store) {
     final isSelf = store.floatPreviewOwner == store.myController;
     final zoneKey = store.floatPreviewIsExtra
         ? (isSelf ? 'self_extra' : 'opp_extra')
@@ -756,10 +865,9 @@ class _DuelFieldPageState extends State<DuelFieldPage> {
         title: store.floatPreviewIsExtra ? '额外卡组顶部' : '卡组顶部',
         cardNameBuilder: (code) =>
             store.getCardInfo(code)?.name ?? 'Card #$code',
-        onDismiss: () => store.dismissConfirmPanel(),
+        onDismiss: () => duelBloc.add(const DuelConfirmPanelDismissed()),
         autoCloseSeconds: 0.75,
       ),
     );
   }
 }
-

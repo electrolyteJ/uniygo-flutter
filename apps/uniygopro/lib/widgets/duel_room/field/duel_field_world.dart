@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Offset, Size;
 import '../../../models/field_card.dart';
 import '../../../models/field_zone_key.dart';
-import '../../../pages/duel_room/duel/duel_field_store.dart';
+import '../../../pages/duel_room/duel/bloc/duel_bloc.dart';
+import '../../../pages/duel_room/duel/bloc/duel_state.dart';
 import '../../../image/card_image_loader.dart';
 import 'component/battle_presentation_component.dart';
 import 'component/board_mesh_component.dart';
@@ -67,11 +68,14 @@ class DuelFieldLayout {
 /// Stylized 3D 投影（世界坐标 = 投影后、以棋盘中心为原点的坐标，
 /// 视口居中/偏移由 [CameraComponent] 负责）。
 class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
-  final DuelFieldStore duelStore;
+  final DuelBloc duelBloc;
   final Function(FieldCard? card, int? code)? onCardSelect;
   final void Function(String zoneKey)? onZoneInspect;
   final VoidCallback? onPhaseLampTap;
   final bool Function()? isPhaseLampEnabled;
+
+  /// 当前对局状态快照（便捷访问，等价于 duelBloc.state）。
+  DuelState get duelStore => duelBloc.state;
 
   PhaseLampComponent? _phaseLamp;
   ZonesComponent? _zones;
@@ -80,7 +84,7 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
   CardImageLoader get _loader => CardImageLoader.I;
 
   DuelFieldWorld({
-    required this.duelStore,
+    required this.duelBloc,
     this.onCardSelect,
     this.onZoneInspect,
     this.onPhaseLampTap,
@@ -96,15 +100,15 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
   void _initComponents() {
     add(BoardMeshComponent());
     _zones = ZonesComponent(
-      duelStore: duelStore,
+      duelBloc: duelBloc,
       onCardSelect: onCardSelect,
       onZoneInspect: onZoneInspect,
     );
     add(_zones!);
     _zones!.rebuild();
-    add(BattlePresentationComponent(duelStore: duelStore));
+    add(BattlePresentationComponent(duelBloc: duelBloc));
     _phaseLamp = PhaseLampComponent(
-      duelStore: duelStore,
+      duelBloc: duelBloc,
       onTap: onPhaseLampTap,
       enabledGetter: isPhaseLampEnabled,
     );

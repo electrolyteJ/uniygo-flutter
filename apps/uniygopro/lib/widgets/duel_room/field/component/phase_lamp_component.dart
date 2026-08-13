@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:duelink/duelink.dart';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flame/text.dart';
 import 'package:flutter/material.dart';
-import '../../../../pages/duel_room/duel/duel_field_store.dart';
+import '../../../../pages/duel_room/duel/bloc/duel_bloc.dart';
+import '../../../../pages/duel_room/duel/bloc/duel_state.dart';
 import '../duel_field_world.dart';
 
 /// Flame 版阶段指示灯：渲染在 [DuelFieldWorld] 中，紧贴 self_removed（Banish / 除外）
@@ -14,9 +17,12 @@ import '../duel_field_world.dart';
 /// 阶段名 + CURRENT PHASE 副标题）。点击触发 [onTap]（通常为切换阶段菜单）。
 class PhaseLampComponent extends PositionComponent
     with TapCallbacks, HasWorldReference<DuelFieldWorld> {
-  final DuelFieldStore duelStore;
+  final DuelBloc duelBloc;
   final VoidCallback? onTap;
   final bool Function()? enabledGetter;
+
+  /// 当前对局状态快照（便捷访问，等价于 duelBloc.state）。
+  DuelState get duelStore => duelBloc.state;
 
   // 锚点卡槽 (self_grave / 墓地) 的棋盘坐标，取自布局常量。
   // 己方墓地位于 Monster 行 colX[6]=252 / monsterY=100，PhaseLamp 左下边 = 墓地卡槽右上边 + (gap, -gap)。
@@ -58,9 +64,10 @@ class PhaseLampComponent extends PositionComponent
   );
 
   bool _enabled = false;
+  StreamSubscription<DuelState>? _stateSub;
 
   PhaseLampComponent({
-    required this.duelStore,
+    required this.duelBloc,
     this.onTap,
     this.enabledGetter,
   }) : super(anchor: Anchor.center);
@@ -70,13 +77,13 @@ class PhaseLampComponent extends PositionComponent
     await super.onLoad();
     _updateSize();
     position = _projectedPosition();
-    duelStore.addListener(_onStoreChanged);
+    _stateSub = duelBloc.stream.listen((_) => _onStoreChanged());
     _refreshEnabled();
   }
 
   @override
   void onRemove() {
-    duelStore.removeListener(_onStoreChanged);
+    _stateSub?.cancel();
     super.onRemove();
   }
 

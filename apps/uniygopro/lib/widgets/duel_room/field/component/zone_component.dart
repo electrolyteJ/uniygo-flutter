@@ -8,7 +8,9 @@ import 'package:flame/text.dart';
 import 'package:flutter/material.dart';
 import '../../../../models/field_card.dart';
 import '../../../../models/field_zone_key.dart';
-import '../../../../pages/duel_room/duel/duel_field_store.dart';
+import '../../../../pages/duel_room/duel/bloc/duel_bloc.dart';
+import '../../../../pages/duel_room/duel/bloc/duel_event.dart';
+import '../../../../pages/duel_room/duel/bloc/duel_state.dart';
 import '../duel_field_world.dart';
 import 'deck_shuffle_effect.dart';
 
@@ -27,21 +29,24 @@ enum CardSlotHighlight {
 }
 
 /// 场地区域组件：持有全部卡槽（[CardSlotComponent]），负责按
-/// [DuelFieldStore] 构建槽位布局、重建，以及鼠标移动时的视差重投影。
+/// [DuelState] 构建槽位布局、重建，以及鼠标移动时的视差重投影。
 ///
 /// 卡槽作为本组件的子节点，位置使用世界坐标（由 [DuelFieldWorld.project3D]
 /// 投影），本组件本身无变换，故子节点世界坐标 = 棋盘世界坐标。
 class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
-  final DuelFieldStore duelStore;
+  final DuelBloc duelBloc;
   final Function(FieldCard? card, int? code)? onCardSelect;
   final void Function(String zoneKey)? onZoneInspect;
+
+  /// 当前对局状态快照（便捷访问，等价于 duelBloc.state）。
+  DuelState get duelStore => duelBloc.state;
 
   final List<CardSlotComponent> _slots = [];
   Vector2? _lastParallaxMouse;
   int _lastShuffleTick = 0;
 
   ZonesComponent({
-    required this.duelStore,
+    required this.duelBloc,
     this.onCardSelect,
     this.onZoneInspect,
   });
@@ -333,7 +338,7 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
           highlight = CardSlotHighlight.selectable;
         } else if (duelStore.placeTargetFieldKeys.contains(key)) {
           highlight = CardSlotHighlight.placeTarget;
-          placeTap = () => duelStore.respondSelectPlaceKey(key);
+          placeTap = () => duelBloc.add(DuelSelectPlaceKeyResponded(key));
         }
       }
     }

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import '../../../models/field_card.dart';
-import '../../../pages/duel_room/duel/duel_field_store.dart';
+import '../../../pages/duel_room/duel/bloc/duel_bloc.dart';
+import '../../../pages/duel_room/duel/bloc/duel_state.dart';
 import 'playmat_anchor_data.dart';
 import 'duel_field_world.dart';
 
@@ -31,16 +34,17 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   static const _minZoom = 0.1;
   static const _maxZoom = 2.6;
 
-  final DuelFieldStore duelStore;
+  final DuelBloc duelBloc;
   final Function(FieldCard? card, int? code)? onCardSelect;
   final void Function(String zoneKey)? onZoneInspect;
   final VoidCallback? onPhaseLampTap;
   final bool Function()? isPhaseLampEnabled;
   ValueChanged<PlaymatAnchorData>? onAnchorsChanged;
   String? _lastAnchorSignature;
+  StreamSubscription<DuelState>? _stateSub;
 
   DuelFlameGame({
-    required this.duelStore,
+    required this.duelBloc,
     this.onCardSelect,
     this.onZoneInspect,
     this.onPhaseLampTap,
@@ -48,14 +52,14 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     this.onAnchorsChanged,
   }) : super(
          world: DuelFieldWorld(
-           duelStore: duelStore,
+           duelBloc: duelBloc,
            onCardSelect: onCardSelect,
            onZoneInspect: onZoneInspect,
            onPhaseLampTap: onPhaseLampTap,
            isPhaseLampEnabled: isPhaseLampEnabled,
          ),
        ) {
-    duelStore.addListener(_onDuelStateChanged);
+    _stateSub = duelBloc.stream.listen((_) => _onDuelStateChanged());
   }
 
   /// 鼠标位置（widget 坐标），驱动 world 的 3D 视差投影。
@@ -148,7 +152,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   }
 
   PlaymatAnchorData buildAnchorDataForSize(Size viewport) {
-    final selfController = duelStore.myController;
+    final selfController = duelBloc.state.myController;
     final opponentController = 1 - selfController;
     final slotRects = <String, Rect>{};
 
@@ -233,7 +237,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
 
   @override
   void onRemove() {
-    duelStore.removeListener(_onDuelStateChanged);
+    _stateSub?.cancel();
     super.onRemove();
   }
 }
