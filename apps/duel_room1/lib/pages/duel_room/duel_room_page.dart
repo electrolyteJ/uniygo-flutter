@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:duel_room1/pages/duel_room/waiting_room_page.dart';
-import 'package:duel_room1/service_singleton.dart';
+import 'package:biz/service_singleton.dart';
 import 'package:duel_room1/pages/duel_room/duel_field_page.dart';
 import 'package:duel_room1/pages/duel_room/duel_chat_store.dart';
 import 'package:duel_room1/pages/duel_room/duel_room_store.dart';

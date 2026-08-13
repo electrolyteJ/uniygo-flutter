@@ -3,7 +3,7 @@
 // ────────────────────────────────────────────────────────────
 
 import 'package:uniygopro/config/servers.dart';
-import 'package:duel_room1/service_singleton.dart';
+import 'package:biz/service_singleton.dart';
 import 'package:duelink_ai_edo/duelink_puzzle.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';

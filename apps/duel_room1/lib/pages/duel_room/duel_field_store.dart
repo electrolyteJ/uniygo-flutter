@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:developer' as console;
 
+import 'package:biz/card_image_loader.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:duel_room1/service_singleton.dart';
+import 'package:biz/service_singleton.dart';
 import 'package:ygo_data/card_info.dart' as pkg;
 
 import '../../../constants.dart';
@@ -16,7 +17,6 @@ import '../../../models/duel_menu.dart';
 import '../../../models/field_card.dart';
 import '../../../models/idle_action.dart';
 import '../../../models/select_state.dart';
-import '../../../image/card_image_loader.dart';
 import '../../../models/field_zone_key.dart';
 class PlaymatResolvedAction {
   final String label;

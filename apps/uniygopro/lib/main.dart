@@ -6,8 +6,8 @@ import 'package:uniygopro/pages/create_room/match_store.dart';
 import 'package:uniygopro/service_loader.registrations.g.dart';
 import 'package:duel_room1/pages/duel_room/duel_chat_store.dart';
 import 'package:uniygopro/pages/deck_editor/deck_editor_store.dart';
-import 'package:duel_room1/image/card_image_loader.dart';
-import 'package:duel_room1/service_singleton.dart';
+import 'package:biz/card_image_loader.dart';
+import 'package:biz/service_singleton.dart';
 import 'app.dart';
 import 'pages/side/side_store.dart';
 

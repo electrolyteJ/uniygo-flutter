@@ -1,11 +1,11 @@
 import 'dart:developer' as console;
 
+import 'package:biz/service_singleton.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../service_singleton.dart';
 import 'duel_field_store.dart';
 import 'duel_room_store.dart';
 import 'package:duel_room1/pages/duel_room/duel_chat_store.dart';

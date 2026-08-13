@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:duel_room1/service_singleton.dart';
+import 'package:biz/service_singleton.dart';
 import 'package:ygo_data/card_info.dart';
 import 'package:ygo_data/lf_table.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';

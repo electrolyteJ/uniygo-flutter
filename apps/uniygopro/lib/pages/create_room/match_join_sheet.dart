@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:uniygopro/widgets/create_room/password_field.dart';
 import 'package:uniygopro/config/servers.dart';
-import 'package:duel_room1/service_singleton.dart';
+import 'package:biz/service_singleton.dart';
 import '../../services/match_service.dart';
 import '../../widgets/create_room/room_dialog.dart';
 import 'match_store.dart';

@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:biz/service_singleton.dart';
 import 'package:duelink/duelink.dart' show PlayerType, PlayerInfo;
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
@@ -7,7 +8,6 @@ import 'package:provider/provider.dart';
 
 import '../../models/field_card.dart';
 import '../../models/duel_menu.dart';
-import '../../service_singleton.dart';
 import '../../widgets/duel_room/overlay/chain_stack_overlay.dart';
 import '../../widgets/duel_room/inspector/duel_log_drawer.dart';
 import '../../widgets/duel_room/field/duel_flame_game.dart';

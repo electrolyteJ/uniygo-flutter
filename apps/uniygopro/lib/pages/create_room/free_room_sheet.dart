@@ -11,7 +11,7 @@ import 'package:provider/provider.dart';
 
 import 'package:uniygopro/config/servers.dart';
 import '../../models/mercury233_room_spec.dart';
-import 'package:duel_room1/service_singleton.dart';
+import 'package:biz/service_singleton.dart';
 import '../../widgets/create_room/room_dialog.dart';
 import '../../widgets/create_room/create_room_form.dart';
 import '../../widgets/create_room/env_selector.dart';

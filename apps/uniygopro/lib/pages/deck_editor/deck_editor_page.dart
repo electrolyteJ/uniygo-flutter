@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'deck_editor_store.dart';
-import 'package:duel_room1/service_singleton.dart';
+import 'package:biz/service_singleton.dart';
 import '../../widgets/deck_editor/deck_list_panel.dart';
 import '../../widgets/deck_editor/deck_edit_panel.dart';
 import '../../widgets/deck_editor/card_search_bar.dart';

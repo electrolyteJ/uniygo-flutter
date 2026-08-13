@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../config/servers.dart';
-import 'package:duel_room1/service_singleton.dart';
+import 'package:biz/service_singleton.dart';
 import '../widgets/create_room/room_dialog.dart';
 import 'create_room/match_store.dart';
 import 'create_room/ai_room_sheet.dart';

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as console;
 import 'dart:math';
 
+import 'package:biz/service_singleton.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +10,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ygo_data/ygo_data.dart';
 import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
-import '../../service_singleton.dart';
 import '../../util/ygo_data_util.dart';
 import 'duel_field_store.dart';
 import 'duel_room_exit.dart';

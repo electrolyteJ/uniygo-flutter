@@ -1,10 +1,10 @@
 import 'dart:async';
 
+import 'package:biz/service_singleton.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../models/chat_message.dart';
-import '../../service_singleton.dart';
 
 /// 对局/房间聊天消息仓库。
 ///

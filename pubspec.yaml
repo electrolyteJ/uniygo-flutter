@@ -23,11 +23,10 @@ workspace:
   - packages/ygo_deck_mycard
   - packages/ygo_agent
   - packages/ygo_agent_tflite
+  - packages/biz
   - apps/uniygopro
   - apps/cardlive
   - apps/duelarena
   - apps/holoduel
   - apps/mdduel
-  - apps/bloc_sample
-  - apps/riverpod_sample
   - apps/duel_room1

@@ -1,8 +1,8 @@
 import 'dart:ui' as ui;
 
+import 'package:biz/card_image_loader.dart';
 import 'package:flutter/material.dart';
 
-import '../image/card_image_loader.dart';
 import 'package:flutter/widget_previews.dart';
 
 /// 统一卡片图片组件。

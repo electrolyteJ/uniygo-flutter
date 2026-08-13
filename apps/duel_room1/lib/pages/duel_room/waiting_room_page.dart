@@ -1,3 +1,4 @@
+import 'package:biz/service_singleton.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
@@ -9,7 +10,6 @@ import '../../widgets/waiting_room/control_bar.dart';
 import '../../widgets/waiting_room/player_panel.dart';
 import '../../widgets/waiting_room/room_info_panel.dart';
 import 'duel_room_store.dart';
-import '../../service_singleton.dart';
 import 'duel_chat_store.dart';
 
 class WaitingRoomPage extends StatelessWidget {
