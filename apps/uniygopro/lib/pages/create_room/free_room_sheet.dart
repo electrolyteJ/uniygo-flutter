@@ -9,9 +9,9 @@ import 'package:duelink/duelink.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../config/servers.dart';
+import 'package:uniygopro/config/servers.dart';
 import '../../models/mercury233_room_spec.dart';
-import '../../service_singleton.dart';
+import 'package:duel_room1/service_singleton.dart';
 import '../../widgets/create_room/room_dialog.dart';
 import '../../widgets/create_room/create_room_form.dart';
 import '../../widgets/create_room/env_selector.dart';
@@ -65,8 +65,10 @@ class _FreeRoomSheetState extends State<FreeRoomSheet>
     }
     matchStore.selectServer(widget.server, _env, password);
 
+    final params = matchStore.toDuelRoomParams();
     Navigator.of(context).pop();
-    if (context.mounted) context.go('/duel-room');
+    if (context.mounted) context.go('/duel-room', extra: params);
+    matchStore.reset();
   }
 
   Future<List<Mercury233BanlistOption>> _loadBanlistOptions() async {

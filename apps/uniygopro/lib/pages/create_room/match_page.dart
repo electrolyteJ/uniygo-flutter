@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import 'match_store.dart';
 import '../../services/match_service.dart';
-import '../../service_singleton.dart';
+import 'package:duel_room1/service_singleton.dart';
+
+import 'match_store.dart';
 
 class MatchPage extends StatefulWidget {
   const MatchPage({super.key});
@@ -27,7 +28,10 @@ class _MatchPageState extends State<MatchPage> {
       );
       store.setMatchResult(result.address, result.port, result.password);
       ServiceSingleton.instance.ygoSoundService.playMatchFound();
-      if (mounted) context.go('/duel-room');
+      if (mounted) {
+        context.go('/duel-room', extra: store.toDuelRoomParams());
+        store.reset();
+      }
     } catch (e) {
       store.stopSearching();
       ServiceSingleton.instance.ygoSoundService.playError();

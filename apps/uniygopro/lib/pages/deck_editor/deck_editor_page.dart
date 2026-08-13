@@ -3,8 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'deck_editor_store.dart';
-import 'deck_editor_session.dart';
-import '../../service_singleton.dart';
+import 'package:duel_room1/service_singleton.dart';
 import '../../widgets/deck_editor/deck_list_panel.dart';
 import '../../widgets/deck_editor/deck_edit_panel.dart';
 import '../../widgets/deck_editor/card_search_bar.dart';
@@ -14,7 +13,8 @@ import '../../widgets/deck_editor/card_list_view.dart';
 class DeckEditorPage extends StatefulWidget {
   const DeckEditorPage({super.key, this.args});
 
-  final DeckEditorRouteArgs? args;
+  /// 路由会话参数（通用 Map，键见 DeckEditorStore.configureSession）。
+  final Map<String, Object?>? args;
 
   @override
   State<DeckEditorPage> createState() => _DeckEditorPageState();
@@ -47,7 +47,7 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
           return;
         }
         final store = context.read<DeckEditorStore>();
-        context.pop(store.lastSaveResult);
+        context.pop(store.lastSaveResultForRoute);
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF1E2A38),
@@ -308,7 +308,7 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
     ServiceSingleton.instance.ygoSoundService.playBackNavigation();
     final store = context.read<DeckEditorStore>();
     if (Navigator.of(context).canPop()) {
-      context.pop(store.lastSaveResult);
+      context.pop(store.lastSaveResultForRoute);
       return;
     }
     context.go('/');

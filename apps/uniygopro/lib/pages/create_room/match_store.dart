@@ -1,6 +1,6 @@
+import 'package:uniygopro/config/servers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:duelink/duelink.dart';
-import '../../config/servers.dart';
 
 /// 匹配与建房上下文仓库。
 ///
@@ -31,6 +31,36 @@ class MatchStore extends ChangeNotifier {
   /// 残局模式选中的残局脚本名（`puzzle/<category>/<file>.lua`），
   /// 仅 [DuelEnvironment.puzzle] 环境使用。
   String? puzzleScript;
+  Uri? get uri{
+    // 残局环境：URI 路径携带残局脚本（puzzle://local/<category>/<file>.lua），
+    // 路径段逐个编码以兼容空格/方括号等特殊字符。
+    final Uri? uri;
+    if (environment.isPuzzle) {
+      final script = puzzleScript;
+      if (script == null || script.isEmpty) {
+        return null;
+      }
+      final rel = script.startsWith('puzzle/') ? script.substring(7) : script;
+      final encoded = rel.split('/').map(Uri.encodeComponent).join('/');
+      uri = Uri.tryParse('${environment.schema}://$serverAddress/$encoded');
+    } else if (environment.isAi) {
+      // AI 环境：房间参数经 URI 查询参数传递给本地引擎连接。
+      final base = Uri.tryParse('${environment.schema}://$serverAddress:$serverPort');
+      uri = base?.replace(queryParameters: roomOptions?.toAiQuery());
+    } else {
+      uri = Uri.tryParse('${environment.schema}://$serverAddress:$serverPort');
+    }
+    return uri;
+  }
+  /// 生成进入决斗房间页所需的路由参数快照（经路由 extra 传递）。
+  Map<String, Object?> toDuelRoomParams() {
+    return {
+      'uri': uri,
+      'serverPassword': serverPassword,
+      'username': username,
+      'roomName': roomName,
+    };
+  }
 
   /// 配置创建房间流程中需要跨页面传递的房间信息。
   void configureCreatedRoom({

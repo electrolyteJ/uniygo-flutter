@@ -30,3 +30,4 @@ workspace:
   - apps/mdduel
   - apps/bloc_sample
   - apps/riverpod_sample
+  - apps/duel_room1

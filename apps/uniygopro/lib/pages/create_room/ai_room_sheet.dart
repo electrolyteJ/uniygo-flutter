@@ -11,7 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/servers.dart';
-import '../../service_singleton.dart';
+import 'package:duel_room1/service_singleton.dart';
 import '../../widgets/create_room/room_dialog.dart';
 import 'match_store.dart';
 
@@ -112,8 +112,10 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
         roomString,
       );
     }
+    final params = matchStore.toDuelRoomParams();
     Navigator.of(context).pop();
-    if (context.mounted) context.go('/duel-room');
+    if (context.mounted) context.go('/duel-room', extra: params);
+    matchStore.reset();
   }
 
   @override

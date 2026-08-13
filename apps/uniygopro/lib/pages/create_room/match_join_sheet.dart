@@ -6,11 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:uniygopro/widgets/create_room/password_field.dart';
-import '../../config/servers.dart';
-import '../../service_singleton.dart';
+import 'package:uniygopro/config/servers.dart';
+import 'package:duel_room1/service_singleton.dart';
 import '../../services/match_service.dart';
-import 'match_store.dart';
 import '../../widgets/create_room/room_dialog.dart';
+import 'match_store.dart';
 
 class MatchJoinSheet extends StatefulWidget {
   final GameServer server;
@@ -53,7 +53,10 @@ class _MatchJoinSheetState extends State<MatchJoinSheet> {
       );
       matchStore.setMatchResult(result.address, result.port, result.password);
       matchStore.setUsername(_usernameCtrl.text.trim());
-      if (context.mounted) context.go('/duel-room');
+      if (context.mounted) {
+        context.go('/duel-room', extra: matchStore.toDuelRoomParams());
+      }
+      matchStore.reset();
     } catch (e) {
       if (mounted) {
         setState(() {

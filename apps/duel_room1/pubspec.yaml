@@ -1,7 +1,7 @@
-name: uniygopro
-description: "A Yu-Gi-Oh! Pro game client."
+name: duel_room1
+description: "从 uniygopro DuelRoomPage 拆出的决斗房间：等待室 + 决斗场地。"
 publish_to: 'none'
-version: 1.0.0+1
+version: 0.0.1
 
 environment:
   sdk: ^3.12.2
@@ -14,24 +14,21 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   intl: any
-  cupertino_icons: ^1.0.8
   provider: ^6.1.1
   audioplayers: ^6.8.1
   flame: ^1.38.0
-  path: ^1.9.1
   shared_preferences: ^2.5.3
-  duel_room1:
-    path: ../duel_room1
-  ygo_storage:
-    path: ../../packages/ygo_storage
+  go_router: ^14.0.0
+  http: ^1.2.1
+  flutter_portal: ^1.1.4
   service_loader:
     path: ../../packages/service_loader
   duelink:
     path: ../../packages/duelink
   duelink_websocket:
     path: ../../packages/duelink_websocket
-  #  duelink_socket:
-  #    path: ../../packages/duelink_socket
+  duelink_socket:
+    path: ../../packages/duelink_socket
   duelink_ai:
     path: ../../packages/duelink_ai
   duelink_ai_edo:
@@ -44,29 +41,14 @@ dependencies:
     path: ../../packages/ygo_card_mycard
   ygo_banlist_mycard:
     path: ../../packages/ygo_banlist_mycard
-  ygo_deck_mdpro3:
-    path: ../../packages/ygo_deck_mdpro3
   ygo_deck_mycard:
     path: ../../packages/ygo_deck_mycard
-  go_router: ^14.0.0
-  http: ^1.2.1
-  flutter_portal: ^1.1.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_web_plugins:
-    sdk: flutter
-  integration_test:
-    sdk: flutter
   flutter_lints: ^6.0.0
-  build_runner: ^2.15.1
-  service_loader_gen:
-    path: ../../packages/service_loader_gen
 
 flutter:
   uses-material-design: true
   generate: true
-  assets:
-    - assets/sounds/duel/
-    - assets/sounds/ui/

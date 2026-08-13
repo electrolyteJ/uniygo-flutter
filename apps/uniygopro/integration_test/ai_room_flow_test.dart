@@ -18,7 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:uniygopro/main.dart' as app;
-import 'package:uniygopro/service_singleton.dart';
+import 'package:duel_room1/service_singleton.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();

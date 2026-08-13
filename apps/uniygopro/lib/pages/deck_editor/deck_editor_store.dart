@@ -2,8 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:service_loader/service_loader.dart';
-import 'package:uniygopro/service_singleton.dart';
+import 'package:duel_room1/service_singleton.dart';
 import 'package:ygo_data/card_info.dart';
 import 'package:ygo_data/lf_table.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
@@ -41,7 +40,8 @@ class DeckEditorStore extends ChangeNotifier {
   // ── UI 状态 ──
   bool _isLoading = false;
   String? _errorMessage;
-  DeckEditorRouteArgs? _routeArgs;
+  /// 路由参数（通用 Map，键见 [configureSession]）。
+  Map<String, Object?>? _routeArgs;
   DeckEditorSaveResult? _lastSaveResult;
 
   // ── Getters ──
@@ -68,11 +68,24 @@ class DeckEditorStore extends ChangeNotifier {
     return null;
   }
 
-  DeckEditorRouteArgs? get routeArgs => _routeArgs;
+  Map<String, Object?>? get routeArgs => _routeArgs;
   DeckEditorSaveResult? get lastSaveResult => _lastSaveResult;
-  bool get isWaitingRoomSession => _routeArgs?.isWaitingRoomSession ?? false;
-  bool get lockDeckSelection => _routeArgs?.lockDeckSelection ?? false;
-  bool get lockDeckName => _routeArgs?.lockDeckName ?? false;
+
+  /// 路由返回值（通用 Map）：`{'saved': bool, 'validationErrors': List<String>?}`。
+  /// 为 null 表示尚未保存过。
+  Map<String, Object?>? get lastSaveResultForRoute {
+    final result = _lastSaveResult;
+    if (result == null) return null;
+    return {
+      'saved': result.saved,
+      'validationErrors': result.validationErrors,
+    };
+  }
+
+  bool get isWaitingRoomSession =>
+      _routeArgs?['noCheckDeck'] != null && _routeArgs?['lfTableHash'] != null;
+  bool get lockDeckSelection => _routeArgs?['lockDeckSelection'] == true;
+  bool get lockDeckName => _routeArgs?['lockDeckName'] == true;
   // ── 初始化 ──
 
   /// 初始化卡牌数据库
@@ -472,19 +485,28 @@ class DeckEditorStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> configureSession(DeckEditorRouteArgs? args) async {
+  /// 配置来自路由的会话参数（通用 Map）。
+  ///
+  /// 支持的键：
+  /// - `initialDeckName` (String)：进入时选中的卡组
+  /// - `noCheckDeck` (bool) + `lfTableHash` (int)：等待室校验会话
+  ///   （两者同时给出时按房间规则校验卡组）
+  /// - `lockDeckSelection` (bool)：锁定卡组切换
+  /// - `lockDeckName` (bool)：锁定卡组重命名
+  Future<void> configureSession(Map<String, Object?>? args) async {
     _routeArgs = args;
     _lastSaveResult = null;
     _errorMessage = null;
-    if (args?.validationContext != null) {
-      _selectedBanlistHash = args!.validationContext!.lfTableHash;
+    final lfTableHash = args?['lfTableHash'];
+    if (args?['noCheckDeck'] != null && lfTableHash is int) {
+      _selectedBanlistHash = lfTableHash;
     }
     await _loadBanlistsForCurrentEnvironment(
       preferredHash: _selectedBanlistHash,
     );
 
-    final deckName = args?.initialDeckName;
-    if (deckName != null && deckName.isNotEmpty) {
+    final deckName = args?['initialDeckName'];
+    if (deckName is String && deckName.isNotEmpty) {
       _currentDeck = null;
       await selectDeck(deckName);
     }
@@ -561,8 +583,7 @@ class DeckEditorStore extends ChangeNotifier {
 
 
   Future<List<String>?> _validateForCurrentSession(DeckInfo deckInfo) async {
-    final validationContext = _routeArgs?.validationContext;
-    if (validationContext != null && validationContext.noCheckDeck) {
+    if (_routeArgs?['noCheckDeck'] == true) {
       return null;
     }
 
@@ -629,11 +650,11 @@ class DeckEditorStore extends ChangeNotifier {
       return _dataService.getLfTable(_selectedBanlistHash!);
     }
 
-    final validationContext = _routeArgs?.validationContext;
-    if (validationContext == null) {
+    final lfTableHash = _routeArgs?['lfTableHash'];
+    if (lfTableHash is! int) {
       return null;
     }
-    return _dataService.getLfTable(validationContext.lfTableHash);
+    return _dataService.getLfTable(lfTableHash);
   }
 
   int _compareBanlistsByDateDesc(LfTable a, LfTable b) {
