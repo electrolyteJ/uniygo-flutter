@@ -1,0 +1,18 @@
+[
+ {
+  "msg": "select_position",
+  "spec": "",
+  "act": "none",
+  "phase": "none",
+  "finish": false,
+  "position": "faceup_defense",
+  "effect": -1,
+  "number": 0,
+  "place": "none",
+  "attribute": "none",
+  "card_index": 0,
+  "card_id": 0,
+  "response": 4,
+  "can_finish": false
+ }
+]

@@ -1,0 +1,30 @@
+{
+ "msg_type": "select_battlecmd",
+ "n_legal_actions": 5,
+ "single_action_shortcut": false,
+ "win_rate": 0.6102912649512291,
+ "probs": [
+  0.002543540671467781,
+  0.20285001397132874,
+  0.7940852046012878,
+  0.0004663582949433476,
+  5.4833821195643395e-05
+ ],
+ "responses": [
+  0,
+  65536,
+  1,
+  2,
+  3
+ ],
+ "can_finish": [
+  false,
+  false,
+  false,
+  false,
+  false
+ ],
+ "chosen_idx": 2,
+ "chosen_response": 1,
+ "prev_action_idx": null
+}

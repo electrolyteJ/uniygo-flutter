@@ -1,0 +1,18 @@
+diff --git a/ygoinf/ygoinf/features.py b/ygoinf/ygoinf/features.py
+index a5e50b3..c1a6085 100644
+--- a/ygoinf/ygoinf/features.py
++++ b/ygoinf/ygoinf/features.py
+@@ -839,7 +839,12 @@ def get_legal_actions(action_msg: ActionMsg) -> List[LegalAction]:
+         if msg.count != 1:
+             raise NotImplementedError("Multiple numbers are not supported.")
+         for number in msg.numbers:
+-            if number <= 0 or number > 12:
++            # NOTE(uniygo-golden): upstream bug fix. Original was
++            #   if number <= 0 or number > 12:
++            # which compares the AnnounceNumber pydantic object to an int and
++            # raises TypeError, making the whole announce_number branch unusable.
++            # The intent is to range-check the integer value.
++            if number.number <= 0 or number.number > 12:
+                 raise NotImplementedError(
+                     "Number out of range, only 1-12 are supported.")
+             action = LegalAction(msg=MsgName.announce_number)

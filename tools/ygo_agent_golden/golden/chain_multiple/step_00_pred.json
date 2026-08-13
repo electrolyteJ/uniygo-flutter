@@ -1,0 +1,27 @@
+{
+ "msg_type": "select_chain",
+ "n_legal_actions": 4,
+ "single_action_shortcut": false,
+ "win_rate": 0.8517983257770538,
+ "probs": [
+  0.1047714576125145,
+  0.8885769248008728,
+  0.006647623144090176,
+  3.934188498533331e-06
+ ],
+ "responses": [
+  0,
+  1,
+  2,
+  -1
+ ],
+ "can_finish": [
+  false,
+  false,
+  false,
+  false
+ ],
+ "chosen_idx": 1,
+ "chosen_response": 1,
+ "prev_action_idx": null
+}

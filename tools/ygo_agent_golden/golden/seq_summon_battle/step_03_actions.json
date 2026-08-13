@@ -1,0 +1,50 @@
+[
+ {
+  "msg": "select_chain",
+  "spec": "os1",
+  "act": "activate",
+  "phase": "none",
+  "finish": false,
+  "position": "none",
+  "effect": 10010,
+  "number": 0,
+  "place": "none",
+  "attribute": "none",
+  "card_index": 20,
+  "card_id": 348,
+  "response": 0,
+  "can_finish": false
+ },
+ {
+  "msg": "select_chain",
+  "spec": "h1",
+  "act": "activate",
+  "phase": "none",
+  "finish": false,
+  "position": "none",
+  "effect": 10010,
+  "number": 0,
+  "place": "none",
+  "attribute": "none",
+  "card_index": 6,
+  "card_id": 712,
+  "response": 1,
+  "can_finish": false
+ },
+ {
+  "msg": "select_chain",
+  "spec": "",
+  "act": "cancel",
+  "phase": "none",
+  "finish": false,
+  "position": "none",
+  "effect": -1,
+  "number": 0,
+  "place": "none",
+  "attribute": "none",
+  "card_index": 0,
+  "card_id": 0,
+  "response": -1,
+  "can_finish": false
+ }
+]

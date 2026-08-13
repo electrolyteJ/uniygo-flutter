@@ -1,0 +1,50 @@
+[
+ {
+  "msg": "announce_attrib",
+  "spec": "",
+  "act": "none",
+  "phase": "none",
+  "finish": false,
+  "position": "none",
+  "effect": -1,
+  "number": 0,
+  "place": "none",
+  "attribute": "light",
+  "card_index": 0,
+  "card_id": 0,
+  "response": 16,
+  "can_finish": false
+ },
+ {
+  "msg": "announce_attrib",
+  "spec": "",
+  "act": "none",
+  "phase": "none",
+  "finish": false,
+  "position": "none",
+  "effect": -1,
+  "number": 0,
+  "place": "none",
+  "attribute": "dark",
+  "card_index": 0,
+  "card_id": 0,
+  "response": 32,
+  "can_finish": false
+ },
+ {
+  "msg": "announce_attrib",
+  "spec": "",
+  "act": "none",
+  "phase": "none",
+  "finish": false,
+  "position": "none",
+  "effect": -1,
+  "number": 0,
+  "place": "none",
+  "attribute": "fire",
+  "card_index": 0,
+  "card_id": 0,
+  "response": 4,
+  "can_finish": false
+ }
+]

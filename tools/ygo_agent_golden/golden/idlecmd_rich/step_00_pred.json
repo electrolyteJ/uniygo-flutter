@@ -1,0 +1,48 @@
+{
+ "msg_type": "select_idlecmd",
+ "n_legal_actions": 11,
+ "single_action_shortcut": false,
+ "win_rate": 0.6342805474996567,
+ "probs": [
+  1.8122707778900349e-09,
+  1.8122707778900349e-09,
+  3.451981456237263e-08,
+  5.03635710913386e-09,
+  3.485381983026059e-10,
+  8.481512381308676e-09,
+  2.1062747691757977e-05,
+  0.99997878074646,
+  5.684530890448514e-08,
+  7.98666688339722e-12,
+  8.10552579916246e-12
+ ],
+ "responses": [
+  0,
+  65536,
+  1,
+  2,
+  3,
+  4,
+  5,
+  65541,
+  131077,
+  6,
+  7
+ ],
+ "can_finish": [
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false
+ ],
+ "chosen_idx": 7,
+ "chosen_response": 65541,
+ "prev_action_idx": null
+}

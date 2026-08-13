@@ -1,0 +1,25 @@
+{
+ "msg_type": "select_idlecmd",
+ "n_legal_actions": 3,
+ "single_action_shortcut": false,
+ "win_rate": 0.4159843474626541,
+ "probs": [
+  0.996295154094696,
+  0.003211116651073098,
+  0.0004937268095090985
+ ],
+ "responses": [
+  5,
+  6,
+  7
+ ],
+ "can_finish": [
+  false,
+  false,
+  false
+ ],
+ "chosen_idx": 0,
+ "chosen_response": 5,
+ "prev_action_idx": 2,
+ "note": "青眼召唤后回到 idlecmd"
+}

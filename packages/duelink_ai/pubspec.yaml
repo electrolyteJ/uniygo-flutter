@@ -15,6 +15,10 @@ dependencies:
     path: ../ocgcore
   ygo_data:
     path: ../ygo_data
+  ygo_agent:
+    path: ../ygo_agent
+  ygo_agent_tflite:
+    path: ../ygo_agent_tflite
   async: ^2.11.0
   service_loader:
     path: ../service_loader
@@ -24,6 +28,12 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-#flutter:
-#  assets:
-#    - ../../vendor/scripts/
+
+flutter:
+  assets:
+    # 端侧 ygo-agent 模型（tflite + 训练码表）。
+    # 包内符号链接 → tools/ygo_agent_golden/models（同 ocgcore/vendor/scripts
+    # 先例，避免越界声明触发资产路径问题）。
+    # App 内资产 key 为 packages/duelink_ai/assets/ygo_agent/<file>
+    # （见 AiConnection._loadAssetRuntime 的双 key 探测）。
+    - assets/ygo_agent/

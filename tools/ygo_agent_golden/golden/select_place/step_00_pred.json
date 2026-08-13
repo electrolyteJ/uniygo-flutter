@@ -1,0 +1,21 @@
+{
+ "msg_type": "select_place",
+ "n_legal_actions": 2,
+ "single_action_shortcut": false,
+ "win_rate": 0.6792192906141281,
+ "probs": [
+  0.7530727386474609,
+  0.24692733585834503
+ ],
+ "responses": [
+  0,
+  1
+ ],
+ "can_finish": [
+  false,
+  false
+ ],
+ "chosen_idx": 0,
+ "chosen_response": 0,
+ "prev_action_idx": null
+}

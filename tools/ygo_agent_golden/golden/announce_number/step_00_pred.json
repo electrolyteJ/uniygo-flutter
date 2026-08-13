@@ -1,0 +1,33 @@
+{
+ "msg_type": "announce_number",
+ "n_legal_actions": 6,
+ "single_action_shortcut": false,
+ "win_rate": 0.6498225033283234,
+ "probs": [
+  7.531444272488447e-16,
+  1.092333363518494e-12,
+  1.6348111753217154e-09,
+  1.1580962109292159e-06,
+  0.0014259839663282037,
+  0.998572826385498
+ ],
+ "responses": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5
+ ],
+ "can_finish": [
+  false,
+  false,
+  false,
+  false,
+  false,
+  false
+ ],
+ "chosen_idx": 5,
+ "chosen_response": 5,
+ "prev_action_idx": null
+}

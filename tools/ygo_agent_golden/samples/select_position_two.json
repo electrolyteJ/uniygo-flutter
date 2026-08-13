@@ -1,0 +1,455 @@
+{
+ "id": "select_position_two",
+ "description": "select_position 两种表示形式",
+ "steps": [
+  {
+   "input": {
+    "global": {
+     "my_lp": 8000,
+     "op_lp": 8000,
+     "turn": 3,
+     "phase": "main1",
+     "is_first": false,
+     "is_my_turn": true
+    },
+    "cards": [
+     {
+      "code": 89631139,
+      "location": "deck",
+      "sequence": 0,
+      "controller": "me",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 8,
+      "counter": 0,
+      "negated": false,
+      "attack": 3000,
+      "defense": 2500,
+      "types": [
+       "monster",
+       "normal"
+      ]
+     },
+     {
+      "code": 89631139,
+      "location": "deck",
+      "sequence": 0,
+      "controller": "me",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 8,
+      "counter": 0,
+      "negated": false,
+      "attack": 3000,
+      "defense": 2500,
+      "types": [
+       "monster",
+       "normal"
+      ]
+     },
+     {
+      "code": 89631139,
+      "location": "deck",
+      "sequence": 0,
+      "controller": "me",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 8,
+      "counter": 0,
+      "negated": false,
+      "attack": 3000,
+      "defense": 2500,
+      "types": [
+       "monster",
+       "normal"
+      ]
+     },
+     {
+      "code": 89631139,
+      "location": "hand",
+      "sequence": 0,
+      "controller": "me",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 8,
+      "counter": 0,
+      "negated": false,
+      "attack": 3000,
+      "defense": 2500,
+      "types": [
+       "monster",
+       "normal"
+      ]
+     },
+     {
+      "code": 71039903,
+      "location": "hand",
+      "sequence": 0,
+      "controller": "me",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 1,
+      "counter": 0,
+      "negated": false,
+      "attack": 600,
+      "defense": 500,
+      "types": [
+       "monster",
+       "effect",
+       "tuner"
+      ]
+     },
+     {
+      "code": 43898403,
+      "location": "hand",
+      "sequence": 0,
+      "controller": "me",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "none",
+      "race": "none",
+      "level": 0,
+      "counter": 0,
+      "negated": false,
+      "attack": 0,
+      "defense": 0,
+      "types": [
+       "spell",
+       "quick_play"
+      ]
+     },
+     {
+      "code": 48800175,
+      "location": "hand",
+      "sequence": 0,
+      "controller": "me",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "none",
+      "race": "none",
+      "level": 0,
+      "counter": 0,
+      "negated": false,
+      "attack": 0,
+      "defense": 0,
+      "types": [
+       "spell"
+      ]
+     },
+     {
+      "code": 38517737,
+      "location": "mzone",
+      "sequence": 0,
+      "controller": "me",
+      "position": "faceup_attack",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 8,
+      "counter": 0,
+      "negated": false,
+      "attack": 3000,
+      "defense": 2500,
+      "types": [
+       "monster",
+       "effect",
+       "special"
+      ]
+     },
+     {
+      "code": 63356631,
+      "location": "szone",
+      "sequence": 1,
+      "controller": "me",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "none",
+      "race": "none",
+      "level": 0,
+      "counter": 0,
+      "negated": false,
+      "attack": 0,
+      "defense": 0,
+      "types": [
+       "trap"
+      ]
+     },
+     {
+      "code": 79814787,
+      "location": "grave",
+      "sequence": 0,
+      "controller": "me",
+      "position": "faceup",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 1,
+      "counter": 0,
+      "negated": false,
+      "attack": 300,
+      "defense": 250,
+      "types": [
+       "monster",
+       "effect",
+       "tuner"
+      ]
+     },
+     {
+      "code": 40908371,
+      "location": "extra",
+      "sequence": 0,
+      "controller": "me",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 9,
+      "counter": 0,
+      "negated": false,
+      "attack": 2500,
+      "defense": 3000,
+      "types": [
+       "monster",
+       "effect",
+       "synchro"
+      ]
+     },
+     {
+      "code": 59822133,
+      "location": "extra",
+      "sequence": 0,
+      "controller": "me",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 9,
+      "counter": 0,
+      "negated": false,
+      "attack": 2500,
+      "defense": 3000,
+      "types": [
+       "monster",
+       "effect",
+       "synchro"
+      ]
+     },
+     {
+      "code": 89631139,
+      "location": "deck",
+      "sequence": 0,
+      "controller": "opponent",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 8,
+      "counter": 0,
+      "negated": false,
+      "attack": 3000,
+      "defense": 2500,
+      "types": [
+       "monster",
+       "normal"
+      ]
+     },
+     {
+      "code": 89631139,
+      "location": "deck",
+      "sequence": 0,
+      "controller": "opponent",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 8,
+      "counter": 0,
+      "negated": false,
+      "attack": 3000,
+      "defense": 2500,
+      "types": [
+       "monster",
+       "normal"
+      ]
+     },
+     {
+      "code": 89631139,
+      "location": "deck",
+      "sequence": 0,
+      "controller": "opponent",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 8,
+      "counter": 0,
+      "negated": false,
+      "attack": 3000,
+      "defense": 2500,
+      "types": [
+       "monster",
+       "normal"
+      ]
+     },
+     {
+      "code": 97268402,
+      "location": "hand",
+      "sequence": 0,
+      "controller": "opponent",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "spellcaster",
+      "level": 1,
+      "counter": 0,
+      "negated": false,
+      "attack": 0,
+      "defense": 0,
+      "types": [
+       "monster",
+       "effect",
+       "tuner"
+      ]
+     },
+     {
+      "code": 23434538,
+      "location": "hand",
+      "sequence": 0,
+      "controller": "opponent",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "earth",
+      "race": "insect",
+      "level": 2,
+      "counter": 0,
+      "negated": false,
+      "attack": 500,
+      "defense": 200,
+      "types": [
+       "monster",
+       "effect"
+      ]
+     },
+     {
+      "code": 31801517,
+      "location": "mzone",
+      "sequence": 0,
+      "controller": "opponent",
+      "position": "faceup_attack",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 8,
+      "counter": 0,
+      "negated": false,
+      "attack": 4000,
+      "defense": 3000,
+      "types": [
+       "monster",
+       "effect",
+       "xyz"
+      ]
+     },
+     {
+      "code": 89631139,
+      "location": "mzone",
+      "sequence": 0,
+      "controller": "opponent",
+      "position": "faceup",
+      "overlay_sequence": 0,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 8,
+      "counter": 0,
+      "negated": false,
+      "attack": 3000,
+      "defense": 2500,
+      "types": [
+       "monster",
+       "normal"
+      ]
+     },
+     {
+      "code": 43898403,
+      "location": "szone",
+      "sequence": 0,
+      "controller": "opponent",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "none",
+      "race": "none",
+      "level": 0,
+      "counter": 0,
+      "negated": false,
+      "attack": 0,
+      "defense": 0,
+      "types": [
+       "spell",
+       "quick_play"
+      ]
+     },
+     {
+      "code": 45644898,
+      "location": "grave",
+      "sequence": 0,
+      "controller": "opponent",
+      "position": "faceup",
+      "overlay_sequence": -1,
+      "attribute": "light",
+      "race": "dragon",
+      "level": 1,
+      "counter": 0,
+      "negated": false,
+      "attack": 300,
+      "defense": 1200,
+      "types": [
+       "monster",
+       "effect",
+       "tuner"
+      ]
+     },
+     {
+      "code": 50954680,
+      "location": "extra",
+      "sequence": 0,
+      "controller": "opponent",
+      "position": "facedown",
+      "overlay_sequence": -1,
+      "attribute": "wind",
+      "race": "dragon",
+      "level": 8,
+      "counter": 0,
+      "negated": false,
+      "attack": 3000,
+      "defense": 2500,
+      "types": [
+       "monster",
+       "effect",
+       "synchro"
+      ]
+     }
+    ],
+    "action_msg": {
+     "data": {
+      "msg_type": "select_position",
+      "code": 89631139,
+      "positions": [
+       "faceup_defense",
+       "facedown_defense"
+      ]
+     }
+    }
+   }
+  }
+ ]
+}

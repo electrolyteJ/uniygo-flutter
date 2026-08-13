@@ -1,0 +1,25 @@
+{
+ "msg_type": "select_chain",
+ "n_legal_actions": 3,
+ "single_action_shortcut": false,
+ "win_rate": 0.4902938026934862,
+ "probs": [
+  0.9996565580368042,
+  3.1988132832339033e-05,
+  0.00031150539871305227
+ ],
+ "responses": [
+  0,
+  1,
+  -1
+ ],
+ "can_finish": [
+  false,
+  false,
+  false
+ ],
+ "chosen_idx": 0,
+ "chosen_response": 0,
+ "prev_action_idx": 2,
+ "note": "攻击宣言: 是否连锁"
+}
