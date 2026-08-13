@@ -1,7 +1,7 @@
-import 'package:duel_room1/pages/duel_room/duel_room_page.dart';
+import 'package:duel_room2/pages/duel/models/duel_result_summary.dart';
+import 'package:duel_room2/pages/duel_result_page.dart';
+import 'package:duel_room2/pages/duel_room_page.dart';
 import 'package:go_router/go_router.dart';
-import 'package:duel_room1/pages/duel_room/duel_result_page.dart';
-import 'package:duel_room1/models/duel_result_summary.dart';
 import 'pages/home_page.dart';
 import 'pages/create_room/match_page.dart';
 import 'pages/side/side_page.dart';
@@ -20,15 +20,13 @@ final router = GoRouter(
       path: '/duel-room',
       redirect: (_, state) =>
           state.extra is Map<String, Object?> ? null : Routes.home,
-      builder: (_, state) => DuelRoomPage(
-        args: state.extra! as Map<String, Object?>,
-      ),
+      builder: (_, state) =>
+          DuelRoomPage(args: state.extra! as Map<String, Object?>),
     ),
     GoRoute(
       path: '/duel-result',
-      builder: (_, state) => DuelResultPage(
-        result: state.extra as DuelResultSummary,
-      ),
+      builder: (_, state) =>
+          DuelResultPage(result: state.extra as DuelResultSummary),
     ),
     GoRoute(path: '/side', builder: (_, _) => const SidePage()),
     GoRoute(

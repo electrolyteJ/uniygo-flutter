@@ -27,6 +27,11 @@ Uint8List? Function(int func, Uint8List payload) aiAutoAnswer(
         return aiBattleResponse(MsgSelectBattleCmd.decode(payload));
       case MSG_SELECT_TRIBUTE:
         return aiTributeResponse(MsgSelectTribute.decode(payload));
+      case MSG_SELECT_CHAIN:
+        return aiChainResponse(MsgSelectChain.decode(payload));
+      case MSG_SELECT_PLACE:
+      case MSG_SELECT_DISFIELD:
+        return aiPlaceResponse(MsgSelectPlace.decode(payload));
     // 这正是"选择→回包→亮牌确认"的标准流程。 服务端发 MSG_CONFIRM_CARDS 不是要你再确认一次，而是把你选择的结果展示出来（给你或给对手看），不需要任何回包。
     //
     // 完整时序
@@ -109,4 +114,51 @@ Uint8List aiTributeResponse(MsgSelectTribute cmd) {
   return CtosGameMsgResponse.selectMulti(
     List<int>.generate(cmd.min, (i) => i),
   ).encode();
+}
+
+/// 连锁选择应答：模型回退时的简单策略。
+///
+/// 非强制连锁窗口直接放弃（响应 -1）；强制连锁时选第一项。
+Uint8List? aiChainResponse(MsgSelectChain cmd) {
+  if (cmd.forced) {
+    if (cmd.chains.isEmpty) return null;
+    return CtosGameMsgResponse.selectSingle(0).encode();
+  }
+  return CtosGameMsgResponse.selectSingle(-1).encode();
+}
+
+/// 放置位置选择应答：选第一个可用格。
+///
+/// ocgcore 位图约定与 playerop.cpp `select_place` 一致：
+/// bit0-6/16-22 为怪兽区，bit8-14/24-30 为魔陷区；置位表示不可用。
+Uint8List? aiPlaceResponse(MsgSelectPlace cmd) {
+  final place = _firstFreePlace(cmd);
+  if (place == null) return null;
+  return CtosGameMsgResponse.selectPlace(place).encode();
+}
+
+CtosSelectPlace? _firstFreePlace(MsgSelectPlace cmd) {
+  for (final controller in [cmd.player, 1 - cmd.player]) {
+    for (var sequence = 0; sequence <= 6; sequence++) {
+      final bit = controller == cmd.player ? sequence : 16 + sequence;
+      if (cmd.field & (1 << bit) == 0) {
+        return CtosSelectPlace(
+          player: controller,
+          zone: CARD_ZONE_MZONE,
+          sequence: sequence,
+        );
+      }
+    }
+    for (var sequence = 0; sequence <= 5; sequence++) {
+      final bit = controller == cmd.player ? 8 + sequence : 24 + sequence;
+      if (cmd.field & (1 << bit) == 0) {
+        return CtosSelectPlace(
+          player: controller,
+          zone: CARD_ZONE_SZONE,
+          sequence: sequence,
+        );
+      }
+    }
+  }
+  return null;
 }

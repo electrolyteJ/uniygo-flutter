@@ -32,7 +32,7 @@ dependencies:
     path: ../ygo_banlist_mycard
   ygo_deck_mycard:
     path: ../ygo_deck_mycard
-
+  flutter_riverpod: ^2.6.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

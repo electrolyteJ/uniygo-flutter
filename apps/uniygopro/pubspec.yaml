@@ -22,6 +22,8 @@ dependencies:
   shared_preferences: ^2.5.3
   duel_room1:
     path: ../duel_room1
+  duel_room2:
+    path: ../duel_room2
   ygo_storage:
     path: ../../packages/ygo_storage
   service_loader:
