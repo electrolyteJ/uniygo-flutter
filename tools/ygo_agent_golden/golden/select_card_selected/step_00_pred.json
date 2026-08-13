@@ -1,0 +1,27 @@
+{
+ "msg_type": "select_card",
+ "n_legal_actions": 4,
+ "single_action_shortcut": false,
+ "win_rate": 0.5009798569371924,
+ "probs": [
+  1.1892791007994674e-05,
+  1.1892791007994674e-05,
+  1.1892791007994674e-05,
+  -1.0
+ ],
+ "responses": [
+  0,
+  1,
+  2,
+  3
+ ],
+ "can_finish": [
+  false,
+  false,
+  false,
+  false
+ ],
+ "chosen_idx": 0,
+ "chosen_response": 0,
+ "prev_action_idx": null
+}

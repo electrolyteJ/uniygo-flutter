@@ -1,0 +1,24 @@
+{
+ "msg_type": "select_sum",
+ "n_legal_actions": 2,
+ "single_action_shortcut": false,
+ "win_rate": 0.42784489691257477,
+ "probs": [
+  0.5,
+  0.5,
+  -1.0
+ ],
+ "responses": [
+  0,
+  1,
+  2
+ ],
+ "can_finish": [
+  true,
+  false,
+  false
+ ],
+ "chosen_idx": 0,
+ "chosen_response": 0,
+ "prev_action_idx": null
+}

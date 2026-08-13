@@ -1,0 +1,22 @@
+{
+ "msg_type": "select_idlecmd",
+ "n_legal_actions": 2,
+ "single_action_shortcut": false,
+ "win_rate": 0.45839012041687965,
+ "probs": [
+  0.9768729209899902,
+  0.02312706783413887
+ ],
+ "responses": [
+  4,
+  7
+ ],
+ "can_finish": [
+  false,
+  false
+ ],
+ "chosen_idx": 0,
+ "chosen_response": 4,
+ "prev_action_idx": 0,
+ "note": "M2: 盖放/结束回合"
+}

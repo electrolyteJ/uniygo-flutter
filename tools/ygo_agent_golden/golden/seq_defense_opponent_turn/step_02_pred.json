@@ -1,0 +1,25 @@
+{
+ "msg_type": "select_chain",
+ "n_legal_actions": 3,
+ "single_action_shortcut": false,
+ "win_rate": 0.5997005850076675,
+ "probs": [
+  0.9999979734420776,
+  2.0980591841635032e-07,
+  1.8033844071396743e-06
+ ],
+ "responses": [
+  0,
+  1,
+  -1
+ ],
+ "can_finish": [
+  false,
+  false,
+  false
+ ],
+ "chosen_idx": 0,
+ "chosen_response": 0,
+ "prev_action_idx": 0,
+ "note": "对方发动: 连锁决策"
+}

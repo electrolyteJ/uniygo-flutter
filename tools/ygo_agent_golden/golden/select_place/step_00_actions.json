@@ -1,0 +1,34 @@
+[
+ {
+  "msg": "select_place",
+  "spec": "",
+  "act": "none",
+  "phase": "none",
+  "finish": false,
+  "position": "none",
+  "effect": -1,
+  "number": 0,
+  "place": "m3",
+  "attribute": "none",
+  "card_index": 0,
+  "card_id": 0,
+  "response": 0,
+  "can_finish": false
+ },
+ {
+  "msg": "select_place",
+  "spec": "",
+  "act": "none",
+  "phase": "none",
+  "finish": false,
+  "position": "none",
+  "effect": -1,
+  "number": 0,
+  "place": "os2",
+  "attribute": "none",
+  "card_index": 0,
+  "card_id": 0,
+  "response": 1,
+  "can_finish": false
+ }
+]

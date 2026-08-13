@@ -1,0 +1,18 @@
+[
+ {
+  "msg": "select_chain",
+  "spec": "oh1",
+  "act": "activate",
+  "phase": "none",
+  "finish": false,
+  "position": "none",
+  "effect": 0,
+  "number": 0,
+  "place": "none",
+  "attribute": "none",
+  "card_index": 17,
+  "card_id": 299,
+  "response": 0,
+  "can_finish": false
+ }
+]

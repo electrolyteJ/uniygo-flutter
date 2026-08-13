@@ -35,6 +35,12 @@ class CardDataLoader {
   /// 查询已加载卡片的等级（供 AI 策略同步查询；卡组在对局开始前已预加载）。
   int? levelOf(int code) => _cache[code]?.level;
 
+  /// 查询已加载卡片的完整数据（供 ygo-agent 输入构建器同步查询）。
+  ///
+  /// 卡组在对局开始前已全量预加载，对局中命中的均为缓存热数据；
+  /// 未命中返回 null（构建器退化为使用引擎查询到的原始值）。
+  CardData? dataOf(int code) => _cache[code];
+
   static CardData _toCardData(CardInfo info) => CardData(
     code: info.code,
     alias: info.alias,

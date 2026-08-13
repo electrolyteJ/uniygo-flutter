@@ -1,0 +1,22 @@
+{
+ "msg_type": "select_effectyn",
+ "n_legal_actions": 2,
+ "single_action_shortcut": false,
+ "win_rate": 0.5784520655870438,
+ "probs": [
+  1.0,
+  1.3060085493941205e-15
+ ],
+ "responses": [
+  1,
+  0
+ ],
+ "can_finish": [
+  false,
+  false
+ ],
+ "chosen_idx": 0,
+ "chosen_response": 1,
+ "prev_action_idx": null,
+ "note": "对方回合: No.62 效果询问"
+}

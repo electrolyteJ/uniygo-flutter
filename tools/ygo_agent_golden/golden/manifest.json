@@ -1,0 +1,534 @@
+{
+  "generated_at": "2026-08-12T02:01:28.498667+00:00",
+  "model": {
+    "path": "models/0546_26550M.tflite",
+    "sha256": "d4ad2a78b6a2a2c1a4560f8f12da6f4b3abb24735657115969e96d71a2364b10",
+    "bytes": 17679932
+  },
+  "code_list": {
+    "path": "models/code_list.txt",
+    "sha256": "f3795910ac7a2eac06db0badb2db1288a93f5c237c6f92883a2d922aa2d3f339",
+    "n_cards": 864
+  },
+  "tflite_runtime": "ai-edge-litert",
+  "interpreter": {
+    "inputs": [
+      {
+        "index": 0,
+        "name": "inputs",
+        "shape": [
+          1,
+          512
+        ],
+        "dtype": "float32"
+      },
+      {
+        "index": 1,
+        "name": "inputs_1",
+        "shape": [
+          1,
+          512
+        ],
+        "dtype": "float32"
+      },
+      {
+        "index": 2,
+        "name": "inputs_2",
+        "shape": [
+          1,
+          24,
+          12
+        ],
+        "dtype": "uint8"
+      },
+      {
+        "index": 3,
+        "name": "inputs_3",
+        "shape": [
+          1,
+          160,
+          41
+        ],
+        "dtype": "uint8"
+      },
+      {
+        "index": 4,
+        "name": "inputs_4",
+        "shape": [
+          1,
+          23
+        ],
+        "dtype": "uint8"
+      },
+      {
+        "index": 5,
+        "name": "inputs_5",
+        "shape": [
+          1,
+          32,
+          14
+        ],
+        "dtype": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "index": 1298,
+        "name": "Identity",
+        "shape": [
+          1,
+          512
+        ],
+        "dtype": "float32"
+      },
+      {
+        "index": 1300,
+        "name": "Identity_1",
+        "shape": [
+          1,
+          512
+        ],
+        "dtype": "float32"
+      },
+      {
+        "index": 1379,
+        "name": "Identity_2",
+        "shape": [
+          1,
+          24
+        ],
+        "dtype": "float32"
+      },
+      {
+        "index": 1374,
+        "name": "Identity_3",
+        "shape": [
+          1,
+          1
+        ],
+        "dtype": "float32"
+      }
+    ]
+  },
+  "constants": {
+    "N_CARD_FEATURES": 41,
+    "MAX_CARDS": 80,
+    "MAX_ACTIONS": 24,
+    "N_ACTION_FEATURES": 12,
+    "N_GLOBAL_FEATURES": 23,
+    "N_HISTORY_ACTIONS": 32,
+    "H_ACTIONS_FEATS": 14,
+    "N_RNN_CHANNELS": 512,
+    "DESCRIPTION_LIMIT": 10000,
+    "CARD_EFFECT_OFFSET": 10010
+  },
+  "duels": [
+    {
+      "id": "announce_attrib",
+      "description": "announce_attrib 三属性单选（response=属性位）",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "announce_attrib",
+          "n_legal": 3,
+          "shortcut": false,
+          "chosen_idx": 2,
+          "chosen_response": 4,
+          "win_rate": 0.6226845532655716
+        }
+      ]
+    },
+    {
+      "id": "announce_number",
+      "description": "announce_number 骰子 1-6（response=选项下标）",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "announce_number",
+          "n_legal": 6,
+          "shortcut": false,
+          "chosen_idx": 5,
+          "chosen_response": 5,
+          "win_rate": 0.6498225033283234
+        }
+      ]
+    },
+    {
+      "id": "battlecmd_rich",
+      "description": "select_battlecmd：普攻/直攻/战阶发动/进 M2/结束",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_battlecmd",
+          "n_legal": 5,
+          "shortcut": false,
+          "chosen_idx": 2,
+          "chosen_response": 1,
+          "win_rate": 0.6102912649512291
+        }
+      ]
+    },
+    {
+      "id": "chain_forced_single",
+      "description": "select_chain 强制单连锁 —— 单动作短路路径",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_chain",
+          "n_legal": 1,
+          "shortcut": true,
+          "chosen_idx": 0,
+          "chosen_response": 0,
+          "win_rate": -1.0
+        }
+      ]
+    },
+    {
+      "id": "chain_multiple",
+      "description": "select_chain 3 连锁（手牌/超量素材 overlay 位/墓地）+ 非强制 → 含 cancel(-1)",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_chain",
+          "n_legal": 4,
+          "shortcut": false,
+          "chosen_idx": 1,
+          "chosen_response": 1,
+          "win_rate": 0.8517983257770538
+        }
+      ]
+    },
+    {
+      "id": "effectyn_card",
+      "description": "select_effectyn 卡牌效果询问（yes=1/no=0）",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_effectyn",
+          "n_legal": 2,
+          "shortcut": false,
+          "chosen_idx": 0,
+          "chosen_response": 1,
+          "win_rate": 0.7779868841171265
+        }
+      ]
+    },
+    {
+      "id": "idlecmd_minimal",
+      "description": "select_idlecmd 仅 to_bp —— 单动作短路路径（不调用模型，probs=[1.0]）",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_idlecmd",
+          "n_legal": 1,
+          "shortcut": true,
+          "chosen_idx": 0,
+          "chosen_response": 6,
+          "win_rate": -1.0
+        }
+      ]
+    },
+    {
+      "id": "idlecmd_rich",
+      "description": "select_idlecmd 全命令类型：召唤×2/特召/改姿/里侧召唤/盖放/发动×3(含系统串)/进战阶/结束",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_idlecmd",
+          "n_legal": 11,
+          "shortcut": false,
+          "chosen_idx": 7,
+          "chosen_response": 65541,
+          "win_rate": 0.6342805474996567
+        }
+      ]
+    },
+    {
+      "id": "select_card",
+      "description": "select_card min1 max2 选 5 张（手牌/场上/墓地混合），无 finish",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_card",
+          "n_legal": 5,
+          "shortcut": false,
+          "chosen_idx": 4,
+          "chosen_response": 4,
+          "win_rate": 0.5123668434098363
+        }
+      ]
+    },
+    {
+      "id": "select_card_selected",
+      "description": "select_card 已选 1 张（selected=[3]）→ 跳过已选 + 追加 finish(-1)",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_card",
+          "n_legal": 4,
+          "shortcut": false,
+          "chosen_idx": 0,
+          "chosen_response": 0,
+          "win_rate": 0.5009798569371924
+        }
+      ]
+    },
+    {
+      "id": "select_disfield",
+      "description": "select_disfield 单格 —— 单动作短路且 response=-1",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_disfield",
+          "n_legal": 1,
+          "shortcut": true,
+          "chosen_idx": 0,
+          "chosen_response": -1,
+          "win_rate": -1.0
+        }
+      ]
+    },
+    {
+      "id": "select_option",
+      "description": "select_option：系统串选项 + 卡牌效果选项",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_option",
+          "n_legal": 2,
+          "shortcut": false,
+          "chosen_idx": 1,
+          "chosen_response": 1,
+          "win_rate": 0.7950636744499207
+        }
+      ]
+    },
+    {
+      "id": "select_place",
+      "description": "select_place 两个候选格（我方 M3 / 对方 S2）",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_place",
+          "n_legal": 2,
+          "shortcut": false,
+          "chosen_idx": 0,
+          "chosen_response": 0,
+          "win_rate": 0.6792192906141281
+        }
+      ]
+    },
+    {
+      "id": "select_position_single",
+      "description": "select_position 单一形式 —— 单动作短路路径",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_position",
+          "n_legal": 1,
+          "shortcut": true,
+          "chosen_idx": 0,
+          "chosen_response": 4,
+          "win_rate": -1.0
+        }
+      ]
+    },
+    {
+      "id": "select_position_two",
+      "description": "select_position 两种表示形式",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_position",
+          "n_legal": 2,
+          "shortcut": false,
+          "chosen_idx": 1,
+          "chosen_response": 8,
+          "win_rate": 0.5862757712602615
+        }
+      ]
+    },
+    {
+      "id": "select_sum",
+      "description": "select_sum level_sum=9：{lv9} 单卡可完 / {lv8+lv1} 两张组合 → can_finish 混合",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_sum",
+          "n_legal": 2,
+          "shortcut": false,
+          "chosen_idx": 0,
+          "chosen_response": 0,
+          "win_rate": 0.42784489691257477
+        }
+      ]
+    },
+    {
+      "id": "select_tribute",
+      "description": "select_tribute min=max=1，两张 1 星祭品",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_tribute",
+          "n_legal": 2,
+          "shortcut": false,
+          "chosen_idx": 1,
+          "chosen_response": 1,
+          "win_rate": 0.4554775021970272
+        }
+      ]
+    },
+    {
+      "id": "seq_defense_opponent_turn",
+      "description": "多步链：对方回合 effectyn → 弃卡代价 → 连锁 → 我方回合（跨回合边界）",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_effectyn",
+          "n_legal": 2,
+          "shortcut": false,
+          "chosen_idx": 0,
+          "chosen_response": 1,
+          "win_rate": 0.5784520655870438
+        },
+        {
+          "step": 1,
+          "msg_type": "select_card",
+          "n_legal": 2,
+          "shortcut": false,
+          "chosen_idx": 0,
+          "chosen_response": 0,
+          "win_rate": 0.6109278872609138
+        },
+        {
+          "step": 2,
+          "msg_type": "select_chain",
+          "n_legal": 3,
+          "shortcut": false,
+          "chosen_idx": 0,
+          "chosen_response": 0,
+          "win_rate": 0.5997005850076675
+        },
+        {
+          "step": 3,
+          "msg_type": "select_idlecmd",
+          "n_legal": 4,
+          "shortcut": false,
+          "chosen_idx": 1,
+          "chosen_response": 5,
+          "win_rate": 0.41443242132663727
+        }
+      ]
+    },
+    {
+      "id": "seq_summon_battle",
+      "description": "多步链：M1 召唤 → idlecmd → BP 攻击 → 连锁响应 → M2 盖放（跨 5 个决策，验证 RNN rstate 与 history_actions 传递）",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_idlecmd",
+          "n_legal": 5,
+          "shortcut": false,
+          "chosen_idx": 2,
+          "chosen_response": 5,
+          "win_rate": 0.6405482888221741
+        },
+        {
+          "step": 1,
+          "msg_type": "select_idlecmd",
+          "n_legal": 3,
+          "shortcut": false,
+          "chosen_idx": 0,
+          "chosen_response": 5,
+          "win_rate": 0.4159843474626541
+        },
+        {
+          "step": 2,
+          "msg_type": "select_battlecmd",
+          "n_legal": 4,
+          "shortcut": false,
+          "chosen_idx": 2,
+          "chosen_response": 2,
+          "win_rate": 0.4402919411659241
+        },
+        {
+          "step": 3,
+          "msg_type": "select_chain",
+          "n_legal": 3,
+          "shortcut": false,
+          "chosen_idx": 0,
+          "chosen_response": 0,
+          "win_rate": 0.4902938026934862
+        },
+        {
+          "step": 4,
+          "msg_type": "select_idlecmd",
+          "n_legal": 2,
+          "shortcut": false,
+          "chosen_idx": 0,
+          "chosen_response": 4,
+          "win_rate": 0.45839012041687965
+        }
+      ]
+    },
+    {
+      "id": "unselect_card",
+      "description": "select_unselect_card finishable → 追加 finish(-1)",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_unselect_card",
+          "n_legal": 4,
+          "shortcut": false,
+          "chosen_idx": 2,
+          "chosen_response": 2,
+          "win_rate": 0.7054492384195328
+        }
+      ]
+    },
+    {
+      "id": "yesno_card",
+      "description": "select_yesno 卡牌效果 desc（code<<4|2）",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_yesno",
+          "n_legal": 2,
+          "shortcut": false,
+          "chosen_idx": 0,
+          "chosen_response": 1,
+          "win_rate": 0.7564786970615387
+        }
+      ]
+    },
+    {
+      "id": "yesno_system",
+      "description": "select_yesno 系统串 desc=94",
+      "steps": [
+        {
+          "step": 0,
+          "msg_type": "select_yesno",
+          "n_legal": 2,
+          "shortcut": false,
+          "chosen_idx": 0,
+          "chosen_response": 1,
+          "win_rate": 0.6708749085664749
+        }
+      ]
+    }
+  ],
+  "ygo_agent_rev": "dbf5142d49aab2e6beb4150788d4fffec39ae3e5",
+  "vendor_patches": [
+    {
+      "file": "ygoinf/ygoinf/features.py",
+      "where": "get_legal_actions / announce_number branch",
+      "change": "range check 'number <= 0 or number > 12' -> 'number.number <= 0 or number.number > 12'",
+      "reason": "upstream TypeError: compares AnnounceNumber object to int; announce_number branch unusable without fix",
+      "patch": "vendor_patches/features_announce_number_fix.patch"
+    }
+  ],
+  "versions": {
+    "python": "3.11.15",
+    "numpy": "1.26.4"
+  }
+}

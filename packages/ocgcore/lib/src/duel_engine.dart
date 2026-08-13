@@ -143,6 +143,10 @@ class DuelEngine {
   /// [startLp]/[startHand]/[drawCount] 控制双方玩家的初始 LP、起手手牌数
   /// 与每回合抽牌数（缺省 8000/5/1）。
   ///
+  /// [simpleAi] 控制是否启用 ocgcore 内置 SIMPLE_AI（缺省启用）。接入
+  /// 模型自动应答时应传 false：SIMPLE_AI 会替 AI 挡掉 select_effect_yes_no
+  /// 等细粒度消息，模型永远看不到这些决策，历史动作序列会偏离训练分布。
+  ///
   /// 注意：本方法不推进 process 循环，调用方应在合成/下发 MSG_START
   /// 之后再调用 [pump] 推进第一轮。
   Future<DuelSetupInfo?> startDuel(
@@ -150,6 +154,7 @@ class DuelEngine {
     int startLp = 8000,
     int startHand = 5,
     int drawCount = 1,
+    bool simpleAi = true,
   }) async {
     final core = _core;
     if (core == null) {
@@ -206,11 +211,12 @@ class DuelEngine {
       core.newCard(_duel!, deck[i], 0, 0, LOCATION_DECK, i, 0);
       core.newCard(_duel!, deck[i], 1, 1, LOCATION_DECK, i, 0);
     }
-    console.log('DuelEngine: cards loaded, starting duel with DUEL_SIMPLE_AI');
+    console.log('DuelEngine: cards loaded, starting duel '
+        '(simpleAi=$simpleAi)');
 
-    // 使用简单 AI 模式（ocgcore 内置，覆盖范围见上层 Connection 注释）
+    // SIMPLE_AI 为可选模式（ocgcore 内置，覆盖范围见上层 Connection 注释）
     try {
-      core.startDuel(_duel!, DUEL_SIMPLE_AI);
+      core.startDuel(_duel!, simpleAi ? DUEL_SIMPLE_AI : 0);
     } catch (e) {
       console.log('DuelEngine: startDuel failed — core.startDuel threw: $e');
       core.endDuel(_duel!);
@@ -344,6 +350,55 @@ class DuelEngine {
   }
 
   bool _pumping = false;
+
+  // ── 场态查询（供上层 AI 构建模型输入）──
+
+  /// 场态查询缓冲区上限（256KB，足够容纳双方全部区域的查询记录）。
+  static const int _fieldQueryBufferSize = 256 * 1024;
+  Uint8List? _fieldQueryBuffer;
+
+  /// 查询指定玩家区域中的卡牌数量（ocgcore `query_field_count`）。
+  ///
+  /// 对局未开始 / 引擎未就绪 / 查询异常时返回 0。
+  int queryFieldCount(int player, int location) {
+    final core = _core;
+    final duel = _duel;
+    if (core == null || duel == null) return 0;
+    try {
+      return core.queryFieldCount(duel, player, location);
+    } catch (e) {
+      console.log('DuelEngine: queryFieldCount error $e');
+      return 0;
+    }
+  }
+
+  /// 查询指定玩家区域中全部卡牌的数据（ocgcore `query_field_card`）。
+  ///
+  /// 返回按 [queryFlag] 填充的记录字节流（记录格式与 ocgcore
+  /// `card::get_infos` 一致：逐卡 `u32 len + u32 flag + 各字段`，
+  /// 空槽为 `len == LEN_EMPTY`）；由上层按标志位解析。
+  /// 对局未开始 / 引擎未就绪 / 查询异常时返回空字节。
+  Uint8List queryFieldCard(int player, int location, int queryFlag) {
+    final core = _core;
+    final duel = _duel;
+    if (core == null || duel == null) return Uint8List(0);
+    final out = _fieldQueryBuffer ??= Uint8List(_fieldQueryBufferSize);
+    try {
+      final len = core.queryFieldCard(
+        duel,
+        player,
+        location,
+        queryFlag,
+        out,
+        0, // useCache=0：场态查询必须拿到当前时刻的最新值
+      );
+      if (len <= 0) return Uint8List(0);
+      return Uint8List.sublistView(out, 0, len);
+    } catch (e) {
+      console.log('DuelEngine: queryFieldCard error $e');
+      return Uint8List(0);
+    }
+  }
 
   void _pumpLoop() {
     // 自动应答保护：连续应答上限，防止无效应答导致 MSG_RETRY 死循环
@@ -519,6 +574,10 @@ class DuelEngine {
     MSG_SELECT_SUM,
     MSG_SELECT_COUNTER,
     MSG_SORT_CARD,
+    MSG_ANNOUNCE_ATTRIB,
+    MSG_ANNOUNCE_NUMBER,
+    MSG_ANNOUNCE_RACE,
+    MSG_ANNOUNCE_CARD,
   };
 
   /// 不需要客户端应答、但会通过 PROCESSOR_WAIT 暂停一拍的展示类消息。
@@ -558,9 +617,12 @@ class DuelEngine {
         _pendingSelectPayload = m.length > 1
             ? Uint8List.sublistView(m, 1)
             : Uint8List(0);
-        _pendingSelectPlayer = _pendingSelectPayload!.isNotEmpty
-            ? _pendingSelectPayload![0]
-            : null;
+        // 线格式约定（playerop.cpp）：选择类消息载荷首字节即 player；
+        // 唯独 MSG_SELECT_SUM 首字节是 mode，player 在第二字节。
+        final p = _pendingSelectPayload!;
+        _pendingSelectPlayer = m[0] == MSG_SELECT_SUM
+            ? (p.length > 1 ? p[1] : null)
+            : (p.isNotEmpty ? p[0] : null);
       }
       _emit(m);
     }

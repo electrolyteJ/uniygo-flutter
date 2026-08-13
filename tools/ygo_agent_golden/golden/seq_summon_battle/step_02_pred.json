@@ -1,0 +1,28 @@
+{
+ "msg_type": "select_battlecmd",
+ "n_legal_actions": 4,
+ "single_action_shortcut": false,
+ "win_rate": 0.4402919411659241,
+ "probs": [
+  0.0019384116167202592,
+  3.938546069548465e-05,
+  0.7105222344398499,
+  0.2874999940395355
+ ],
+ "responses": [
+  0,
+  65536,
+  2,
+  3
+ ],
+ "can_finish": [
+  false,
+  false,
+  false,
+  false
+ ],
+ "chosen_idx": 2,
+ "chosen_response": 2,
+ "prev_action_idx": 0,
+ "note": "BP: 攻击选择"
+}

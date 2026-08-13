@@ -1,0 +1,31 @@
+{
+ "msg_type": "select_idlecmd",
+ "n_legal_actions": 5,
+ "single_action_shortcut": false,
+ "win_rate": 0.6405482888221741,
+ "probs": [
+  9.975192369893193e-06,
+  3.946559559153684e-07,
+  0.9999896287918091,
+  4.873057513066215e-09,
+  1.4132935932664736e-09
+ ],
+ "responses": [
+  0,
+  4,
+  5,
+  6,
+  7
+ ],
+ "can_finish": [
+  false,
+  false,
+  false,
+  false,
+  false
+ ],
+ "chosen_idx": 2,
+ "chosen_response": 5,
+ "prev_action_idx": null,
+ "note": "M1: 召唤/盖放/发动/进战阶"
+}

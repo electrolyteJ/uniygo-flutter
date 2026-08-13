@@ -3,9 +3,11 @@ import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:duelink/duelink.dart';
+import 'package:duelink/duelink.dart' hide CardInfo;
 import 'package:duelink_ai/duelink_ai.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ocgcore/ocgcore.dart' show ScriptLoader;
+import 'package:ygo_data/card_info.dart';
 
 // ============================================================
 // 测试用卡牌常量（与 src/test_card_data.dart 的 kTestCards 对应）
@@ -28,7 +30,10 @@ const kTrapHole = 4206964; // 落穴 (陷阱卡)
 ffi.DynamicLibrary? _loadCoreLib() {
   if (Platform.isMacOS) {
     for (final p in [
+      // 从 packages/duelink_ai 目录运行
       '../ocgcore/macos/Frameworks/libocgcore.dylib',
+      // 从 workspace 根目录运行
+      'packages/ocgcore/macos/Frameworks/libocgcore.dylib',
       'macos/Frameworks/libocgcore.dylib',
     ]) {
       try {
@@ -37,6 +42,77 @@ ffi.DynamicLibrary? _loadCoreLib() {
     }
   }
   return null; // 其他平台走 createOcgCore 的默认查找
+}
+
+/// 文件系统脚本加载器（flutter_test 环境 rootBundle 拿不到依赖包
+/// 资产，按 [lib] 同样的注入思路，直接从磁盘读 ocgcore 的 lua 脚本）。
+class _FileScriptLoader extends ScriptLoader {
+  static const _roots = [
+    'packages/ocgcore/vendor/scripts/', // workspace 根目录运行
+    '../ocgcore/vendor/scripts/', // packages/duelink_ai 目录运行
+  ];
+
+  final _fsCache = <String, Uint8List>{};
+
+  @override
+  Future<Uint8List?> load(String name) async {
+    final cached = _fsCache[name];
+    if (cached != null) return cached;
+    for (final root in _roots) {
+      final file = File('$root$name');
+      if (await file.exists()) {
+        final bytes = await file.readAsBytes();
+        _fsCache[name] = bytes;
+        return bytes;
+      }
+    }
+    return super.load(name);
+  }
+}
+
+/// 测试卡表（与上方卡组常量对应）—— App 中卡数据由 ICardService 提供
+/// （service_singleton.dart 注入），测试环境没有注册服务，需要用
+/// [AiDuelService.setCardConverter] 显式注入等价的卡数据源。
+final Map<int, CardInfo> _testCardInfos = {
+  89631139: const CardInfo(code: 89631139, type: 0x11, level: 8,
+      attribute: 0x10, race: 0x2000, attack: 3000, defense: 2500,
+      name: 'Blue-Eyes White Dragon'),
+  46986414: const CardInfo(code: 46986414, type: 0x11, level: 7,
+      attribute: 0x20, race: 0x2, attack: 2500, defense: 2100,
+      name: 'Dark Magician'),
+  15025844: const CardInfo(code: 15025844, type: 0x11, level: 4,
+      attribute: 0x10, race: 0x2, attack: 800, defense: 2000,
+      name: 'Mystical Elf'),
+  91152256: const CardInfo(code: 91152256, type: 0x11, level: 4,
+      attribute: 0x01, race: 0x1, attack: 1400, defense: 1200,
+      name: 'Celtic Guardian'),
+  13039848: const CardInfo(code: 13039848, type: 0x11, level: 3,
+      attribute: 0x01, race: 0x100, attack: 1300, defense: 2000,
+      name: 'Giant Soldier of Stone'),
+  6368038: const CardInfo(code: 6368038, type: 0x11, level: 7,
+      attribute: 0x01, race: 0x1, attack: 2300, defense: 2100,
+      name: 'Gaia The Fierce Knight'),
+  28279543: const CardInfo(code: 28279543, type: 0x11, level: 5,
+      attribute: 0x20, race: 0x2000, attack: 2000, defense: 1500,
+      name: 'Curse of Dragon'),
+  74677422: const CardInfo(code: 74677422, type: 0x11, level: 7,
+      attribute: 0x20, race: 0x2000, attack: 2400, defense: 2000,
+      name: 'Red-Eyes Black Dragon'),
+  88819587: const CardInfo(code: 88819587, type: 0x11, level: 4,
+      attribute: 0x04, race: 0x2000, attack: 1200, defense: 700,
+      name: 'Baby Dragon'),
+  76184692: const CardInfo(code: 76184692, type: 0x11, level: 4,
+      attribute: 0x01, race: 0x8000, attack: 1200, defense: 1000,
+      name: 'Hitotsu-Me Giant'),
+  55144522: const CardInfo(code: 55144522, type: 0x2,
+      name: 'Pot of Greed', desc: 'Draw 2 cards.'),
+  4206964: const CardInfo(code: 4206964, type: 0x4, name: 'Trap Hole',
+      desc: 'When your opponent Normal Summons a monster with 1000 or '
+          'more ATK: Target that monster; destroy it.'),
+};
+
+void _injectTestCards(AiDuelService service) {
+  service.setCardConverter((code) async => _testCardInfos[code]);
 }
 
 // ============================================================
@@ -290,7 +366,11 @@ void main() {
     timeout: const Timeout(Duration(minutes: 3)),
     () async {
       // ---- 初始化 ----
-      final service = AiDuelService(lib: _loadCoreLib());
+      final service = AiDuelService(
+          lib: _loadCoreLib(), scriptLoader: _FileScriptLoader());
+      _injectTestCards(service);
+      // AI 固定出剪刀(1)，人类石头必胜 → 确定性走 SELECT_TP 分支
+      service.fixedAiHandChoice = 1;
       final allMsgs = <YgoStocMsg>[];
       final allStages = <RoomStage>[];
       final allPhases = <DuelPhase>[];
@@ -464,7 +544,11 @@ void main() {
     '房间流程: 连接→猜拳→选先攻→进入决斗',
     timeout: const Timeout(Duration(minutes: 1)),
     () async {
-      final service = AiDuelService(lib: _loadCoreLib());
+      final service = AiDuelService(
+          lib: _loadCoreLib(), scriptLoader: _FileScriptLoader());
+      _injectTestCards(service);
+      // AI 固定出剪刀(1)，人类石头必胜 → 确定性走 SELECT_TP 分支
+      service.fixedAiHandChoice = 1;
       final allMsgs = <YgoStocMsg>[];
       final allStages = <RoomStage>[];
       final cursor = _MsgCursor(allMsgs);

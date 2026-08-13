@@ -21,8 +21,12 @@ workspace:
   - packages/wasm_bridge
   - packages/ygo_storage
   - packages/ygo_deck_mycard
+  - packages/ygo_agent
+  - packages/ygo_agent_tflite
   - apps/uniygopro
   - apps/cardlive
   - apps/duelarena
   - apps/holoduel
   - apps/mdduel
+  - apps/bloc_sample
+  - apps/riverpod_sample

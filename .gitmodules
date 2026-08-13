@@ -24,3 +24,6 @@
 [submodule "packages/duelink_ai_edo/vendor/Puzzles"]
 	path = packages/duelink_ai_edo/vendor/Puzzles
 	url = git@github.com:ProjectIgnis/Puzzles.git
+[submodule "tools/ygo_agent_golden/vendor/ygo-agent"]
+	path = tools/ygo_agent_golden/vendor/ygo-agent
+	url = https://github.com/sbl1996/ygo-agent.git

@@ -1,0 +1,28 @@
+{
+ "msg_type": "select_idlecmd",
+ "n_legal_actions": 4,
+ "single_action_shortcut": false,
+ "win_rate": 0.41443242132663727,
+ "probs": [
+  0.0020132327917963266,
+  0.9977879524230957,
+  0.00016021060582716018,
+  3.858929267153144e-05
+ ],
+ "responses": [
+  0,
+  5,
+  6,
+  7
+ ],
+ "can_finish": [
+  false,
+  false,
+  false,
+  false
+ ],
+ "chosen_idx": 1,
+ "chosen_response": 5,
+ "prev_action_idx": 0,
+ "note": "我方回合: 抽卡后 idlecmd"
+}

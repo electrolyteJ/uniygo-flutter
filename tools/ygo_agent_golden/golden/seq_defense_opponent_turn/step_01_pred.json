@@ -1,0 +1,22 @@
+{
+ "msg_type": "select_card",
+ "n_legal_actions": 2,
+ "single_action_shortcut": false,
+ "win_rate": 0.6109278872609138,
+ "probs": [
+  0.5,
+  0.5
+ ],
+ "responses": [
+  0,
+  1
+ ],
+ "can_finish": [
+  false,
+  false
+ ],
+ "chosen_idx": 0,
+ "chosen_response": 0,
+ "prev_action_idx": 0,
+ "note": "弃卡代价 select_card min=max=1"
+}
