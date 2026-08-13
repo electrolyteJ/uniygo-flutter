@@ -290,12 +290,17 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
                 slotId: 'opp_deck',
                 label: 'DECK',
                 count: widget.data.oppDeckCount,
+                showCardBack: true,
+                showCount: false,
               )
             : _buildZoneEntry(
                 zoneKey: 'self_extra',
                 slotId: 'self_extra',
                 label: 'EXTRA',
                 count: widget.data.selfExtraCount,
+                topCardCode: widget.data.selfExtraTopCode,
+                showTopCard: true,
+                showCount: false,
               ),
         const SizedBox(width: 12),
         ..._withGaps(cards),
@@ -306,11 +311,16 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
                 slotId: 'opp_extra',
                 label: 'EXTRA',
                 count: widget.data.oppExtraCount,
+                topCardCode: widget.data.oppExtraTopCode,
+                showTopCard: true,
+                showCount: false,
               )
             : _buildZoneEntry(
                 slotId: 'self_deck',
                 label: 'DECK',
                 count: widget.data.selfDeckCount,
+                showCardBack: true,
+                showCount: false,
               ),
       ],
     );
@@ -338,6 +348,9 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
                 slotId: 'opp_grave',
                 label: 'GRAVE',
                 count: widget.data.oppGraveCount,
+                topCardCode: widget.data.oppGraveTopCode,
+                showTopCard: true,
+                showCount: false,
               )
             : _buildSlot(
                 slotId: '${controller}_8_5',
@@ -358,6 +371,9 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
                 slotId: 'self_grave',
                 label: 'GRAVE',
                 count: widget.data.selfGraveCount,
+                topCardCode: widget.data.selfGraveTopCode,
+                showTopCard: true,
+                showCount: false,
               ),
       ],
     );
@@ -376,6 +392,9 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
           slotId: 'opp_removed',
           label: 'BANISH',
           count: widget.data.oppRemovedCount,
+          topCardCode: widget.data.oppRemovedTopCode,
+          showTopCard: true,
+          showCount: false,
         ),
         const SizedBox(width: gap),
         _buildSlot(
@@ -403,6 +422,9 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
           slotId: 'self_removed',
           label: 'BANISH',
           count: widget.data.selfRemovedCount,
+          topCardCode: widget.data.selfRemovedTopCode,
+          showTopCard: true,
+          showCount: false,
         ),
       ],
     );
@@ -598,7 +620,51 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
     String? zoneKey,
     required String label,
     required int count,
+    bool showCardBack = false,
+    bool showCount = true,
+    int topCardCode = 0,
+    bool showTopCard = false,
   }) {
+    final Widget entryChild;
+    if (showCardBack) {
+      entryChild = const _CardBack();
+    } else if (showTopCard) {
+      entryChild = topCardCode > 0
+          ? CardImage(
+              code: topCardCode,
+              width: _slotWidth - 2,
+              height: _slotHeight - 2,
+            )
+          : const SizedBox.shrink();
+    } else {
+      entryChild = Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF8B9BB4),
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'Orbitron',
+            ),
+          ),
+          if (showCount) ...[
+            const SizedBox(height: 4),
+            Text(
+              '$count',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'Orbitron',
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
     return GestureDetector(
       onTap: zoneKey == null ? null : () => widget.onZoneTap?.call(zoneKey),
       child: Container(
@@ -618,30 +684,7 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
             ),
           ],
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: Color(0xFF8B9BB4),
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                fontFamily: 'Orbitron',
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '$count',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                fontFamily: 'Orbitron',
-              ),
-            ),
-          ],
-        ),
+        child: entryChild,
       ),
     );
   }

@@ -24,17 +24,18 @@ import 'package:duel_room2/pages/duel/widgets/overlay/position_selector.dart';
 import 'package:duel_room2/pages/duel/widgets/overlay/select_prompt_layer.dart';
 import 'package:duel_room2/pages/duel/widgets/overlay/turn_order_hint.dart';
 import 'package:duel_room2/pages/duel/widgets/overlay/yes_no_dialog.dart';
+import 'package:duel_room2/widgets/card_image.dart';
 import 'package:duelink/duelink.dart' show PlayerType, PlayerInfo;
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:biz/service_providers.dart';
 import '../duel_room_state.dart';
 import 'card_confirm_state.dart';
 import 'duel_field_state.dart';
 import 'duel_field_controller.dart';
 import 'field_overlay_state.dart';
+import 'models/draw_animation_event.dart';
 import 'models/duel_menu.dart';
 import 'models/field_card.dart';
 import 'models/field_zone_key.dart';
@@ -65,13 +66,19 @@ class DuelFieldPage extends ConsumerStatefulWidget {
   ConsumerState<DuelFieldPage> createState() => _DuelFieldPageState();
 }
 
-class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
+class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
+    with SingleTickerProviderStateMixin {
   static const double _topHudBodyHeight = 112.0;
   static const double _opponentHandGap = 10.0;
   static const double _inspectorTop = 124.0;
   static const double _logDrawerTop = 126.0;
 
   PlaymatAnchorData? _fieldAnchors;
+  Map<int, Rect> _selfHandCardRects = const {};
+  Map<int, Rect> _oppHandCardRects = const {};
+  late final AnimationController _drawController;
+  DrawAnimationEvent? _activeDrawEvent;
+  int? _activeDrawEventId;
 
   // 先后攻提示：进入场地页时居中短暂展示一次。
   bool _showTurnOrderHint = false;
@@ -96,7 +103,19 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   @override
   void initState() {
     super.initState();
+    _drawController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _drawController.addListener(_handleDrawAnimationTick);
+    _drawController.addStatusListener(_handleDrawAnimationStatus);
     _scheduleTurnOrderHint();
+  }
+
+  @override
+  void dispose() {
+    _drawController.dispose();
+    super.dispose();
   }
 
   /// 进入场地页后读取先后攻信息，居中弹出一次提示。
@@ -119,6 +138,29 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     _isFirstTurn = isFirst;
     ref.read(ygoSoundServiceProvider).playTurnHint();
     setState(() => _showTurnOrderHint = true);
+  }
+
+  void _handleDrawAnimationStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    if (_activeDrawEvent?.id != _activeDrawEventId) return;
+    if (!mounted) return;
+    setState(() {
+      _activeDrawEvent = null;
+      _activeDrawEventId = null;
+    });
+  }
+
+  void _handleDrawAnimationTick() {
+    if (mounted) setState(() {});
+  }
+
+  void _playDrawAnimation(DrawAnimationEvent event) {
+    if (!mounted) return;
+    setState(() {
+      _activeDrawEvent = event;
+      _activeDrawEventId = event.id;
+    });
+    _drawController.forward(from: 0);
   }
 
   /// PhaseLamp 可点击的完整条件：
@@ -151,10 +193,16 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       selfExtraCount: _board.selfExtra,
       selfGraveCount: _board.selfGrave,
       selfRemovedCount: _board.selfRemoved,
+      selfExtraTopCode: _board.topZoneCode('self_extra'),
+      selfGraveTopCode: _board.topZoneCode('self_grave'),
+      selfRemovedTopCode: _board.topZoneCode('self_removed'),
       oppDeckCount: _board.oppDeck,
       oppExtraCount: _board.oppExtra,
       oppGraveCount: _board.oppGrave,
       oppRemovedCount: _board.oppRemoved,
+      oppExtraTopCode: _board.topZoneCode('opp_extra'),
+      oppGraveTopCode: _board.topZoneCode('opp_grave'),
+      oppRemovedTopCode: _board.topZoneCode('opp_removed'),
     );
   }
 
@@ -474,6 +522,19 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       if (ref.read(duelRoomProvider).selfType == PlayerType.observer) return;
       _revealTurnOrderHint(next);
     });
+    ref.listen(
+      duelFieldProvider.select((s) => s.drawAnimationEvent),
+      (prev, next) {
+        if (next == null) return;
+        if (next.id == _activeDrawEventId) {
+          if (_activeDrawEvent != next) {
+            setState(() => _activeDrawEvent = next);
+          }
+          return;
+        }
+        _playDrawAnimation(next);
+      },
+    );
 
     // 任一子状态变更都触发重建（等价原 ChangeNotifier 全量通知），
     // 读取经上方的 _board/_select/_confirm/_overlay getter，
@@ -545,6 +606,9 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
             child: HandCardsBar(
               cardsVisible: false,
               handCodes: _board.opponentHand,
+              onCardRectsChanged: (rects) {
+                _oppHandCardRects = rects;
+              },
               highlightedSequences:
                   _confirm.confirmedHandOwner != _board.myController &&
                       _confirm.confirmedHandSequences.isNotEmpty
@@ -582,6 +646,9 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
             right: 0,
             child: HandCardsBar(
               handCodes: _board.selfHand,
+              onCardRectsChanged: (rects) {
+                _selfHandCardRects = rects;
+              },
               selectedCardSequence: _overlay.selectedHandSequence,
               onCardTap: _controller.handleHandCardTap,
               overlayContent: handActionEntries.isEmpty
@@ -599,6 +666,25 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
               checkedSequences: selectPromptMode == SelectPromptMode.inline
                   ? _selectN.inlineSelectedHandSequences
                   : const {},
+            ),
+          ),
+          if (_activeDrawEvent != null)
+            _buildDrawAnimationLayer(
+              viewport,
+              opponentHandTop,
+              _activeDrawEvent!,
+            ),
+          Positioned(
+            bottom: 104,
+            right: 16,
+            child: Tooltip(
+              message: '取消操作',
+              child: IconButton.filled(
+                onPressed: _controller.canCancelFieldCardSelection
+                    ? _controller.cancelFieldCardSelection
+                    : null,
+                icon: const Icon(Icons.close),
+              ),
             ),
           ),
           Positioned(
@@ -718,6 +804,103 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDrawAnimationLayer(
+    Size viewport,
+    double opponentHandTop,
+    DrawAnimationEvent event,
+  ) {
+    final progress = Curves.easeOutCubic.transform(_drawController.value);
+    final source = _drawSourceRect(viewport, opponentHandTop, event);
+    final target = _drawTargetRect(viewport, opponentHandTop, event);
+    final rect = Rect.lerp(source, target, progress)!;
+    final isSelf = event.player == _board.myController;
+    final code = event.codes.isNotEmpty ? event.codes.first : 0;
+    return Positioned.fromRect(
+      rect: rect,
+      child: IgnorePointer(
+        child: Opacity(
+          opacity: 1.0 - progress * 0.15,
+          child: _drawCardVisual(
+            code,
+            isSelf,
+            revealCard: event.revealCard,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Rect _drawSourceRect(
+    Size viewport,
+    double opponentHandTop,
+    DrawAnimationEvent event,
+  ) {
+    final isSelf = event.player == _board.myController;
+    final deckKey = isSelf ? 'self_deck' : 'opp_deck';
+    return _fieldAnchors?.slotRects[deckKey] ??
+        Rect.fromLTWH(
+          viewport.width / 2 - 32,
+          isSelf ? viewport.height - 120 : opponentHandTop + 6,
+          64,
+          90,
+        );
+  }
+
+  Rect _drawTargetRect(
+    Size viewport,
+    double opponentHandTop,
+    DrawAnimationEvent event,
+  ) {
+    final isSelf = event.player == _board.myController;
+    final handRects = isSelf ? _selfHandCardRects : _oppHandCardRects;
+    final handCodes = isSelf ? _board.selfHand : _board.opponentHand;
+    if (handCodes.isNotEmpty) {
+      final targetIndex = isSelf ? handCodes.length - 1 : 0;
+      final targetRect = handRects[targetIndex];
+      if (targetRect != null) return targetRect;
+    }
+    if (isSelf) {
+      return Rect.fromLTWH(
+        viewport.width - 64 - 12,
+        viewport.height - 96,
+        64,
+        90,
+      );
+    }
+    return Rect.fromLTWH(
+      12,
+      opponentHandTop + 6,
+      64,
+      90,
+    );
+  }
+
+  Widget _drawCardVisual(
+    int code,
+    bool isSelf, {
+    required bool revealCard,
+  }) {
+    if (isSelf || revealCard) {
+      return CardImage(code: code, width: 64, height: 90);
+    }
+    return Container(
+      width: 64,
+      height: 90,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(5),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF1A1B3A), Color(0xFF0A0B1E)],
+        ),
+        border: Border.all(color: const Color(0xFFFFD700), width: 1.5),
+      ),
+      child: const Center(
+        child: Icon(Icons.style, color: Color(0xFF00F0FF), size: 28),
       ),
     );
   }

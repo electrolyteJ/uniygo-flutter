@@ -115,74 +115,98 @@ class DuelFieldController {
     }
     switch (gameMsg.func) {
       // 决斗事件 start
-      case MSG_START:
+    case MSG_START:
+        console.log('handleServerMessage: MSG_START innerMsg=${gameMsg.innerMsg}');
         _boardN.handleStart(innerMsg);
         _sound.playDuelStart();
         break;
-      case MSG_NEW_TURN:
+    case MSG_NEW_TURN:
+        console.log('handleServerMessage: MSG_NEW_TURN innerMsg=${gameMsg.innerMsg}');
         _boardN.handleNewTurn(innerMsg);
         _sound.playNewTurn();
         break;
-      case MSG_NEW_PHASE:
+    case MSG_NEW_PHASE:
+        console.log('handleServerMessage: MSG_NEW_PHASE innerMsg=${gameMsg.innerMsg}');
         // 已通过 onDuelPhaseMessage 单独派发，避免这里重复记日志。
         _sound.playNewPhase();
         break;
-      case MSG_WAITING:
+    case MSG_WAITING:
+        console.log('handleServerMessage: MSG_WAITING innerMsg=${gameMsg.innerMsg}');
         _boardN.handleWaiting(innerMsg as MsgWait);
         break;
-      case MSG_ATTACK:
+    case MSG_ATTACK:
+        console.log('handleServerMessage: MSG_ATTACK innerMsg=${gameMsg.innerMsg}');
         _boardN.handleAttack(innerMsg);
         _sound.playAttack();
         break;
-      case MSG_DAMAGE:
+    case MSG_DAMAGE:
+        console.log('handleServerMessage: MSG_DAMAGE innerMsg=${gameMsg.innerMsg}');
         _boardN.handleDamage(innerMsg);
         _sound.playDamage();
         break;
-      case MSG_RECOVER:
+    case MSG_RECOVER:
+        console.log('handleServerMessage: MSG_RECOVER innerMsg=${gameMsg.innerMsg}');
         _boardN.handleRecover(innerMsg);
         _sound.playRecover();
         break;
-      case MSG_LP_UPDATE:
+    case MSG_LP_UPDATE:
+        console.log('handleServerMessage: MSG_LP_UPDATE innerMsg=${gameMsg.innerMsg}');
         _boardN.handleLpUpdate(innerMsg);
         break;
-      case MSG_PAY_LP_COST:
+    case MSG_PAY_LP_COST:
+        console.log('handleServerMessage: MSG_PAY_LP_COST innerMsg=${gameMsg.innerMsg}');
         _boardN.handlePayLife(innerMsg);
         _sound.playDamage();
         break;
-      case MSG_CONFIRM_CARDS:
-      case MSG_CONFIRM_DECKTOP:
-      case MSG_CONFIRM_EXTRATOP:
+    case MSG_CONFIRM_CARDS:
+        console.log('handleServerMessage: MSG_CONFIRM_CARDS innerMsg=${gameMsg.innerMsg}');
         _handleConfirmCards(gameMsg.func, innerMsg as MsgConfirmCards);
         break;
-      case MSG_CHAINING:
+    case MSG_CONFIRM_DECKTOP:
+        console.log('handleServerMessage: MSG_CONFIRM_DECKTOP innerMsg=${gameMsg.innerMsg}');
+        _handleConfirmCards(gameMsg.func, innerMsg as MsgConfirmCards);
+        break;
+    case MSG_CONFIRM_EXTRATOP:
+        console.log('handleServerMessage: MSG_CONFIRM_EXTRATOP innerMsg=${gameMsg.innerMsg}');
+        _handleConfirmCards(gameMsg.func, innerMsg as MsgConfirmCards);
+        break;
+    case MSG_CHAINING:
+        console.log('handleServerMessage: MSG_CHAINING innerMsg=${gameMsg.innerMsg}');
         _boardN.setChainSealed(false);
         final name = _boardN.handleChaining(innerMsg);
         _boardN.addLog('连锁发动 $name。');
         _sound.playChain();
         break;
-      case MSG_CHAINED:
+    case MSG_CHAINED:
+        console.log('handleServerMessage: MSG_CHAINED innerMsg=${gameMsg.innerMsg}');
         _boardN.handleChained(innerMsg as MsgChained);
         break;
-      case MSG_CHAIN_SOLVING:
+    case MSG_CHAIN_SOLVING:
+        console.log('handleServerMessage: MSG_CHAIN_SOLVING innerMsg=${gameMsg.innerMsg}');
         _boardN.setChainSealed(true);
         _boardN.handleChainSolving(innerMsg as MsgChainSolving);
         break;
-      case MSG_CHAIN_SOLVED:
+    case MSG_CHAIN_SOLVED:
+        console.log('handleServerMessage: MSG_CHAIN_SOLVED innerMsg=${gameMsg.innerMsg}');
         _boardN.handleChainSolved(innerMsg as MsgChainSolved);
         break;
-      case MSG_CHAIN_END:
+    case MSG_CHAIN_END:
+        console.log('handleServerMessage: MSG_CHAIN_END innerMsg=${gameMsg.innerMsg}');
         _boardN.handleChainEnd(innerMsg);
         _sound.playChainEnd();
         break;
-      case MSG_SUMMONING:
+    case MSG_SUMMONING:
+        console.log('handleServerMessage: MSG_SUMMONING innerMsg=${gameMsg.innerMsg}');
         final name = _boardN.handleSummoning(innerMsg);
         _boardN.addLog('正在召唤 $name。');
         _sound.playSummon();
         break;
-      case MSG_SUMMONED:
+    case MSG_SUMMONED:
+        console.log('handleServerMessage: MSG_SUMMONED innerMsg=${gameMsg.innerMsg}');
         _boardN.handleSummonFinished('召唤');
         break;
-      case MSG_SP_SUMMONING:
+    case MSG_SP_SUMMONING:
+        console.log('handleServerMessage: MSG_SP_SUMMONING innerMsg=${gameMsg.innerMsg}');
         final msg = innerMsg as MsgSpSummoning;
         _boardN.handleSummonPreparing(
           msg.code,
@@ -191,10 +215,12 @@ class DuelFieldController {
         );
         _sound.playSpecialSummon();
         break;
-      case MSG_SP_SUMMONED:
+    case MSG_SP_SUMMONED:
+        console.log('handleServerMessage: MSG_SP_SUMMONED innerMsg=${gameMsg.innerMsg}');
         _boardN.handleSummonFinished('特殊召唤');
         break;
-      case MSG_FLIP_SUMMONING:
+    case MSG_FLIP_SUMMONING:
+        console.log('handleServerMessage: MSG_FLIP_SUMMONING innerMsg=${gameMsg.innerMsg}');
         final msg = innerMsg as MsgFlipSummoning;
         _boardN.handleSummonPreparing(
           msg.code,
@@ -203,137 +229,174 @@ class DuelFieldController {
         );
         _sound.playFlipSummon();
         break;
-      case MSG_FLIP_SUMMONED:
+    case MSG_FLIP_SUMMONED:
+        console.log('handleServerMessage: MSG_FLIP_SUMMONED innerMsg=${gameMsg.innerMsg}');
         _boardN.handleSummonFinished('反转召唤');
         break;
-      case MSG_BATTLE:
+    case MSG_BATTLE:
+        console.log('handleServerMessage: MSG_BATTLE innerMsg=${gameMsg.innerMsg}');
         _boardN.handleBattle(innerMsg as MsgBattle);
         _sound.playBattle();
         break;
-      case MSG_HINT:
+    case MSG_HINT:
+        console.log('handleServerMessage: MSG_HINT innerMsg=${gameMsg.innerMsg}');
         _boardN.handleHint(innerMsg as MsgHint);
         break;
-      case MSG_WIN:
+    case MSG_WIN:
+        console.log('handleServerMessage: MSG_WIN innerMsg=${gameMsg.innerMsg}');
         _boardN.handleWin(innerMsg as MsgWin);
         _sound.playDuelWin();
         break;
-      case MSG_RETRY:
+    case MSG_RETRY:
+        console.log('handleServerMessage: MSG_RETRY innerMsg=${gameMsg.innerMsg}');
         _boardN.addLog('操作无效，请重新选择。');
         break;
-      case MSG_SHUFFLE_DECK:
+    case MSG_SHUFFLE_DECK:
+        console.log('handleServerMessage: MSG_SHUFFLE_DECK innerMsg=${gameMsg.innerMsg}');
         _boardN.handleShuffleDeck(innerMsg);
         _sound.playShuffleDeck();
         break;
-      case MSG_BECOME_TARGET:
+    case MSG_BECOME_TARGET:
+        console.log('handleServerMessage: MSG_BECOME_TARGET innerMsg=${gameMsg.innerMsg}');
         _boardN.handleBecomeTarget(innerMsg as MsgBecomeTarget);
         break;
-      case MSG_ATTACK_DISABLE:
+    case MSG_ATTACK_DISABLE:
+        console.log('handleServerMessage: MSG_ATTACK_DISABLE innerMsg=${gameMsg.innerMsg}');
         _boardN.handleAttackDisabled();
         break;
-      case MSG_DAMAGE_STEP_START:
+    case MSG_DAMAGE_STEP_START:
+        console.log('handleServerMessage: MSG_DAMAGE_STEP_START innerMsg=${gameMsg.innerMsg}');
         _boardN.handleDamageStepStart();
         _sound.playDamageStep();
         break;
-      case MSG_DAMAGE_STEP_END:
+    case MSG_DAMAGE_STEP_END:
+        console.log('handleServerMessage: MSG_DAMAGE_STEP_END innerMsg=${gameMsg.innerMsg}');
         _boardN.handleDamageStepEnd();
         break;
       // 决斗事件 end
       // 决斗场地  start
       case MSG_DRAW:
-        {
+      {
+          console.log('handleServerMessage: MSG_DRAW innerMsg=${gameMsg.innerMsg}');
           final msg = innerMsg as MsgDraw;
           _boardN.applyDraw(msg);
           _boardN.addLog('${_board.playerNameOf(msg.player)} 抽了 ${msg.count} 张卡。');
         }
         _sound.playCardDraw();
         break;
-      case MSG_UPDATE_DATA:
+    case MSG_UPDATE_DATA:
+        console.log('handleServerMessage: MSG_UPDATE_DATA innerMsg=${gameMsg.innerMsg}');
         _boardN.applyUpdateData(innerMsg as MsgUpdateData);
         break;
-      case MSG_UPDATE_CARD:
+    case MSG_UPDATE_CARD:
+        console.log('handleServerMessage: MSG_UPDATE_CARD innerMsg=${gameMsg.innerMsg}');
         _boardN.applyUpdateCard(innerMsg as MsgUpdateCard);
         break;
-      case MSG_RELOAD_FIELD:
+    case MSG_RELOAD_FIELD:
+        console.log('handleServerMessage: MSG_RELOAD_FIELD innerMsg=${gameMsg.innerMsg}');
         _boardN.applyReloadField(innerMsg as MsgReloadField);
         break;
-      case MSG_MOVE:
+    case MSG_MOVE:
+        console.log('handleServerMessage: MSG_MOVE innerMsg=${gameMsg.innerMsg}');
         _boardN.applyMove(innerMsg as MsgMove);
         _sound.playCardDestroy();
         break;
       case MSG_FIELD_DISABLED:
-        {
+      {
+          console.log('handleServerMessage: MSG_FIELD_DISABLED innerMsg=${gameMsg.innerMsg}');
           final msg = innerMsg as MsgFieldDisabled;
           _boardN.applyFieldDisabled(msg);
           _boardN.addLog('区域禁用状态已更新。');
         }
         break;
-      case MSG_POS_CHANGE:
+    case MSG_POS_CHANGE:
+        console.log('handleServerMessage: MSG_POS_CHANGE innerMsg=${gameMsg.innerMsg}');
         final card = _boardN.handlePosChange(innerMsg);
         _boardN.addLog('${card?.name} 表示形式变更。');
         _sound.playPosChange();
         break;
-      case MSG_SHUFFLE_HAND:
+    case MSG_SHUFFLE_HAND:
+        console.log('handleServerMessage: MSG_SHUFFLE_HAND innerMsg=${gameMsg.innerMsg}');
         _boardN.applyShuffleHand(innerMsg as MsgShuffleHand);
         break;
-      case MSG_SET:
+    case MSG_SET:
+        console.log('handleServerMessage: MSG_SET innerMsg=${gameMsg.innerMsg}');
         _boardN.handleSet(innerMsg as MsgSet);
         _sound.playSetCard();
         break;
       // 决斗场地  end
       // 选择事件  start
-      case MSG_SELECT_IDLE_CMD:
+    case MSG_SELECT_IDLE_CMD:
+        console.log('handleServerMessage: MSG_SELECT_IDLE_CMD innerMsg=${gameMsg.innerMsg}');
         _selectN.applyIdleCmd(innerMsg as MsgSelectIdleCmd);
         break;
-      case MSG_SELECT_BATTLE_CMD:
+    case MSG_SELECT_BATTLE_CMD:
+        console.log('handleServerMessage: MSG_SELECT_BATTLE_CMD innerMsg=${gameMsg.innerMsg}');
         _selectN.applyBattleCmd(innerMsg as MsgSelectBattleCmd);
         break;
-      case MSG_SELECT_CARD:
+    case MSG_SELECT_CARD:
+        console.log('handleServerMessage: MSG_SELECT_CARD innerMsg=${gameMsg.innerMsg}');
         _selectN.applySelectCard(innerMsg as MsgSelectCard);
         break;
-      case MSG_SELECT_CHAIN:
+    case MSG_SELECT_CHAIN:
+        console.log('handleServerMessage: MSG_SELECT_CHAIN innerMsg=${gameMsg.innerMsg}');
         _selectN.applySelectChain(innerMsg as MsgSelectChain);
         break;
-      case MSG_SELECT_EFFECTYN:
+    case MSG_SELECT_EFFECTYN:
+        console.log('handleServerMessage: MSG_SELECT_EFFECTYN innerMsg=${gameMsg.innerMsg}');
         _selectN.applySelectEffectYn(innerMsg as MsgSelectEffectYn);
         break;
-      case MSG_SELECT_YES_NO:
+    case MSG_SELECT_YES_NO:
+        console.log('handleServerMessage: MSG_SELECT_YES_NO innerMsg=${gameMsg.innerMsg}');
         _selectN.applySelectYesNo(innerMsg as MsgSelectYesNo);
         break;
-      case MSG_SELECT_PLACE:
+    case MSG_SELECT_PLACE:
+        console.log('handleServerMessage: MSG_SELECT_PLACE innerMsg=${gameMsg.innerMsg}');
         _selectN.applySelectPlace(innerMsg as MsgSelectPlace);
         break;
-      case MSG_SELECT_POSITION:
+    case MSG_SELECT_POSITION:
+        console.log('handleServerMessage: MSG_SELECT_POSITION innerMsg=${gameMsg.innerMsg}');
         _selectN.applySelectPosition(innerMsg as MsgSelectPosition);
         break;
-      case MSG_SELECT_TRIBUTE:
+    case MSG_SELECT_TRIBUTE:
+        console.log('handleServerMessage: MSG_SELECT_TRIBUTE innerMsg=${gameMsg.innerMsg}');
         _selectN.applySelectTribute(innerMsg as MsgSelectTribute);
         break;
-      case MSG_SELECT_COUNTER:
+    case MSG_SELECT_COUNTER:
+        console.log('handleServerMessage: MSG_SELECT_COUNTER innerMsg=${gameMsg.innerMsg}');
         _selectN.applySelectCounter(innerMsg as MsgSelectCounter);
         break;
-      case MSG_SELECT_SUM:
+    case MSG_SELECT_SUM:
+        console.log('handleServerMessage: MSG_SELECT_SUM innerMsg=${gameMsg.innerMsg}');
         _selectN.applySelectSum(innerMsg as MsgSelectSum);
         break;
-      case MSG_SORT_CARD:
+    case MSG_SORT_CARD:
+        console.log('handleServerMessage: MSG_SORT_CARD innerMsg=${gameMsg.innerMsg}');
         _selectN.applySortCard(innerMsg as MsgSortCard);
         break;
-      case MSG_SELECT_OPTION:
+    case MSG_SELECT_OPTION:
+        console.log('handleServerMessage: MSG_SELECT_OPTION innerMsg=${gameMsg.innerMsg}');
         _selectN.applySelectOption(innerMsg as MsgSelectOption);
         break;
-      case MSG_ANNOUNCE_CARD:
+    case MSG_ANNOUNCE_CARD:
+        console.log('handleServerMessage: MSG_ANNOUNCE_CARD innerMsg=${gameMsg.innerMsg}');
         _selectN.applyAnnounceCard(innerMsg as MsgAnnounceCard);
         break;
-      case MSG_SELECT_UNSELECT_CARD:
+    case MSG_SELECT_UNSELECT_CARD:
+        console.log('handleServerMessage: MSG_SELECT_UNSELECT_CARD innerMsg=${gameMsg.innerMsg}');
         _selectN.applySelectUnselectCard(innerMsg as MsgSelectUnselectCard);
         break;
-      case MSG_SELECT_DISFIELD:
+    case MSG_SELECT_DISFIELD:
+        console.log('handleServerMessage: MSG_SELECT_DISFIELD innerMsg=${gameMsg.innerMsg}');
         _selectN.applySelectDisfield(innerMsg as MsgSelectPlace);
         break;
       // 选择事件  end
-      case MSG_TOSS_COIN:
+    case MSG_TOSS_COIN:
+        console.log('handleServerMessage: MSG_TOSS_COIN innerMsg=${gameMsg.innerMsg}');
         _sound.playCoinToss();
         break;
-      case MSG_TOSS_DICE:
+    case MSG_TOSS_DICE:
+        console.log('handleServerMessage: MSG_TOSS_DICE innerMsg=${gameMsg.innerMsg}');
         _sound.playDice();
         break;
       default:
@@ -355,10 +418,14 @@ class DuelFieldController {
       _ => '卡片',
     };
     _boardN.addLog('$owner 确认了 $zoneLabel 的 ${msg.count} 张卡。');
+    _boardN.revealDeckToHandDraw(msg.cards);
     if (msg.skipPanel == 1) {
+      console.log('Confirm cards: skip panel, only highlight.');
       return;
     }
-
+    console.log(
+      'Confirm cards: func=$func, count=${msg.count}, skipPanel=${msg.skipPanel}',
+    );
     _confirmN.cancelTimer();
 
     if (func == MSG_CONFIRM_DECKTOP) {
@@ -411,6 +478,9 @@ class DuelFieldController {
     }
 
     if (fieldSlotKeys.isNotEmpty || handSequences.isNotEmpty) {
+      console.log(
+        'Confirm cards: highlight field=${fieldSlotKeys.length} hand=${handSequences.length} panel=${panelCodes.length}',
+      );
       _confirmN.scheduleConfirmedReveal(
         fieldSlotKeys: fieldSlotKeys,
         handSequences: handSequences,
@@ -419,6 +489,7 @@ class DuelFieldController {
         title: '$owner 展示的卡片',
       );
     } else if (panelCodes.isNotEmpty) {
+      console.log('Confirm cards: show panel only, count=${panelCodes.length}');
       _confirmN.showConfirmPanel(
         title: '$owner 展示的卡片',
         codes: panelCodes.toList(),
@@ -544,6 +615,12 @@ class DuelFieldController {
     _overlayN.applyFieldCardSelection(
       fieldCard == null || actions.isEmpty ? null : fieldCard,
     );
+  }
+
+  bool get canCancelFieldCardSelection => _overlay.selectedFieldCard != null;
+
+  void cancelFieldCardSelection() {
+    _overlayN.applyFieldCardSelection(null);
   }
 
   static bool isBrowsableZone(String zoneKey) {

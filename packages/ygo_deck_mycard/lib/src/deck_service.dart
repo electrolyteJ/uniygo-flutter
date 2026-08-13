@@ -154,6 +154,7 @@ class DeckService implements IDeckService {
 
   /// 内置卡组：文件名 key（ASCII，不含 .ydk 扩展名）→ 显示名
   static const _builtinDecks = <String, String>{
+    '[SAMPLE]CyberMata': '[SAMPLE]CyberMata',
     'cyber_dragon': '終撃竜サイバー・ドラゴン',
     'A Starter Deck': 'A Starter Deck',
     'Blackwing': 'Blackwing',

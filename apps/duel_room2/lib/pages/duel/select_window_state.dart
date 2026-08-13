@@ -336,8 +336,7 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   /// 把手牌/场上可执行行动整理成 idle command 菜单。
   void applyIdleCmd(MsgSelectIdleCmd msg) {
     // 进入新的选择阶段时清除残留的动效（如攻击动画被反射镜力中断，怪兽破坏后无 MSG_BATTLE 结算）
-    ref
-        .read(duelFieldProvider.notifier)
+    ref.read(duelFieldProvider.notifier)
         .scheduleBattlePresentationClear();
     final actions = <IdleAction>[];
     for (final group in msg.commandGroups) {

@@ -13,6 +13,12 @@ class PlaymatFieldViewData {
   final int oppExtraCount;
   final int oppGraveCount;
   final int oppRemovedCount;
+  final int selfExtraTopCode;
+  final int selfGraveTopCode;
+  final int selfRemovedTopCode;
+  final int oppExtraTopCode;
+  final int oppGraveTopCode;
+  final int oppRemovedTopCode;
 
   const PlaymatFieldViewData({
     required this.fieldCards,
@@ -26,6 +32,12 @@ class PlaymatFieldViewData {
     required this.oppExtraCount,
     required this.oppGraveCount,
     required this.oppRemovedCount,
+    this.selfExtraTopCode = 0,
+    this.selfGraveTopCode = 0,
+    this.selfRemovedTopCode = 0,
+    this.oppExtraTopCode = 0,
+    this.oppGraveTopCode = 0,
+    this.oppRemovedTopCode = 0,
   });
 
   FieldCard? cardAt(int controller, int zone, int sequence) {

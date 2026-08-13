@@ -10,6 +10,7 @@ import 'package:ygo_data/card_info.dart' as pkg;
 
 import 'models/battle_presentation.dart';
 import 'models/chain_link.dart';
+import 'models/draw_animation_event.dart';
 import 'models/duel_result_summary.dart';
 import 'models/field_card.dart';
 import 'models/field_zone_key.dart';
@@ -86,6 +87,8 @@ class DuelFieldState {
     this.opponentLpEventId = 0,
     this.deckShuffleTick = 0,
     this.deckShufflePlayer = 0,
+    this.drawAnimationEvent,
+    this.drawAnimationTick = 0,
     this.duelLogs = const [],
     this.players = const [],
     this.duelResult,
@@ -143,6 +146,10 @@ class DuelFieldState {
   final int deckShuffleTick;
   final int deckShufflePlayer;
 
+  /// 最近一次抽卡动画事件；页面监听该字段变化播放抽卡飞行动画。
+  final DrawAnimationEvent? drawAnimationEvent;
+  final int drawAnimationTick;
+
   /// 对局日志（战报），供日志抽屉展示。
   final List<String> duelLogs;
 
@@ -191,6 +198,8 @@ class DuelFieldState {
     int? opponentLpEventId,
     int? deckShuffleTick,
     int? deckShufflePlayer,
+    Object? drawAnimationEvent = _undefined,
+    int? drawAnimationTick,
     List<String>? duelLogs,
     List<PlayerInfo>? players,
     Object? duelResult = _undefined,
@@ -244,6 +253,10 @@ class DuelFieldState {
       opponentLpEventId: opponentLpEventId ?? this.opponentLpEventId,
       deckShuffleTick: deckShuffleTick ?? this.deckShuffleTick,
       deckShufflePlayer: deckShufflePlayer ?? this.deckShufflePlayer,
+      drawAnimationEvent: identical(drawAnimationEvent, _undefined)
+          ? this.drawAnimationEvent
+          : drawAnimationEvent as DrawAnimationEvent?,
+      drawAnimationTick: drawAnimationTick ?? this.drawAnimationTick,
       duelLogs: duelLogs ?? this.duelLogs,
       players: players ?? this.players,
       duelResult: identical(duelResult, _undefined)
@@ -285,6 +298,16 @@ class DuelFieldState {
       default:
         return const [];
     }
+  }
+
+  /// 返回公共区域最上面一张可展示卡的卡密，未知/空区域返回 0。
+  int topZoneCode(String zoneKey) {
+    final codes = getZoneCodes(zoneKey);
+    for (var sequence = codes.length - 1; sequence >= 0; sequence--) {
+      final code = codes[sequence];
+      if (code > 0) return code;
+    }
+    return 0;
   }
 
   /// 指定控制者在 GRAVE/REMOVED/EXTRA 区域的卡密列表，非这些区域返回 null。
@@ -380,15 +403,25 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   /// 处理抽卡消息，并同步手牌与卡组剩余数量。
   void applyDraw(MsgDraw msg) {
     final isMyDraw = msg.player == state.myController;
+    final drawEvent = DrawAnimationEvent(
+      id: state.drawAnimationTick + 1,
+      player: msg.player,
+      codes: List<int>.of(msg.cards),
+      turnCount: state.turnCount,
+    );
     if (isMyDraw) {
       state = state.copyWith(
         selfHand: [...state.selfHand, ...msg.cards],
         selfDeck: state.selfDeck - msg.count,
+        drawAnimationEvent: drawEvent,
+        drawAnimationTick: drawEvent.id,
       );
     } else {
       state = state.copyWith(
         opponentHand: [...state.opponentHand, ...msg.cards],
         oppDeck: state.oppDeck - msg.count,
+        drawAnimationEvent: drawEvent,
+        drawAnimationTick: drawEvent.id,
       );
     }
   }
@@ -574,6 +607,41 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     );
     if (msg.code > 0) {
       unawaited(ensureCardInfo(msg.code));
+    }
+    final isOpponentDeckToHand =
+        (msg.from.location & CARD_ZONE_DECK) != 0 &&
+        (msg.to.location & CARD_ZONE_HAND) != 0 &&
+        msg.to.controller != state.myController;
+    if (isOpponentDeckToHand) {
+      final drawEvent = DrawAnimationEvent(
+        id: state.drawAnimationTick + 1,
+        player: msg.to.controller,
+        codes: [msg.code],
+        turnCount: state.turnCount,
+      );
+      state = state.copyWith(
+        drawAnimationEvent: drawEvent,
+        drawAnimationTick: drawEvent.id,
+      );
+    }
+  }
+
+  /// MSG_CONFIRM_CARDS 揭示对手刚检索到手牌的卡时，更新当前动画事件为可见。
+  void revealDeckToHandDraw(List<CardInfo> cards) {
+    final current = state.drawAnimationEvent;
+    if (current == null || current.player == state.myController) return;
+    for (final card in cards) {
+      if (card.controller == current.player &&
+          (card.location & CARD_ZONE_HAND) != 0 &&
+          card.code > 0) {
+        state = state.copyWith(
+          drawAnimationEvent: current.copyWith(
+            codes: [card.code],
+            revealCard: true,
+          ),
+        );
+        return;
+      }
     }
   }
 

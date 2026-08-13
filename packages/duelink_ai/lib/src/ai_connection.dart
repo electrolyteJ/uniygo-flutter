@@ -145,10 +145,10 @@ class AiConnection implements DuelConnection {
     final cardLoader = CardDataLoader(cardConverter: _cardConverter!);
     _engine.setCardReader(cardLoader.load);
     final ruleAnswer = aiAutoAnswer(cardLoader.levelOf);
-    if (!_runtimeResolved) {
-      _runtimeResolved = true;
-      _runtime = _injectedRuntime ?? await _loadAssetRuntime();
-    }
+    // if (!_runtimeResolved) {
+    //   _runtimeResolved = true;
+    //   _runtime = _injectedRuntime ?? await _loadAssetRuntime();
+    // }
     final runtime = _runtime;
     if (runtime != null) {
       _agent = AgentAutoAnswer(
