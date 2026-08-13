@@ -11,7 +11,7 @@ import '../../providers/service_providers.dart';
 import '../../state/duel_chat_state.dart';
 import '../../state/card_confirm_state.dart';
 import '../../state/duel_field_state.dart';
-import '../../state/duel_field_store.dart';
+import '../../state/duel_field_controller.dart';
 import '../../state/duel_room_state.dart';
 import '../../state/field_overlay_state.dart';
 import '../../state/select_window_state.dart';
@@ -49,7 +49,7 @@ class DuelRoomPage extends StatelessWidget {
         selectWindowProvider.overrideWith(SelectWindowNotifier.new),
         cardConfirmProvider.overrideWith(CardConfirmNotifier.new),
         fieldOverlayProvider.overrideWith(FieldOverlayNotifier.new),
-        duelFieldStoreProvider.overrideWith(createDuelFieldStore),
+        duelFieldControllerProvider.overrideWith(createDuelFieldController),
       ],
       child: _DuelRoomView(args: args),
     );
@@ -88,7 +88,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
 
     ref.read(duelRoomProvider.notifier).start();
     ref.read(duelChatProvider.notifier).start();
-    ref.read(duelFieldStoreProvider).bindServerMessage(
+    ref.read(duelFieldControllerProvider).bindServerMessage(
       // l10n 依赖 BuildContext，以闭包形式注入给 store。
       phaseLabel: (phase) => getDuelPhaseText(context, phase),
     );
@@ -113,7 +113,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
   Widget build(BuildContext context) {
     // 房间玩家列表（日志文案中的玩家名）同步到对局 store。
     ref.listen(duelRoomProvider.select((s) => s.players), (prev, next) {
-      ref.read(duelFieldStoreProvider).syncPlayers(next);
+      ref.read(duelFieldProvider.notifier).syncPlayers(next);
     });
     // 服务器错误 → SnackBar（替代原 build 内 addPostFrameCallback 写法）。
     ref.listen(duelRoomProvider.select((s) => s.errorMessage), (prev, next) {

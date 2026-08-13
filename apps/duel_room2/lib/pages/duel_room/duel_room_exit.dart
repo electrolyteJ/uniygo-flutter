@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../providers/service_providers.dart';
-import '../../state/duel_field_store.dart';
+import '../../state/duel_field_state.dart';
 
 /// 退出决斗前的确认弹窗。
 void backHomeDialog({
@@ -47,7 +47,7 @@ void backHome(BuildContext context, WidgetRef ref,
   // 结算数据先取出：导航后房间页 ProviderScope 销毁，provider 随之回收，
   // 各 controller/store 的流订阅由 ref.onDispose / dispose 自动清理，
   // 无需 duel_room1 那样的手动 reset 三件套。
-  final duelResult = ref.read(duelFieldStoreProvider).duelResult;
+  final duelResult = ref.read(duelFieldProvider).duelResult;
   console.log('backHome: duelResult=$duelResult');
   context.go('/');
   if (duelResult != null) {

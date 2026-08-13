@@ -10,7 +10,7 @@ import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
 
 import '../../util/ygo_data_util.dart';
 import '../../providers/service_providers.dart';
-import 'duel_field_store.dart';
+import 'duel_field_state.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
 /// 房间页不可变状态快照。
 ///
@@ -324,7 +324,7 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
     final mainBytes = deckToBytes(result.main.map((c) => c.code).toList());
     final extraBytes = deckToBytes(result.extra.map((c) => c.code).toList());
     ref
-        .read(duelFieldStoreProvider)
+        .read(duelFieldProvider.notifier)
         .setKnownSelfExtraDeckCodes(result.extra.map((c) => c.code).toList());
     _duelService.submitDeck(mainBytes, extraBytes);
     _duelService.ready();
