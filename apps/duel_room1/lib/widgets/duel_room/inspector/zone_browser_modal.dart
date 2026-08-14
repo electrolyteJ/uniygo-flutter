@@ -3,8 +3,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../../../models/duel_menu.dart';
-import '../../cyber_button.dart';
-import '../../card_image.dart';
+import 'package:biz/widgets/cyber_button.dart';
+import 'package:biz/widgets/card_image.dart';
 
 String _zoneTitle(String zoneKey) {
   switch (zoneKey) {

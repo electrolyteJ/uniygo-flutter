@@ -24,7 +24,7 @@ import 'package:duel_room2/pages/duel/widgets/overlay/position_selector.dart';
 import 'package:duel_room2/pages/duel/widgets/overlay/select_prompt_layer.dart';
 import 'package:duel_room2/pages/duel/widgets/overlay/turn_order_hint.dart';
 import 'package:duel_room2/pages/duel/widgets/overlay/yes_no_dialog.dart';
-import 'package:duel_room2/widgets/card_image.dart';
+import 'package:biz/widgets/card_image.dart';
 import 'package:duelink/duelink.dart' show PlayerType, PlayerInfo;
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';

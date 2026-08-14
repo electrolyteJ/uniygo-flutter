@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ygo_data/ygo_data.dart' as pkg;
 
-import '../../card_image.dart';
+import 'package:biz/widgets/card_image.dart';
 
 class AnnounceCardDialog extends StatefulWidget {
   final Future<List<pkg.CardInfo>> Function(String query) onSearch;

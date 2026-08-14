@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ygo_data/ygo_data.dart';
 import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
 
-import '../../util/ygo_data_util.dart';
+import 'package:biz/util/ygo_data_util.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
 
 import 'duel/duel_field_state.dart';

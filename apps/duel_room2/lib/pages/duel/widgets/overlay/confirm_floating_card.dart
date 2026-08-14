@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../widgets/card_image.dart';
+import 'package:biz/widgets/card_image.dart';
 
 /// 卡组顶部 / 额外卡组顶部 确认展示的浮动卡片。
 ///

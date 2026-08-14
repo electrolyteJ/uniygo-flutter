@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 
-import '../../card_image.dart';
+import 'package:biz/widgets/card_image.dart';
 
 class HandCardsBar extends StatefulWidget {
   final List<int> handCodes;

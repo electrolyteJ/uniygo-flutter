@@ -3,7 +3,7 @@ import 'dart:developer' as console;
 import 'package:flutter/material.dart';
 
 import '../../../models/select_state.dart';
-import '../../card_image.dart';
+import 'package:biz/widgets/card_image.dart';
 
 class CardSelector extends StatefulWidget {
   final SelectState select;

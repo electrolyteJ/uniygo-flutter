@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 
-import '../../../../widgets/card_image.dart';
+import 'package:biz/widgets/card_image.dart';
 import '../../models/field_card.dart';
 import 'duel_field_background.dart';
 import 'duel_field_layout.dart';

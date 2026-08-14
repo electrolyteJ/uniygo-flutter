@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../card_image.dart';
+import 'package:biz/widgets/card_image.dart';
 
 /// 居中展示服务端要求查看的卡牌（MSG_CONFIRM_CARDS 多张非场上卡）。
 ///

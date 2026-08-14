@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
-import '../../../../widgets/card_image.dart';
+import 'package:biz/widgets/card_image.dart';
 
 class YesNoDialog extends StatelessWidget {
   final String message;

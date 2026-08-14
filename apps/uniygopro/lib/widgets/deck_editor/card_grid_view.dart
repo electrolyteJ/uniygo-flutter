@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ygo_data/card_info.dart';
 import 'banlist_status_badge.dart';
-import 'package:duel_room1/widgets/card_detail_dialog.dart';
+import 'package:biz/widgets/card_detail_dialog.dart';
 
 class CardGridView extends StatelessWidget {
   final List<CardInfo> cards;

@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../../widgets/card_image.dart';
+import 'package:biz/widgets/card_image.dart';
 import '../../models/chain_link.dart';
 
 /// 连锁堆叠展示组件。
