@@ -45,28 +45,31 @@ class GameServer {
 /// 自由房间可选环境
 enum DuelEnvironment {
   /// 默认 Koishi 通用环境
-  koishi("wss",'Koishi', 'koishi.momobako.com', 7211),
+  koishi("wss", 'Koishi', 'koishi.momobako.com', 7211),
 
   /// 默认 mycard 自定义房间
-  mycard("wss",'mycard', 'tiramisu.moenext.com', 7912),
-  mercury233("tcp",'mercury233', 's1.ygo233.com', 233),
+  mycard("wss", 'mycard', 'tiramisu.moenext.com', 7912),
+  mercury233("tcp", 'mercury233', 's1.ygo233.com', 233),
+
+  /// 233 服无禁限端口：无禁限卡表 + 部分卡片使用原版效果。
+  mercury233_2012("tcp", 'mercury233无禁限', 's1.ygo233.com', 2012),
 
   /// 先行卡测试环境
-  koishi_preRelease("wss",'koishi先行卡测试', 'koishi.momobako.com', 889),
-  mycard_preRelease("wss",'mycard先行卡测试', 'mygo.superpre.pro', 888),
-  mercury233_preRelease("tcp",'mercury233先行卡测试', 's1.ygo233.com', 23333),
+  koishi_preRelease("wss", 'koishi先行卡测试', 'koishi.momobako.com', 889),
+  mycard_preRelease("wss", 'mycard先行卡测试', 'mygo.superpre.pro', 888),
+  mercury233_preRelease("tcp", 'mercury233先行卡测试', 's1.ygo233.com', 23333),
 
   /// 408 特殊规则环境
-  env408("wss",'408 环境', 'koishi.momobako.com', 1408),
+  env408("wss", '408 环境', 'koishi.momobako.com', 1408),
 
   /// YGOPro PC LAN 服务器
-  ygopro("wss",'YGOPro LAN', '', 7911),
+  ygopro("wss", 'YGOPro LAN', '', 7911),
 
   /// AI 本地人机对战（本地 ocgcore 引擎模拟服务端，无需联网）
-  ai("ai",'AI 人机对战', 'localhost', 0),
+  ai("ai", 'AI 人机对战', 'localhost', 0),
 
   /// 残局挑战（本地 ocgcore 引擎加载残局脚本，无需联网/卡组）
-  puzzle("puzzle",'残局挑战', 'local', 0);
+  puzzle("puzzle", '残局挑战', 'local', 0);
 
   final String displayName;
   final String schema;
@@ -76,7 +79,11 @@ enum DuelEnvironment {
   const DuelEnvironment(this.schema, this.displayName, this.host, this.port);
 
   /// 是否允许创建房间（Koishi/先行卡/408 只允许加入）
-  bool get canCreate => this == mycard || this == ygopro || this == mercury233;
+  bool get canCreate =>
+      this == mycard ||
+      this == ygopro ||
+      this == mercury233 ||
+      this == mercury233_2012;
 
   /// 是否为 AI 本地人机对战环境
   bool get isAi => this == ai;
@@ -88,7 +95,9 @@ enum DuelEnvironment {
   bool get useEncodedPassword => this == mycard;
 
   bool get usesRoomStringDsl =>
-      this == mercury233 || this == mercury233_preRelease;
+      this == mercury233 ||
+      this == mercury233_preRelease ||
+      this == mercury233_2012;
 }
 
 /// 所有可用对战服务器列表。

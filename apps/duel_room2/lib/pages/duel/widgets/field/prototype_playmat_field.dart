@@ -1,11 +1,10 @@
-import 'dart:math' as math;
-
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
 import 'package:biz/widgets/card_image.dart';
 import '../../models/field_card.dart';
+import '../duel_shuffle_shake.dart';
 import 'duel_field_background.dart';
 import 'duel_field_layout.dart';
 import 'phase_lamp.dart';
@@ -42,6 +41,14 @@ class PrototypePlaymatField extends StatefulWidget {
   /// 用于在墓地/除外/额外区域渲染高亮提醒（智能打牌反馈）。
   final Set<String> activatableZoneKeys;
 
+  /// 主卡组洗切信号（tick + 玩家），驱动 DECK 区域抖动。
+  final int deckShuffleTick;
+  final int deckShufflePlayer;
+
+  /// 额外卡组洗切信号（tick + 玩家），驱动 EXTRA 区域抖动。
+  final int extraShuffleTick;
+  final int extraShufflePlayer;
+
   /// 点击可放置槽位的回调（槽位 id 为 `controller_zone_sequence`）。
   final void Function(String slotId)? onPlaceSlotTap;
 
@@ -66,6 +73,10 @@ class PrototypePlaymatField extends StatefulWidget {
     this.placeTargetSlotIds = const {},
     this.confirmedSlotIds = const {},
     this.activatableZoneKeys = const {},
+    this.deckShuffleTick = 0,
+    this.deckShufflePlayer = 0,
+    this.extraShuffleTick = 0,
+    this.extraShufflePlayer = 0,
     this.onPlaceSlotTap,
   });
 
@@ -147,13 +158,14 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField>
       final topLeft = box.localToGlobal(Offset.zero, ancestor: rootBox);
       slotRects[entry.key] = topLeft & box.size;
     }
+    // EMZ 双方共享且序列镜像：己方 5 与对方 6 是同一物理槽位，己方 6 与对方 5 同槽。
     final emz1Rect = slotRects['${widget.data.selfController}_4_5'];
     if (emz1Rect != null) {
-      slotRects['${widget.data.opponentController}_4_5'] = emz1Rect;
+      slotRects['${widget.data.opponentController}_4_6'] = emz1Rect;
     }
     final emz2Rect = slotRects['${widget.data.selfController}_4_6'];
     if (emz2Rect != null) {
-      slotRects['${widget.data.opponentController}_4_6'] = emz2Rect;
+      slotRects['${widget.data.opponentController}_4_5'] = emz2Rect;
     }
 
     final phaseLampRect = _buildPhaseLampRect(slotRects, rootBox.size);
@@ -293,6 +305,12 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField>
 
   Widget _buildSpellTrapRow({required int controller}) {
     final isOpponent = controller == widget.data.opponentController;
+    final deckTick = widget.deckShufflePlayer == controller
+        ? widget.deckShuffleTick
+        : 0;
+    final extraTick = widget.extraShufflePlayer == controller
+        ? widget.extraShuffleTick
+        : 0;
     final cards = List<Widget>.generate(5, (index) {
       final sequence = isOpponent ? 4 - index : index;
       final label = 'S/T ${isOpponent ? 5 - index : index + 1}';
@@ -314,6 +332,7 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField>
                 count: widget.data.oppDeckCount,
                 showCardBack: true,
                 showCount: false,
+                shuffleTick: deckTick,
               )
             : _buildZoneEntry(
                 zoneKey: 'self_extra',
@@ -323,6 +342,7 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField>
                 topCardCode: widget.data.selfExtraTopCode,
                 showTopCard: true,
                 showCount: false,
+                shuffleTick: extraTick,
               ),
         const SizedBox(width: 12),
         ..._withGaps(cards),
@@ -336,6 +356,7 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField>
                 topCardCode: widget.data.oppExtraTopCode,
                 showTopCard: true,
                 showCount: false,
+                shuffleTick: extraTick,
               )
             : _buildZoneEntry(
                 slotId: 'self_deck',
@@ -343,6 +364,7 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField>
                 count: widget.data.selfDeckCount,
                 showCardBack: true,
                 showCount: false,
+                shuffleTick: deckTick,
               ),
       ],
     );
@@ -421,21 +443,21 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField>
         const SizedBox(width: gap),
         _buildSlot(
           slotId: '${widget.data.selfController}_4_5',
-          altSlotIds: ['${widget.data.opponentController}_4_5'],
+          altSlotIds: ['${widget.data.opponentController}_4_6'],
           label: 'EMZ 1',
           card:
-              widget.data.cardAt(widget.data.opponentController, 4, 5) ??
-              widget.data.cardAt(widget.data.selfController, 4, 5),
+              widget.data.cardAt(widget.data.selfController, 4, 5) ??
+              widget.data.cardAt(widget.data.opponentController, 4, 6),
           isEmz: true,
         ),
         const SizedBox(width: gap),
         _buildSlot(
           slotId: '${widget.data.selfController}_4_6',
-          altSlotIds: ['${widget.data.opponentController}_4_6'],
+          altSlotIds: ['${widget.data.opponentController}_4_5'],
           label: 'EMZ 2',
           card:
-              widget.data.cardAt(widget.data.opponentController, 4, 6) ??
-              widget.data.cardAt(widget.data.selfController, 4, 6),
+              widget.data.cardAt(widget.data.selfController, 4, 6) ??
+              widget.data.cardAt(widget.data.opponentController, 4, 5),
           isEmz: true,
         ),
         const SizedBox(width: gap),
@@ -481,7 +503,9 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField>
     bool isEmz = false,
     List<String> altSlotIds = const [],
   }) {
-    final hasCard = card != null && card.code > 0;
+    // 里侧卡（尤其是对方里侧卡）code 为 0（对端隐藏），但仍占槽且应渲染卡背，
+    // 不能因 code==0 当成空槽。
+    final hasCard = card != null;
     final isSelected = widget.selectedSlotId == slotId;
     // 高亮与点击落在槽位本身：就地选择（连锁/选卡/解放等）与
     // 放置选择（MSG_SELECT_PLACE）不再由页面覆盖层绘制。
@@ -523,7 +547,7 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField>
               : (isSelectable || isPlaceTarget)
               ? const Color(0x1F00F0FF)
               : hasCard
-              ? Colors.black
+              ? Colors.transparent
               : (isEmz ? const Color(0x14FFD700) : const Color(0x0F00F0FF)),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
@@ -584,26 +608,33 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField>
   static const int _posDefenseMask = 0x0C;
 
   Widget _buildSlotCard(FieldCard card) {
-    final isFacedown = (card.position & _posFacedownMask) != 0;
+    // 兜底：code<=0（对端里侧卡）必按里侧渲染卡背，避免极端情况下面朝上。
+    final isFacedown =
+        card.code <= 0 || (card.position & _posFacedownMask) != 0;
     final isDefense = (card.position & _posDefenseMask) != 0;
 
-    Widget face = isFacedown
-        ? const _CardBack()
-        : CardImage(code: card.code, width: _slotWidth, height: _slotHeight);
+    // 守备表示（表侧/里侧）横放：整卡旋转 90° 得到横图，再缩放到槽宽，
+    // 上下留出透明区域（槽背景已透明，不再是黑色填充）。
+    final sideways = isDefense && card.zone == 4;
 
-    // 仅怪兽卡(zone==4)守备表示时横放；魔陷卡(zone==8)始终竖放。
-    if (isDefense && card.zone == 4) {
-      face = Transform(
-        alignment: Alignment.center,
-        transform: Matrix4.identity()
-          ..rotateZ(math.pi / 2)
-          ..scaleByDouble(0.74, 0.74, 1.0, 1.0),
-        child: face,
+    Widget face = SizedBox(
+      width: _slotWidth,
+      height: _slotHeight,
+      child: isFacedown
+          ? const _CardBack()
+          : CardImage(code: card.code, width: _slotWidth, height: _slotHeight),
+    );
+
+    if (sideways) {
+      face = FittedBox(
+        fit: BoxFit.contain,
+        child: RotatedBox(quarterTurns: 1, child: face),
       );
     }
 
     return Stack(
       fit: StackFit.expand,
+      alignment: Alignment.center,
       children: [
         face,
         if (!isFacedown && card.zone == 4) _buildPositionBadge(card),
@@ -648,6 +679,7 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField>
     bool showCount = true,
     int topCardCode = 0,
     bool showTopCard = false,
+    int shuffleTick = 0,
   }) {
     final Widget entryChild;
     if (showCardBack) {
@@ -691,50 +723,53 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField>
 
     final isActivatable =
         zoneKey != null && widget.activatableZoneKeys.contains(zoneKey);
-    return GestureDetector(
-      onTap: zoneKey == null ? null : () => widget.onZoneTap?.call(zoneKey),
-      child: Container(
-        key: _slotKey(slotId),
-        width: _slotWidth,
-        height: _slotHeight,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isActivatable
-              ? const Color(0x22FFD700)
-              : Colors.white.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
+    return ShuffleShake(
+      tick: shuffleTick,
+      child: GestureDetector(
+        onTap: zoneKey == null ? null : () => widget.onZoneTap?.call(zoneKey),
+        child: Container(
+          key: _slotKey(slotId),
+          width: _slotWidth,
+          height: _slotHeight,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
             color: isActivatable
-                ? const Color(0xFFFFD700)
-                : Colors.white.withValues(alpha: 0.18),
-            width: isActivatable ? 1.8 : 1,
-          ),
-          boxShadow: [
-            if (isActivatable)
-              const BoxShadow(color: Color(0x66FFD700), blurRadius: 18),
-            const BoxShadow(
-              color: Color(0x22000000),
-              blurRadius: 10,
-              offset: Offset(0, 4),
+                ? const Color(0x22FFD700)
+                : Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: isActivatable
+                  ? const Color(0xFFFFD700)
+                  : Colors.white.withValues(alpha: 0.18),
+              width: isActivatable ? 1.8 : 1,
             ),
-          ],
-        ),
-        child: isActivatable
-            ? Stack(
-                fit: StackFit.expand,
-                children: [
-                  entryChild,
-                  Positioned(
-                    right: 2,
-                    top: 2,
-                    child: FadeTransition(
-                      opacity: _pulseController,
-                      child: const _ActivatableDot(),
+            boxShadow: [
+              if (isActivatable)
+                const BoxShadow(color: Color(0x66FFD700), blurRadius: 18),
+              const BoxShadow(
+                color: Color(0x22000000),
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: isActivatable
+              ? Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    entryChild,
+                    Positioned(
+                      right: 2,
+                      top: 2,
+                      child: FadeTransition(
+                        opacity: _pulseController,
+                        child: const _ActivatableDot(),
+                      ),
                     ),
-                  ),
-                ],
-              )
-            : entryChild,
+                  ],
+                )
+              : entryChild,
+        ),
       ),
     );
   }
@@ -780,7 +815,10 @@ class _CardBack extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF31475E), Color(0xFF0A1020)],
+          colors: [Color(0xFF3D5A73), Color(0xFF1E2F45)],
+        ),
+        border: Border.fromBorderSide(
+          BorderSide(color: Color(0xFF00F0FF), width: 1.2),
         ),
       ),
       child: Center(

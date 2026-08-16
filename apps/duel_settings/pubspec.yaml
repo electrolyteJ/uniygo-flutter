@@ -1,0 +1,25 @@
+name: duel_settings
+description: "全局决斗设置：持久化 + 设置弹窗（duel_room2 不直接依赖本包）。"
+publish_to: 'none'
+version: 0.0.1
+
+environment:
+  sdk: ^3.12.2
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
+  shared_preferences: ^2.5.3
+  biz:
+    path: ../../packages/biz
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

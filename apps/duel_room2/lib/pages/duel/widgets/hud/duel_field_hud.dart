@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:biz/service_providers.dart';
 import 'package:duelink/duelink.dart' show PlayerInfo;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,6 +51,7 @@ class DuelFieldHud extends ConsumerWidget {
           children: [
             _hudIconButton(
               icon: Icons.arrow_back,
+              tooltip: '返回',
               onPressed: () {
                 backHomeDialog(
                   context: context,
@@ -109,6 +111,27 @@ class DuelFieldHud extends ConsumerWidget {
                 ),
               ),
             ),
+            _hudIconButton(
+              icon: Icons.settings,
+              tooltip: '设置',
+              onPressed: () {
+                final open = ref.read(showDuelSettingsDialogProvider);
+                if (open == null) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('设置功能不可用')));
+                  return;
+                }
+                open(context);
+              },
+            ),
+            const SizedBox(width: 8),
+            _hudIconButton(
+              icon: Icons.flag,
+              tooltip: '投降',
+              onPressed: () => surrenderDialog(context: context, ref: ref),
+            ),
+            const SizedBox(width: 12),
           ],
         ),
       ),
@@ -117,6 +140,7 @@ class DuelFieldHud extends ConsumerWidget {
 
   Widget _hudIconButton({
     required IconData icon,
+    required String tooltip,
     required VoidCallback onPressed,
   }) {
     return ClipRRect(
@@ -134,7 +158,7 @@ class DuelFieldHud extends ConsumerWidget {
           ),
           child: IconButton(
             icon: Icon(icon, color: Colors.white.withValues(alpha: 0.92)),
-            tooltip: '返回',
+            tooltip: tooltip,
             onPressed: onPressed,
           ),
         ),

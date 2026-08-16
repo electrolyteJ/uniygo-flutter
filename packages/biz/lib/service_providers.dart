@@ -16,6 +16,20 @@ import 'package:ygo_data/ygo_data.dart' show IBanlistService;
 import 'package:ygo_deck_mycard/ygo_deck_mycard.dart' show MycardDeckService;
 import 'package:ygo_strings_mycard/ygo_strings_mycard.dart';
 
+export 'duel_settings.dart';
+
+/// 应用级 provider override 注册表：宿主 app（uniygopro）在启动时调用
+/// [registerAppLevelOverrides] 注入跨包实现（如 duel_settings 的持久化设置
+/// 与设置弹窗）。duel_room2 不依赖设置包，只消费 biz 里的 provider 契约。
+///
+/// 必须在首次访问 [duelRoomServiceContainer] 之前注册（late final 懒初始化），
+/// 而容器在首个 DuelRoomPage 构建时才被触碰，故 main() 里注册即可。
+List<Override> _appLevelOverrides = const [];
+
+void registerAppLevelOverrides(List<Override> overrides) {
+  _appLevelOverrides = [..._appLevelOverrides, ...overrides];
+}
+
 /// 服务层容器（应用级单例）。
 ///
 /// DuelRoomPage 每次进房创建的 ProviderScope 都以它为 parent：
@@ -24,7 +38,12 @@ import 'package:ygo_strings_mycard/ygo_strings_mycard.dart';
 /// 因此 dataService 的卡片缓存、ygoSoundService 的 AudioPlayer 池
 /// 都是应用级单例（替代 duel_room1 的 ServiceSingleton），
 /// 不随进出房间反复重建。
-final duelRoomServiceContainer = ProviderContainer();
+// late 必须保留：容器须在 registerAppLevelOverrides 之后才首次初始化
+// （懒初始化捕获到最新 overrides），因此不能用 eager final。
+// ignore: unnecessary_late
+late final duelRoomServiceContainer = ProviderContainer(
+  overrides: _appLevelOverrides,
+);
 
 final cardServiceProvider = Provider<MyCardCardService>(
   (ref) => ServiceFactory.create<MyCardCardService>(),

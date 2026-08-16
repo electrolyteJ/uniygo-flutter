@@ -18,6 +18,53 @@ import 'models/sum_check.dart' as sum_check;
 
 const Object _undefined = Object();
 
+// ──────────────────────────────────────────
+// MSG_ANNOUNCE_CARD 宣言条件（RPN 表达式操作码，ocgcore common.h）
+// ──────────────────────────────────────────
+const int _opcodeIsCode = 0x40000100;
+const int _opcodeOr = 0x40000005;
+
+/// 解析 MSG_ANNOUNCE_CARD 的 RPN 条件表达式，提取「只能宣言这些卡码」集合。
+///
+/// 返回 null 表示自由宣言（任意卡名）；否则为可宣言卡码集合。
+/// 仅支持「ISCODE 谓词用 OR 连接」这一最常见形态（禁止令/抹杀之指名者/
+/// 精神崩坏等）；含其它谓词（属性/种族/类型/系列）或其它运算时退回自由
+/// 宣言，由服务端 is_declarable 校验，非法时回 MSG_RETRY。
+Set<int>? _parseAnnounceDeclarableCodes(List<int> codes) {
+  // Duel.AnnounceCard(player) 时 select_options = [TRUE] = [1] → 自由宣言。
+  if (codes.length == 1 && codes[0] == 1) return null;
+
+  final stack = <int>[];
+  final declarable = <int>{};
+  var supported = true;
+
+  for (final token in codes) {
+    if (token == _opcodeIsCode) {
+      // 一元谓词：栈顶是其操作数（卡码）。
+      if (stack.isNotEmpty) {
+        final operand = stack.removeLast();
+        if (operand > 0 && operand < 0x40000000) {
+          declarable.add(operand);
+        }
+      }
+      stack.add(1);
+    } else if (token == _opcodeOr) {
+      if (stack.isNotEmpty) stack.removeLast();
+      if (stack.isNotEmpty) stack.removeLast();
+      stack.add(1);
+    } else if (token < 0x40000000) {
+      stack.add(token); // 操作数（卡码等）
+    } else {
+      // 其它操作码（AND/NOT/NEG/算术/属性/种族/类型/系列等）：
+      // 客户端不做完整求值，退回自由宣言。
+      supported = false;
+    }
+  }
+
+  if (!supported || declarable.isEmpty) return null;
+  return declarable;
+}
+
 /// 支持就地选择的类型。排序/计数器/效果选项等交互复杂或没有
 /// 场上位置，仍走 CardSelector 弹窗。
 const _inlineSelectTypes = {
@@ -44,7 +91,7 @@ class SelectWindowState {
     this.enableEp = false,
     this.currentSelect,
     this.inlineSelectedOptionIndices = const {},
-    this.announceCardBlockedCodes = const [],
+    this.announceCardDeclarableCodes,
   });
 
   final List<IdleAction> selectedIdleActions;
@@ -57,7 +104,8 @@ class SelectWindowState {
   /// 就地选择（高亮手牌/场上卡代替 CardSelector 弹窗）时已勾选的选项下标。
   final Set<int> inlineSelectedOptionIndices;
 
-  final List<int> announceCardBlockedCodes;
+  /// 宣言卡名的可宣言卡码集合；null 表示自由宣言（任意卡名）。
+  final Set<int>? announceCardDeclarableCodes;
 
   SelectWindowState copyWith({
     List<IdleAction>? selectedIdleActions,
@@ -67,7 +115,7 @@ class SelectWindowState {
     bool? enableEp,
     Object? currentSelect = _undefined,
     Set<int>? inlineSelectedOptionIndices,
-    List<int>? announceCardBlockedCodes,
+    Object? announceCardDeclarableCodes = _undefined,
   }) {
     return SelectWindowState(
       selectedIdleActions: selectedIdleActions ?? this.selectedIdleActions,
@@ -81,8 +129,10 @@ class SelectWindowState {
           : currentSelect as SelectState?,
       inlineSelectedOptionIndices:
           inlineSelectedOptionIndices ?? this.inlineSelectedOptionIndices,
-      announceCardBlockedCodes:
-          announceCardBlockedCodes ?? this.announceCardBlockedCodes,
+      announceCardDeclarableCodes:
+          identical(announceCardDeclarableCodes, _undefined)
+          ? this.announceCardDeclarableCodes
+          : announceCardDeclarableCodes as Set<int>?,
     );
   }
 
@@ -138,13 +188,16 @@ class SelectWindowState {
   String get inlineSelectHint {
     final select = currentSelect!;
     final count = inlineSelectedOptionIndices.length;
+    // 引擎下发的选择提示优先（如「请选择攻击对象」）；多选时附推进度。
+    final hint = select.hint;
+    if (hint != null && hint.isNotEmpty) {
+      return select.max > 1 ? '$hint ($count/${select.max})' : hint;
+    }
     switch (select.type) {
       case SelectType.chain:
-        return '选择要连锁的卡';
+        return '选择要发动连锁的卡';
       case SelectType.tribute:
-        return select.max == 1
-            ? '请选择解放的怪兽'
-            : '选择解放的怪兽 ($count/${select.max})';
+        return select.max == 1 ? '请选择解放的怪兽' : '选择解放的怪兽 ($count/${select.max})';
       case SelectType.unselect:
         return '已选择 $count 张卡，点卡切换，满足条件后完成';
       case SelectType.sum:
@@ -171,6 +224,12 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   /// 保证跨窗口、跨对局的陈旧 UI 响应都能被识别并丢弃。
   int _generationCounter = 0;
 
+  /// 最近一次 MSG_ANNOUNCE_CARD 的原始消息：MSG_RETRY 时据此重开窗口。
+  MsgAnnounceCard? _lastAnnounceCard;
+
+  /// 最近一次 MSG_HINT selectMessage 的选择提示文案，待下一个选择窗口消费。
+  String? _pendingSelectHint;
+
   @override
   SelectWindowState build() {
     _dataService = ref.watch(dataServiceProvider);
@@ -192,12 +251,22 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
     return select.copyWith(generation: _generationCounter);
   }
 
+  /// 缓存引擎下发的选择提示文案（MSG_HINT selectMessage），
+  /// 供紧随其后的 MSG_SELECT_* 选择窗口消费。
+  void setSelectHint(String? hint) {
+    _pendingSelectHint = (hint == null || hint.isEmpty) ? null : hint;
+  }
+
   /// 打开一个新的选择窗口：分配递增的 generation、预热卡图缓存。
   /// 所有 apply* 一律经此入口（或 [_nextWindow]）开窗，
   /// 保证 generation 语义统一。
   /// （unselect 窗口的初始勾选由 applySelectUnselectCard 在开窗后补写。）
   void _openWindow(SelectState select) {
-    final window = _nextWindow(select);
+    final pending = _pendingSelectHint;
+    _pendingSelectHint = null;
+    final window = _nextWindow(
+      pending == null ? select : select.copyWith(hint: pending),
+    );
     state = state.copyWith(
       currentSelect: window,
       inlineSelectedOptionIndices: const {},
@@ -222,8 +291,21 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
     state = state.copyWith(
       currentSelect: null,
       inlineSelectedOptionIndices: const {},
-      announceCardBlockedCodes: const [],
+      announceCardDeclarableCodes: null,
     );
+  }
+
+  /// 处理服务端 MSG_RETRY：重新打开刚被拒绝的宣言卡名窗口，让玩家重选。
+  ///
+  /// 宣言卡名的合法性由服务端 is_declarable 校验，客户端无法完全预判；
+  /// respondAnnounceCard 回包后已 clearSelect，若服务端回 MSG_RETRY 而不重开
+  /// 窗口，玩家将无从重试、对局卡死。其它窗口暂不重建（就地选择等都有
+  /// 本地校验，触发 RETRY 罕见）。
+  void handleRetry() {
+    final last = _lastAnnounceCard;
+    if (last != null && state.currentSelect == null) {
+      applyAnnounceCard(last);
+    }
   }
 
   void _sendResponse(CtosGameMsgResponse response) {
@@ -318,7 +400,10 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
     clearSelect();
   }
 
-  void respondSelectPlace(int player, int zone, int sequence, {
+  void respondSelectPlace(
+    int player,
+    int zone,
+    int sequence, {
     int? generation,
   }) {
     if (!_acceptGeneration(generation, 'respondSelectPlace')) return;
@@ -442,22 +527,64 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
     clearSelect();
   }
 
+  void respondAnnounceNumber(int index, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondAnnounceNumber')) return;
+    console.log('respondAnnounceNumber: index=$index');
+    _sendResponse(CtosGameMsgResponse.selectOption(index));
+    clearSelect();
+  }
+
+  void respondAnnounceAttrib(int index, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondAnnounceAttrib')) return;
+    console.log('respondAnnounceAttrib: index=$index');
+    _sendResponse(CtosGameMsgResponse.selectOption(index));
+    clearSelect();
+  }
+
+  void respondAnnounceRace(int index, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondAnnounceRace')) return;
+    console.log('respondAnnounceRace: index=$index');
+    _sendResponse(CtosGameMsgResponse.selectOption(index));
+    clearSelect();
+  }
+
   Future<List<pkg.CardInfo>> searchAnnounceCards(String keyword) async {
     final trimmed = keyword.trim();
     if (trimmed.isEmpty) {
       return const <pkg.CardInfo>[];
     }
-    final blockedCodes = state.announceCardBlockedCodes.toSet();
+    final declarable = state.announceCardDeclarableCodes;
     final results = await _dataService.searchCards(trimmed);
     return results
         .where(
           (card) =>
-              !blockedCodes.contains(card.code) &&
+              (declarable == null || declarable.contains(card.code)) &&
               card.name.trim().isNotEmpty &&
               card.alias != card.code,
         )
         .take(50)
         .toList(growable: false);
+  }
+
+  /// 加载受限宣言（如抹杀之指名者）的可宣言卡片信息。
+  ///
+  /// [state.announceCardDeclarableCodes] 为 null 时是自由宣言（任意卡名），
+  /// 返回空列表；否则按卡码逐个查询，过滤掉查不到或名字为空的条目，
+  /// 按卡码升序返回，供宣言弹窗直接展示可宣言卡列表。
+  Future<List<pkg.CardInfo>> loadDeclarableCards() async {
+    final declarable = state.announceCardDeclarableCodes;
+    if (declarable == null || declarable.isEmpty) {
+      return const <pkg.CardInfo>[];
+    }
+    final cards = <pkg.CardInfo>[];
+    for (final code in declarable) {
+      final card = await _dataService.getCard(code);
+      if (card != null && card.name.trim().isNotEmpty) {
+        cards.add(card);
+      }
+    }
+    cards.sort((a, b) => a.code.compareTo(b.code));
+    return cards;
   }
 
   // ──────────────────────────────────────────
@@ -467,8 +594,7 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   /// 把手牌/场上可执行行动整理成 idle command 菜单。
   void applyIdleCmd(MsgSelectIdleCmd msg) {
     // 进入新的选择阶段时清除残留的动效（如攻击动画被反射镜力中断，怪兽破坏后无 MSG_BATTLE 结算）
-    ref.read(duelFieldProvider.notifier)
-        .scheduleBattlePresentationClear();
+    ref.read(duelFieldProvider.notifier).scheduleBattlePresentationClear();
     final actions = <IdleAction>[];
     for (final group in msg.commandGroups) {
       final type = group.type.index;
@@ -519,9 +645,7 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   void applyBattleCmd(MsgSelectBattleCmd msg) {
     // 进入新的战斗指令选择时，若前一击未进入伤害计算（如怪兽在伤害计算前被效果破坏，
     // 无 MSG_BATTLE 结算），则清除残留的攻击动效。
-    ref
-        .read(duelFieldProvider.notifier)
-        .scheduleBattlePresentationClear();
+    ref.read(duelFieldProvider.notifier).scheduleBattlePresentationClear();
     final actions = <BattleAction>[];
     for (final group in msg.commandGroups) {
       final type = group.type.index;
@@ -654,20 +778,47 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   }
 
   void applySelectPlace(MsgSelectPlace msg) {
+    final options = _placeOptionsFromFieldMask(
+      msg.field,
+      selectingPlayer: msg.player,
+      selectableWhenBitSet: false,
+    );
     _openWindow(
       SelectState(
         type: SelectType.place,
         player: msg.player,
-        options: _placeOptionsFromFieldMask(
-          msg.field,
-          selectingPlayer: msg.player,
-          selectableWhenBitSet: false,
-        ),
+        options: options,
         min: msg.count,
         max: msg.count,
         cancelable: false,
       ),
     );
+    _maybeAutoRespondPlace(options, msg.count);
+  }
+
+  /// 自动选择放置位置：仅当全局设置（自动选择怪兽/魔陷位置）开启、
+  /// 且是「己方」的选位窗口时，替玩家选第一个可用空位。
+  /// count==1 才自动回包；多位放置（如灵摆刻度）保持手动，
+  /// 避免单格回包被服务端 MSG_RETRY。
+  void _maybeAutoRespondPlace(List<SelectOption> options, int count) {
+    if (count != 1 || options.isEmpty) return;
+    if (state.currentSelect?.player != _board.myController) return;
+    final settings = ref.read(duelSettingsProvider);
+    final first = options.first;
+    final auto = first.zone == CARD_ZONE_MZONE
+        ? settings.autoMonsterPosition
+        : first.zone == CARD_ZONE_SZONE
+        ? settings.autoSpellTrapPosition
+        : false;
+    if (!auto) return;
+    final controller = first.controller;
+    final zone = first.zone;
+    final sequence = first.sequence;
+    console.log(
+      'applySelectPlace: auto place controller=$controller '
+      'zone=$zone sequence=$sequence',
+    );
+    respondSelectPlace(controller, zone, sequence);
   }
 
   void applySelectPosition(MsgSelectPosition msg) {
@@ -780,7 +931,9 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
       );
     }
 
-    final mustOptions = msg.mustSelectCards.map(toOption).toList(growable: false);
+    final mustOptions = msg.mustSelectCards
+        .map(toOption)
+        .toList(growable: false);
     final options = msg.selectableCards.map(toOption).toList(growable: false);
     console.log(
       'applySelectSum: player=${msg.player} target=${msg.levelSum} '
@@ -844,8 +997,12 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   }
 
   void applyAnnounceCard(MsgAnnounceCard msg) {
+    _lastAnnounceCard = msg;
+    final declarable = _parseAnnounceDeclarableCodes(msg.codes);
+    final player = msg.player;
+    final rawLen = msg.codes.length;
     state = state.copyWith(
-      announceCardBlockedCodes: [...msg.codes],
+      announceCardDeclarableCodes: declarable,
       currentSelect: _nextWindow(
         SelectState(
           type: SelectType.announceCard,
@@ -857,8 +1014,59 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
       inlineSelectedOptionIndices: const {},
     );
     console.log(
-      'applyAnnounceCard: player=${msg.player} blocked=${msg.count} codes=[${msg.codes.join(', ')}]',
+      'applyAnnounceCard: player=$player declarable=$declarable rawLen=$rawLen',
     );
+  }
+
+  void applyAnnounceNumber(MsgAnnounceNumber msg) {
+    _applyAnnounceChoice(
+      type: SelectType.announceNumber,
+      player: msg.player,
+      options: [
+        for (final n in msg.numbers) SelectOption(code: n, label: '$n'),
+      ],
+      log: 'applyAnnounceNumber: player=${msg.player} numbers=${msg.numbers}',
+    );
+  }
+
+  void applyAnnounceAttrib(MsgAnnounceAttrib msg) {
+    _applyAnnounceChoice(
+      type: SelectType.announceAttrib,
+      player: msg.player,
+      options: _announceMaskOptions(msg.available, _attributeLabels),
+      log:
+          'applyAnnounceAttrib: player=${msg.player} available=${msg.available}',
+    );
+  }
+
+  void applyAnnounceRace(MsgAnnounceRace msg) {
+    _applyAnnounceChoice(
+      type: SelectType.announceRace,
+      player: msg.player,
+      options: _announceMaskOptions(msg.available, _raceLabels),
+      log: 'applyAnnounceRace: player=${msg.player} available=${msg.available}',
+    );
+  }
+
+  void _applyAnnounceChoice({
+    required SelectType type,
+    required int player,
+    required List<SelectOption> options,
+    required String log,
+  }) {
+    state = state.copyWith(
+      currentSelect: _nextWindow(
+        SelectState(
+          type: type,
+          player: player,
+          options: options,
+          min: 1,
+          max: 1,
+        ),
+      ),
+      inlineSelectedOptionIndices: const {},
+    );
+    console.log(log);
   }
 
   void applySelectUnselectCard(MsgSelectUnselectCard msg) {
@@ -1072,8 +1280,7 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
     if (!inlineSelectActive) return const {};
     return {
       for (final option in state.currentSelect!.options)
-        if (option.zone == CARD_ZONE_MZONE ||
-            option.zone == CARD_ZONE_SZONE)
+        if (option.zone == CARD_ZONE_MZONE || option.zone == CARD_ZONE_SZONE)
           zoneKeyOf(option.controller, option.zone, option.sequence),
     };
   }
@@ -1140,8 +1347,10 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
     if (select == null || state.hasPhaseCommandWindow) {
       return SelectPromptMode.none;
     }
-    if (select.type == SelectType.place &&
-        state.placeTargetFieldKeys.isNotEmpty) {
+    // place 一律走 place 提示层：即使可用槽位为空（如 EMZ 被共享占用、
+    // 服务端位图异常导致 options 被清空），也只显示放置提示，不能落入
+    // modal 的黑色遮罩，否则整页无法交互。
+    if (select.type == SelectType.place) {
       return SelectPromptMode.place;
     }
     if (inlineSelectActive) return SelectPromptMode.inline;
@@ -1208,8 +1417,7 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
     if (next.contains(index)) {
       next.remove(index);
     } else {
-      final countLimited =
-          select.type != SelectType.sum || !select.sumExact;
+      final countLimited = select.type != SelectType.sum || !select.sumExact;
       if (!countLimited || next.length < select.max) {
         next.add(index);
       }
@@ -1241,11 +1449,17 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   /// 解除选择（unselect）的「完成」：向服务端确认当前勾选结果。
   void finishInlineUnselect() {
     final select = state.currentSelect;
-    if (select?.type != SelectType.unselect ||
-        !state.inlineSelectCanConfirm) {
+    if (select?.type != SelectType.unselect || !state.inlineSelectCanConfirm) {
       return;
     }
     respondSelectUnselectCard(null);
+  }
+
+  /// 清空就地选择的勾选（不改动窗口本身，等价于「取消本次点选」，
+  /// 而不是放弃整个选择窗口）。
+  void clearInlineSelection() {
+    if (state.inlineSelectedOptionIndices.isEmpty) return;
+    state = state.copyWith(inlineSelectedOptionIndices: const {});
   }
 
   /// 取消当前就地选择（等价于弹窗的「取消」）。
@@ -1291,5 +1505,60 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
 /// 选择窗口状态的 provider，按房间 ProviderScope override 隔离。
 final selectWindowProvider =
     NotifierProvider<SelectWindowNotifier, SelectWindowState>(
-  SelectWindowNotifier.new,
-);
+      SelectWindowNotifier.new,
+    );
+
+/// MSG_ANNOUNCE_ATTRIB 的属性位掩码 → 可读标签（按位值升序）。
+const Map<int, String> _attributeLabels = {
+  0x01: '地',
+  0x02: '水',
+  0x04: '炎',
+  0x08: '风',
+  0x10: '光',
+  0x20: '暗',
+  0x40: '神',
+};
+
+/// MSG_ANNOUNCE_RACE 的种族位掩码 → 可读标签（按位值升序）。
+const Map<int, String> _raceLabels = {
+  0x1: '战士',
+  0x2: '魔法师',
+  0x4: '天使',
+  0x8: '恶魔',
+  0x10: '不死',
+  0x20: '机械',
+  0x40: '水族',
+  0x80: '炎族',
+  0x100: '岩石',
+  0x200: '鸟兽',
+  0x400: '植物',
+  0x800: '昆虫',
+  0x1000: '雷族',
+  0x2000: '龙',
+  0x4000: '兽',
+  0x8000: '兽战士',
+  0x10000: '恐龙',
+  0x20000: '鱼',
+  0x40000: '海龙',
+  0x80000: '爬虫类',
+  0x100000: '念动力',
+  0x200000: '幻神',
+  0x400000: '创造神',
+  0x800000: '幻龙',
+  0x1000000: '电子界',
+  0x2000000: '幻兽神',
+};
+
+/// 把声明位掩码展开为有序的 (code, label) 选项列表。
+List<SelectOption> _announceMaskOptions(
+  int available,
+  Map<int, String> labels,
+) {
+  final options = <SelectOption>[];
+  for (final entry in labels.entries) {
+    if (available & entry.key != 0) {
+      options.add(SelectOption(code: entry.key, label: entry.value));
+    }
+  }
+  return options;
+}

@@ -12,6 +12,10 @@ class SelectState {
   final List<int> initialSelectedIndices;
   final int? effectDescription;
 
+  /// 选择提示文案（MSG_HINT selectMessage 解析结果，如「请选择攻击对象」）。
+  /// 为空时由 UI 根据 [type] 回退到默认文案。
+  final String? hint;
+
   /// 窗口序号：每开一个新选择窗口自增。UI 渲染时记下该值，
   /// 回包时原样带回，服务端窗口已更换后到达的陈旧响应会被丢弃。
   final int generation;
@@ -41,6 +45,7 @@ class SelectState {
     this.immediateSingleToggle = false,
     this.initialSelectedIndices = const [],
     this.effectDescription,
+    this.hint,
     this.generation = 0,
     this.mustOptions = const [],
     this.sumTarget = 0,
@@ -59,6 +64,7 @@ class SelectState {
     bool? immediateSingleToggle,
     List<int>? initialSelectedIndices,
     Object? effectDescription = _selectStateKeep,
+    Object? hint = _selectStateKeep,
     int? generation,
     List<SelectOption>? mustOptions,
     int? sumTarget,
@@ -80,6 +86,7 @@ class SelectState {
       effectDescription: identical(effectDescription, _selectStateKeep)
           ? this.effectDescription
           : effectDescription as int?,
+      hint: identical(hint, _selectStateKeep) ? this.hint : hint as String?,
       generation: generation ?? this.generation,
       mustOptions: mustOptions ?? this.mustOptions,
       sumTarget: sumTarget ?? this.sumTarget,
@@ -152,6 +159,15 @@ enum SelectType {
 
   /// MSG_ANNOUNCE_CARD：宣言一个卡名（输入检索后选定，如「禁止令」）。
   announceCard,
+
+  /// MSG_ANNOUNCE_NUMBER：从候选数值中宣言一个（如「名推理」宣言等级）。
+  announceNumber,
+
+  /// MSG_ANNOUNCE_ATTRIB：宣言一个属性（地/水/炎/风/光/暗/神）。
+  announceAttrib,
+
+  /// MSG_ANNOUNCE_RACE：宣言一个种族（战士/魔法师/龙等）。
+  announceRace,
 
   /// MSG_SELECT_POSITION：选择怪兽的表示形式
   /// （表侧/里侧 × 攻击/守备）。

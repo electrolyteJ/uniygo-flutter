@@ -122,7 +122,7 @@ class DuelRoomState {
   PlayerInfo? get selfPlayer {
     final mySlotVal = selfType.slot;
     final myPlayer = players.firstWhere(
-          (p) => p.pos == mySlotVal,
+      (p) => p.pos == mySlotVal,
       orElse: () => PlayerInfo(name: '', pos: PlayerType.unknown.slot),
     );
     return myPlayer;
@@ -159,8 +159,9 @@ class DuelRoomState {
   }
 }
 
-final duelRoomProvider =
-    NotifierProvider<DuelRoomNotifier, DuelRoomState>(DuelRoomNotifier.new);
+final duelRoomProvider = NotifierProvider<DuelRoomNotifier, DuelRoomState>(
+  DuelRoomNotifier.new,
+);
 
 /// 房间级连接生命周期钩子：房间 ProviderScope 销毁时兜底断开 socket。
 ///
@@ -340,7 +341,8 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
       );
       state = state.copyWith(
         availableDecks: decks,
-        selectedDeckName: state.selectedDeckName ??
+        selectedDeckName:
+            state.selectedDeckName ??
             (decks.isEmpty ? null : decks.first.deckName),
       );
     } catch (e) {

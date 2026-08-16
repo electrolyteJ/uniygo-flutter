@@ -9,14 +9,19 @@ import '../../models/chain_link.dart';
 /// 连锁堆叠展示组件。
 ///
 /// 展示条件（两个缺一不可）：
-/// 1. 至少 2 个连锁（chains.length >= 2）
+/// 1. 连锁数量满足阈值（默认 >= 2；[showChain1Animation] 开启时 >= 1）
 /// 2. 连锁组建阶段已结束（sealed == true，即 MSG_CHAIN_SOLVING 已触发）
 ///
 /// 满足条件后全量展示 1s，之后自动淡出消失。
 class ChainStackOverlay extends StatefulWidget {
   final List<ChainLink> chains;
+
   /// 连锁组建阶段已结束（MSG_CHAIN_SOLVING 之后），此时可以展示完整连锁链条。
   final bool chainSealed;
+
+  /// 是否连锁 1 也显示（来自全局设置「连锁1 也要显示连锁动画」）。
+  final bool showChain1Animation;
+
   /// 卡名解析（由业务侧注入，避免组件反向依赖 store）。
   final String Function(int code) cardNameBuilder;
 
@@ -25,6 +30,7 @@ class ChainStackOverlay extends StatefulWidget {
     required this.chains,
     required this.chainSealed,
     required this.cardNameBuilder,
+    this.showChain1Animation = false,
   });
 
   @override
@@ -52,6 +58,10 @@ class _ChainStackOverlayState extends State<ChainStackOverlay>
     );
     _fadeAnim = CurveTween(curve: Curves.easeOut).animate(_fadeController);
     _fadeController.value = 1.0;
+    // 组件可能在连锁已封印后（modal 卸载→重挂）才首次挂载：此时
+    // didUpdateWidget 不会触发，必须在此兜底启动淡出计时，否则连锁叠层
+    // 会卡在满透明度永不消失。
+    _onChanged();
   }
 
   @override
@@ -72,7 +82,12 @@ class _ChainStackOverlayState extends State<ChainStackOverlay>
     }
   }
 
-  bool _shouldShow() => widget.chains.length >= 2 && widget.chainSealed;
+  bool _shouldShow() {
+    final enough = widget.showChain1Animation
+        ? widget.chains.isNotEmpty
+        : widget.chains.length >= 2;
+    return enough && widget.chainSealed;
+  }
 
   void _onChanged() {
     if (_shouldShow()) {
@@ -139,16 +154,20 @@ class _ChainStackOverlayState extends State<ChainStackOverlay>
   }
 }
 
-@Preview(name: 'ChainStackOverlay', size: Size(700, 520), brightness: Brightness.dark)
+@Preview(
+  name: 'ChainStackOverlay',
+  size: Size(700, 520),
+  brightness: Brightness.dark,
+)
 Widget previewChainStackOverlay() => ChainStackOverlay(
-      chains: const [
-        ChainLink(code: 89631139, controller: 0, zone: 4, sequence: 0),
-        ChainLink(code: 46986414, controller: 1, zone: 4, sequence: 1),
-        ChainLink(code: 55144522, controller: 0, zone: 8, sequence: 0),
-      ],
-      chainSealed: true,
-      cardNameBuilder: (code) => 'Card #$code',
-    );
+  chains: const [
+    ChainLink(code: 89631139, controller: 0, zone: 4, sequence: 0),
+    ChainLink(code: 46986414, controller: 1, zone: 4, sequence: 1),
+    ChainLink(code: 55144522, controller: 0, zone: 8, sequence: 0),
+  ],
+  chainSealed: true,
+  cardNameBuilder: (code) => 'Card #$code',
+);
 
 /// 两个连锁 badge 之间的横向箭头指示器。
 class _ChainArrow extends StatelessWidget {
@@ -160,7 +179,11 @@ class _ChainArrow extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(width: 12, height: 3, color: Colors.white30),
-          const Icon(Icons.arrow_forward_ios, color: Color(0xFFFFD700), size: 22),
+          const Icon(
+            Icons.arrow_forward_ios,
+            color: Color(0xFFFFD700),
+            size: 22,
+          ),
           Container(width: 12, height: 3, color: Colors.white30),
         ],
       ),
@@ -215,11 +238,15 @@ class _PulseChainBadgeState extends State<_PulseChainBadge>
 
   @override
   Widget build(BuildContext context) {
-    final textScale = (widget.cardHeight / _referenceCardHeight).clamp(0.5, 1.0);
+    final textScale = (widget.cardHeight / _referenceCardHeight).clamp(
+      0.5,
+      1.0,
+    );
     return ScaleTransition(
-      scale: Tween<double>(begin: 1.0, end: 1.03).animate(
-        CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-      ),
+      scale: Tween<double>(
+        begin: 1.0,
+        end: 1.03,
+      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xC70A101A),
@@ -232,12 +259,7 @@ class _PulseChainBadgeState extends State<_PulseChainBadge>
             ),
           ],
         ),
-        padding: const EdgeInsets.only(
-          left: 4,
-          top: 4,
-          right: 4,
-          bottom: 8,
-        ),
+        padding: const EdgeInsets.only(left: 4, top: 4, right: 4, bottom: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -282,4 +304,3 @@ class _PulseChainBadgeState extends State<_PulseChainBadge>
     );
   }
 }
-

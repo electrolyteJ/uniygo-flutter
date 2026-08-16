@@ -5,6 +5,7 @@ import '../../duel_field_state.dart';
 import '../../models/select_state.dart';
 import '../../select_window_state.dart';
 import 'announce_card_dialog.dart';
+import 'announce_choice_dialog.dart';
 import 'card_selector.dart';
 import 'counter_allocator_dialog.dart';
 import 'position_selector.dart';
@@ -32,6 +33,8 @@ class DuelSelectOverlay extends ConsumerWidget {
     final select = state.currentSelect;
     final selectN = ref.read(selectWindowProvider.notifier);
     final boardN = ref.read(duelFieldProvider.notifier);
+    final myController =
+        ref.watch(duelFieldProvider.select((b) => b.myController));
 
     switch (mode) {
       case SelectPromptMode.none:
@@ -67,7 +70,13 @@ class DuelSelectOverlay extends ConsumerWidget {
           mode: mode,
           modalChild: select == null
               ? null
-              : _buildSelectModal(selectN, boardN, select),
+              : _buildSelectModal(
+                  selectN,
+                  boardN,
+                  select,
+                  state.announceCardDeclarableCodes,
+                  myController,
+                ),
           modalCancelable: select?.cancelable ?? false,
           onModalCancel: selectN.cancelInlineSelect,
         );
@@ -78,6 +87,8 @@ class DuelSelectOverlay extends ConsumerWidget {
     SelectWindowNotifier selectN,
     DuelFieldNotifier boardN,
     SelectState select,
+    Set<int>? declarableCodes,
+    int myController,
   ) {
     final generation = select.generation;
     switch (select.type) {
@@ -89,6 +100,7 @@ class DuelSelectOverlay extends ConsumerWidget {
               selectN.respondSelectCard(sequences, generation: generation),
           onCancel: () => selectN.respondSelectCard([], generation: generation),
           onInspectCard: onInspectCard,
+          myController: myController,
         );
       case SelectType.unselect:
         return CardSelector(
@@ -100,6 +112,7 @@ class DuelSelectOverlay extends ConsumerWidget {
           onCancel: () =>
               selectN.respondSelectUnselectCard(null, generation: generation),
           onInspectCard: onInspectCard,
+          myController: myController,
         );
       case SelectType.chain:
         return CardSelector(
@@ -111,6 +124,7 @@ class DuelSelectOverlay extends ConsumerWidget {
           onCancel: () =>
               selectN.respondSelectChain(-1, generation: generation),
           onInspectCard: onInspectCard,
+          myController: myController,
         );
       case SelectType.position:
         return PositionSelector(
@@ -150,13 +164,37 @@ class DuelSelectOverlay extends ConsumerWidget {
           onCancel: () =>
               selectN.respondSelectOption(0, generation: generation),
           onInspectCard: onInspectCard,
+          myController: myController,
         );
       case SelectType.announceCard:
         return AnnounceCardDialog(
+          declarableCodes: declarableCodes,
+          onLoadDeclarable: selectN.loadDeclarableCards,
           onSearch: selectN.searchAnnounceCards,
           onSelect: (code) =>
               selectN.respondAnnounceCard(code, generation: generation),
           onInspectCard: onInspectCard,
+        );
+      case SelectType.announceNumber:
+        return AnnounceChoiceDialog(
+          title: '宣言数值',
+          options: select.options,
+          onSelect: (index) =>
+              selectN.respondAnnounceNumber(index, generation: generation),
+        );
+      case SelectType.announceAttrib:
+        return AnnounceChoiceDialog(
+          title: '宣言属性',
+          options: select.options,
+          onSelect: (index) =>
+              selectN.respondAnnounceAttrib(index, generation: generation),
+        );
+      case SelectType.announceRace:
+        return AnnounceChoiceDialog(
+          title: '宣言种族',
+          options: select.options,
+          onSelect: (index) =>
+              selectN.respondAnnounceRace(index, generation: generation),
         );
       case SelectType.sum:
         return CardSelector(
@@ -166,6 +204,7 @@ class DuelSelectOverlay extends ConsumerWidget {
               selectN.respondSelectSum(sequences, generation: generation),
           onCancel: () => selectN.respondSelectSum([], generation: generation),
           onInspectCard: onInspectCard,
+          myController: myController,
         );
       case SelectType.counter:
         return CounterAllocatorDialog(
@@ -189,6 +228,7 @@ class DuelSelectOverlay extends ConsumerWidget {
               selectN.respondSortCard(sequences, generation: generation),
           onCancel: () => selectN.respondSortCard([], generation: generation),
           onInspectCard: onInspectCard,
+          myController: myController,
         );
       default:
         return const SizedBox.shrink();

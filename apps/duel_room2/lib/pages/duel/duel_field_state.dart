@@ -86,6 +86,10 @@ class DuelFieldState {
     this.opponentLpEventId = 0,
     this.deckShuffleTick = 0,
     this.deckShufflePlayer = 0,
+    this.extraShuffleTick = 0,
+    this.extraShufflePlayer = 0,
+    this.handShuffleTick = 0,
+    this.handShufflePlayer = 0,
     this.drawAnimationEvent,
     this.drawAnimationTick = 0,
     this.duelLogs = const [],
@@ -145,6 +149,14 @@ class DuelFieldState {
   final int deckShuffleTick;
   final int deckShufflePlayer;
 
+  /// 额外卡组洗切信号：每次 MSG_SHUFFLE_EXTRA 自增。
+  final int extraShuffleTick;
+  final int extraShufflePlayer;
+
+  /// 手牌洗切信号：每次 MSG_SHUFFLE_HAND 自增。
+  final int handShuffleTick;
+  final int handShufflePlayer;
+
   /// 最近一次抽卡动画事件；页面监听该字段变化播放抽卡飞行动画。
   final DrawAnimationEvent? drawAnimationEvent;
   final int drawAnimationTick;
@@ -197,6 +209,10 @@ class DuelFieldState {
     int? opponentLpEventId,
     int? deckShuffleTick,
     int? deckShufflePlayer,
+    int? extraShuffleTick,
+    int? extraShufflePlayer,
+    int? handShuffleTick,
+    int? handShufflePlayer,
     Object? drawAnimationEvent = _undefined,
     int? drawAnimationTick,
     List<String>? duelLogs,
@@ -252,6 +268,10 @@ class DuelFieldState {
       opponentLpEventId: opponentLpEventId ?? this.opponentLpEventId,
       deckShuffleTick: deckShuffleTick ?? this.deckShuffleTick,
       deckShufflePlayer: deckShufflePlayer ?? this.deckShufflePlayer,
+      extraShuffleTick: extraShuffleTick ?? this.extraShuffleTick,
+      extraShufflePlayer: extraShufflePlayer ?? this.extraShufflePlayer,
+      handShuffleTick: handShuffleTick ?? this.handShuffleTick,
+      handShufflePlayer: handShufflePlayer ?? this.handShufflePlayer,
       drawAnimationEvent: identical(drawAnimationEvent, _undefined)
           ? this.drawAnimationEvent
           : drawAnimationEvent as DrawAnimationEvent?,
@@ -337,7 +357,6 @@ class DuelFieldState {
 /// 对局事实（战场）的 Notifier：持有全部 MSG_* 战场消息应用逻辑。
 class DuelFieldNotifier extends Notifier<DuelFieldState> {
   late YgoDataService _dataService;
-  IDuelService? _duelService;
   Timer? _timeLimitTimer;
   Timer? _battlePresentationTimer;
   bool _disposed = false;
@@ -345,7 +364,6 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   @override
   DuelFieldState build() {
     _dataService = ref.watch(dataServiceProvider);
-    _duelService = ref.watch(duelServiceProvider);
     ref.onDispose(_dispose);
     return const DuelFieldState();
   }
@@ -442,21 +460,70 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
 
   /// 批量应用服务端发来的区域更新。
   void applyUpdateData(MsgUpdateData msg) {
+    // 怪兽区的 MSG_UPDATE_DATA 是「7 槽位整区快照」（空槽 len=4 无 action）。
+    // 先清掉该玩家怪兽区里所有卡再按快照重建，避免 EMZ 等已离开但没走
+    // MOVE 的卡残留（整区重同步语义）。
+    //
+    // 快照只带 code/position（不含 attack/defense/name），清空重建会丢掉
+    // 之前从 MSG_UPDATE_CARD / MSG_BATTLE 拿到的攻守与卡名；这里先按 key
+    // 备份旧怪兽区卡，重建时回退这些字段，避免攻击力徽章消失。
+    Map<String, FieldCard>? prevZoneCards;
+    if (msg.zone == CARD_ZONE_MZONE) {
+      prevZoneCards = {
+        for (final e in state.fieldCards.entries)
+          if (e.value.controller == msg.player &&
+              e.value.zone == CARD_ZONE_MZONE)
+            e.key: e.value,
+      };
+      state = _clearZone(state, msg.player, CARD_ZONE_MZONE);
+    }
+    var atkFallbackCount = 0;
     for (final action in msg.actions) {
       final location = action.location;
-      final code = action.code;
-      if (location == null || code == null) {
+      if (location == null) {
         continue;
+      }
+      final fallbackKey = state.fieldCardKey(
+        location.controller,
+        location.location,
+        location.sequence,
+      );
+      final fallback = prevZoneCards?[fallbackKey];
+      if (fallback != null &&
+          action.attack == null &&
+          fallback.attack != null) {
+        atkFallbackCount++;
       }
       _applyUpdateAction(
         controller: location.controller,
         zone: location.location,
         sequence: location.sequence,
         position: location.position,
-        code: code,
+        // 里侧卡（对端）可能不带 CODE flag（code==null）：用 0 兜底，
+        // 仍占槽并渲染卡背，而不是当作空槽跳过。
+        code: action.code ?? 0,
         action: action,
+        fallback: fallback,
       );
     }
+    if (msg.zone == CARD_ZONE_MZONE) {
+      console.log(
+        'applyUpdateData: MZONE rebuild player=${msg.player} '
+        'prev=${prevZoneCards?.length ?? 0} actions=${msg.actions.length} '
+        'atkFallback=$atkFallbackCount',
+      );
+    }
+  }
+
+  /// 清掉指定玩家在指定区域的全部场地卡（保留其它区域）。
+  DuelFieldState _clearZone(DuelFieldState s, int controller, int zone) {
+    final cards = <String, FieldCard>{};
+    for (final entry in s.fieldCards.entries) {
+      final card = entry.value;
+      if (card.controller == controller && card.zone == zone) continue;
+      cards[entry.key] = card;
+    }
+    return s.copyWith(fieldCards: cards);
   }
 
   /// 应用单张卡片的增量更新。
@@ -753,6 +820,11 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     );
     final card = state.fieldCards[key];
     if (card == null) return;
+    console.log(
+      'applyPosChange: code=${card.code} c=${msg.cardInfo.controller} '
+      'z=${card.zone} s=${card.sequence} '
+      'pos=${card.position}->${msg.curPosition}',
+    );
     state = state.copyWith(
       fieldCards: {
         ...state.fieldCards,
@@ -779,9 +851,40 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     } else {
       state = state.copyWith(opponentHand: List.filled(msg.count, 0));
     }
+    state = state.copyWith(
+      handShufflePlayer: msg.player,
+      handShuffleTick: state.handShuffleTick + 1,
+    );
+  }
+
+  /// 本地洗切自己的手牌（纯展示层：重排本地手牌顺序并触发洗牌抖动，
+  /// 不发服务端协议——牌序由服务端维护，本地重排仅影响己方显示）。
+  void shuffleSelfHand() {
+    if (state.selfHand.length < 2) return;
+    final name = state.playerNameOf(state.myController);
+    final shuffled = [...state.selfHand]..shuffle();
+    addLog('$name 洗切了手牌。');
+    state = state.copyWith(
+      selfHand: shuffled,
+      handShufflePlayer: state.myController,
+      handShuffleTick: state.handShuffleTick + 1,
+    );
+  }
+
+  /// 处理洗额外卡组消息（MSG_SHUFFLE_EXTRA）。
+  void handleShuffleExtra(MsgShuffleExtra msg) {
+    addLog('${state.playerNameOf(msg.player)} 洗切了额外卡组。');
+    state = state.copyWith(
+      extraShufflePlayer: msg.player,
+      extraShuffleTick: state.extraShuffleTick + 1,
+    );
   }
 
   /// 按消息内容把卡片更新写回到对应区域。
+  ///
+  /// [fallback] 用于怪兽区整区快照重建时回退快照里不包含的字段
+  /// （attack/defense/name/position）：清空重建后 [current] 为 null，
+  /// 靠旧卡兜底，避免攻击力徽章消失或里侧卡状态丢失。
   void _applyUpdateAction({
     required int controller,
     required int zone,
@@ -789,6 +892,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     required int position,
     required int code,
     required MsgUpdateAction action,
+    FieldCard? fallback,
   }) {
     if (zone & CARD_ZONE_HAND != 0) {
       final isSelf = controller == state.myController;
@@ -833,27 +937,42 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       final normalizedSequence = _normalizeFieldSequence(zone, sequence);
       final key = state.fieldCardKey(controller, zone, sequence);
       final current = state.fieldCards[key];
-      final effectiveCode = code > 0 ? code : (current?.code ?? 0);
+      // 清空重建后 current 为 null，回退到旧卡（fallback）补齐快照未带的字段。
+      final base = current ?? fallback;
+      final effectiveCode = code > 0 ? code : (base?.code ?? 0);
       final overlayCount = action.overlayCards.isNotEmpty
           ? action.overlayCards.length
-          : (current?.overlayCount ?? 0);
+          : (base?.overlayCount ?? 0);
+      final cards = state.fieldCards;
       state = state.copyWith(
         fieldCards: {
-          ...state.fieldCards,
+          ...cards,
           key: FieldCard(
             code: effectiveCode,
             controller: controller,
             zone: normalizedZone,
             sequence: normalizedSequence,
-            position: position != 0 ? position : (current?.position ?? 0),
+            position: position != 0 ? position : (base?.position ?? 0),
             overlayCount: overlayCount,
-            disabled: current?.disabled ?? false,
-            attack: action.attack ?? current?.attack,
-            defense: action.defense ?? current?.defense,
-            name: current?.name,
+            disabled: base?.disabled ?? false,
+            attack: action.attack ?? base?.attack,
+            defense: action.defense ?? base?.defense,
+            name: base?.name,
           ),
         },
       );
+      // 里侧卡（code<=0）或攻击力从旧卡回退时打印，便于定位卡背/攻击力缺失问题。
+      final atkFallbackHit = action.attack == null && base?.attack != null;
+      if (effectiveCode <= 0 || atkFallbackHit) {
+        console.log(
+          'applyUpdateField: c=$controller z=$normalizedZone '
+          's=$normalizedSequence code=$effectiveCode '
+          'pos=${position != 0 ? position : (base?.position ?? 0)} '
+          'atk=${action.attack ?? base?.attack} '
+          'def=${action.defense ?? base?.defense}'
+          '${atkFallbackHit ? ' (atkFallback)' : ''}',
+        );
+      }
       if (effectiveCode > 0) {
         unawaited(ensureCardInfo(effectiveCode));
       }
@@ -1093,10 +1212,12 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     if (s.isOnFieldLocation(location)) {
       final normalizedZone = _normalizeFieldZone(location);
       final normalizedSequence = _normalizeFieldSequence(location, sequence);
+      final key = s.fieldCardKey(controller, location, sequence);
+      final cards = s.fieldCards;
       return s.copyWith(
         fieldCards: {
-          ...s.fieldCards,
-          s.fieldCardKey(controller, location, sequence): FieldCard(
+          ...cards,
+          key: FieldCard(
             code: code,
             controller: controller,
             zone: normalizedZone,
@@ -1213,6 +1334,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
 
   /// 记录对局日志并触发刷新。
   void addLog(String log) {
+    console.log('Duel log: $log');
     state = state.copyWith(duelLogs: [...state.duelLogs, log]);
   }
 
@@ -1576,17 +1698,16 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   /// - 倒计时只递减「本条消息正在计时」的玩家；该玩家归零即停表，
   ///   不再以「双方都归零」为条件（对方残留的旧时间值会让旧实现
   ///   的定时器永不取消）。
-  /// - 每条 STOC_TIME_LIMIT 都回 CTOS_TIME_CONFIRM：srvpro 系服务器
-  ///   （s1.ygo233.com 等）在收到确认前会挂起后续对局回包
-  ///   （参考 packages/duelink base_duel_service.dart confirmTime /
-  ///   duelink_socket 的自动确认注释），对其他服务器无害。
+  /// - 这里不再回 CTOS_TIME_CONFIRM：duelink_socket 的 SocketDuelService
+  ///   已在收到 STOC_TIME_LIMIT 时自动确认（srvpro 系服务器在收到确认前
+  ///   会挂起后续回包）。在此重复确认会导致每条 TIME_LIMIT 双发
+  ///   CTOS_TIME_CONFIRM，使服务器计时同步错乱。
   void handleTimeLimit(StocTimeLimit msg) {
     final player = msg.player;
     final left = msg.leftTime;
     state = player == state.myController
         ? state.copyWith(selfTimeLeft: left)
         : state.copyWith(opponentTimeLeft: left);
-    _duelService?.confirmTime();
     _timeLimitTimer?.cancel();
     _timeLimitTimer = null;
     if (left > 0) {

@@ -348,6 +348,10 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
               placeTargetSlotIds: _select.placeTargetFieldKeys,
               confirmedSlotIds: _confirm.confirmedFieldSlotKeys,
               activatableZoneKeys: ref.watch(activatableZoneKeysProvider),
+              deckShuffleTick: _board.deckShuffleTick,
+              deckShufflePlayer: _board.deckShufflePlayer,
+              extraShuffleTick: _board.extraShuffleTick,
+              extraShufflePlayer: _board.extraShufflePlayer,
               onPlaceSlotTap: _selectN.respondSelectPlaceKey,
             ),
             _buildOpponentHandBar(bodyStackAncestor, opponentHandTop),
@@ -370,8 +374,13 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
                 _activeDrawEvent!,
               ),
             if (_activeAttack != null)
-              _buildAttackAnimationLayer(viewport, topInset, _activeAttack!),
+              _buildAttackAnimationLayer(
+                viewport,
+                opponentHandTop,
+                _activeAttack!,
+              ),
             _buildCancelButton(),
+            _buildHandShuffleButton(),
             _buildWaitingHint(),
             _buildHud(isMyTurn),
             if (zoneBrowserKey != null)
@@ -410,6 +419,9 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
         cardsVisible: false,
         handCodes: _board.opponentHand,
         cardRectsAncestor: bodyStackAncestor,
+        shuffleTick: _board.handShufflePlayer == 1 - _board.myController
+            ? _board.handShuffleTick
+            : 0,
         onCardRectsChanged: (rects) => _oppHandCardRects = rects,
         highlightedSequences:
             _confirm.confirmedHandOwner != _board.myController &&
@@ -471,6 +483,9 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
       child: HandCardsBar(
         handCodes: _board.selfHand,
         cardRectsAncestor: bodyStackAncestor,
+        shuffleTick: _board.handShufflePlayer == _board.myController
+            ? _board.handShuffleTick
+            : 0,
         onCardRectsChanged: (rects) => _selfHandCardRects = rects,
         selectedCardSequence: _overlay.selectedHandSequence,
         onCardTap: handleHandCardTap,
@@ -501,10 +516,24 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
       child: Tooltip(
         message: '取消操作',
         child: IconButton.filled(
-          onPressed: canCancelFieldCardSelection
-              ? cancelFieldCardSelection
-              : null,
+          onPressed: canCancelOperation ? cancelOperation : null,
           icon: const Icon(Icons.close),
+        ),
+      ),
+    );
+  }
+
+  /// 洗切手牌按钮：本地重排己方手牌并播放抖动动画（纯展示层）。
+  Widget _buildHandShuffleButton() {
+    final canShuffle = _board.selfHand.length >= 2;
+    return Positioned(
+      bottom: 104,
+      left: 16,
+      child: Tooltip(
+        message: '洗切手牌',
+        child: IconButton.filled(
+          onPressed: canShuffle ? _boardN.shuffleSelfHand : null,
+          icon: const Icon(Icons.shuffle),
         ),
       ),
     );
@@ -596,11 +625,13 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
   }
 
   Widget _buildChainOverlay() {
+    final showChain1 = ref.watch(duelSettingsProvider).showChain1Animation;
     return Positioned.fill(
       child: IgnorePointer(
         child: ChainStackOverlay(
           chains: _board.chains,
           chainSealed: _board.chainSealed,
+          showChain1Animation: showChain1,
           cardNameBuilder: (code) =>
               _boardN.getCardInfo(code)?.name ?? 'Card #$code',
         ),
@@ -652,13 +683,13 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
 
   Widget _buildAttackAnimationLayer(
     Size viewport,
-    double topInset,
+    double opponentHandTop,
     BattlePresentation presentation,
   ) {
     return AttackAnimation(
       controller: _attackController,
       source: _attackSlotRect(viewport, presentation.attackerSlotId),
-      target: _attackTargetRect(viewport, topInset, presentation),
+      target: _attackTargetRect(viewport, opponentHandTop, presentation),
       cardVisual: _attackCardVisual(presentation),
     );
   }
@@ -683,18 +714,24 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     );
   }
 
-  /// 攻击动画终点：攻击怪兽时是对方怪兽卡槽，直接攻击时是对方 LP 区。
+  /// 攻击动画终点：攻击怪兽时是对方怪兽卡槽，直接攻击时是被攻击玩家的手牌位置。
   Rect _attackTargetRect(
     Size viewport,
-    double topInset,
+    double opponentHandTop,
     BattlePresentation presentation,
   ) {
     final defenderSlotId = presentation.defenderSlotId;
     if (defenderSlotId != null) {
       return _attackSlotRect(viewport, defenderSlotId);
     }
-    // 直接攻击：飞向对方 LP/状态卡区域（顶部 HUD 左侧的对手 PlayerStatusCard）。
-    return Rect.fromLTWH(16, topInset + 12, 220, 70);
+    // 直接攻击：飞向被攻击玩家的手牌位置（对方手牌在上，己方手牌在下）。
+    final attackerController =
+        int.tryParse(presentation.attackerSlotId.split('_').first) ?? 0;
+    final attackingSelf = attackerController == _board.myController;
+    final targetCenter = attackingSelf
+        ? Offset(viewport.width / 2, opponentHandTop + 48)
+        : Offset(viewport.width / 2, viewport.height - 48);
+    return Rect.fromCenter(center: targetCenter, width: 68, height: 96);
   }
 
   Widget _attackCardVisual(BattlePresentation presentation) {
@@ -949,10 +986,21 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     );
   }
 
-  bool get canCancelFieldCardSelection => _overlay.selectedFieldCard != null;
+  bool get canCancelOperation =>
+      _overlay.hasAnyOverlayOpen ||
+      _overlay.showInspector ||
+      _select.inlineSelectedCount > 0;
 
-  void cancelFieldCardSelection() {
-    _overlayN.applyFieldCardSelection(null);
+  void cancelOperation() {
+    // 就地选择窗口优先：先清空已勾选的卡（等价「取消本次点选」），
+    // 不放弃整个选择窗口。
+    if (_select.inlineSelectedCount > 0) {
+      _selectN.clearInlineSelection();
+      return;
+    }
+    // 关闭全部本地浮层（手牌/场上/区域浏览器/阶段菜单）与检视抽屉。
+    _overlayN.clearLocalUi();
+    if (_overlay.showInspector) _overlayN.dismissInspector();
   }
 
   static bool isBrowsableZone(String zoneKey) {

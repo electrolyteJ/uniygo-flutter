@@ -59,7 +59,16 @@ class MsgUpdateData {
     final actionReader = BufferReader(rawData);
     while (actionReader.remaining >= 4) {
       final length = actionReader.readInt32();
-      if (length <= 4 || length - 4 > actionReader.remaining) {
+      if (length < 4) {
+        // 非法长度，终止解析。
+        break;
+      }
+      if (length == 4) {
+        // MZONE/SZONE 固定快照中的空槽位（len=4 无 payload）：
+        // 跳过该槽位，继续解析后续槽位，而不是终止整个解析。
+        continue;
+      }
+      if (length - 4 > actionReader.remaining) {
         break;
       }
       final payload = actionReader.readBytes(length - 4);
@@ -78,8 +87,9 @@ class MsgUpdateData {
   }
 
   @override
-  String toString() =>
-      'MsgUpdateData(player:$player zone:$zone actions:${actions.length} rawDataLen:${rawData.length})';
+  String toString() => 'MsgUpdateData(player:$player zone:$zone '
+      'actions:[${actions.map((a) => a.toString()).join(' | ')}] '
+      'rawDataLen:${rawData.length})';
 }
 
 class MsgUpdateAction {
@@ -174,7 +184,8 @@ class MsgUpdateAction {
       w.writeInt32(attribute!);
     }
     if ((flag & UPDATE_FLAG_RACE) != 0 && race != null) w.writeInt32(race!);
-    if ((flag & UPDATE_FLAG_ATTACK) != 0 && attack != null) w.writeInt32(attack!);
+    if ((flag & UPDATE_FLAG_ATTACK) != 0 && attack != null)
+      w.writeInt32(attack!);
     if ((flag & UPDATE_FLAG_DEFENSE) != 0 && defense != null) {
       w.writeInt32(defense!);
     }
@@ -184,7 +195,8 @@ class MsgUpdateAction {
     if ((flag & UPDATE_FLAG_BASE_DEFENSE) != 0 && baseDefense != null) {
       w.writeInt32(baseDefense!);
     }
-    if ((flag & UPDATE_FLAG_REASON) != 0 && reason != null) w.writeInt32(reason!);
+    if ((flag & UPDATE_FLAG_REASON) != 0 && reason != null)
+      w.writeInt32(reason!);
     if ((flag & UPDATE_FLAG_REASON_CARD) != 0 && reasonCard != null) {
       w.writeInt32(reasonCard!);
     }
@@ -211,9 +223,12 @@ class MsgUpdateAction {
       });
     }
     if ((flag & UPDATE_FLAG_OWNER) != 0 && owner != null) w.writeInt32(owner!);
-    if ((flag & UPDATE_FLAG_STATUS) != 0 && status != null) w.writeInt32(status!);
-    if ((flag & UPDATE_FLAG_LSCALE) != 0 && lscale != null) w.writeInt32(lscale!);
-    if ((flag & UPDATE_FLAG_RSCALE) != 0 && rscale != null) w.writeInt32(rscale!);
+    if ((flag & UPDATE_FLAG_STATUS) != 0 && status != null)
+      w.writeInt32(status!);
+    if ((flag & UPDATE_FLAG_LSCALE) != 0 && lscale != null)
+      w.writeInt32(lscale!);
+    if ((flag & UPDATE_FLAG_RSCALE) != 0 && rscale != null)
+      w.writeInt32(rscale!);
     if ((flag & UPDATE_FLAG_LINK) != 0 && link != null) w.writeInt32(link!);
     return w.toBytes();
   }
@@ -313,5 +328,38 @@ class MsgUpdateAction {
       rscale: rscale,
       link: link,
     );
+  }
+
+  /// 完整字段打印（flag 用十六进制，便于对照 UPDATE_FLAG_* 常量），
+  /// 供 handleServerMessage 的 MSG_UPDATE_DATA / MSG_UPDATE_CARD 日志排查
+  /// 里侧卡（code=0/null）、攻守缺失等协议问题。
+  @override
+  String toString() {
+    final buf = StringBuffer('MsgUpdateAction(flag=0x${flag.toRadixString(16)}');
+    if (code != null) buf.write(' code=$code');
+    if (location != null) buf.write(' loc=$location');
+    if (attack != null) buf.write(' atk=$attack');
+    if (defense != null) buf.write(' def=$defense');
+    if (baseAttack != null) buf.write(' baseAtk=$baseAttack');
+    if (baseDefense != null) buf.write(' baseDef=$baseDefense');
+    if (level != null) buf.write(' lv=$level');
+    if (rank != null) buf.write(' rank=$rank');
+    if (type != null) buf.write(' type=$type');
+    if (attribute != null) buf.write(' attr=$attribute');
+    if (race != null) buf.write(' race=$race');
+    if (alias != null) buf.write(' alias=$alias');
+    if (reason != null) buf.write(' reason=$reason');
+    if (reasonCard != null) buf.write(' reasonCard=$reasonCard');
+    if (equipCard != null) buf.write(' equip=$equipCard');
+    if (targetCards.isNotEmpty) buf.write(' targets=${targetCards.length}');
+    if (overlayCards.isNotEmpty) buf.write(' overlay=${overlayCards.length}');
+    if (counters.isNotEmpty) buf.write(' counters=$counters');
+    if (owner != null) buf.write(' owner=$owner');
+    if (status != null) buf.write(' status=$status');
+    if (lscale != null) buf.write(' lscale=$lscale');
+    if (rscale != null) buf.write(' rscale=$rscale');
+    if (link != null) buf.write(' link=$link');
+    buf.write(')');
+    return buf.toString();
   }
 }

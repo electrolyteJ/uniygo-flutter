@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'card_confirm_state.dart';
 import 'duel_field_state.dart';
+import 'field_overlay_state.dart';
 import 'select_window_state.dart';
 
 /// 服务器消息路由器（按房间 ProviderScope 隔离）。
@@ -30,6 +31,7 @@ class DuelMessageRouter extends Notifier<void> {
   DuelFieldNotifier get _boardN => ref.read(duelFieldProvider.notifier);
   SelectWindowNotifier get _selectN => ref.read(selectWindowProvider.notifier);
   CardConfirmNotifier get _confirmN => ref.read(cardConfirmProvider.notifier);
+  FieldOverlayNotifier get _overlayN => ref.read(fieldOverlayProvider.notifier);
   YgoSoundService get _sound => ref.read(ygoSoundServiceProvider);
 
   @override
@@ -94,6 +96,11 @@ class DuelMessageRouter extends Notifier<void> {
         console.log(
           'handleServerMessage: MSG_START（对局开始） innerMsg=${gameMsg.innerMsg}',
         );
+        // 新对局开始（首局或 Match 局间）：先清空上一局的作答/展示/浮层，
+        // 避免 Match 局间状态串台，再由 handleStart 写入新局初始事实。
+        _selectN.clearSelect();
+        _confirmN.dismissConfirmPanel();
+        _overlayN.clearLocalUi();
         _boardN.handleStart(innerMsg);
         _sound.playDuelStart();
         break;
@@ -202,6 +209,8 @@ class DuelMessageRouter extends Notifier<void> {
           'handleServerMessage: MSG_CHAIN_END（连锁结束） innerMsg=${gameMsg.innerMsg}',
         );
         _boardN.handleChainEnd(innerMsg);
+        // 连锁结束复位封印标志，避免残留 true 影响后续连锁叠层的显示判断。
+        _boardN.setChainSealed(false);
         _sound.playChainEnd();
         break;
       case MSG_SUMMONING: // 正在召唤
@@ -265,7 +274,15 @@ class DuelMessageRouter extends Notifier<void> {
         console.log(
           'handleServerMessage: MSG_HINT（引擎提示） innerMsg=${gameMsg.innerMsg}',
         );
-        _boardN.handleHint(innerMsg as MsgHint);
+        final hintMsg = innerMsg as MsgHint;
+        _boardN.handleHint(hintMsg);
+        // 选择提示文案（selectMessage）在 MSG_SELECT_* 之前下发，缓存到
+        // 选择窗口，供提示条/弹窗标题显示（如「请选择攻击对象」）。
+        if (hintMsg.hintType == MsgHintType.selectMessage) {
+          _selectN.setSelectHint(
+            ref.read(stringsServiceProvider).systemString(hintMsg.hintData),
+          );
+        }
         break;
       case MSG_WIN: // 决出胜负
         console.log(
@@ -282,6 +299,9 @@ class DuelMessageRouter extends Notifier<void> {
           'handleServerMessage: MSG_RETRY（操作无效需重试） innerMsg=${gameMsg.innerMsg}',
         );
         _boardN.addLog('操作无效，请重新选择。');
+        // 被拒绝的选择窗口要重开（宣言卡名等），否则窗口已被 respond* 清空、
+        // 服务端仍在等待重试，对局会卡死。
+        _selectN.handleRetry();
         break;
       case MSG_SHUFFLE_DECK: // 洗切卡组
         console.log(
@@ -301,6 +321,13 @@ class DuelMessageRouter extends Notifier<void> {
           'handleServerMessage: MSG_ATTACK_DISABLE（攻击被无效） innerMsg=${gameMsg.innerMsg}',
         );
         _boardN.handleAttackDisabled();
+        break;
+      case MSG_CARD_TARGET: // 建立取对象关系（如「奈落的落穴」取对象）
+        // 取对象关系（source→target）当前不驱动 UI 高亮，仅记录日志，
+        // 避免落入 default 的 Unhandled 日志刷屏。
+        console.log(
+          'handleServerMessage: MSG_CARD_TARGET（建立取对象关系） innerMsg=${gameMsg.innerMsg}',
+        );
         break;
       case MSG_DAMAGE_STEP_START: // 伤害步骤开始
         console.log(
@@ -382,6 +409,12 @@ class DuelMessageRouter extends Notifier<void> {
           'handleServerMessage: MSG_SHUFFLE_HAND（洗切手牌） innerMsg=${gameMsg.innerMsg}',
         );
         _boardN.applyShuffleHand(innerMsg as MsgShuffleHand);
+        break;
+      case MSG_SHUFFLE_EXTRA: // 洗额外卡组
+        console.log(
+          'handleServerMessage: MSG_SHUFFLE_EXTRA（洗额外卡组） innerMsg=${gameMsg.innerMsg}',
+        );
+        _boardN.handleShuffleExtra(innerMsg as MsgShuffleExtra);
         break;
       case MSG_SET: // 盖放卡片
         console.log(
@@ -476,6 +509,24 @@ class DuelMessageRouter extends Notifier<void> {
         );
         _selectN.applyAnnounceCard(innerMsg as MsgAnnounceCard);
         break;
+      case MSG_ANNOUNCE_NUMBER: // 宣言数值（如「名推理」宣言等级）
+        console.log(
+          'handleServerMessage: MSG_ANNOUNCE_NUMBER（宣言数值） innerMsg=${gameMsg.innerMsg}',
+        );
+        _selectN.applyAnnounceNumber(innerMsg as MsgAnnounceNumber);
+        break;
+      case MSG_ANNOUNCE_ATTRIB: // 宣言属性
+        console.log(
+          'handleServerMessage: MSG_ANNOUNCE_ATTRIB（宣言属性） innerMsg=${gameMsg.innerMsg}',
+        );
+        _selectN.applyAnnounceAttrib(innerMsg as MsgAnnounceAttrib);
+        break;
+      case MSG_ANNOUNCE_RACE: // 宣言种族
+        console.log(
+          'handleServerMessage: MSG_ANNOUNCE_RACE（宣言种族） innerMsg=${gameMsg.innerMsg}',
+        );
+        _selectN.applyAnnounceRace(innerMsg as MsgAnnounceRace);
+        break;
       case MSG_SELECT_UNSELECT_CARD: // 解除选择
         console.log(
           'handleServerMessage: MSG_SELECT_UNSELECT_CARD（解除选择） innerMsg=${gameMsg.innerMsg}',
@@ -496,6 +547,7 @@ class DuelMessageRouter extends Notifier<void> {
         {
           final toss = innerMsg as MsgToss;
           final owner = _board.playerNameOf(toss.player);
+          // ocgcore 硬币结果编码：0=反面，1=正面。
           final results = toss.results
               .map((r) => r == 1 ? '正面' : '反面')
               .join('、');

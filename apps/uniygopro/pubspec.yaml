@@ -24,6 +24,8 @@ dependencies:
     path: ../duel_room1
   duel_room2:
     path: ../duel_room2
+  duel_settings:
+    path: ../duel_settings
   ygo_storage:
     path: ../../packages/ygo_storage
   service_loader:

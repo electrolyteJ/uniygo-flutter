@@ -94,6 +94,6 @@ class MsgUpdateCard {
   }
 
   @override
-  String toString() =>
-      'MsgUpdateCard(player:$player zone:$zone sequence:$sequence hasAction:${action != null} rawDataLen:${rawData.length})';
+  String toString() => 'MsgUpdateCard(player:$player zone:$zone sequence:$sequence '
+      'action=${action?.toString() ?? 'null'} rawDataLen:${rawData.length})';
 }

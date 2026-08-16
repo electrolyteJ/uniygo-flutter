@@ -23,6 +23,17 @@ class CyberButton extends StatefulWidget {
 class _CyberButtonState extends State<CyberButton> {
   bool _isHovered = false;
 
+  /// 延后到帧末再 setState，避免 MouseTracker 设备更新阶段同步 setState
+  /// 触发 Flutter 的 !_debugDuringDeviceUpdate 重入断言。
+  void _setHovered(bool value) {
+    if (_isHovered == value) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _isHovered != value) {
+        setState(() => _isHovered = value);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     const cyanGlow = Color(0xFF00F0FF);
@@ -43,8 +54,8 @@ class _CyberButtonState extends State<CyberButton> {
         : (_isHovered ? Colors.white : Colors.white.withOpacity(0.2));
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
+      onEnter: (_) => _setHovered(true),
+      onExit: (_) => _setHovered(false),
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(

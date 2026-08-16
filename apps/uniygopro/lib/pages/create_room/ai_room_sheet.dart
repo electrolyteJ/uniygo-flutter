@@ -18,7 +18,8 @@ import 'match_store.dart';
 /// AI 类型选择
 enum _AiType {
   local('本地 AI', '与本地 AI 进行一场单局对战，无需联网。'),
-  server233('233 服 AI', '连接 ygo233.com 服务器，与服务器端 AI 对战。');
+  server233('233 服 AI', '连接 ygo233.com 服务器，与服务器端 AI 对战。'),
+  server2332012('233 无禁限 AI', '连接 ygo233.com 2012 端口（无禁限卡表，部分卡片原版效果）。');
 
   final String label;
   final String description;
@@ -46,9 +47,12 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
   bool _noShuffleDeck = false;
   bool _connecting = false;
 
-  /// 为 233 服 AI 生成 mercury233 兼容房间串。
-  String _build233RoomString() {
+  /// 为 233 服 AI 生成主机密码：AI 必须首位 + 特殊代码。
+  /// 参考 https://ygo233.com/lab：主机密码输入 AI 即可自动生成 AI 对手，
+  /// 不需要也不能使用 # 和房间名。
+  String _build233AiPassword() {
     final codes = <String>[
+      'AI',
       // 单局模式不输出特殊标记
       switch (_duelRule) {
         DuelRule.mr3 => 'MR3',
@@ -69,9 +73,7 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
       if (_noCheckDeck) 'NC',
       if (_noShuffleDeck) 'NS',
     ]..removeWhere((code) => code.isEmpty);
-
-    final prefix = codes.isEmpty ? '' : '${codes.join(',')}#';
-    return '$prefix${'AI 人机对战'}';
+    return codes.join(',');
   }
 
   Future<void> _start() async {
@@ -100,17 +102,17 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
         RoomPassword.encodeJoin(),
       );
     } else {
-      // 233 服 AI：使用 mercury233 环境，房间串作为密码。
-      final roomString = _build233RoomString();
+      // 233 服 AI：主机密码输入 AI（+ 特殊代码）即可自动生成 AI 对手，
+      // 无需再手动发送 /ai。2012 端口为无禁限 + 原版效果。
+      final aiPassword = _build233AiPassword();
+      final env = _aiType == _AiType.server2332012
+          ? DuelEnvironment.mercury233_2012
+          : DuelEnvironment.mercury233;
       matchStore.configureCreatedRoom(
         roomOptions: options,
         roomName: 'AI 人机对战',
       );
-      matchStore.selectServer(
-        widget.server,
-        DuelEnvironment.mercury233,
-        roomString,
-      );
+      matchStore.selectServer(widget.server, env, aiPassword);
     }
     final params = matchStore.toDuelRoomParams();
     Navigator.of(context).pop();
@@ -251,7 +253,7 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
                           ],
                         ),
                         // ── 233 服 AI 房间串预览 ──
-                        if (_aiType == _AiType.server233) ...[
+                        if (_aiType != _AiType.local) ...[
                           const SizedBox(height: 10),
                           _roomStringPreview(),
                         ],
@@ -264,8 +266,10 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
                               ? '开始人机对战'
                               : '连接 233 服 AI',
                           connecting: _connecting,
-                          onTapFeedback:
-                              ServiceSingleton.instance.ygoSoundService.playButtonTap,
+                          onTapFeedback: ServiceSingleton
+                              .instance
+                              .ygoSoundService
+                              .playButtonTap,
                           onPressed: () => _start(),
                         ),
                       ],
@@ -333,9 +337,9 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
     );
   }
 
-  /// 233 服 AI 生成的最终房间串预览。
+  /// 233 服 AI 生成的主机密码预览。
   Widget _roomStringPreview() {
-    final roomString = _build233RoomString();
+    final aiPassword = _build233AiPassword();
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -348,7 +352,7 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '房间串: $roomString',
+              'AI 密码: $aiPassword',
               style: TextStyle(
                 color: Colors.blueGrey.shade300,
                 fontSize: 12,

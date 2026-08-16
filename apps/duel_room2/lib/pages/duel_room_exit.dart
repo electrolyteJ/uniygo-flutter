@@ -38,6 +38,35 @@ void backHomeDialog({
   );
 }
 
+/// 投降确认弹窗：只认输、不断开连接，留在房间看结算。
+///
+/// 与 [backHomeDialog] 的区别：backHomeDialog 的「退出」会认输并断开连接
+/// 离开房间；此处只发 CTOS_SURRENDER，服务端随后下发 MSG_WIN 结算，
+/// 玩家仍停留在房间/结算流程中。
+void surrenderDialog({required BuildContext context, required WidgetRef ref}) {
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('投降'),
+      content: const Text('是否确认向对手投降？'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('取消'),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+            ref.read(duelServiceProvider).surrender();
+          },
+          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          child: const Text('投降'),
+        ),
+      ],
+    ),
+  );
+}
+
 /// 离开房间回首页。
 ///
 /// 幂等：经 [DuelRoomNotifier.markLeaving] 去重——主动退出触发的
@@ -126,8 +155,6 @@ Future<void> leaveRoomAfterNotJoined(
 /// 播放返回音效、兜底断开连接（房间页退出时已断，幂等），再回首页。
 void backHomeAfterDuel(BuildContext context) {
   duelRoomServiceContainer.read(ygoSoundServiceProvider).playBackNavigation();
-  unawaited(
-    duelRoomServiceContainer.read(duelServiceProvider).disconnect(),
-  );
+  unawaited(duelRoomServiceContainer.read(duelServiceProvider).disconnect());
   context.go('/');
 }

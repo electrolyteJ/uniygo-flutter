@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
@@ -23,6 +24,7 @@ Widget previewCardSelector() => CardSelector(
       onSelect: (_) {},
       onCancel: () {},
       onInspectCard: (_) {},
+      myController: 0,
     );
 
 class CardSelector extends StatefulWidget {
@@ -30,6 +32,11 @@ class CardSelector extends StatefulWidget {
   final void Function(List<int> indices) onSelect;
   final VoidCallback onCancel;
   final void Function(int code) onInspectCard;
+
+  /// 当前玩家（响应方）在引擎侧的 controller 编号（0/1）。
+  /// 用于把选项的 controller 翻译成「我/对」区域徽章，
+  /// 避免硬编码 controller 0 为「我方」。
+  final int myController;
 
   /// SUM 窗口的选择合法性判定（业务侧注入
   /// SelectWindowNotifier.isSumSelectionValid）。为 null 时回退
@@ -42,6 +49,7 @@ class CardSelector extends StatefulWidget {
     required this.onSelect,
     required this.onCancel,
     required this.onInspectCard,
+    required this.myController,
     this.isSumSelectionValid,
   });
 
@@ -106,7 +114,20 @@ class _CardSelectorState extends State<CardSelector> {
           ? '当前合计 $total / 目标 ${select.sumTarget}'
           : '当前合计 $total（目标 ${select.sumTarget}）';
     }
-    return '选择 ${select.min}-${select.max} 张卡'
+    // 引擎下发的选择提示优先（如「请选择攻击对象」）；多选时附推进度。
+    final hint = select.hint;
+    if (hint != null && hint.isNotEmpty) {
+      return select.max > 1
+          ? '$hint (${_selectedIndices.length}/${select.max})'
+          : hint;
+    }
+    if (select.min == select.max) {
+      return select.max == 1
+          ? '请选择 1 张卡'
+          : '请选择 ${select.max} 张卡'
+              ' (${_selectedIndices.length}/${select.max})';
+    }
+    return '请选择 ${select.min}-${select.max} 张卡'
         ' (${_selectedIndices.length}/${select.max})';
   }
 
@@ -255,7 +276,7 @@ class _CardSelectorState extends State<CardSelector> {
             if (option.code > 0)
               CardImage(code: option.code, width: 92, height: 132)
             else
-              _buildEmptySlotPlaceholder(),
+              _buildFaceDownPlaceholder(),
             Positioned.fill(
               child: IgnorePointer(
                 child: Container(
@@ -318,7 +339,7 @@ class _CardSelectorState extends State<CardSelector> {
             if (option.code > 0)
               CardImage(code: option.code, width: 92, height: 132)
             else
-              _buildEmptySlotPlaceholder(),
+              _buildFaceDownPlaceholder(),
             if (!selected)
               Positioned.fill(
                 child: IgnorePointer(
@@ -357,6 +378,12 @@ class _CardSelectorState extends State<CardSelector> {
                 left: 4,
                 child: _buildLevelBadge(option),
               ),
+            // 区域徽章：区分卡组/手牌/怪兽区/魔陷区/墓地/除外/额外等来源。
+            Positioned(
+              top: 2,
+              right: 2,
+              child: _buildLocationBadge(option),
+            ),
             if (option.label != null &&
                 option.label!.isNotEmpty &&
                 select.type == SelectType.option)
@@ -419,6 +446,26 @@ class _CardSelectorState extends State<CardSelector> {
     );
   }
 
+  /// 区域徽章：展示该卡来自哪个区域（卡组/手牌/怪兽区/魔陷区/墓地/除外等）。
+  Widget _buildLocationBadge(SelectOption option) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: const Color(0x3300F0FF)),
+      ),
+      child: Text(
+        _optionLocationLabel(option, widget.myController),
+        style: const TextStyle(
+          color: Colors.white70,
+          fontSize: 8,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
   void _toggleSelection(int index, SelectState select) {
     setState(() {
       if (_selectedIndices.contains(index)) {
@@ -445,20 +492,58 @@ class _CardSelectorState extends State<CardSelector> {
       ..addAll(widget.select.initialSelectedIndices);
   }
 
-  Widget _buildEmptySlotPlaceholder() {
+  /// 里侧表示卡（code == 0，客户端拿不到卡码）的卡背占位：
+  /// 深色卡背 + 「里侧」标签，避免被误认为空槽位。
+  Widget _buildFaceDownPlaceholder() {
     return Container(
+      width: 92,
+      height: 132,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.grey.shade700, width: 1),
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.blueGrey.shade800, Colors.blueGrey.shade900],
+          colors: [Color(0xFF3D5A73), Color(0xFF1E2F45)],
         ),
+        border: Border.all(color: const Color(0x6600F0FF), width: 1),
       ),
-      child: const Center(
-        child: Icon(Icons.add, color: Colors.white24, size: 24),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.help_outline, color: Colors.white38, size: 22),
+            SizedBox(height: 3),
+            Text(
+              '里侧',
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+/// 选项来源区域文案：把 [SelectOption] 的 controller/zone 翻译成可读标签。
+///
+/// controller 与 [myController] 相等即为「我方」，否则「对方」；
+/// zone 用 ygopro CARD_ZONE_* 常量区分卡组/手牌/怪兽区/魔陷区/墓地/除外/额外等。
+String _optionLocationLabel(SelectOption option, int myController) {
+  final prefix = option.controller == myController ? '我' : '对';
+  final zone = option.zone;
+  if (zone == CARD_ZONE_DECK) return '$prefix 卡组';
+  if (zone == CARD_ZONE_HAND) return '$prefix 手牌';
+  if (zone == CARD_ZONE_MZONE) return '$prefix 怪兽区';
+  if (zone == CARD_ZONE_SZONE) return '$prefix 魔陷区';
+  if (zone == CARD_ZONE_GRAVE) return '$prefix 墓地';
+  if (zone == CARD_ZONE_REMOVED) return '$prefix 除外';
+  if (zone == CARD_ZONE_EXTRA) return '$prefix 额外';
+  if (zone == LOCATION_OVERLAY) return '$prefix 素材';
+  if (zone == CARD_ZONE_FZONE) return '$prefix 场地';
+  if (zone == CARD_ZONE_PZONE) return '$prefix 灵摆';
+  return '$prefix 区域$zone';
 }

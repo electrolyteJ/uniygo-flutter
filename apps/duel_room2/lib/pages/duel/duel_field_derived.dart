@@ -20,6 +20,15 @@ import 'select_window_state.dart';
 /// ref.read 取 Notifier 调用，属于事件处理而非 build 期读取。
 /// 与交互逻辑（inspectCard / handleXxxCardTap 等）分离，后者留在
 /// DuelFieldPage 内作为薄方法。
+///
+/// ⚠️ 维护约定（两处易碎的隐式约束，改动时务必遵守）：
+/// 1. 每个 Provider 的 `dependencies:` 必须列出它所有 `ref.watch` 的对象
+///    （含中间派生 Provider，如 phaseActionsProvider / zoneBrowserEntriesProvider）。
+///    漏列不会在编译期报错，只会在运行时触发 Riverpod 的 scoped-dependency
+///    断言——有 derived_provider_scoping_test.dart 兜底。
+/// 2. onTap 闭包通过 `ref.read(xxxProvider.notifier)` 捕获 Notifier 实例；
+///    依赖「四个子状态 Provider 在房间 scope 内实例稳定」这一前提。
+///    若将来改成 autoDispose / family，闭包可能持有 stale notifier。
 
 // ──────────────────────────────────────────
 // 纯函数（不依赖外部服务，只读传入状态）
@@ -564,6 +573,10 @@ final needsHigherPriorityDismissProvider = Provider<bool>((ref) {
 
 /// 当前窗口下，墓地/除外/额外中「有可发动/可召唤卡」的区域 key 集合，
 /// 用于场地上的可发动区域高亮提醒（智能打牌反馈：墓效/额外召唤提示）。
+///
+/// 仅覆盖主阶段 idle 指令窗口：战斗指令窗口（MSG_SELECT_BATTLE_CMD）的
+/// action 是攻击，attacker 均在场上，不涉及墓地/除外/额外发动；
+/// 战斗中的快速效果走 MSG_SELECT_CHAIN，属另一套交互，不在此处理。
 final activatableZoneKeysProvider = Provider<Set<String>>((ref) {
   final board = ref.watch(duelFieldProvider);
   final select = ref.watch(selectWindowProvider);

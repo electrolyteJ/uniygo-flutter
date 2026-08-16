@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import 'package:flutter_portal/flutter_portal.dart';
@@ -43,6 +45,9 @@ class HandCardsBar extends StatefulWidget {
   /// 保证抽卡动画起点/终点坐标系一致）。
   final RenderBox? cardRectsAncestor;
 
+  /// 洗手牌信号：变化时对手牌栏施加一次抖动。
+  final int shuffleTick;
+
   const HandCardsBar({
     super.key,
     required this.handCodes,
@@ -55,16 +60,56 @@ class HandCardsBar extends StatefulWidget {
     this.checkedSequences = const {},
     this.onCardRectsChanged,
     this.cardRectsAncestor,
+    this.shuffleTick = 0,
   });
 
   @override
   State<HandCardsBar> createState() => _HandCardsBarState();
 }
 
-class _HandCardsBarState extends State<HandCardsBar> {
+class _HandCardsBarState extends State<HandCardsBar>
+    with SingleTickerProviderStateMixin {
   int? _hoveredSequence;
   final Map<int, GlobalKey> _cardKeys = {};
   bool _rectReportQueued = false;
+
+  late final AnimationController _shuffleController;
+  List<double> _shuffleOffsets = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _shuffleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant HandCardsBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shuffleTick != widget.shuffleTick) {
+      _startShuffle();
+    }
+  }
+
+  @override
+  void dispose() {
+    _shuffleController.dispose();
+    super.dispose();
+  }
+
+  /// 每张手牌生成一个随机横向偏移（约 ±1.5 个卡位），播放
+  /// 「来回替换位置」的洗牌动画，而非整条手牌左右抖动。
+  void _startShuffle() {
+    final count = widget.handCodes.length;
+    if (count < 2) return;
+    final rnd = math.Random();
+    _shuffleOffsets = List.generate(count, (_) {
+      return (rnd.nextDouble() * 2 - 1) * 108.0;
+    });
+    _shuffleController.forward(from: 0);
+  }
 
   void _scheduleRectReport() {
     if (_rectReportQueued) return;
@@ -90,170 +135,214 @@ class _HandCardsBarState extends State<HandCardsBar> {
     });
   }
 
+  /// 更新悬停手牌下标。延后到帧末再 setState，避免在 MouseTracker 设备
+  /// 更新阶段同步 setState 触发 Flutter 的 !_debugDuringDeviceUpdate
+  /// 重入断言（见 flutter issue #84241 / #107355）。
+  void _setHovered(int? sequence) {
+    if (_hoveredSequence == sequence) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _hoveredSequence != sequence) {
+        setState(() => _hoveredSequence = sequence);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.handCodes.isEmpty) return const SizedBox(height: 96);
     _scheduleRectReport();
 
-    return Container(
-      // v10 .hand: 底部手牌栏，卡片 68x94 微微探出轨道
-      height: 96,
-      alignment: Alignment.bottomCenter,
-      padding: const EdgeInsets.only(bottom: 4),
-      // 关键：允许 scale(1.22) 和 translateY(-20) 在 3D 空间中自然溢出容器
-      clipBehavior: Clip.none,
-      child: Center(
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+    return AnimatedBuilder(
+      animation: _shuffleController,
+      builder: (context, child) {
+        final t = _shuffleController.value;
+        // 洗牌进度：0 → 1 → 0（先换位，再回位）。
+        final progress = math.sin(t * math.pi);
+        return Container(
+          // v10 .hand: 底部手牌栏，卡片 68x94 微微探出轨道
+          height: 96,
+          alignment: Alignment.bottomCenter,
+          padding: const EdgeInsets.only(bottom: 4),
+          // 关键：允许 scale(1.22) 和 translateY(-20) 在 3D 空间中自然溢出容器
           clipBehavior: Clip.none,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: widget.handCodes.asMap().entries.map((entry) {
-              final index = entry.key;
-              final code = entry.value;
-              final isSelected = widget.selectedCardSequence == index;
-              final isHovered = _hoveredSequence == index;
-              final isActive = isSelected || isHovered;
-              final selectionMode = widget.highlightedSequences.isNotEmpty;
-              final isHighlighted =
-                  selectionMode && widget.highlightedSequences.contains(index);
-              final isChecked = widget.checkedSequences.contains(index);
-              final isDimmed = selectionMode && !isHighlighted;
+          child: Center(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: widget.handCodes.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final code = entry.value;
+                  final isSelected = widget.selectedCardSequence == index;
+                  final isHovered = _hoveredSequence == index;
+                  final isActive = isSelected || isHovered;
+                  final selectionMode = widget.highlightedSequences.isNotEmpty;
+                  final isHighlighted =
+                      selectionMode &&
+                      widget.highlightedSequences.contains(index);
+                  final isChecked = widget.checkedSequences.contains(index);
+                  final isDimmed = selectionMode && !isHighlighted;
 
-              // 100% 还原大师级弧形逻辑 (Convex Arc)
-              final centerIndex = (widget.handCodes.length - 1) / 2;
-              final relativePos = index - centerIndex;
-              final absRelative = relativePos.abs();
-              final maxAbs = centerIndex > 0 ? centerIndex : 1.0;
+                  // 100% 还原大师级弧形逻辑 (Convex Arc)
+                  final centerIndex = (widget.handCodes.length - 1) / 2;
+                  final relativePos = index - centerIndex;
+                  final absRelative = relativePos.abs();
+                  final maxAbs = centerIndex > 0 ? centerIndex : 1.0;
 
-              // 物理模型：中心卡片略微升起，呈现凸形扇形
-              // 弧形高度因子 (0.0 到 1.0)，边缘 0，中心 1
-              final double arcFactor = (1.0 - (absRelative / maxAbs)).clamp(
-                0.0,
-                1.0,
-              );
-              final double yArc = arcFactor * 10.0; // 中心最高点升起 10px
+                  // 物理模型：中心卡片略微升起，呈现凸形扇形
+                  // 弧形高度因子 (0.0 到 1.0)，边缘 0，中心 1
+                  final double arcFactor = (1.0 - (absRelative / maxAbs)).clamp(
+                    0.0,
+                    1.0,
+                  );
+                  final double yArc = arcFactor * 10.0; // 中心最高点升起 10px
 
-              // 旋转角度：向两侧呈放射状轻微倾斜
-              final double rotation = relativePos * 0.10;
+                  // 旋转角度：向两侧呈放射状轻微倾斜
+                  final double rotation = relativePos * 0.10;
 
-              final cardKey = _cardKeys.putIfAbsent(index, GlobalKey.new);
-              final Widget card = KeyedSubtree(
-                key: cardKey,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                  ), // 对应 gap: 8px (左右各4)
-                  child: MouseRegion(
-                    onEnter: (_) => setState(() => _hoveredSequence = index),
-                    onExit: (_) => setState(() => _hoveredSequence = null),
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: () => widget.onCardTap?.call(index, code),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        // 使用 HTML 中定义的 cubic-bezier(0.34, 1.56, 0.64, 1) 实现灵动的回弹感
-                        curve: const Cubic(0.34, 1.56, 0.64, 1),
-                        transformAlignment: Alignment.bottomCenter,
-                        transform: Matrix4.identity()
-                          ..setEntry(3, 2, 0.001) // 3D 视角透视深度
-                          ..translateByDouble(
-                            0.0,
-                            -yArc -
-                                (isActive
-                                    ? 22.0
-                                    : isHighlighted
-                                    ? 14.0
-                                    : 0.0),
-                            0.0,
-                            1.0,
-                          )
-                          ..rotateZ(rotation)
-                          ..scaleByDouble(
-                            isActive ? 1.16 : 1.0, // v10 .hand-card.selected
-                            isActive ? 1.16 : 1.0,
-                            1.0,
-                            1.0,
-                          ),
-                        child: Container(
-                          // v10 .hand-card: width 68px, height 94px（按轨道高度微缩）
-                          width: 64,
-                          height: 90,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(5),
-                            border: Border.all(
-                              // isActive/选中态使用 --cyan-glow (#00f0ff)，默认使用 --gold-glow (#ffd700)
-                              color: isChecked
-                                  ? const Color(0xFF00F0FF)
-                                  : isActive
-                                  ? const Color(0xFF00F0FF)
-                                  : isHighlighted
-                                  ? const Color(0xFF00F0FF)
-                                  : const Color(0xFFFFD700),
-                              width: isChecked ? 2.5 : 1.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                // isActive/高亮时增强赛博发光: 0 12px 30px rgba(0, 240, 255, 0.8)
-                                // 默认时: 0 6px 16px rgba(0, 0, 0, 0.7)
-                                color: (isActive || isHighlighted || isChecked)
-                                    ? const Color(
-                                        0xFF00F0FF,
-                                      ).withValues(alpha: isChecked ? 0.9 : 0.7)
-                                    : Colors.black.withValues(alpha: 0.7),
-                                blurRadius:
-                                    (isActive || isHighlighted || isChecked)
-                                    ? 30
-                                    : 16,
-                                offset: Offset(
-                                  0,
-                                  (isActive || isHighlighted || isChecked)
-                                      ? 12
-                                      : 6,
+                  final cardKey = _cardKeys.putIfAbsent(index, GlobalKey.new);
+                  // 手牌数量变化时 _shuffleOffsets 可能还是上次的长度，做越界保护。
+                  final shuffleDx = index < _shuffleOffsets.length
+                      ? _shuffleOffsets[index] * progress
+                      : 0.0;
+                  final Widget card = KeyedSubtree(
+                    key: cardKey,
+                    child: Transform.translate(
+                      offset: Offset(shuffleDx, 0),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                        ), // 对应 gap: 8px (左右各4)
+                        child: MouseRegion(
+                          onEnter: (_) => _setHovered(index),
+                          onExit: (_) => _setHovered(null),
+                          cursor: SystemMouseCursors.click,
+                          child: GestureDetector(
+                            onTap: () => widget.onCardTap?.call(index, code),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              // 使用 HTML 中定义的 cubic-bezier(0.34, 1.56, 0.64, 1) 实现灵动的回弹感
+                              curve: const Cubic(0.34, 1.56, 0.64, 1),
+                              transformAlignment: Alignment.bottomCenter,
+                              transform: Matrix4.identity()
+                                ..setEntry(3, 2, 0.001) // 3D 视角透视深度
+                                ..translateByDouble(
+                                  0.0,
+                                  -yArc -
+                                      (isActive
+                                          ? 22.0
+                                          : isHighlighted
+                                          ? 14.0
+                                          : 0.0),
+                                  0.0,
+                                  1.0,
+                                )
+                                ..rotateZ(rotation)
+                                ..scaleByDouble(
+                                  isActive
+                                      ? 1.16
+                                      : 1.0, // v10 .hand-card.selected
+                                  isActive ? 1.16 : 1.0,
+                                  1.0,
+                                  1.0,
+                                ),
+                              child: Container(
+                                // v10 .hand-card: width 68px, height 94px（按轨道高度微缩）
+                                width: 64,
+                                height: 90,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(5),
+                                  border: Border.all(
+                                    // isActive/选中态使用 --cyan-glow (#00f0ff)，默认使用 --gold-glow (#ffd700)
+                                    color: isChecked
+                                        ? const Color(0xFF00F0FF)
+                                        : isActive
+                                        ? const Color(0xFF00F0FF)
+                                        : isHighlighted
+                                        ? const Color(0xFF00F0FF)
+                                        : const Color(0xFFFFD700),
+                                    width: isChecked ? 2.5 : 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      // isActive/高亮时增强赛博发光: 0 12px 30px rgba(0, 240, 255, 0.8)
+                                      // 默认时: 0 6px 16px rgba(0, 0, 0, 0.7)
+                                      color:
+                                          (isActive ||
+                                              isHighlighted ||
+                                              isChecked)
+                                          ? const Color(0xFF00F0FF).withValues(
+                                              alpha: isChecked ? 0.9 : 0.7,
+                                            )
+                                          : Colors.black.withValues(alpha: 0.7),
+                                      blurRadius:
+                                          (isActive ||
+                                              isHighlighted ||
+                                              isChecked)
+                                          ? 30
+                                          : 16,
+                                      offset: Offset(
+                                        0,
+                                        (isActive || isHighlighted || isChecked)
+                                            ? 12
+                                            : 6,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    widget.cardsVisible
+                                        ? CardImage(
+                                            code: code,
+                                            width: 64,
+                                            height: 90,
+                                          )
+                                        : const _CardBack(
+                                            width: 64,
+                                            height: 90,
+                                          ),
+                                    if (isDimmed)
+                                      IgnorePointer(
+                                        child: ColoredBox(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.55,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              widget.cardsVisible
-                                  ? CardImage(code: code, width: 64, height: 90)
-                                  : const _CardBack(width: 64, height: 90),
-                              if (isDimmed)
-                                IgnorePointer(
-                                  child: ColoredBox(
-                                    color: Colors.black.withValues(alpha: 0.55),
-                                  ),
-                                ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-              );
+                  );
 
-              return isSelected && widget.overlayContent != null
-                  ? PortalTarget(
-                      visible: widget.overlayVisible,
-                      anchor: const Aligned(
-                        follower: Alignment.bottomCenter,
-                        target: Alignment.topCenter,
-                        offset: Offset(0, -8),
-                        shiftToWithinBound: AxisFlag(x: true, y: true),
-                      ),
-                      portalFollower: widget.overlayContent!,
-                      child: card,
-                    )
-                  : card;
-            }).toList(),
+                  return isSelected && widget.overlayContent != null
+                      ? PortalTarget(
+                          visible: widget.overlayVisible,
+                          anchor: const Aligned(
+                            follower: Alignment.bottomCenter,
+                            target: Alignment.topCenter,
+                            offset: Offset(0, -8),
+                            shiftToWithinBound: AxisFlag(x: true, y: true),
+                          ),
+                          portalFollower: widget.overlayContent!,
+                          child: card,
+                        )
+                      : card;
+                }).toList(),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -282,10 +371,14 @@ class _CardBack extends StatelessWidget {
   }
 }
 
-@Preview(name: 'HandCardsBar', size: Size(520, 120), brightness: Brightness.dark)
+@Preview(
+  name: 'HandCardsBar',
+  size: Size(520, 120),
+  brightness: Brightness.dark,
+)
 Widget previewHandCardsBar() => const HandCardsBar(
-      handCodes: [89631139, 46986414, 15025844, 91152256, 13039848],
-    );
+  handCodes: [89631139, 46986414, 15025844, 91152256, 13039848],
+);
 
 /// 卡背自绘内容：深色渐变底 + 金色双层边框 + 中心赛博徽记。
 class _CardBackPainter extends CustomPainter {
