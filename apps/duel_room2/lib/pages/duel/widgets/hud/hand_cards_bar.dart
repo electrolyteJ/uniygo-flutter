@@ -255,14 +255,10 @@ class _HandCardsBarState extends State<HandCardsBar>
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(5),
                                   border: Border.all(
-                                    // isActive/选中态使用 --cyan-glow (#00f0ff)，默认使用 --gold-glow (#ffd700)
-                                    color: isChecked
+                                    // 只有被选中/勾选时才有高亮边框，其余一律无色。
+                                    color: (isChecked || isSelected)
                                         ? const Color(0xFF00F0FF)
-                                        : isActive
-                                        ? const Color(0xFF00F0FF)
-                                        : isHighlighted
-                                        ? const Color(0xFF00F0FF)
-                                        : const Color(0xFFFFD700),
+                                        : Colors.transparent,
                                     width: isChecked ? 2.5 : 1.5,
                                   ),
                                   boxShadow: [
