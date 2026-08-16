@@ -14,13 +14,38 @@ class PositionSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final options = select?.options ?? const [];
-    final code = options.isNotEmpty ? options.first.code : 0;
+    if (options.isEmpty) {
+      // 空选项兜底：异常/竞态下不渲染空白面板，展示提示并提供关闭途径。
+      return Container(
+        constraints: const BoxConstraints(maxWidth: 320),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade900,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '选择表示形式',
+              style: TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '没有可选的表示形式',
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
+    final code = options.first.code;
     return LayoutBuilder(
       builder: (context, constraints) {
         const itemWidth = 108.0;
         const horizontalPadding = 32.0;
         const minCardCount = 3;
-        final count = options.isEmpty ? 3 : options.length;
+        final count = options.length;
         final contentWidth = itemWidth * count;
         final wrapsContent =
             contentWidth <= constraints.maxWidth - horizontalPadding;

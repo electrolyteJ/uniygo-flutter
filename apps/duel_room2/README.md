@@ -32,11 +32,11 @@ duel_room1（Provider + ChangeNotifier）的 Riverpod 重实现：等待室 + �
 
 服务层（`duelServiceProvider` / `dataServiceProvider` /
 `ygoSoundServiceProvider`，以及中间层 `cardServiceProvider` /
-`aiDuelServiceProvider`）在 `lib/providers/service_providers.dart` 中直接
-构造，不再依赖 `ServiceSingleton`：dataService 的卡片缓存、ygoSoundService
-的 AudioPlayer 池都是应用级单例，不随进出房间反复重建。与 duel_room1 相同，
-宿主需先调用 `registerAllServices()`（service_loader 的 `ServiceFactory`
-依赖此注册）。
+`aiDuelServiceProvider`）定义在 `packages/biz` 的 `service_providers.dart`
+（`duelRoomServiceContainer` 为应用级容器），不再依赖 `ServiceSingleton`：
+dataService 的卡片缓存、ygoSoundService 的 AudioPlayer 池都是应用级单例，
+不随进出房间反复重建。与 duel_room1 相同，宿主需先调用
+`registerAllServices()`（service_loader 的 `ServiceFactory` 依赖此注册）。
 
 ### 关键取舍
 
@@ -73,7 +73,8 @@ lib/
   pages/duel_room_state.dart # 房间阶段机状态
   pages/duel_result_page.dart # 结算页
   pages/duel_room_exit.dart  # 退出与结算导航
-  providers/                # 全局服务的 Riverpod 包装
-  util/                     # 纯工具函数
-  widgets/                  # 表现层组件（从 duel_room1 复制，不含 Flame）
 ```
+
+全局服务 provider 不在本包内：`duelServiceProvider` / `dataServiceProvider` /
+`ygoSoundServiceProvider` 等定义在 `packages/biz/lib/service_providers.dart`，
+房间 scope 以 `duelRoomServiceContainer` 为 parent 上溯解析。

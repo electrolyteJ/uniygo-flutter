@@ -31,35 +31,43 @@ class HandActionMenu extends StatelessWidget {
             border: Border.all(color: const Color(0xFF00F0FF), width: 1.4),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00F0FF).withOpacity(0.25),
+                color: const Color(0xFF00F0FF).withValues(alpha: 0.25),
                 blurRadius: 28,
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                '可执行操作',
-                style: TextStyle(
-                  color: Color(0xFF00F0FF),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'Orbitron',
-                  letterSpacing: 1,
-                ),
+          // 条目过多时限高 + 滚动，避免菜单超出屏幕。
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.6,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    '可执行操作',
+                    style: TextStyle(
+                      color: Color(0xFF00F0FF),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Orbitron',
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  for (var i = 0; i < actions.length; i++) ...[
+                    CyberButton(
+                      label: actions[i].label,
+                      width: double.infinity,
+                      onTap: actions[i].onTap,
+                    ),
+                    if (i != actions.length - 1) const SizedBox(height: 8),
+                  ],
+                ],
               ),
-              const SizedBox(height: 10),
-              for (var i = 0; i < actions.length; i++) ...[
-                CyberButton(
-                  label: actions[i].label,
-                  width: double.infinity,
-                  onTap: actions[i].onTap,
-                ),
-                if (i != actions.length - 1) const SizedBox(height: 8),
-              ],
-            ],
+            ),
           ),
         ),
       ),

@@ -1,3 +1,5 @@
+const Object _selectStateKeep = Object();
+
 class SelectState {
   final SelectType type;
   final int player;
@@ -10,6 +12,24 @@ class SelectState {
   final List<int> initialSelectedIndices;
   final int? effectDescription;
 
+  /// 窗口序号：每开一个新选择窗口自增。UI 渲染时记下该值，
+  /// 回包时原样带回，服务端窗口已更换后到达的陈旧响应会被丢弃。
+  final int generation;
+
+  /// MSG_SELECT_SUM 的必选段（must_select_cards）。
+  /// 回包时占位用，不参与勾选；[options] 只含可选段。
+  final List<SelectOption> mustOptions;
+
+  /// MSG_SELECT_SUM 目标合计（msg.levelSum，引擎 acc）。
+  final int sumTarget;
+
+  /// MSG_SELECT_SUM 精确合计模式（msg.max == 0）：无数量上限，
+  /// 可行性按引擎 `mx >= acc && sum - mn < acc` 窗口判定。
+  final bool sumExact;
+
+  /// MSG_SELECT_COUNTER 需移除的指示物总数（msg.min）。
+  final int counterRequired;
+
   const SelectState({
     required this.type,
     required this.player,
@@ -21,7 +41,52 @@ class SelectState {
     this.immediateSingleToggle = false,
     this.initialSelectedIndices = const [],
     this.effectDescription,
+    this.generation = 0,
+    this.mustOptions = const [],
+    this.sumTarget = 0,
+    this.sumExact = false,
+    this.counterRequired = 0,
   });
+
+  SelectState copyWith({
+    SelectType? type,
+    int? player,
+    List<SelectOption>? options,
+    int? min,
+    int? max,
+    bool? cancelable,
+    bool? finishable,
+    bool? immediateSingleToggle,
+    List<int>? initialSelectedIndices,
+    Object? effectDescription = _selectStateKeep,
+    int? generation,
+    List<SelectOption>? mustOptions,
+    int? sumTarget,
+    bool? sumExact,
+    int? counterRequired,
+  }) {
+    return SelectState(
+      type: type ?? this.type,
+      player: player ?? this.player,
+      options: options ?? this.options,
+      min: min ?? this.min,
+      max: max ?? this.max,
+      cancelable: cancelable ?? this.cancelable,
+      finishable: finishable ?? this.finishable,
+      immediateSingleToggle:
+          immediateSingleToggle ?? this.immediateSingleToggle,
+      initialSelectedIndices:
+          initialSelectedIndices ?? this.initialSelectedIndices,
+      effectDescription: identical(effectDescription, _selectStateKeep)
+          ? this.effectDescription
+          : effectDescription as int?,
+      generation: generation ?? this.generation,
+      mustOptions: mustOptions ?? this.mustOptions,
+      sumTarget: sumTarget ?? this.sumTarget,
+      sumExact: sumExact ?? this.sumExact,
+      counterRequired: counterRequired ?? this.counterRequired,
+    );
+  }
 }
 
 class SelectOption {
@@ -29,7 +94,14 @@ class SelectOption {
   final int controller;
   final int zone;
   final int sequence;
+
+  /// SUM 选项：合计参数 1（引擎 sum_param 的 o1）。
+  /// COUNTER 选项：该卡当前可用的指示物数。
   final int? level;
+
+  /// SUM 选项：合计参数 2（引擎 sum_param 的 o2）。
+  /// null 或 0 表示与 [level] 相同（引擎 o2==0 时只有 o1 生效）。
+  final int? level2;
   final int? position;
   final String? label;
 
@@ -39,6 +111,7 @@ class SelectOption {
     this.zone = 0,
     this.sequence = 0,
     this.level,
+    this.level2,
     this.position,
     this.label,
   });

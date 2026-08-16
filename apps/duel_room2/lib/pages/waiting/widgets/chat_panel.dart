@@ -31,6 +31,8 @@ class _ChatPanelState extends State<ChatPanel> {
     super.didUpdateWidget(oldWidget);
     if (widget.messages.length != oldWidget.messages.length) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        // post-frame 回调触发时组件可能已经卸载。
+        if (!mounted) return;
         if (chatScrollCtrl.hasClients) {
           chatScrollCtrl.animateTo(
             chatScrollCtrl.position.maxScrollExtent,
@@ -55,12 +57,13 @@ class _ChatPanelState extends State<ChatPanel> {
   }
 
   Color _chatColor(int playerIndex) {
+    // playerIndex 是 uint16，永不为负；系统消息为 [kSystemChatPlayer]。
     switch (playerIndex) {
       case 0:
         return Colors.redAccent;
       case 1:
         return Colors.lightBlueAccent;
-      case -1:
+      case kSystemChatPlayer:
         return Colors.greenAccent;
       default:
         return Colors.blueGrey.shade400;
@@ -167,5 +170,5 @@ class _ChatPanelState extends State<ChatPanel> {
   }
 }
 @Preview(name: 'ChatPanel', size: Size(360, 400), brightness: Brightness.dark)
-Widget _previewChatPanel() => ChatPanel(messages: const [], onSend: (_) {});
+Widget previewChatPanel() => ChatPanel(messages: const [], onSend: (_) {});
 

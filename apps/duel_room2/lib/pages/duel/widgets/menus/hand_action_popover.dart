@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 import '../../models/duel_menu.dart';
 import 'hand_action_menu.dart';
@@ -36,6 +37,15 @@ class HandActionPopover extends StatelessWidget {
     );
   }
 }
+
+@Preview(name: 'HandActionPopover', size: Size(240, 240), brightness: Brightness.dark)
+Widget previewHandActionPopover() => HandActionPopover(
+      actions: [
+        ActionMenuEntry(label: '召唤', onTap: () {}),
+        ActionMenuEntry(label: '盖放', onTap: () {}),
+        ActionMenuEntry(label: '发动效果', onTap: () {}),
+      ],
+    );
 
 class _PopoverArrowPainter extends CustomPainter {
   @override

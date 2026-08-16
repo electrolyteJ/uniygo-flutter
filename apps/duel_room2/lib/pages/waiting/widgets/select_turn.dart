@@ -53,5 +53,5 @@ class TpSelect extends StatelessWidget {
   }
 }
 @Preview(name: 'TpSelect', size: Size(300, 200), brightness: Brightness.dark)
-Widget _previewTpSelect() => TpSelect(onSendTp: (_) {});
+Widget previewTpSelect() => TpSelect(onSendTp: (_) {});
 

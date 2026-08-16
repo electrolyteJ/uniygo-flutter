@@ -96,4 +96,4 @@ class PhaseBar extends StatelessWidget {
 }
 
 @Preview(name: 'PhaseBar', size: Size(300, 80), brightness: Brightness.dark)
-Widget _previewPhaseBar() => const PhaseBar(turnCount: 1, isMyTurn: true, leftTimeSeconds: 120);
+Widget previewPhaseBar() => const PhaseBar(turnCount: 1, isMyTurn: true, leftTimeSeconds: 120);

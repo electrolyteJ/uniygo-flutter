@@ -42,29 +42,29 @@ class BattlePresentation {
   }) {
     return BattlePresentation(
       attackerSlotId: attackerSlotId ?? this.attackerSlotId,
-      defenderSlotId: defenderSlotId == _battlePresentationKeep
+      defenderSlotId: identical(defenderSlotId, _battlePresentationKeep)
           ? this.defenderSlotId
           : defenderSlotId as String?,
       attackerName: attackerName ?? this.attackerName,
-      defenderName: defenderName == _battlePresentationKeep
+      defenderName: identical(defenderName, _battlePresentationKeep)
           ? this.defenderName
           : defenderName as String?,
-      attackerAttack: attackerAttack == _battlePresentationKeep
+      attackerAttack: identical(attackerAttack, _battlePresentationKeep)
           ? this.attackerAttack
           : attackerAttack as int?,
-      attackerDefense: attackerDefense == _battlePresentationKeep
+      attackerDefense: identical(attackerDefense, _battlePresentationKeep)
           ? this.attackerDefense
           : attackerDefense as int?,
-      attackerPosition: attackerPosition == _battlePresentationKeep
+      attackerPosition: identical(attackerPosition, _battlePresentationKeep)
           ? this.attackerPosition
           : attackerPosition as int?,
-      defenderAttack: defenderAttack == _battlePresentationKeep
+      defenderAttack: identical(defenderAttack, _battlePresentationKeep)
           ? this.defenderAttack
           : defenderAttack as int?,
-      defenderDefense: defenderDefense == _battlePresentationKeep
+      defenderDefense: identical(defenderDefense, _battlePresentationKeep)
           ? this.defenderDefense
           : defenderDefense as int?,
-      defenderPosition: defenderPosition == _battlePresentationKeep
+      defenderPosition: identical(defenderPosition, _battlePresentationKeep)
           ? this.defenderPosition
           : defenderPosition as int?,
     );

@@ -14,6 +14,7 @@ import 'models/field_card.dart';
 import 'models/field_zone_key.dart';
 import 'models/idle_action.dart';
 import 'models/select_state.dart';
+import 'models/sum_check.dart' as sum_check;
 
 const Object _undefined = Object();
 
@@ -104,8 +105,21 @@ class SelectWindowState {
 
   bool get inlineSelectCanConfirm {
     final select = currentSelect;
-    return select != null &&
-        inlineSelectedOptionIndices.length >= select.min;
+    if (select == null) return false;
+    if (select.type == SelectType.sum) {
+      // SUM 窗口的可确认性由引擎校验决定（数量/合计两重约束），
+      // 不是简单的 count >= min。
+      return sum_check.sumSelectionIsValid(
+        mustOptions: select.mustOptions,
+        options: select.options,
+        sumTarget: select.sumTarget,
+        sumExact: select.sumExact,
+        min: select.min,
+        max: select.max,
+        selectedIndices: inlineSelectedOptionIndices,
+      );
+    }
+    return inlineSelectedOptionIndices.length >= select.min;
   }
 
   /// 当前为放置选择（MSG_SELECT_PLACE）时的可放置槽位 key 集合，
@@ -134,7 +148,11 @@ class SelectWindowState {
       case SelectType.unselect:
         return '已选择 $count 张卡，点卡切换，满足条件后完成';
       case SelectType.sum:
-        return '按等级合计选择卡 ($count/${select.max})';
+        return select.sumExact
+            ? '选择卡使合计等于 ${select.sumTarget}'
+            : '按等级合计选择卡 ($count/${select.max})';
+      case SelectType.counter:
+        return '选择要移除的指示物（共 ${select.counterRequired} 个）';
       default:
         return select.max == 1
             ? '请选择 1 张卡'
@@ -149,37 +167,52 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   late YgoDataService _dataService;
   IDuelService? _duelService;
 
+  /// 窗口序号计数器：只增不减（reset 也不归零），
+  /// 保证跨窗口、跨对局的陈旧 UI 响应都能被识别并丢弃。
+  int _generationCounter = 0;
+
   @override
   SelectWindowState build() {
     _dataService = ref.watch(dataServiceProvider);
+    _duelService = ref.watch(duelServiceProvider);
     return const SelectWindowState();
   }
 
   /// 读取战场状态（myController / fieldCards / 战斗演出清理）。
   DuelFieldState get _board => ref.read(duelFieldProvider);
 
-  void bind(IDuelService duelService) {
-    _duelService = duelService;
-  }
-
-  /// 清空选择窗口状态（对局事实之外的作答态）。
-  void reset() {
-    state = const SelectWindowState();
-  }
-
   // ──────────────────────────────────────────
   // 选择响应
   // ──────────────────────────────────────────
 
+  /// 分配递增的 generation，返回新窗口快照（不写 state）。
+  /// 需要连同其他字段一次性写入 state 的 apply* 使用该 helper。
+  SelectState _nextWindow(SelectState select) {
+    _generationCounter++;
+    return select.copyWith(generation: _generationCounter);
+  }
+
+  /// 打开一个新的选择窗口：分配递增的 generation、预热卡图缓存。
+  /// 所有 apply* 一律经此入口（或 [_nextWindow]）开窗，
+  /// 保证 generation 语义统一。
+  /// （unselect 窗口的初始勾选由 applySelectUnselectCard 在开窗后补写。）
+  void _openWindow(SelectState select) {
+    final window = _nextWindow(select);
+    state = state.copyWith(
+      currentSelect: window,
+      inlineSelectedOptionIndices: const {},
+    );
+    _preloadSelectImages(window);
+  }
+
   /// 记录当前等待玩家处理的选择请求，同时预热所有选项的卡图缓存。
   void setSelect(SelectState select) {
-    state = state.copyWith(currentSelect: select);
-    _preloadSelectImages(select);
+    _openWindow(select);
   }
 
   /// 预热 CardSelector 中所有卡片图片到 [CardImageLoader] 全局缓存。
   void _preloadSelectImages(SelectState select) {
-    for (final opt in select.options) {
+    for (final opt in [...select.mustOptions, ...select.options]) {
       if (opt.code > 0) CardImageLoader.I.load(opt.code);
     }
   }
@@ -197,29 +230,47 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
     _duelService?.playGameResponse(response);
   }
 
-  void respondIdleCmd(int sequence) {
+  /// generation 门卫：UI 回传的 generation 与当前窗口不一致时，
+  /// 说明是陈旧菜单的迟到点击，记录日志并忽略。
+  /// generation 为 null（旧调用方未传）时不做门卫。
+  bool _acceptGeneration(int? generation, String method) {
+    if (generation == null) return true;
+    final current = state.currentSelect?.generation;
+    if (generation != current) {
+      console.log(
+        '$method: stale generation $generation (current window generation=$current), ignored',
+      );
+      return false;
+    }
+    return true;
+  }
+
+  void respondIdleCmd(int sequence, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondIdleCmd')) return;
     _sendResponse(CtosGameMsgResponse.selectIdleCmd(sequence));
     clearSelect();
   }
 
-  void respondBattleCmd(int sequence) {
+  void respondBattleCmd(int sequence, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondBattleCmd')) return;
     _sendResponse(CtosGameMsgResponse.selectBattleCmd(sequence));
     clearSelect();
   }
 
-  bool respondCurrentCommand(int sequence) {
+  bool respondCurrentCommand(int sequence, {int? generation}) {
     if (state.hasIdleCommandWindow) {
-      respondIdleCmd(sequence);
+      respondIdleCmd(sequence, generation: generation);
       return true;
     }
     if (state.hasBattleCommandWindow) {
-      respondBattleCmd(sequence);
+      respondBattleCmd(sequence, generation: generation);
       return true;
     }
     return false;
   }
 
-  void respondSelectCard(List<int> sequences) {
+  void respondSelectCard(List<int> sequences, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondSelectCard')) return;
     final select = state.currentSelect;
     if (select?.type == SelectType.card || select?.type == SelectType.tribute) {
       final summary = sequences
@@ -237,32 +288,40 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
     clearSelect();
   }
 
-  void respondSelectChain(int sequence) {
+  void respondSelectChain(int sequence, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondSelectChain')) return;
     _sendResponse(CtosGameMsgResponse.selectSingle(sequence));
     clearSelect();
   }
 
-  void respondSelectEffectYn(bool yes) {
+  void respondSelectEffectYn(bool yes, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondSelectEffectYn')) return;
     _sendResponse(CtosGameMsgResponse.selectEffectYn(yes ? 1 : 0));
     clearSelect();
   }
 
-  void respondSelectYesNo(bool yes) {
+  void respondSelectYesNo(bool yes, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondSelectYesNo')) return;
     _sendResponse(CtosGameMsgResponse.selectEffectYn(yes ? 1 : 0));
     clearSelect();
   }
 
-  void respondSelectPosition(int position) {
+  void respondSelectPosition(int position, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondSelectPosition')) return;
     _sendResponse(CtosGameMsgResponse.selectPosition(position));
     clearSelect();
   }
 
-  void respondSelectOption(int sequence) {
+  void respondSelectOption(int sequence, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondSelectOption')) return;
     _sendResponse(CtosGameMsgResponse.selectOption(sequence));
     clearSelect();
   }
 
-  void respondSelectPlace(int player, int zone, int sequence) {
+  void respondSelectPlace(int player, int zone, int sequence, {
+    int? generation,
+  }) {
+    if (!_acceptGeneration(generation, 'respondSelectPlace')) return;
     _sendResponse(
       CtosGameMsgResponse.selectPlace(
         CtosSelectPlace(player: player, zone: zone, sequence: sequence),
@@ -271,12 +330,14 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
     clearSelect();
   }
 
-  void respondSelectTribute(List<int> sequences) {
+  void respondSelectTribute(List<int> sequences, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondSelectTribute')) return;
     _sendResponse(CtosGameMsgResponse.selectMulti(sequences));
     clearSelect();
   }
 
-  void respondSelectUnselectCard(int? sequence) {
+  void respondSelectUnselectCard(int? sequence, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondSelectUnselectCard')) return;
     console.log(
       sequence == null
           ? 'respondSelectUnselectCard: finish/cancel'
@@ -290,22 +351,92 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
     clearSelect();
   }
 
-  void respondSelectCounter(List<int> values) {
-    _sendResponse(CtosGameMsgResponse.selectCounter(values));
+  /// MSG_SELECT_COUNTER 回包（playerop.cpp:624-637）：
+  /// 每卡一个 int16（窗口顺序），各值 ≤ 该卡指示物数，
+  /// 且总和必须恰好等于需移除总数，否则服务端回 MSG_RETRY。
+  /// 本地先行校验，违规直接拒绝并记录日志，避免无谓的往返重试。
+  void respondSelectCounter(List<int> counts, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondSelectCounter')) return;
+    final select = state.currentSelect;
+    if (select == null || select.type != SelectType.counter) {
+      console.log('respondSelectCounter: no active COUNTER window, ignored');
+      return;
+    }
+    if (counts.length != select.options.length) {
+      console.log(
+        'respondSelectCounter: expected ${select.options.length} values '
+        '(one per card), got ${counts.length}; rejected',
+      );
+      return;
+    }
+    var sum = 0;
+    for (var i = 0; i < counts.length; i++) {
+      final limit = select.options[i].level ?? 0;
+      if (counts[i] < 0 || counts[i] > limit) {
+        console.log(
+          'respondSelectCounter: value ${counts[i]} out of range 0..$limit '
+          'for card #$i; rejected',
+        );
+        return;
+      }
+      sum += counts[i];
+    }
+    if (sum != select.counterRequired) {
+      console.log(
+        'respondSelectCounter: sum $sum != required ${select.counterRequired}; '
+        'rejected',
+      );
+      return;
+    }
+    _sendResponse(CtosGameMsgResponse.selectCounter(counts));
     clearSelect();
   }
 
-  void respondSelectSum(List<int> sequences) {
-    _sendResponse(CtosGameMsgResponse.selectMulti(sequences));
+  /// MSG_SELECT_SUM 回包（playerop.cpp:690-751 select_with_sum_limit）：
+  /// bvalue[0] = 含必选卡的总数；bvalue[1..mcount] 为必选占位（引擎不读）；
+  /// bvalue[mcount+1..] = 仅相对可选段（state.options）的下标。
+  /// selectMulti 的 count 字节即 bvalue[0]，故 payload =
+  /// [占位 × mcount, ...可选段下标]。
+  void respondSelectSum(List<int> selectableIndices, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondSelectSum')) return;
+    final select = state.currentSelect;
+    if (select == null || select.type != SelectType.sum) {
+      console.log('respondSelectSum: no active SUM window, ignored');
+      return;
+    }
+    final seen = <int>{};
+    for (final index in selectableIndices) {
+      if (index < 0 || index >= select.options.length || !seen.add(index)) {
+        console.log(
+          'respondSelectSum: invalid indices $selectableIndices for '
+          '${select.options.length} selectable cards; rejected',
+        );
+        return;
+      }
+    }
+    final mcount = select.mustOptions.length;
+    final payload = <int>[
+      for (var i = 0; i < mcount; i++) 0,
+      ...selectableIndices,
+    ];
+    console.log(
+      'respondSelectSum: count=${mcount + selectableIndices.length} '
+      '(must=$mcount + selected=${selectableIndices.length}) '
+      'exact=${select.sumExact} target=${select.sumTarget} '
+      'indices=$selectableIndices',
+    );
+    _sendResponse(CtosGameMsgResponse.selectMulti(payload));
     clearSelect();
   }
 
-  void respondSortCard(List<int> indices) {
+  void respondSortCard(List<int> indices, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondSortCard')) return;
     _sendResponse(CtosGameMsgResponse.sortCard(indices));
     clearSelect();
   }
 
-  void respondAnnounceCard(int code) {
+  void respondAnnounceCard(int code, {int? generation}) {
+    if (!_acceptGeneration(generation, 'respondAnnounceCard')) return;
     console.log('respondAnnounceCard: code=$code');
     _sendResponse(CtosGameMsgResponse.selectOption(code));
     clearSelect();
@@ -372,12 +503,15 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
       selectedIdleActions: actions,
       enableBp: msg.enableBp,
       enableEp: msg.enableEp,
-      currentSelect: SelectState(
-        type: SelectType.idleCmd,
-        player: msg.player,
-        min: 1,
-        max: 1,
+      currentSelect: _nextWindow(
+        SelectState(
+          type: SelectType.idleCmd,
+          player: msg.player,
+          min: 1,
+          max: 1,
+        ),
       ),
+      inlineSelectedOptionIndices: const {},
     );
   }
 
@@ -410,12 +544,15 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
       selectedBattleActions: actions,
       enableM2: msg.enableM2,
       enableEp: msg.enableEp,
-      currentSelect: SelectState(
-        type: SelectType.battleCmd,
-        player: msg.player,
-        min: 1,
-        max: 1,
+      currentSelect: _nextWindow(
+        SelectState(
+          type: SelectType.battleCmd,
+          player: msg.player,
+          min: 1,
+          max: 1,
+        ),
       ),
+      inlineSelectedOptionIndices: const {},
     );
   }
 
@@ -435,8 +572,8 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
       'applySelectCard: min=${msg.min} max=${msg.max} count=${msg.count} options='
       '${List.generate(msg.count, (i) => "#$i code=${msg.codes[i]} c=${msg.locations[i].controller} z=${msg.locations[i].location} s=${msg.locations[i].sequence}")}',
     );
-    state = state.copyWith(
-      currentSelect: SelectState(
+    _openWindow(
+      SelectState(
         type: SelectType.card,
         player: msg.player,
         options: options,
@@ -458,7 +595,7 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
       return;
     }
     final options = <SelectOption>[];
-    console.log('applySelectChain: ${msg.chains} options');
+    console.log('applySelectChain: ${msg.chains.length} options');
     for (final chain in msg.chains) {
       options.add(
         SelectOption(
@@ -468,12 +605,12 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
           // 就地高亮需要真实场上/手牌位置；连锁响应值与选项下标一致，
           // 提交时仍按下标回传。
           sequence: chain.location.sequence,
-          label: '连锁${chain.effectDescription}',
+          // 不使用 effectDescription 原始数值作为文案（对玩家无意义）。
         ),
       );
     }
-    state = state.copyWith(
-      currentSelect: SelectState(
+    _openWindow(
+      SelectState(
         type: SelectType.chain,
         player: msg.player,
         options: options,
@@ -485,8 +622,8 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   }
 
   void applySelectEffectYn(MsgSelectEffectYn msg) {
-    state = state.copyWith(
-      currentSelect: SelectState(
+    _openWindow(
+      SelectState(
         type: SelectType.effectYn,
         player: msg.player,
         options: [
@@ -505,8 +642,8 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   }
 
   void applySelectYesNo(MsgSelectYesNo msg) {
-    state = state.copyWith(
-      currentSelect: SelectState(
+    _openWindow(
+      SelectState(
         type: SelectType.yesNo,
         player: msg.player,
         min: 1,
@@ -517,8 +654,8 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   }
 
   void applySelectPlace(MsgSelectPlace msg) {
-    state = state.copyWith(
-      currentSelect: SelectState(
+    _openWindow(
+      SelectState(
         type: SelectType.place,
         player: msg.player,
         options: _placeOptionsFromFieldMask(
@@ -557,8 +694,8 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
         SelectOption(code: msg.code, position: position.value, label: label),
       );
     }
-    state = state.copyWith(
-      currentSelect: SelectState(
+    _openWindow(
+      SelectState(
         type: SelectType.position,
         player: msg.player,
         options: options,
@@ -581,8 +718,8 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
         ),
       );
     }
-    state = state.copyWith(
-      currentSelect: SelectState(
+    _openWindow(
+      SelectState(
         type: SelectType.tribute,
         player: msg.player,
         options: options,
@@ -593,6 +730,9 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
     );
   }
 
+  /// MSG_SELECT_COUNTER 窗口：level = 该卡当前可用指示物数，
+  /// counterRequired = 需移除的指示物总数（msg.min）。
+  /// 响应编码见 [respondSelectCounter]（playerop.cpp:624-637）。
   void applySelectCounter(MsgSelectCounter msg) {
     final options = <SelectOption>[];
     for (int i = 0; i < msg.count; i++) {
@@ -606,37 +746,57 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
         ),
       );
     }
-    state = state.copyWith(
-      currentSelect: SelectState(
+    console.log(
+      'applySelectCounter: player=${msg.player} required=${msg.min} '
+      'cards=${msg.count} counterCounts=${msg.counterCounts}',
+    );
+    _openWindow(
+      SelectState(
         type: SelectType.counter,
         player: msg.player,
         options: options,
         min: msg.min,
         max: msg.min,
+        counterRequired: msg.min,
       ),
     );
   }
 
+  /// MSG_SELECT_SUM 窗口（playerop.cpp:690-751）：
+  /// options 只含可选段（selectable），必选段（must）进 mustOptions；
+  /// level/level2 = 合计参数 o1/o2（o2==0 时 duelink 已归一为 level2==level1，
+  /// 这里原样保留，sum_check 按引擎 get_sum_params 语义还原）。
+  /// sumTarget = msg.levelSum；sumExact = msg.max == 0。
+  /// 响应下标仅相对可选段，见 [respondSelectSum]。
   void applySelectSum(MsgSelectSum msg) {
-    final options = <SelectOption>[];
-    for (final card in [...msg.mustSelectCards, ...msg.selectableCards]) {
-      options.add(
-        SelectOption(
-          code: card.code,
-          controller: card.location.controller,
-          zone: card.location.location,
-          sequence: card.location.sequence,
-          level: card.level1,
-        ),
+    SelectOption toOption(MsgSelectSumInfo card) {
+      return SelectOption(
+        code: card.code,
+        controller: card.location.controller,
+        zone: card.location.location,
+        sequence: card.location.sequence,
+        level: card.level1,
+        level2: card.level2,
       );
     }
-    state = state.copyWith(
-      currentSelect: SelectState(
+
+    final mustOptions = msg.mustSelectCards.map(toOption).toList(growable: false);
+    final options = msg.selectableCards.map(toOption).toList(growable: false);
+    console.log(
+      'applySelectSum: player=${msg.player} target=${msg.levelSum} '
+      'min=${msg.min} max=${msg.max} exact=${msg.max == 0} '
+      'must=${mustOptions.length} selectable=${options.length}',
+    );
+    _openWindow(
+      SelectState(
         type: SelectType.sum,
         player: msg.player,
         options: options,
+        mustOptions: mustOptions,
         min: msg.min,
         max: msg.max,
+        sumTarget: msg.levelSum,
+        sumExact: msg.max == 0,
       ),
     );
   }
@@ -653,8 +813,8 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
         ),
       );
     }
-    state = state.copyWith(
-      currentSelect: SelectState(
+    _openWindow(
+      SelectState(
         type: SelectType.sort,
         player: msg.player,
         options: options,
@@ -665,8 +825,8 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   }
 
   void applySelectOption(MsgSelectOption msg) {
-    state = state.copyWith(
-      currentSelect: SelectState(
+    _openWindow(
+      SelectState(
         type: SelectType.option,
         player: msg.player,
         options: [
@@ -686,12 +846,15 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   void applyAnnounceCard(MsgAnnounceCard msg) {
     state = state.copyWith(
       announceCardBlockedCodes: [...msg.codes],
-      currentSelect: SelectState(
-        type: SelectType.announceCard,
-        player: msg.player,
-        min: 1,
-        max: 1,
+      currentSelect: _nextWindow(
+        SelectState(
+          type: SelectType.announceCard,
+          player: msg.player,
+          min: 1,
+          max: 1,
+        ),
       ),
+      inlineSelectedOptionIndices: const {},
     );
     console.log(
       'applyAnnounceCard: player=${msg.player} blocked=${msg.count} codes=[${msg.codes.join(', ')}]',
@@ -730,31 +893,38 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
       'finishable=${msg.finishable} cancelable=${msg.cancelable}',
     );
     state = state.copyWith(
-      currentSelect: SelectState(
-        type: SelectType.unselect,
-        player: msg.player,
-        options: options,
-        min: msg.min,
-        max: msg.max,
-        cancelable: msg.cancelable,
-        finishable: msg.finishable,
-        immediateSingleToggle: true,
-        initialSelectedIndices: initiallySelected,
+      currentSelect: _nextWindow(
+        SelectState(
+          type: SelectType.unselect,
+          player: msg.player,
+          options: options,
+          min: msg.min,
+          max: msg.max,
+          cancelable: msg.cancelable,
+          finishable: msg.finishable,
+          immediateSingleToggle: true,
+          initialSelectedIndices: initiallySelected,
+        ),
       ),
       // 就地选择模式下同步已勾选项，保证高亮与「完成」门槛一致。
       inlineSelectedOptionIndices: {...initiallySelected},
     );
+    _preloadSelectImages(state.currentSelect!);
   }
 
+  /// MSG_SELECT_DISFIELD 与 MSG_SELECT_PLACE 共用引擎 field::select_place，
+  /// flag 位 置位 = 不可用；回包校验为 `(sel & flag)` 即重试
+  /// （playerop.cpp:460-467）。因此与 MSG_SELECT_PLACE 相同：
+  /// 仅 flag 未置位的区域可选（selectableWhenBitSet: false）。
   void applySelectDisfield(MsgSelectPlace msg) {
-    state = state.copyWith(
-      currentSelect: SelectState(
+    _openWindow(
+      SelectState(
         type: SelectType.place,
         player: msg.player,
         options: _placeOptionsFromFieldMask(
           msg.field,
           selectingPlayer: msg.player,
-          selectableWhenBitSet: true,
+          selectableWhenBitSet: false,
         ),
         min: msg.count,
         max: msg.count,
@@ -936,12 +1106,27 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   }
 
   /// 点击可放置槽位（场地组件直接回调，key 为 `controller_zone_sequence`）。
-  void respondSelectPlaceKey(String key) {
+  ///
+  /// 保持单槽位响应语义：引擎 select_place 在 count>1 时期望
+  /// 连续 count 组 (p,l,s)，单槽位回包会触发 MSG_RETRY；
+  /// 此处保留单选行为但对 count>1 记录告警（多位放置需专门 UI）。
+  void respondSelectPlaceKey(String key, {int? generation}) {
     final select = state.currentSelect;
     if (select?.type != SelectType.place) return;
-    for (final option in select!.options) {
+    if (select!.max > 1) {
+      console.log(
+        'respondSelectPlaceKey: place window expects ${select.max} slots, '
+        'single-slot tap may be retried by server',
+      );
+    }
+    for (final option in select.options) {
       if (zoneKeyOf(option.controller, option.zone, option.sequence) == key) {
-        respondSelectPlace(option.controller, option.zone, option.sequence);
+        respondSelectPlace(
+          option.controller,
+          option.zone,
+          option.sequence,
+          generation: generation,
+        );
         return;
       }
     }
@@ -993,23 +1178,64 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
     return null;
   }
 
-  /// 多选模式下切换某选项的勾选状态（受 max 限制）。
+  /// 当前 SUM 窗口下已勾选集合是否通过引擎校验
+  /// （数量约束 + select_sum_check1 / 精确合计窗口判定，
+  /// 移植见 models/sum_check.dart）。[selectedIndices] 相对可选段
+  /// （state.options）。非 SUM 窗口返回 false。
+  bool isSumSelectionValid(Set<int> selectedIndices) {
+    final select = state.currentSelect;
+    if (select == null || select.type != SelectType.sum) return false;
+    return sum_check.sumSelectionIsValid(
+      mustOptions: select.mustOptions,
+      options: select.options,
+      sumTarget: select.sumTarget,
+      sumExact: select.sumExact,
+      min: select.min,
+      max: select.max,
+      selectedIndices: selectedIndices,
+    );
+  }
+
+  /// 多选模式下切换某选项的勾选状态。
+  /// 数量上限仅对非精确合计窗口生效（limit = max，
+  /// 引擎对可选段的数量约束即 max；必选段另计）；
+  /// 精确合计（sumExact）模式无数量上限，合法性由
+  /// [isSumSelectionValid] 判定。
   void toggleInlineOption(int index) {
     final select = state.currentSelect;
     if (select == null) return;
     final next = {...state.inlineSelectedOptionIndices};
     if (next.contains(index)) {
       next.remove(index);
-    } else if (next.length < select.max) {
-      next.add(index);
+    } else {
+      final countLimited =
+          select.type != SelectType.sum || !select.sumExact;
+      if (!countLimited || next.length < select.max) {
+        next.add(index);
+      }
     }
     state = state.copyWith(inlineSelectedOptionIndices: next);
   }
 
   /// 多选确认：按选项下标升序提交已勾选的卡。
+  /// SUM 窗口先过引擎合计校验，非法组合不提交（避免 MSG_RETRY）。
   void confirmInlineSelect() {
+    final select = state.currentSelect;
+    if (select == null) return;
+    final selected = state.inlineSelectedOptionIndices;
+    if (select.type == SelectType.sum) {
+      if (!isSumSelectionValid(selected)) {
+        console.log(
+          'confirmInlineSelect: SUM selection $selected does not satisfy '
+          'target=${select.sumTarget} exact=${select.sumExact}, ignored',
+        );
+        return;
+      }
+      respondSelectSum(selected.toList()..sort());
+      return;
+    }
     if (!state.inlineSelectCanConfirm) return;
-    respondInlineMulti(state.inlineSelectedOptionIndices.toList()..sort());
+    respondInlineMulti(selected.toList()..sort());
   }
 
   /// 解除选择（unselect）的「完成」：向服务端确认当前勾选结果。
@@ -1023,6 +1249,14 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   }
 
   /// 取消当前就地选择（等价于弹窗的「取消」）。
+  ///
+  /// 引擎取消语义：可取消窗口回 -1 即被接受
+  /// （playerop.cpp:271-275 select_card 响应分支：
+  /// `returns.ivalue[0] == -1 && cancelable` → 通过；
+  /// select_chain / select_unselect_card 同样以 -1 表示放弃）。
+  /// 因此 min>=1 的可取消窗口一律回 selectSingle(-1)，
+  /// 而不是空 selectMulti（空列表会被引擎当成 0 张选择而 MSG_RETRY）。
+  /// min==0 的窗口空选择本身即合法应答，保持空列表行为。
   void cancelInlineSelect() {
     final select = state.currentSelect;
     if (select == null || !select.cancelable) return;
@@ -1031,10 +1265,13 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
         respondSelectChain(-1);
       case SelectType.unselect:
         respondSelectUnselectCard(null);
-      case SelectType.sum:
-        respondSelectSum(const []);
       default:
-        respondSelectCard(const []);
+        if (select.min == 0) {
+          respondSelectCard(const []);
+        } else {
+          _sendResponse(CtosGameMsgResponse.selectSingle(-1));
+          clearSelect();
+        }
     }
   }
 

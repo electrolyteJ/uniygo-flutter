@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 
 import 'package:biz/widgets/card_image.dart';
@@ -31,8 +32,16 @@ class HandCardsBar extends StatefulWidget {
   /// 就地选择模式中已勾选的手牌下标（比高亮更强的选中态）。
   final Set<int> checkedSequences;
 
-  /// 每张手牌布局后的全局矩形回调，供抽卡动画计算终点。
+  /// 每张手牌布局后的矩形回调，供抽卡动画计算终点。
+  ///
+  /// 上报的矩形位于 [cardRectsAncestor] 坐标系（与场地 anchors 的
+  /// localToGlobal(ancestor:) 同一祖先，见 PrototypePlaymatField 的
+  /// anchor 上报）；为 null 时退回全局坐标。
   final ValueChanged<Map<int, Rect>>? onCardRectsChanged;
+
+  /// 手牌矩形上报的坐标空间祖先（应与场地 anchor 使用同一祖先，
+  /// 保证抽卡动画起点/终点坐标系一致）。
+  final RenderBox? cardRectsAncestor;
 
   const HandCardsBar({
     super.key,
@@ -45,6 +54,7 @@ class HandCardsBar extends StatefulWidget {
     this.highlightedSequences = const {},
     this.checkedSequences = const {},
     this.onCardRectsChanged,
+    this.cardRectsAncestor,
   });
 
   @override
@@ -62,13 +72,19 @@ class _HandCardsBarState extends State<HandCardsBar> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _rectReportQueued = false;
       if (!mounted || widget.onCardRectsChanged == null) return;
+      final ancestor = widget.cardRectsAncestor;
       final rects = <int, Rect>{};
       for (final entry in _cardKeys.entries) {
         final context = entry.value.currentContext;
         if (context == null) continue;
         final box = context.findRenderObject() as RenderBox?;
         if (box == null || !box.hasSize) continue;
-        rects[entry.key] = box.localToGlobal(Offset.zero) & box.size;
+        // 与场地 anchor 相同的祖先坐标空间，保证抽卡动画
+        // 终点与 _fieldAnchors.slotRects 起点坐标系一致。
+        final topLeft = ancestor != null && ancestor.attached
+            ? box.localToGlobal(Offset.zero, ancestor: ancestor)
+            : box.localToGlobal(Offset.zero);
+        rects[entry.key] = topLeft & box.size;
       }
       widget.onCardRectsChanged!(rects);
     });
@@ -265,6 +281,11 @@ class _CardBack extends StatelessWidget {
     );
   }
 }
+
+@Preview(name: 'HandCardsBar', size: Size(520, 120), brightness: Brightness.dark)
+Widget previewHandCardsBar() => const HandCardsBar(
+      handCodes: [89631139, 46986414, 15025844, 91152256, 13039848],
+    );
 
 /// 卡背自绘内容：深色渐变底 + 金色双层边框 + 中心赛博徽记。
 class _CardBackPainter extends CustomPainter {

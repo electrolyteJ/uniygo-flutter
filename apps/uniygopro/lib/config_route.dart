@@ -1,4 +1,3 @@
-import 'package:duel_room2/pages/duel/models/duel_result_summary.dart';
 import 'package:duel_room2/pages/duel_result_page.dart';
 import 'package:duel_room2/pages/duel_room_page.dart';
 import 'package:go_router/go_router.dart';
@@ -26,7 +25,7 @@ final router = GoRouter(
     GoRoute(
       path: '/duel-result',
       builder: (_, state) =>
-          DuelResultPage(result: state.extra as DuelResultSummary),
+          DuelResultPage(result: state.extra! as Map<String, Object?>),
     ),
     GoRoute(path: '/side', builder: (_, _) => const SidePage()),
     GoRoute(

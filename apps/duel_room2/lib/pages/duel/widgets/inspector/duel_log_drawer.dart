@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
@@ -12,6 +13,12 @@ class DuelLogDrawer extends StatelessWidget {
     const goldGlow = Color(0xFFFFD700);
     const cyanGlow = Color(0xFF00F0FF);
     const panelDark = Color(0xE6080E18); // rgba(8, 14, 24, 0.9)
+    // 日志列表高度上限：240 与屏幕高度 40% 取小，
+    // 防止日志无限增长时抽屉撑满屏幕（I-log-overflow）。
+    final maxListHeight = math.min(
+      240.0,
+      MediaQuery.sizeOf(context).height * 0.4,
+    );
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
@@ -56,7 +63,7 @@ class DuelLogDrawer extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.2),
+                      color: Colors.red.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(2),
                     ),
                     child: const Text(
@@ -71,44 +78,45 @@ class DuelLogDrawer extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 6),
-              Container(
-                // constraints: const BoxConstraints(maxHeight: 120),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  physics: const ClampingScrollPhysics(),
-                  itemCount: logs.isEmpty ? 1 : logs.length,
-                  separatorBuilder: (context, index) => const Divider(
-                    color: Colors.white12,
-                    height: 4,
-                    thickness: 0.5,
-                  ),
-                  itemBuilder: (context, index) {
-                    if (logs.isEmpty) {
-                      return const Text(
-                        '等待决斗开始...',
-                        style: TextStyle(color: Colors.white24, fontSize: 13),
-                      );
-                    }
-                    final log = logs[logs.length - 1 - index];
-                    final isHighlight =
-                        log.contains('发动') || log.contains('攻击力');
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 3),
-                      child: Text(
-                        log,
-                        style: TextStyle(
-                          color: isHighlight
-                              ? cyanGlow
-                              : const Color(0xFF8B9BB4),
-                          fontSize: 14,
-                          height: 1.5,
-                          fontFamily: 'Noto Sans SC',
+              if (logs.isEmpty)
+                const Text(
+                  '等待决斗开始...',
+                  style: TextStyle(color: Colors.white24, fontSize: 13),
+                )
+              else
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxListHeight),
+                  // 惰性 ListView（不带 shrinkWrap 全量撑开），
+                  // 新日志在前（index 反转），滚动查看历史。
+                  child: ListView.separated(
+                    physics: const ClampingScrollPhysics(),
+                    itemCount: logs.length,
+                    separatorBuilder: (context, index) => const Divider(
+                      color: Colors.white12,
+                      height: 4,
+                      thickness: 0.5,
+                    ),
+                    itemBuilder: (context, index) {
+                      final log = logs[logs.length - 1 - index];
+                      final isHighlight =
+                          log.contains('发动') || log.contains('攻击力');
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        child: Text(
+                          log,
+                          style: TextStyle(
+                            color: isHighlight
+                                ? cyanGlow
+                                : const Color(0xFF8B9BB4),
+                            fontSize: 14,
+                            height: 1.5,
+                            fontFamily: 'Noto Sans SC',
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -117,5 +125,5 @@ class DuelLogDrawer extends StatelessWidget {
   }
 }
 @Preview(name: 'DuelLogDrawer', size: Size(400, 500), brightness: Brightness.dark)
-Widget _previewDuelLogDrawer() => DuelLogDrawer(logs: const []);
+Widget previewDuelLogDrawer() => DuelLogDrawer(logs: const []);
 

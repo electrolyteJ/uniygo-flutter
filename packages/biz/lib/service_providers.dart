@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:biz/duel_service.dart';
 import 'package:biz/ygo_data_service.dart';
 import 'package:biz/ygo_sound_service.dart';
@@ -12,6 +14,7 @@ import 'package:service_loader/service_loader.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart' show MyCardCardService;
 import 'package:ygo_data/ygo_data.dart' show IBanlistService;
 import 'package:ygo_deck_mycard/ygo_deck_mycard.dart' show MycardDeckService;
+import 'package:ygo_strings_mycard/ygo_strings_mycard.dart';
 
 /// 服务层容器（应用级单例）。
 ///
@@ -55,3 +58,11 @@ final dataServiceProvider = Provider<YgoDataService>(
 final ygoSoundServiceProvider = Provider<YgoSoundService>(
   (ref) => YgoSoundService(),
 );
+
+/// 引擎字符串表（strings.conf）：MSG_HINT 提示文案。应用级单例，
+/// 首次读取时后台抓取，未加载完成前 systemString 返回 null（降级为不显示文案）。
+final stringsServiceProvider = Provider<StringsService>((ref) {
+  final service = StringsService();
+  unawaited(service.load());
+  return service;
+});

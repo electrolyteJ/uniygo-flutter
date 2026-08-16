@@ -144,5 +144,5 @@ class ControlBar extends StatelessWidget {
   }
 }
 @Preview(name: 'ControlBar', size: Size(400, 120), brightness: Brightness.dark)
-Widget _previewControlBar() => ControlBar(isHost: true, selfType: PlayerType.player1, isSelfReady: false, isAllReady: false, autoHandEnabled: false, autoTurnOrderEnabled: false, autoDuelEnabled: false, toggleReady: (_) {}, onToggleAutoHand: (_) {}, onToggleAutoTurnOrder: (_) {}, onToggleAutoDuel: (_) {}, onStartDuel: () {}, onBecomeDuelist: () {}, onBecomeObserver: () {});
+Widget previewControlBar() => ControlBar(isHost: true, selfType: PlayerType.player1, isSelfReady: false, isAllReady: false, autoHandEnabled: false, autoTurnOrderEnabled: false, autoDuelEnabled: false, toggleReady: (_) {}, onToggleAutoHand: (_) {}, onToggleAutoTurnOrder: (_) {}, onToggleAutoDuel: (_) {}, onStartDuel: () {}, onBecomeDuelist: () {}, onBecomeObserver: () {});
 

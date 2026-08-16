@@ -137,4 +137,4 @@ class PlaymatVignette extends StatelessWidget {
 }
 
 @Preview(name: 'DuelFieldBackground', size: Size(400, 300), brightness: Brightness.dark)
-Widget _previewDuelFieldBackground() => const DuelFieldBackground();
+Widget previewDuelFieldBackground() => const DuelFieldBackground();

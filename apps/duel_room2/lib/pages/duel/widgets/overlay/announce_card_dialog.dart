@@ -1,10 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 import 'package:ygo_data/ygo_data.dart' as pkg;
 
 import 'package:biz/widgets/card_image.dart';
 
+
+@Preview(name: 'AnnounceCardDialog', size: Size(600, 500), brightness: Brightness.dark)
+Widget previewAnnounceCardDialog() => AnnounceCardDialog(
+      onSearch: (_) async => const [],
+      onSelect: (_) {},
+    );
 
 class AnnounceCardDialog extends StatefulWidget {
   final Future<List<pkg.CardInfo>> Function(String query) onSearch;
@@ -141,6 +148,10 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
                             ? null
                             : IconButton(
                                 onPressed: () {
+                                  // 先取消挂起的搜索防抖，避免清空后
+                                  // 旧查询的延迟搜索又被触发。
+                                  _debounce?.cancel();
+                                  _debounce = null;
                                   _controller.clear();
                                   _performSearch('');
                                 },

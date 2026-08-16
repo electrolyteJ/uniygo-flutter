@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 import 'package:ygo_data/deck_info.dart';
 
@@ -64,7 +65,9 @@ class DeckSelector extends StatelessWidget {
                 border: Border.all(color: Colors.blueGrey.shade600),
               ),
               child: DropdownButton<String>(
-                value: selectedDeckName,
+                // 卡组可能在编辑器中被删除：selectedDeckName 不在 items 里时
+                // DropdownButton 会断言失败，改用已算好的 hasSelectedDeck 兜底。
+                value: hasSelectedDeck ? selectedDeckName : null,
                 isExpanded: true,
                 underline: const SizedBox.shrink(),
                 dropdownColor: Colors.blueGrey.shade800,
@@ -78,8 +81,7 @@ class DeckSelector extends StatelessWidget {
                 onChanged: enabled ? onSelectDeck : null,
               ),
             ),
-          if (selectedDeckName != null &&
-              decks.any((d) => d.deckName == selectedDeckName))
+          if (hasSelectedDeck)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
@@ -185,4 +187,12 @@ class DeckSelector extends StatelessWidget {
     );
   }
 }
+
+@Preview(name: 'DeckSelector', size: Size(320, 220), brightness: Brightness.dark)
+Widget previewDeckSelector() => DeckSelector(
+      decks: [DeckInfo(deckName: '青眼卡组'), DeckInfo(deckName: '黑魔导卡组')],
+      selectedDeckName: '青眼卡组',
+      mySlot: 0,
+      onSelectDeck: (_) {},
+    );
 

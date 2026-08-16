@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 import 'package:biz/widgets/card_image.dart';
-
 
 /// 居中展示服务端要求查看的卡牌（MSG_CONFIRM_CARDS 多张非场上卡）。
 ///
 /// 参考经典 ygopro C++ 客户端 behavior：卡组/额外卡组中的多张卡
 /// 通过弹窗展示，玩家点击任意处关闭（`actionSignal.Wait`）。
+///
+/// 本组件由页面以 Positioned.fill 内嵌在决斗场地 Stack 中（非路由），
+/// 关闭一律走 [onDismiss] 回调，禁止 `Navigator.pop`——
+/// pop 会直接弹出决斗房间路由。
 class ConfirmCardsDialog extends StatelessWidget {
   final String title;
   final List<int> codes;
@@ -24,118 +28,125 @@ class ConfirmCardsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.of(context).pop(),
+      onTap: () => onDismiss?.call(),
       child: Center(
         child: GestureDetector(
           onTap: () {},
           child: Container(
             width: 720,
-        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 560),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xF2080C14),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFF00F0FF), width: 1.6),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF00F0FF).withValues(alpha: 0.26),
-              blurRadius: 40,
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.visibility,
-                  color: Color(0xFF00F0FF),
-                  size: 20,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      color: Color(0xFF00F0FF),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'Orbitron',
-                    ),
-                  ),
-                ),
-                Text(
-                  '${codes.length} 张',
-                  style: const TextStyle(
-                    color: Color(0xFF8B9BB4),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Orbitron',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: const Color(0x22FFFFFF),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Icon(
-                      Icons.close,
-                      color: Color(0xFF8B9BB4),
-                      size: 16,
-                    ),
-                  ),
+            constraints: const BoxConstraints(maxWidth: 720, maxHeight: 560),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xF2080C14),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF00F0FF), width: 1.6),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF00F0FF).withValues(alpha: 0.26),
+                  blurRadius: 40,
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Flexible(
-              child: codes.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 40),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.visibility,
+                      color: Color(0xFF00F0FF),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
                       child: Text(
-                        '没有可查看的卡片',
-                        style: TextStyle(
-                          color: Color(0xFF8B9BB4),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'Noto Sans SC',
+                        title,
+                        style: const TextStyle(
+                          color: Color(0xFF00F0FF),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          fontFamily: 'Orbitron',
                         ),
                       ),
-                    )
-                  : GridView.builder(
-                      shrinkWrap: true,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 4,
-                            mainAxisSpacing: 12,
-                            crossAxisSpacing: 12,
-                            childAspectRatio: 0.72,
-                          ),
-                      itemCount: codes.length,
-                      itemBuilder: (context, index) {
-                        final code = codes[index];
-                        return _ConfirmCardTile(
-                          code: code,
-                          name: cardNameBuilder(code),
-                        );
-                      },
                     ),
+                    Text(
+                      '${codes.length} 张',
+                      style: const TextStyle(
+                        color: Color(0xFF8B9BB4),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Orbitron',
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: () => onDismiss?.call(),
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: const Color(0x22FFFFFF),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          color: Color(0xFF8B9BB4),
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Flexible(
+                  child: codes.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: Text(
+                            '没有可查看的卡片',
+                            style: TextStyle(
+                              color: Color(0xFF8B9BB4),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Noto Sans SC',
+                            ),
+                          ),
+                        )
+                      : GridView.builder(
+                          shrinkWrap: true,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 4,
+                                mainAxisSpacing: 12,
+                                crossAxisSpacing: 12,
+                                childAspectRatio: 0.72,
+                              ),
+                          itemCount: codes.length,
+                          itemBuilder: (context, index) {
+                            final code = codes[index];
+                            return _ConfirmCardTile(
+                              code: code,
+                              name: cardNameBuilder(code),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
         ),
       ),
     );
   }
 }
+
+@Preview(name: 'ConfirmCardsDialog', size: Size(720, 560), brightness: Brightness.dark)
+Widget previewConfirmCardsDialog() => ConfirmCardsDialog(
+      title: '查看卡牌',
+      codes: const [89631139, 46986414, 15025844],
+      cardNameBuilder: (code) => 'Card #$code',
+    );
 
 class _ConfirmCardTile extends StatelessWidget {
   final int code;

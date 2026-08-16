@@ -11,7 +11,6 @@ import 'package:ygo_data/card_info.dart' as pkg;
 import 'models/battle_presentation.dart';
 import 'models/chain_link.dart';
 import 'models/draw_animation_event.dart';
-import 'models/duel_result_summary.dart';
 import 'models/field_card.dart';
 import 'models/field_zone_key.dart';
 
@@ -156,7 +155,7 @@ class DuelFieldState {
   /// 玩家名解析所需的房间玩家列表，由页面在房间阶段变化时同步。
   final List<PlayerInfo> players;
 
-  final DuelResultSummary? duelResult;
+  final Map<String, Object?>? duelResult;
 
   DuelFieldState copyWith({
     Map<String, FieldCard>? fieldCards,
@@ -261,7 +260,7 @@ class DuelFieldState {
       players: players ?? this.players,
       duelResult: identical(duelResult, _undefined)
           ? this.duelResult
-          : duelResult as DuelResultSummary?,
+          : duelResult as Map<String, Object?>?,
     );
   }
 
@@ -338,6 +337,7 @@ class DuelFieldState {
 /// 对局事实（战场）的 Notifier：持有全部 MSG_* 战场消息应用逻辑。
 class DuelFieldNotifier extends Notifier<DuelFieldState> {
   late YgoDataService _dataService;
+  IDuelService? _duelService;
   Timer? _timeLimitTimer;
   Timer? _battlePresentationTimer;
   bool _disposed = false;
@@ -345,6 +345,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   @override
   DuelFieldState build() {
     _dataService = ref.watch(dataServiceProvider);
+    _duelService = ref.watch(duelServiceProvider);
     ref.onDispose(_dispose);
     return const DuelFieldState();
   }
@@ -355,17 +356,6 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     _battlePresentationTimer?.cancel();
   }
 
-  /// 清空战场状态（对局事实），供离开房间或新对局开始时使用。
-  void reset() {
-    _battlePresentationTimer?.cancel();
-    _battlePresentationTimer = null;
-    // 倒计时不在 reset 范围内（与原实现一致）。
-    state = DuelFieldState(
-      selfTimeLeft: state.selfTimeLeft,
-      opponentTimeLeft: state.opponentTimeLeft,
-    );
-  }
-
   // ──────────────────────────────────────────
   // 卡片信息（缓存收敛在 dataService）
   // ──────────────────────────────────────────
@@ -373,14 +363,32 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   /// 获取卡片信息（同步读取 dataService 缓存，未命中返回 null）
   pkg.CardInfo? getCardInfo(int code) => _dataService.getCardCached(code);
 
-  /// 异步预加载卡片信息（缓存判断在 dataService.getCard 内部）
+  /// 批量预加载期间挂起的加载数；归零时统一触发一次状态通知。
+  int _pendingCardLoads = 0;
+
+  /// 批量预加载是否有新卡信息入库（决定归零时要不要通知）。
+  bool _cardCacheDirty = false;
+
+  /// 异步预加载卡片信息（缓存判断在 dataService.getCard 内部）。
+  ///
+  /// 批量预加载（preloadCardInfos 并发多张）时不再每张各触发一次
+  /// state 通知：等本批全部加载完成后只通知一次，避免高频重建。
   Future<void> ensureCardInfo(int code) async {
+    _pendingCardLoads++;
     try {
       final info = await _dataService.getCard(code);
-      // 缓存填充后触发一次刷新（copyWith 无参也产生新实例，保证通知）。
-      if (info != null && !_disposed) state = state.copyWith();
+      if (info != null) _cardCacheDirty = true;
     } catch (e) {
       console.log('Failed to load card info for $code: $e');
+    }
+    _pendingCardLoads--;
+    if (_pendingCardLoads <= 0) {
+      _pendingCardLoads = 0;
+      if (_cardCacheDirty && !_disposed) {
+        _cardCacheDirty = false;
+        // 缓存填充后触发一次刷新（copyWith 无参也产生新实例，保证通知）。
+        state = state.copyWith();
+      }
     }
   }
 
@@ -401,12 +409,18 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   // ──────────────────────────────────────────
 
   /// 处理抽卡消息，并同步手牌与卡组剩余数量。
+  ///
+  /// 对方手牌隐私：对方抽到的卡只记数量（存 0 占位），
+  /// 不落地明文卡密；UI 对方手牌只渲染卡背（cardsVisible: false）。
   void applyDraw(MsgDraw msg) {
     final isMyDraw = msg.player == state.myController;
+    final drawnCodes = isMyDraw
+        ? List<int>.of(msg.cards)
+        : List<int>.filled(msg.cards.length, 0);
     final drawEvent = DrawAnimationEvent(
       id: state.drawAnimationTick + 1,
       player: msg.player,
-      codes: List<int>.of(msg.cards),
+      codes: drawnCodes,
       turnCount: state.turnCount,
     );
     if (isMyDraw) {
@@ -418,7 +432,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       );
     } else {
       state = state.copyWith(
-        opponentHand: [...state.opponentHand, ...msg.cards],
+        opponentHand: [...state.opponentHand, ...drawnCodes],
         oppDeck: state.oppDeck - msg.count,
         drawAnimationEvent: drawEvent,
         drawAnimationTick: drawEvent.id,
@@ -590,7 +604,15 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   }
 
   /// 处理卡片移动消息，先移除旧位置，再写入新位置。
+  ///
+  /// 对方手牌隐私：对方「卡组→手牌」的移动只记数量（存 0 占位），
+  /// 不落地明文卡密；后续若服务端以 MSG_CONFIRM_CARDS 展示该卡，
+  /// revealDeckToHandDraw / syncConfirmedCard 才会写入真实卡密。
   void applyMove(MsgMove msg) {
+    final isOpponentDeckToHand =
+        (msg.from.location & CARD_ZONE_DECK) != 0 &&
+        (msg.to.location & CARD_ZONE_HAND) != 0 &&
+        msg.to.controller != state.myController;
     state = _removeCardFromLocation(
       state,
       msg.from.controller,
@@ -599,24 +621,20 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     );
     state = _addCardToLocation(
       state,
-      msg.code,
+      isOpponentDeckToHand ? 0 : msg.code,
       msg.to.controller,
       msg.to.location,
       msg.to.sequence,
       msg.to.position,
     );
-    if (msg.code > 0) {
+    if (msg.code > 0 && !isOpponentDeckToHand) {
       unawaited(ensureCardInfo(msg.code));
     }
-    final isOpponentDeckToHand =
-        (msg.from.location & CARD_ZONE_DECK) != 0 &&
-        (msg.to.location & CARD_ZONE_HAND) != 0 &&
-        msg.to.controller != state.myController;
     if (isOpponentDeckToHand) {
       final drawEvent = DrawAnimationEvent(
         id: state.drawAnimationTick + 1,
         player: msg.to.controller,
-        codes: [msg.code],
+        codes: const [0],
         turnCount: state.turnCount,
       );
       state = state.copyWith(
@@ -865,8 +883,9 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       state = isSelf
           ? state.copyWith(
               selfExtraCodes: codes,
-              selfExtra:
-                  state.selfExtra < nextCount ? nextCount : state.selfExtra,
+              selfExtra: state.selfExtra < nextCount
+                  ? nextCount
+                  : state.selfExtra,
             )
           : state.copyWith(
               opponentExtraCodes: codes,
@@ -886,8 +905,9 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       state = isSelf
           ? state.copyWith(
               selfGraveCodes: codes,
-              selfGrave:
-                  state.selfGrave < nextCount ? nextCount : state.selfGrave,
+              selfGrave: state.selfGrave < nextCount
+                  ? nextCount
+                  : state.selfGrave,
             )
           : state.copyWith(
               opponentGraveCodes: codes,
@@ -907,13 +927,15 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       state = isSelf
           ? state.copyWith(
               selfRemovedCodes: codes,
-              selfRemoved:
-                  state.selfRemoved < nextCount ? nextCount : state.selfRemoved,
+              selfRemoved: state.selfRemoved < nextCount
+                  ? nextCount
+                  : state.selfRemoved,
             )
           : state.copyWith(
               opponentRemovedCodes: codes,
-              oppRemoved:
-                  state.oppRemoved < nextCount ? nextCount : state.oppRemoved,
+              oppRemoved: state.oppRemoved < nextCount
+                  ? nextCount
+                  : state.oppRemoved,
             );
       if (code != null && code > 0) {
         unawaited(ensureCardInfo(code));
@@ -1029,9 +1051,10 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
             );
     }
     if (location & CARD_ZONE_DECK != 0) {
+      // 卡组计数下限为 0：乱序/重复的 MSG_MOVE 不应把计数打成负数。
       return isSelf
-          ? s.copyWith(selfDeck: s.selfDeck - 1)
-          : s.copyWith(oppDeck: s.oppDeck - 1);
+          ? s.copyWith(selfDeck: s.selfDeck > 0 ? s.selfDeck - 1 : 0)
+          : s.copyWith(oppDeck: s.oppDeck > 0 ? s.oppDeck - 1 : 0);
     }
     if (location & CARD_ZONE_EXTRA != 0) {
       final list = s.zoneCodeListFor(controller, location);
@@ -1259,9 +1282,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
         attackerSlotId: from,
         defenderSlotId: to,
         attackerName: attackerName,
-        defenderName: to == null
-            ? null
-            : state.fieldCards[to]?.name ?? '怪兽',
+        defenderName: to == null ? null : state.fieldCards[to]?.name ?? '怪兽',
       ),
     );
     if (to != null) {
@@ -1414,20 +1435,38 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     if (code != null && code >= 1000000) {
       unawaited(ensureCardInfo(code));
     }
+    // 提示文案（event/message/selectMessage/optionSelected 的 hintData 是
+    // strings.conf 的 !system 索引）：能解析到中文文案就写进战报。
+    final hintText = switch (msg.hintType) {
+      MsgHintType.event ||
+      MsgHintType.message ||
+      MsgHintType.selectMessage ||
+      MsgHintType.optionSelected =>
+        ref.read(stringsServiceProvider).systemString(msg.hintData),
+      _ => null,
+    };
+    if (hintText != null && hintText.isNotEmpty) {
+      addLog(hintText);
+    }
   }
 
   void handleWin(MsgWin msg) {
+    // 对局结束：停掉所有本地定时器，避免胜负已分后倒计时/演出继续跑。
+    _timeLimitTimer?.cancel();
+    _timeLimitTimer = null;
+    _battlePresentationTimer?.cancel();
+    _battlePresentationTimer = null;
     final didWin = msg.winPlayer == state.myController;
     state = state.copyWith(
-      duelResult: DuelResultSummary(
-        didWin: didWin,
-        winPlayer: msg.winPlayer,
-        reason: msg.reason,
-        selfName: state.playerNameOf(state.myController),
-        opponentName: state.playerNameOf(1 - state.myController),
-        selfLp: state.selfLp,
-        opponentLp: state.opponentLp,
-      ),
+      duelResult: <String, Object?>{
+        'didWin': didWin,
+        'winPlayer': msg.winPlayer,
+        'reason': msg.reason,
+        'selfName': state.playerNameOf(state.myController),
+        'opponentName': state.playerNameOf(1 - state.myController),
+        'selfLp': state.selfLp,
+        'opponentLp': state.opponentLp,
+      },
     );
     addLog(didWin ? '决斗胜利。' : '决斗失败。');
   }
@@ -1461,7 +1500,8 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
             msg.defender.sequence,
           )
         : null;
-    final base = state.battlePresentation ??
+    final base =
+        state.battlePresentation ??
         BattlePresentation(
           attackerSlotId: attackerSlotId,
           defenderSlotId: defenderSlotId,
@@ -1531,33 +1571,44 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     addLog('${msg.count} 张卡成为效果对象。');
   }
 
+  /// STOC_TIME_LIMIT：同步被计时方的剩余时间并本地倒数。
+  ///
+  /// - 倒计时只递减「本条消息正在计时」的玩家；该玩家归零即停表，
+  ///   不再以「双方都归零」为条件（对方残留的旧时间值会让旧实现
+  ///   的定时器永不取消）。
+  /// - 每条 STOC_TIME_LIMIT 都回 CTOS_TIME_CONFIRM：srvpro 系服务器
+  ///   （s1.ygo233.com 等）在收到确认前会挂起后续对局回包
+  ///   （参考 packages/duelink base_duel_service.dart confirmTime /
+  ///   duelink_socket 的自动确认注释），对其他服务器无害。
   void handleTimeLimit(StocTimeLimit msg) {
     final player = msg.player;
     final left = msg.leftTime;
     state = player == state.myController
         ? state.copyWith(selfTimeLeft: left)
         : state.copyWith(opponentTimeLeft: left);
+    _duelService?.confirmTime();
     _timeLimitTimer?.cancel();
+    _timeLimitTimer = null;
     if (left > 0) {
-      _timeLimitTimer = Timer.periodic(
-        const Duration(seconds: 1),
-        (_) {
-          var selfLeft = state.selfTimeLeft;
-          var oppLeft = state.opponentTimeLeft;
-          if (player == state.myController) {
-            if (selfLeft > 0) selfLeft--;
-          } else {
-            if (oppLeft > 0) oppLeft--;
-          }
-          state = state.copyWith(
-            selfTimeLeft: selfLeft,
-            opponentTimeLeft: oppLeft,
-          );
-          if (selfLeft <= 0 && oppLeft <= 0) {
-            _timeLimitTimer?.cancel();
-          }
-        },
-      );
+      _timeLimitTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        final timedLeft = player == state.myController
+            ? state.selfTimeLeft
+            : state.opponentTimeLeft;
+        if (timedLeft <= 0) {
+          // 被计时方已归零：停表（服务端会另行下发超时裁决）。
+          _timeLimitTimer?.cancel();
+          _timeLimitTimer = null;
+          return;
+        }
+        final next = timedLeft - 1;
+        state = player == state.myController
+            ? state.copyWith(selfTimeLeft: next)
+            : state.copyWith(opponentTimeLeft: next);
+        if (next <= 0) {
+          _timeLimitTimer?.cancel();
+          _timeLimitTimer = null;
+        }
+      });
     }
   }
 
@@ -1606,5 +1657,6 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
 }
 
 /// 对局事实状态（战场）的 provider，按房间 ProviderScope override 隔离。
-final duelFieldProvider =
-    NotifierProvider<DuelFieldNotifier, DuelFieldState>(DuelFieldNotifier.new);
+final duelFieldProvider = NotifierProvider<DuelFieldNotifier, DuelFieldState>(
+  DuelFieldNotifier.new,
+);

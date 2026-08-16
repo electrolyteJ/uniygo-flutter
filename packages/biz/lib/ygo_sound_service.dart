@@ -4,6 +4,14 @@ class YgoSoundService {
   static const _uiBasePath = 'sounds/ui/';
   static const _duelBasePath = 'sounds/duel/';
 
+  /// 全局静音开关（供集成/单元测试禁用音频）。
+  ///
+  /// 置 false 后所有 play* 方法直接返回，不再创建 [AudioPlayer]，
+  /// 从而避免 audioplayers 的 `FramePositionUpdater` 在测试 teardown
+  /// 时留下 transient callbacks（「An animation is still running even
+  /// after the widget tree was disposed」）。
+  static bool enabled = true;
+
   final _pool = <String, AudioPlayer>{};
 
   AudioPlayer _acquire(String key) {
@@ -17,12 +25,14 @@ class YgoSoundService {
   }
 
   Future<void> _play(String assetName) async {
+    if (!enabled) return;
     final player = _acquire(assetName);
     await player.stop();
     await player.play(AssetSource('$_uiBasePath$assetName'));
   }
 
   Future<void> _playDuel(String assetName) async {
+    if (!enabled) return;
     final player = _acquire(assetName);
     await player.stop();
     await player.play(AssetSource('$_duelBasePath$assetName'));

@@ -30,6 +30,8 @@ dependencies:
     path: ../ygo_card_mycard
   ygo_banlist_mycard:
     path: ../ygo_banlist_mycard
+  ygo_strings_mycard:
+    path: ../ygo_strings_mycard
   ygo_deck_mycard:
     path: ../ygo_deck_mycard
   flutter_riverpod: ^2.6.1

@@ -1,5 +1,6 @@
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 class PlayerSlot extends StatelessWidget {
   final PlayerInfo? player;
@@ -40,6 +41,13 @@ class PlayerSlot extends StatelessWidget {
     }
   }
 
+  /// 头像首字母：玩家缺失或名字为空串时回退为 '?'，
+  /// 避免 `''[0]` 触发 RangeError。
+  String get _avatarLetter {
+    final name = player?.name ?? '';
+    return name.isEmpty ? '?' : name[0].toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -60,7 +68,7 @@ class PlayerSlot extends StatelessWidget {
               CircleAvatar(
                 radius: 16,
                 backgroundColor: isMe ? Colors.amber.shade700 : Colors.teal.shade700,
-                child: Text((player?.name ?? '?')[0].toUpperCase(),
+                child: Text(_avatarLetter,
                   style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -142,4 +150,15 @@ class PlayerSlot extends StatelessWidget {
     );
   }
 }
+
+@Preview(name: 'PlayerSlot', size: Size(300, 150), brightness: Brightness.dark)
+Widget previewPlayerSlot() => PlayerSlot(
+      player: const PlayerInfo(name: '玩家A', pos: 0, ready: true),
+      placeholder: '等待玩家',
+      showResult: true,
+      handResult: 2,
+      isHostSlot: true,
+      isMe: true,
+      onKick: () {},
+    );
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 import '../../models/duel_menu.dart';
 import 'hand_action_popover.dart';
@@ -16,4 +17,12 @@ class FieldActionPopover extends StatelessWidget {
     return HandActionPopover(actions: actions, arrowDx: arrowDx);
   }
 }
+
+@Preview(name: 'FieldActionPopover', size: Size(240, 200), brightness: Brightness.dark)
+Widget previewFieldActionPopover() => FieldActionPopover(
+      actions: [
+        ActionMenuEntry(label: '发动效果', onTap: () {}),
+        ActionMenuEntry(label: '查看详情', onTap: () {}),
+      ],
+    );
 

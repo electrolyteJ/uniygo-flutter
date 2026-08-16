@@ -1,78 +1,77 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 import 'package:biz/widgets/card_image.dart';
 
 /// 卡组顶部 / 额外卡组顶部 确认展示的浮动卡片。
 ///
-/// 参考经典 ygopro C++ 客户端：卡片偏移 + 旋转展示后自动复位。
-/// Flutter 中以浮动卡片 + 缩放动效模拟。
+/// 时序由 [CardConfirmNotifier] 单一来源驱动：notifier 按
+/// 「每卡 750ms（>5 张时每卡 200ms）+ 500ms」推进当前展示下标并在
+/// 到期后清空 floatPreviewCodes；本组件只渲染传入的 [currentIndex]
+/// 对应的卡片，不持有任何自动关闭计时逻辑。
+///
+/// 组件自身仅保留淡入/缩放动效（约 300ms，纯装饰），
+/// 在 [currentIndex] 变化时重播；点击卡片仍可提前关闭（[onDismiss]）。
 class ConfirmFloatingCard extends StatefulWidget {
   final List<int> codes;
+
+  /// 当前展示的卡下标（由页面从 cardConfirmProvider 状态读取）。
+  final int currentIndex;
+
   final String title;
   final String Function(int code) cardNameBuilder;
   final VoidCallback? onDismiss;
-  final double autoCloseSeconds;
 
   const ConfirmFloatingCard({
     super.key,
     required this.codes,
+    this.currentIndex = 0,
     required this.title,
     required this.cardNameBuilder,
     this.onDismiss,
-    this.autoCloseSeconds = 2.0,
   });
 
   @override
   State<ConfirmFloatingCard> createState() => _ConfirmFloatingCardState();
 }
 
+@Preview(name: 'ConfirmFloatingCard', size: Size(200, 320), brightness: Brightness.dark)
+Widget previewConfirmFloatingCard() => ConfirmFloatingCard(
+      codes: const [89631139, 46986414],
+      currentIndex: 0,
+      title: '卡组顶部',
+      cardNameBuilder: (code) => 'Card #$code',
+    );
+
 class _ConfirmFloatingCardState extends State<ConfirmFloatingCard>
     with SingleTickerProviderStateMixin {
+  /// 纯装饰动效：淡入 + 缩放，与自动关闭时序无关。
+  static const _cosmeticDuration = Duration(milliseconds: 300);
+
   late final AnimationController _controller;
   late final Animation<double> _scaleAnim;
   late final Animation<double> _opacityAnim;
-  int _currentIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: Duration(milliseconds: (widget.autoCloseSeconds * 1000).round()),
-      vsync: this,
-    );
+    _controller = AnimationController(duration: _cosmeticDuration, vsync: this);
     _scaleAnim = Tween<double>(begin: 0.6, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
     );
     _opacityAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: const Interval(0, 0.3)),
     );
-
     _controller.forward();
+  }
 
-    if (widget.codes.length > 1) {
-      final interval = widget.autoCloseSeconds / widget.codes.length;
-      for (int i = 1; i < widget.codes.length; i++) {
-        Future.delayed(
-          Duration(milliseconds: (interval * i * 1000).round()), () {
-          if (mounted) {
-            setState(() => _currentIndex = i);
-            _controller.reset();
-            _controller.forward();
-          }
-        },
-        );
-      }
+  @override
+  void didUpdateWidget(covariant ConfirmFloatingCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentIndex != widget.currentIndex) {
+      // 切换到下一张卡：重播装饰动效。
+      _controller.forward(from: 0);
     }
-
-    _controller.addStatusListener((status) {
-      if (status == AnimationStatus.completed && mounted) {
-        if (_currentIndex >= widget.codes.length - 1) {
-          Future.delayed(const Duration(milliseconds: 300), () {
-            widget.onDismiss?.call();
-          });
-        }
-      }
-    });
   }
 
   @override
@@ -83,7 +82,9 @@ class _ConfirmFloatingCardState extends State<ConfirmFloatingCard>
 
   @override
   Widget build(BuildContext context) {
-    final code = widget.codes[_currentIndex];
+    if (widget.codes.isEmpty) return const SizedBox.shrink();
+    final index = widget.currentIndex.clamp(0, widget.codes.length - 1);
+    final code = widget.codes[index];
     final name = widget.cardNameBuilder(code);
 
     return AnimatedBuilder(
@@ -119,6 +120,17 @@ class _ConfirmFloatingCardState extends State<ConfirmFloatingCard>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Text(
+                widget.title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF00F0FF),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Orbitron',
+                ),
+              ),
+              const SizedBox(height: 6),
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: CardImage(
@@ -146,7 +158,7 @@ class _ConfirmFloatingCardState extends State<ConfirmFloatingCard>
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    '${_currentIndex + 1} / ${widget.codes.length}',
+                    '${index + 1} / ${widget.codes.length}',
                     style: const TextStyle(
                       color: Color(0xFF8B9BB4),
                       fontSize: 10,

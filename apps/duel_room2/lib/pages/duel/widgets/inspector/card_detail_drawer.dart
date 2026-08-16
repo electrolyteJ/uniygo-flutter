@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 import 'package:ygo_data/card_info.dart';
 
 import 'package:biz/widgets/card_image.dart';
@@ -257,4 +258,20 @@ class CardDetailDrawer extends StatelessWidget {
     );
   }
 }
+
+@Preview(name: 'CardDetailDrawer', size: Size(324, 520), brightness: Brightness.dark)
+Widget previewCardDetailDrawer() => const CardDetailDrawer(
+      cardInfo: CardInfo(
+        code: 89631139,
+        type: 0x11,
+        level: 8,
+        attribute: 0x1,
+        race: 0x2000,
+        attack: 3000,
+        defense: 2500,
+        name: '青眼白龙',
+        desc: '以高攻击力著称的传说之龙。任何对手都能将之粉碎，其破坏力不可估量。',
+      ),
+      onClose: null,
+    );
 

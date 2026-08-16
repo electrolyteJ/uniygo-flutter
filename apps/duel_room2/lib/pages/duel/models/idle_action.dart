@@ -1,3 +1,22 @@
+class PlaymatResolvedAction {
+  final String label;
+  final int response;
+  final PlaymatResolvedActionKind kind;
+  final int? code;
+  final int? controller;
+  final int? location;
+  final int? sequence;
+
+  const PlaymatResolvedAction({
+    required this.label,
+    required this.response,
+    this.kind = PlaymatResolvedActionKind.unknown,
+    this.code,
+    this.controller,
+    this.location,
+    this.sequence,
+  });
+}
 enum PlaymatResolvedActionKind {
   summon,
   specialSummon,

@@ -30,6 +30,14 @@ class SelectPromptLayer extends StatelessWidget {
   /// modal 模式：页面组装好的选择弹窗。
   final Widget? modalChild;
 
+  /// modal 模式：当前选择窗口是否可取消。可取消时系统返回键
+  /// 拦截为「取消本次选择」，而不是弹出页面路由。
+  final bool modalCancelable;
+
+  /// modal 模式：返回键触发的取消选择回调（通常为
+  /// SelectWindowNotifier 的统一取消分发）。
+  final VoidCallback? onModalCancel;
+
   const SelectPromptLayer({
     super.key,
     required this.mode,
@@ -43,6 +51,8 @@ class SelectPromptLayer extends StatelessWidget {
     this.onInlineFinish,
     this.onInlineConfirm,
     this.modalChild,
+    this.modalCancelable = false,
+    this.onModalCancel,
   });
 
   @override
@@ -156,15 +166,25 @@ class SelectPromptLayer extends StatelessWidget {
   }
 
   /// 模态弹窗：遮罩全屏并居中展示页面组装好的选择组件。
+  ///
+  /// PopScope：模态本身不是路由，返回键默认会直接弹出决斗房间路由；
+  /// 当前选择窗口可取消时拦截返回键改为取消本次选择。
   Widget _buildModalOverlay() {
     final child = modalChild;
     if (child == null) return const SizedBox.shrink();
-    return Container(
-      color: Colors.black.withValues(alpha: 0.65),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: child,
+    return PopScope(
+      canPop: !modalCancelable,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        onModalCancel?.call();
+      },
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.65),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: child,
+          ),
         ),
       ),
     );
@@ -203,5 +223,5 @@ class SelectPromptLayer extends StatelessWidget {
   }
 }
 @Preview(name: 'SelectPromptLayer', size: Size(400, 60), brightness: Brightness.dark)
-Widget _previewSelectPromptLayer() => const SelectPromptLayer(mode: SelectPromptMode.none);
+Widget previewSelectPromptLayer() => const SelectPromptLayer(mode: SelectPromptMode.none);
 

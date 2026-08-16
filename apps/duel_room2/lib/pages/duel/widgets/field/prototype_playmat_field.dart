@@ -2,14 +2,15 @@ import 'dart:math' as math;
 
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 import 'package:biz/widgets/card_image.dart';
 import '../../models/field_card.dart';
 import 'duel_field_background.dart';
 import 'duel_field_layout.dart';
 import 'phase_lamp.dart';
-import 'playmat_anchor_data.dart';
-import 'playmat_field_view_data.dart';
+import '../../models/playmat_anchor_data.dart';
+import '../../models/playmat_field_view_data.dart';
 
 /// PrototypePlaymatField 是一个用于展示游戏场地的 Flutter 组件，
 /// 支持显示玩家和对手的卡槽、卡牌以及相关信息。
@@ -37,6 +38,10 @@ class PrototypePlaymatField extends StatefulWidget {
   /// 确认展示（MSG_CONFIRM_CARDS 场上卡）时需要高亮的槽位 id 集合。
   final Set<String> confirmedSlotIds;
 
+  /// 当前窗口下「有可发动/可召唤卡」的区域 key（self_grave / self_extra 等），
+  /// 用于在墓地/除外/额外区域渲染高亮提醒（智能打牌反馈）。
+  final Set<String> activatableZoneKeys;
+
   /// 点击可放置槽位的回调（槽位 id 为 `controller_zone_sequence`）。
   final void Function(String slotId)? onPlaceSlotTap;
 
@@ -60,6 +65,7 @@ class PrototypePlaymatField extends StatefulWidget {
     this.checkedSlotIds = const {},
     this.placeTargetSlotIds = const {},
     this.confirmedSlotIds = const {},
+    this.activatableZoneKeys = const {},
     this.onPlaceSlotTap,
   });
 
@@ -67,7 +73,8 @@ class PrototypePlaymatField extends StatefulWidget {
   State<PrototypePlaymatField> createState() => _PrototypePlaymatFieldState();
 }
 
-class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
+class _PrototypePlaymatFieldState extends State<PrototypePlaymatField>
+    with SingleTickerProviderStateMixin {
   static final _slotWidth = DuelFieldLayout.slotWidth;
   static final _slotHeight = DuelFieldLayout.slotHeight;
   static final _phaseLampSize = DuelFieldLayout.phaseLampSize;
@@ -85,10 +92,25 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
   bool _anchorEmitQueued = false;
   Rect? _phaseLampRect;
 
+  /// 可发动区域金点的脉冲动画（0.4↔1.0 呼吸）。
+  late final AnimationController _pulseController;
+
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+      lowerBound: 0.4,
+      upperBound: 1.0,
+    )..repeat(reverse: true);
     _scheduleAnchorEmit();
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
   }
 
   @override
@@ -469,7 +491,9 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
     final isSelectable =
         !isChecked && matchIds.any(widget.selectableSlotIds.contains);
     final isConfirmed =
-        !isChecked && !isSelectable && matchIds.any(widget.confirmedSlotIds.contains);
+        !isChecked &&
+        !isSelectable &&
+        matchIds.any(widget.confirmedSlotIds.contains);
     String? placeTargetId;
     if (!isChecked && !isSelectable) {
       for (final id in matchIds) {
@@ -665,6 +689,8 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
       );
     }
 
+    final isActivatable =
+        zoneKey != null && widget.activatableZoneKeys.contains(zoneKey);
     return GestureDetector(
       onTap: zoneKey == null ? null : () => widget.onZoneTap?.call(zoneKey),
       child: Container(
@@ -673,18 +699,42 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
         height: _slotHeight,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.04),
+          color: isActivatable
+              ? const Color(0x22FFD700)
+              : Colors.white.withValues(alpha: 0.04),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-          boxShadow: const [
-            BoxShadow(
+          border: Border.all(
+            color: isActivatable
+                ? const Color(0xFFFFD700)
+                : Colors.white.withValues(alpha: 0.18),
+            width: isActivatable ? 1.8 : 1,
+          ),
+          boxShadow: [
+            if (isActivatable)
+              const BoxShadow(color: Color(0x66FFD700), blurRadius: 18),
+            const BoxShadow(
               color: Color(0x22000000),
               blurRadius: 10,
               offset: Offset(0, 4),
             ),
           ],
         ),
-        child: entryChild,
+        child: isActivatable
+            ? Stack(
+                fit: StackFit.expand,
+                children: [
+                  entryChild,
+                  Positioned(
+                    right: 2,
+                    top: 2,
+                    child: FadeTransition(
+                      opacity: _pulseController,
+                      child: const _ActivatableDot(),
+                    ),
+                  ),
+                ],
+              )
+            : entryChild,
       ),
     );
   }
@@ -702,6 +752,24 @@ class _PrototypePlaymatFieldState extends State<PrototypePlaymatField> {
 }
 
 /// 里侧表示卡背（v10 opp-card-back 风格）
+/// 可发动区域提示点：当墓地/除外/额外有可发动/可召唤卡时显示的金色圆点。
+class _ActivatableDot extends StatelessWidget {
+  const _ActivatableDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 10,
+      height: 10,
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFD700),
+        shape: BoxShape.circle,
+        boxShadow: [BoxShadow(color: Color(0xAAFFD700), blurRadius: 6)],
+      ),
+    );
+  }
+}
+
 class _CardBack extends StatelessWidget {
   const _CardBack();
 
@@ -728,3 +796,25 @@ class _CardBack extends StatelessWidget {
     );
   }
 }
+
+@Preview(
+  name: 'PrototypePlaymatField',
+  size: Size(900, 620),
+  brightness: Brightness.dark,
+)
+Widget previewPrototypePlaymatField() => const PrototypePlaymatField(
+  data: PlaymatFieldViewData(
+    fieldCards: {},
+    selfController: 0,
+    opponentController: 1,
+    selfDeckCount: 40,
+    selfExtraCount: 5,
+    selfGraveCount: 3,
+    selfRemovedCount: 1,
+    oppDeckCount: 40,
+    oppExtraCount: 5,
+    oppGraveCount: 2,
+    oppRemovedCount: 0,
+  ),
+  phase: DuelPhase.m1,
+);

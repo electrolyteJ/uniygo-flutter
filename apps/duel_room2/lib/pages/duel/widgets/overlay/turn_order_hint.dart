@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
@@ -27,6 +29,12 @@ class _TurnOrderHintState extends State<TurnOrderHint> {
 
   double _opacity = 0.0;
 
+  /// 生命周期定时器：停留结束后触发淡出，淡出结束后回调卸载。
+  /// 用 Timer 替代 Future.delayed，dispose 时可确定性取消，
+  /// 避免组件提前移除后回调仍执行。
+  Timer? _holdTimer;
+  Timer? _fadeTimer;
+
   @override
   void initState() {
     super.initState();
@@ -34,14 +42,21 @@ class _TurnOrderHintState extends State<TurnOrderHint> {
       if (!mounted) return;
       setState(() => _opacity = 1.0);
     });
-    Future.delayed(_holdDuration, () {
+    _holdTimer = Timer(_holdDuration, () {
       if (!mounted) return;
       setState(() => _opacity = 0.0);
-      Future.delayed(_fadeDuration, () {
+      _fadeTimer = Timer(_fadeDuration, () {
         if (!mounted) return;
         widget.onDismiss?.call();
       });
     });
+  }
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    _fadeTimer?.cancel();
+    super.dispose();
   }
 
   @override

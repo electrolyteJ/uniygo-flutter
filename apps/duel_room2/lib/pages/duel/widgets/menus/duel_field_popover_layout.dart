@@ -4,10 +4,8 @@ import 'package:flutter/rendering.dart';
 
 import '../../models/field_card.dart';
 
-
-String fieldSlotId(FieldCard fieldCard) {
-  return '${fieldCard.controller}_${fieldCard.zone}_${fieldCard.sequence}';
-}
+// 卡槽 key 统一由 models/field_zone_key.dart 的 fieldSlotId 提供，
+// 此处不再重复定义（页面 import 也不再需要 hide）。
 
 /// 渲染器 anchors 缺失时的场地卡回退锚点（按经验比例估算）。
 Offset fieldCardAnchor(Size size, FieldCard fieldCard, int myController) {

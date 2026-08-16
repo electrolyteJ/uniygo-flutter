@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:biz/service_providers.dart';
-import 'package:duelink/duelink.dart';
+// hide ConnectionState：与 Flutter 的 FutureBuilder ConnectionState 同名冲突。
+import 'package:duelink/duelink.dart' hide ConnectionState;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,24 +12,38 @@ import 'duel_chat_state.dart';
 import '../duel_room_state.dart';
 import 'widgets/chat_panel.dart';
 import 'widgets/control_bar.dart';
-import 'widgets/player_panel.dart';
+import 'widgets/deck_selector.dart';
+import 'widgets/playerslot.dart';
 import 'widgets/room_info_panel.dart';
+import 'widgets/select_hand.dart';
+import 'widgets/select_turn.dart';
 
 class WaitingRoomPage extends ConsumerWidget {
   const WaitingRoomPage({super.key});
 
-  void _onToggleAutomation(
+  /// 自动化开关切换：先等 notifier 裁决，被接受才播放提示音。
+  ///
+  /// 已准备状态下 notifier 会拒绝变更（返回 false），旧实现先响音后
+  /// 调用 action，被拒绝的切换也会发出声音；同时持久化失败已在
+  /// notifier 内走 errorMessage 渠道，这里兜底 catch，避免未处理异常。
+  Future<void> _onToggleAutomation(
     WidgetRef ref,
     bool value,
-    ValueChanged<bool> action,
-  ) {
+    Future<bool> Function(bool) action,
+  ) async {
+    bool accepted;
+    try {
+      accepted = await action(value);
+    } catch (_) {
+      accepted = false;
+    }
+    if (!accepted) return;
     final sound = ref.read(ygoSoundServiceProvider);
     if (value) {
       sound.playToggleOn();
     } else {
       sound.playToggleOff();
     }
-    action(value);
   }
 
   /// 编辑当前所选卡组：打开卡组编辑器，保存后刷新卡组校验。
@@ -49,6 +66,8 @@ class WaitingRoomPage extends ConsumerWidget {
         'lockDeckName': true,
       },
     );
+    // 跨页 await 之后 context 可能已卸载。
+    if (!context.mounted) return;
     if (result?['saved'] == true) {
       await controller.refreshSelectedDeckValidation();
     }
@@ -88,33 +107,96 @@ class WaitingRoomPage extends ConsumerWidget {
             children: [
               Expanded(
                 flex: 3,
-                child: PlayerPanel(
-                  mySlot: mySlotVal,
-                  players: room.players,
-                  showHandResults: showHandResults,
-                  isSelectingHand: stage is RoomSelectingHand,
-                  isSelectingTurn: stage is RoomSelectingTurn,
-                  myHandResult: room.myHandResult,
-                  opponentHandResult: room.opponentHandResult,
-                  isHost: room.isHost,
-                  onKick: roomCtl.kickPlayer,
-                  deckSelectionEnabled: !room.isSelfReady,
-                  decks: room.availableDecks,
-                  selectedDeckName: room.selectedDeckName,
-                  onSelectDeck: (value) {
-                    if (value != null) {
-                      roomCtl.selectDeck(value);
-                    }
-                  },
-                  onEditDeck: room.selectedDeckName == null
-                      ? null
-                      : () => _onEditDeck(context, ref),
-                  deckInvalidationResult: room.invalidationDeckResult,
-                  handSelectEnabled: !room.autoHandEnabled,
-                  onSendHand: roomCtl.sendHand,
-                  turnSelectEnabled: !room.autoTurnOrderEnabled,
-                  onSendTp: roomCtl.sendTp,
-                  observerCount: room.observerCount,
+                child: Container(
+                  alignment: Alignment.topCenter,
+                  color: Colors.blueGrey.shade800,
+                  padding: const EdgeInsets.all(12),
+                  // 短屏下 4 座位 + 卡组/猜拳面板会超出可用高度，改为可滚动。
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          '玩家',
+                          style: TextStyle(
+                            color: Colors.blueGrey.shade300,
+                            fontSize: 13,
+                          ),
+                        ),
+                        ...room.players.map(
+                          (item) => Container(
+                            margin: const EdgeInsets.only(top: 8),
+                            child: PlayerSlot(
+                              player: item,
+                              placeholder: '玩家 ${item.pos + 1}',
+                              handResult: item.pos == mySlotVal
+                                  ? room.myHandResult
+                                  : room.opponentHandResult,
+                              showResult: showHandResults,
+                              isHostSlot: _isHostSlot(
+                                item,
+                                mySlotVal,
+                                room.isHost,
+                              ),
+                              isMe: item.pos == mySlotVal,
+                              // 只有房主能踢人，且不能踢自己、不能踢观战位。
+                              canKick: room.isHost &&
+                                  item.pos != mySlotVal &&
+                                  _isPlayerSlot(item),
+                              onKick: () => roomCtl.kickPlayer(item.pos),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        DeckSelector(
+                          enabled: !room.isSelfReady,
+                          decks: room.availableDecks,
+                          selectedDeckName: room.selectedDeckName,
+                          mySlot: mySlotVal,
+                          onSelectDeck: (value) {
+                            if (value != null) {
+                              roomCtl.selectDeck(value);
+                            }
+                          },
+                          onEditDeck: room.selectedDeckName == null
+                              ? null
+                              : () => _onEditDeck(context, ref),
+                          invalidationResult: room.invalidationDeckResult,
+                        ),
+                        const SizedBox(height: 12),
+                        if (stage is RoomSelectingHand)
+                          HandSelect(
+                            enabled: !room.autoHandEnabled,
+                            onSendHand: roomCtl.sendHand,
+                          ),
+                        if (stage is RoomSelectingTurn)
+                          TpSelect(
+                            enabled: !room.autoTurnOrderEnabled,
+                            onSendTp: roomCtl.sendTp,
+                          ),
+                        const SizedBox(height: 12),
+                        Divider(color: Colors.blueGrey.shade600, height: 1),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.visibility,
+                              size: 16,
+                              color: Colors.blueGrey.shade400,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '观战: ${room.observerCount}人',
+                              style: TextStyle(
+                                color: Colors.blueGrey.shade400,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
               Expanded(
@@ -123,11 +205,19 @@ class WaitingRoomPage extends ConsumerWidget {
                   children: [
                     if (opts != null)
                       FutureBuilder<LfTable?>(
+                        // future 已按 hash 在 notifier 内记忆化，
+                        // build 重建不会重跑请求。
                         future: roomCtl.getLfTable(opts.lfTableHash),
                         builder: (context, snapshot) {
                           return RoomInfoPanel(
                             opts: opts,
                             lfTable: snapshot.data,
+                            // 禁限表加载失败（如未 preload）时显式提示，
+                            // 不再把错误吞掉后误显示「不限制」。
+                            banlistLoading:
+                                snapshot.connectionState !=
+                                ConnectionState.done,
+                            banlistError: snapshot.hasError,
                             cardLoader: ref.read(dataServiceProvider).getCard,
                           );
                         },
@@ -153,12 +243,17 @@ class WaitingRoomPage extends ConsumerWidget {
           autoTurnOrderEnabled: room.autoTurnOrderEnabled,
           autoDuelEnabled: room.autoDuelEnabled,
           toggleReady: (ctx) => _onToggleReady(ctx, ref),
-          onToggleAutoHand: (v) =>
-              _onToggleAutomation(ref, v, roomCtl.setAutoHandEnabled),
-          onToggleAutoTurnOrder: (v) =>
-              _onToggleAutomation(ref, v, roomCtl.setAutoTurnOrderEnabled),
-          onToggleAutoDuel: (v) =>
-              _onToggleAutomation(ref, v, roomCtl.setAutoDuelEnabled),
+          // setAuto* 的 Future 在此有意不 await（开关回调是同步签名）：
+          // 错误已在 notifier/`_onToggleAutomation` 内处理，用 unawaited 表明意图。
+          onToggleAutoHand: (v) => unawaited(
+            _onToggleAutomation(ref, v, roomCtl.setAutoHandEnabled),
+          ),
+          onToggleAutoTurnOrder: (v) => unawaited(
+            _onToggleAutomation(ref, v, roomCtl.setAutoTurnOrderEnabled),
+          ),
+          onToggleAutoDuel: (v) => unawaited(
+            _onToggleAutomation(ref, v, roomCtl.setAutoDuelEnabled),
+          ),
           onStartDuel: roomCtl.startDuel,
           onBecomeDuelist: roomCtl.becomeDuelist,
           onBecomeObserver: roomCtl.becomeObserver,
@@ -167,3 +262,17 @@ class WaitingRoomPage extends ConsumerWidget {
     );
   }
 }
+
+/// 该座位是否为房主位。
+///
+/// 优先使用房间流填充的 [PlayerInfo.host]（目前 base_duel_service 尚未填充，
+/// 恒为 false）；未填充时回退约定：自己是房主则房主位即自己的座位，
+/// 否则房主固定在 pos==0。修复了观战/双打模式下给所有座位挂房主徽章的问题。
+bool _isHostSlot(PlayerInfo item, int mySlot, bool isHost) {
+  if (item.host) return true;
+  return isHost ? item.pos == mySlot : item.pos == 0;
+}
+
+/// 决斗者座位（pos 0..3）；观战位（pos==7）不可被踢。
+bool _isPlayerSlot(PlayerInfo item) =>
+    item.pos != PlayerType.observer.slot;

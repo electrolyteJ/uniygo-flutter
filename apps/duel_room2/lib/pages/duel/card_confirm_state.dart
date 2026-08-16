@@ -22,6 +22,7 @@ class CardConfirmState {
     this.floatPreviewCodes = const [],
     this.floatPreviewOwner = 0,
     this.floatPreviewIsExtra = false,
+    this.floatPreviewIndex = 0,
     this.confirmedFieldSlotKeys = const {},
     this.confirmedHandSequences = const {},
     this.confirmedHandOwner = 0,
@@ -34,6 +35,12 @@ class CardConfirmState {
   final List<int> floatPreviewCodes;
   final int floatPreviewOwner;
   final bool floatPreviewIsExtra;
+
+  /// 浮动预览当前展示的卡下标（0 起始）。
+  /// 计时唯一来源是 [CardConfirmNotifier.showFloatPreview]：
+  /// 每卡一档（≤5 张 750ms/张，>5 张 200ms/张）逐卡 +1，
+  /// 预览结束/清空时归零。UI 组件只渲染该值，不自己计时。
+  final int floatPreviewIndex;
 
   /// field_confirm 阶段需要高亮的场上卡槽 key 集合。
   final Set<String> confirmedFieldSlotKeys;
@@ -52,6 +59,7 @@ class CardConfirmState {
     List<int>? floatPreviewCodes,
     int? floatPreviewOwner,
     bool? floatPreviewIsExtra,
+    int? floatPreviewIndex,
     Set<String>? confirmedFieldSlotKeys,
     Set<int>? confirmedHandSequences,
     int? confirmedHandOwner,
@@ -63,6 +71,7 @@ class CardConfirmState {
       floatPreviewCodes: floatPreviewCodes ?? this.floatPreviewCodes,
       floatPreviewOwner: floatPreviewOwner ?? this.floatPreviewOwner,
       floatPreviewIsExtra: floatPreviewIsExtra ?? this.floatPreviewIsExtra,
+      floatPreviewIndex: floatPreviewIndex ?? this.floatPreviewIndex,
       confirmedFieldSlotKeys:
           confirmedFieldSlotKeys ?? this.confirmedFieldSlotKeys,
       confirmedHandSequences:
@@ -87,7 +96,13 @@ class CardConfirmNotifier extends Notifier<CardConfirmState> {
     _confirmTimer?.cancel();
   }
 
-  /// 卡组顶部/额外顶部的浮动预览，按卡数计算总时长后自动关闭。
+  /// 卡组顶部/额外顶部的浮动预览：notifier 是唯一计时源。
+  ///
+  /// 时序与旧实现总时长一致（count × interval + 500ms）：
+  /// 每卡一档（≤5 张 750ms/张，>5 张 200ms/张），每档把
+  /// [CardConfirmState.floatPreviewIndex] 从 0 起逐卡 +1；
+  /// 最后一卡展示完毕后再留 500ms 收尾，然后清空预览并把下标归零。
+  /// UI（ConfirmFloatingCard.currentIndex）只渲染该下标，不再自行计时。
   void showFloatPreview(
     List<int> codes,
     int owner, {
@@ -98,14 +113,34 @@ class CardConfirmNotifier extends Notifier<CardConfirmState> {
       floatPreviewCodes: codes,
       floatPreviewOwner: owner,
       floatPreviewIsExtra: isExtra,
+      floatPreviewIndex: 0,
     );
 
-    final count = state.floatPreviewCodes.length;
+    final count = codes.length;
+    if (count == 0) return;
     final interval = count > 5 ? 200 : 750;
-    final totalMs = count * interval + 500;
-    _confirmTimer = Timer(Duration(milliseconds: totalMs), () {
-      state = state.copyWith(floatPreviewCodes: const []);
+    _confirmTimer = Timer.periodic(Duration(milliseconds: interval), (timer) {
+      final previewCodes = state.floatPreviewCodes;
+      if (previewCodes.isEmpty) {
+        // 预览已被其他路径（dismiss/reset）清空：兜底停表。
+        timer.cancel();
+        return;
+      }
+      final nextIndex = state.floatPreviewIndex + 1;
+      if (nextIndex >= previewCodes.length) {
+        // 最后一卡已展示完整一档：+500ms 收尾后清空并归零。
+        timer.cancel();
+        _confirmTimer =
+            Timer(const Duration(milliseconds: 500), _clearFloatPreview);
+        return;
+      }
+      state = state.copyWith(floatPreviewIndex: nextIndex);
     });
+  }
+
+  /// 清空浮动预览并把展示下标归零。
+  void _clearFloatPreview() {
+    state = state.copyWith(floatPreviewCodes: const [], floatPreviewIndex: 0);
   }
 
   /// 场上/手牌确认高亮：先高亮 1.5s，消退后若还有卡组/额外的卡
@@ -150,6 +185,7 @@ class CardConfirmNotifier extends Notifier<CardConfirmState> {
   }
 
   /// 关闭确认弹窗（服务端已在收到消息时自动确认）。
+  /// 同时清空浮动预览并把展示下标归零（计时器一并取消）。
   void dismissConfirmPanel() {
     _confirmTimer?.cancel();
     state = state.copyWith(
@@ -158,15 +194,8 @@ class CardConfirmNotifier extends Notifier<CardConfirmState> {
       confirmedHandSequences: const {},
       confirmedHandOwner: 0,
       floatPreviewCodes: const [],
+      floatPreviewIndex: 0,
     );
-  }
-
-  /// 清空确认状态：仅关闭面板并取消计时器，
-  /// 不清浮动预览与高亮集合（与原实现一致）。
-  void reset() {
-    _confirmTimer?.cancel();
-    _confirmTimer = null;
-    state = state.copyWith(confirmPanel: null);
   }
 }
 

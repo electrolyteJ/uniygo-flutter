@@ -2,18 +2,20 @@ import 'dart:async';
 
 import 'package:biz/service_providers.dart';
 import 'package:duelink/duelink.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../constants.dart';
-import '../debug/ocgcore_web_debug_stub.dart';
+// 条件导出分发器：Web 上解析到 ocgcore_web_debug_web.dart（真实探测），
+// 其他平台解析到 stub。此前直接 import stub，Web 上永远显示 'n/a'。
 import 'duel/card_confirm_state.dart';
-import 'duel/duel_field_controller.dart';
+import 'duel/duel_message_router.dart';
 import 'duel/duel_field_page.dart';
 import 'duel/duel_field_state.dart';
 import 'duel_room_exit.dart';
 import 'duel/field_overlay_state.dart';
+import 'duel/models/select_state.dart';
 import 'duel/select_window_state.dart';
 import 'duel_room_state.dart';
 import 'waiting/duel_chat_state.dart';
@@ -49,7 +51,7 @@ class DuelRoomPage extends StatelessWidget {
         selectWindowProvider.overrideWith(SelectWindowNotifier.new),
         cardConfirmProvider.overrideWith(CardConfirmNotifier.new),
         fieldOverlayProvider.overrideWith(FieldOverlayNotifier.new),
-        duelFieldControllerProvider.overrideWith(createDuelFieldController),
+        duelMessageRouterProvider.overrideWith(DuelMessageRouter.new),
       ],
       child: _DuelRoomView(args: args),
     );
@@ -77,32 +79,73 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     final uri = args['uri'] as Uri?;
     final username = args['username'] as String? ?? 'Guest';
     final password = args['serverPassword'] as String? ?? '';
-    if (uri == null) return;
+    if (uri == null) {
+      // 参数缺失：给用户可见的错误与退出路径，而不是静默返回卡在空房间页。
+      _reportConnectError('房间参数缺失：未提供服务器地址');
+      return;
+    }
 
     final duelService = ref.read(duelServiceProvider);
 
     // connect() 必须在流订阅之前调用，否则 DuelService 门面会把订阅
     // 路由到默认的 WebSocket 服务（而不是 AI/TCP 等目标协议）。
-    await duelService.connect(uri);
+    try {
+      await duelService.connect(uri);
+    } catch (e) {
+      if (!mounted) return;
+      _reportConnectError('连接房间失败：$e');
+      return;
+    }
     if (!mounted) return;
 
     ref.read(duelRoomProvider.notifier).start();
     ref.read(duelChatProvider.notifier).start();
-    ref.read(duelFieldControllerProvider).bindServerMessage(
-      // l10n 依赖 BuildContext，以闭包形式注入给 store。
-      phaseLabel: (phase) => getDuelPhaseText(context, phase),
-    );
+    ref
+        .read(duelMessageRouterProvider.notifier)
+        .start(
+          // l10n 依赖 BuildContext，以闭包形式注入给 router。
+          phaseLabel: (phase) => getDuelPhaseText(context, phase),
+        );
 
     duelService.setPlayerName(username);
     duelService.enterRoom(password);
   }
 
+  /// 连接失败/参数缺失的统一处理：
+  /// 1) 经房间 provider 的 errorMessage 渠道提示（复用现有 SnackBar ref.listen）；
+  /// 2) 弹一个「回首页」对话框给用户退出路径，避免卡死在无连接的房间页。
+  void _reportConnectError(String message) {
+    ref.read(duelRoomProvider.notifier).setErrorText(message);
+    // uri 缺失时本方法在 initState 同步触发，路由尚未就绪；
+    // 对话框统一延后到帧之后再弹。错误本身已由 errorMessage 渠道提示。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('进入房间失败'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                context.go('/');
+              },
+              child: const Text('回首页'),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
   String _roomTitle(DuelRoomState room, Map<String, Object?> args) {
+    // RoomMode 为封闭枚举，显式列全三个值 + null 即穷尽，无需 `_` 兜底。
     final modeName = switch (room.roomOptions?.mode) {
       RoomMode.single => '单局',
       RoomMode.match => '比赛',
       RoomMode.tag => '双打',
-      _ => '',
+      null => '',
     };
     final roomName = args['roomName'] as String? ?? '';
     if (roomName.isNotEmpty) return roomName;
@@ -111,6 +154,10 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
 
   @override
   Widget build(BuildContext context) {
+    // 连接生命周期钩子：无论以何种方式离开（系统返回、导航、被踢），
+    // 房间 scope 销毁时兜底断开单例 duelService 的 socket，
+    // 与 backHome 里的显式 disconnect 幂等共存。
+    ref.watch(roomConnectionLifetimeProvider);
     // 房间玩家列表（日志文案中的玩家名）同步到对局 store。
     ref.listen(duelRoomProvider.select((s) => s.players), (prev, next) {
       ref.read(duelFieldProvider.notifier).syncPlayers(next);
@@ -119,17 +166,17 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     ref.listen(duelRoomProvider.select((s) => s.errorMessage), (prev, next) {
       if (next == null || next.isEmpty) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(next),
-          backgroundColor: Colors.red.shade700,
-        ),
+        SnackBar(content: Text(next), backgroundColor: Colors.red.shade700),
       );
       ref.read(duelRoomProvider.notifier).clearError();
     });
-    // 游戏结束或离开房间（RoomNotJoined）→ 回首页。
+    // 离开房间（RoomNotJoined）→ 回首页/结算页。
+    // 统一走 leaveRoomAfterNotJoined：主动退出（backHome）触发断连时
+    // 这里补做导航兜底（若主动退出方在断开期间被销毁，保证仍能离房）；
+    // 服务器踢人/断连（未走 backHome）时负责完整离房流程。
     ref.listen(duelRoomProvider.select((s) => s.stage), (prev, next) {
       if (prev is! RoomNotJoined && next is RoomNotJoined) {
-        backHome(context, ref);
+        unawaited(leaveRoomAfterNotJoined(context, ref));
       }
     });
 
@@ -143,17 +190,34 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     final content = isInDuel
         ? DuelFieldPage(room.players)
         : const WaitingRoomPage();
-    return Scaffold(
-      key: const ValueKey('duel-room-page'),
-      backgroundColor: showDuelSurface
-          ? Colors.brown.shade900
-          : Colors.blueGrey.shade900,
-      appBar: showDuelSurface ? null : _buildAppBar(room),
-      body: Column(
-        children: [
-          if (kDebugMode) _DebugStatusPanel(room: room),
-          Expanded(child: content),
-        ],
+    return PopScope(
+      // 系统返回不直接弹出房间路由：先弹确认框，避免误触返回
+      // 直接离房（服务器仍占座）。确认退出走 backHomeDialog → backHome。
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // 对局中若正有模态选择窗口，返回键由模态自己处理（取消选择），
+        // 这里不再叠加房间退出确认。
+        final modalActive =
+            ref.read(selectWindowProvider.notifier).selectPromptMode ==
+            SelectPromptMode.modal;
+        if (modalActive) return;
+        backHomeDialog(
+          context: context,
+          ref: ref,
+          title: '退出房间',
+          content: '是否确认退出当前房间？',
+        );
+      },
+      child: Scaffold(
+        key: const ValueKey('duel-room-page'),
+        backgroundColor: showDuelSurface
+            ? Colors.brown.shade900
+            : Colors.blueGrey.shade900,
+        // RoomDuelEnded 时内容已切回等待页，保留 AppBar 提供退出入口；
+        // 仅对局进行中（场地页自带 HUD）隐藏。
+        appBar: isInDuel ? null : _buildAppBar(room),
+        body: Column(children: [Expanded(child: content)]),
       ),
     );
   }
@@ -174,33 +238,6 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
       title: Text(_roomTitle(room, widget.args)),
       backgroundColor: Colors.blueGrey.shade800,
       foregroundColor: Colors.white,
-    );
-  }
-}
-
-class _DebugStatusPanel extends ConsumerWidget {
-  const _DebugStatusPanel({required this.room});
-
-  final DuelRoomState room;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final duelService = ref.watch(duelServiceProvider);
-    final error = room.errorMessage;
-    final text =
-        'connectionState=${duelService.connectionState.name}; '
-        'stage=${room.stage.runtimeType}; '
-        'errorMessage=${(error == null || error.isEmpty) ? '<none>' : error}; '
-        '${ocgcoreWebDebugStatus()}';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      color: Colors.black54,
-      child: Text(
-        text,
-        key: const ValueKey('duel-room-debug-status'),
-        style: const TextStyle(color: Colors.white, fontSize: 12),
-      ),
     );
   }
 }

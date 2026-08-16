@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 import '../../models/duel_menu.dart';
 
@@ -29,33 +30,49 @@ class PhaseActionMenu extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'PHASE ACTION',
-            style: TextStyle(
-              color: Color(0xFF00F0FF),
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              fontFamily: 'Orbitron',
-              letterSpacing: 0.8,
-            ),
+      // 条目过多时限高 + 滚动，避免菜单超出屏幕。
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.6,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'PHASE ACTION',
+                style: TextStyle(
+                  color: Color(0xFF00F0FF),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Orbitron',
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 10),
+              for (var index = 0; index < actions.length; index++) ...[
+                _PhaseActionButton(
+                  label: actions[index].label,
+                  onTap: actions[index].onTap,
+                ),
+                if (index != actions.length - 1) const SizedBox(height: 8),
+              ],
+            ],
           ),
-          const SizedBox(height: 10),
-          for (var index = 0; index < actions.length; index++) ...[
-            _PhaseActionButton(
-              label: actions[index].label,
-              onTap: actions[index].onTap,
-            ),
-            if (index != actions.length - 1) const SizedBox(height: 8),
-          ],
-        ],
+        ),
       ),
     );
   }
 }
+
+@Preview(name: 'PhaseActionMenu', size: Size(240, 240), brightness: Brightness.dark)
+Widget previewPhaseActionMenu() => PhaseActionMenu(
+      actions: [
+        ActionMenuEntry(label: '进入战斗阶段', onTap: () {}),
+        ActionMenuEntry(label: '结束回合', onTap: () {}),
+      ],
+    );
 
 class _PhaseActionButton extends StatelessWidget {
   final String label;

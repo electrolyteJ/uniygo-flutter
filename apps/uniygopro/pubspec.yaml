@@ -28,6 +28,8 @@ dependencies:
     path: ../../packages/ygo_storage
   service_loader:
     path: ../../packages/service_loader
+  biz:
+    path: ../../packages/biz
   duelink:
     path: ../../packages/duelink
   duelink_websocket:

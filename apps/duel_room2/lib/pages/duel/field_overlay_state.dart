@@ -256,11 +256,6 @@ class FieldOverlayNotifier extends Notifier<FieldOverlayState> {
       showPhaseMenu: false,
     );
   }
-
-  /// 清空全部浮层状态（离开房间或新对局开始时）。
-  void reset() {
-    state = const FieldOverlayState();
-  }
 }
 
 /// 场地浮层状态的 provider，按房间 ProviderScope override 隔离。

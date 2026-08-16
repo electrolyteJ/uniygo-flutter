@@ -1,19 +1,37 @@
+import 'package:biz/widgets/banlist_detail_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
 import 'package:ygo_data/ygo_data.dart' show CardInfo, LfTable;
-import 'banlist_detail_dialog.dart';
 
 class RoomInfoPanel extends StatelessWidget {
   final RoomOptions opts;
   final LfTable? lfTable;
+
+  /// 禁限表仍在加载（future 未完成）。
+  final bool banlistLoading;
+
+  /// 禁限表加载失败（如未 preload 时 getLfTable 抛异常）。
+  /// 与「无禁限表（不限制）」区分开，避免把错误误显示成「不限制」。
+  final bool banlistError;
+
   final Future<CardInfo?> Function(int code) cardLoader;
 
   const RoomInfoPanel({
     super.key,
     required this.opts,
     this.lfTable,
+    this.banlistLoading = false,
+    this.banlistError = false,
     required this.cardLoader,
   });
+
+  /// 禁限卡表展示文案：加载中/加载失败/表名/不限制。
+  String get _banlistText {
+    if (banlistLoading) return '加载中…';
+    if (banlistError) return '加载失败';
+    return lfTable?.name ?? '不限制';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,8 +74,9 @@ class RoomInfoPanel extends StatelessWidget {
             _infoRow(Icons.alarm, '40分钟自动超时'),
 
           _InkInfoRow(
-            icon: Icons.list_alt,
-            text: '禁限卡表: ${lfTable?.name ?? "不限制"}',
+            icon: banlistError ? Icons.warning_amber : Icons.list_alt,
+            text: '禁限卡表: $_banlistText',
+            // 加载中/加载失败时不可点击查看明细。
             enabled: lfTable != null,
             onTap: lfTable != null
                 ? () => BanlistDetailDialog.show(
@@ -75,6 +94,12 @@ class RoomInfoPanel extends StatelessWidget {
   }
 
 }
+
+@Preview(name: 'RoomInfoPanel', size: Size(320, 260), brightness: Brightness.dark)
+Widget previewRoomInfoPanel() => RoomInfoPanel(
+      opts: const RoomOptions(mode: RoomMode.match, autoDeath: true),
+      cardLoader: (_) async => null,
+    );
 
 Widget _infoRow(IconData icon, String text) {
   return Padding(

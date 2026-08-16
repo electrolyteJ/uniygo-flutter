@@ -120,5 +120,5 @@ class PhaseLamp extends StatelessWidget {
   }
 }
 @Preview(name: 'PhaseLamp', size: Size(80, 40), brightness: Brightness.dark)
-Widget _previewPhaseLamp() => PhaseLamp(phase: DuelPhase.m1, enabled: true, onTap: () {});
+Widget previewPhaseLamp() => PhaseLamp(phase: DuelPhase.m1, enabled: true, onTap: () {});
 

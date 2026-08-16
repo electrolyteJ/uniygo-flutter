@@ -70,4 +70,4 @@ class HandSelect extends StatelessWidget {
 }
 
 @Preview(name: 'HandSelect', size: Size(300, 200), brightness: Brightness.dark)
-Widget _previewHandSelect() => HandSelect(onSendHand: (_) {});
+Widget previewHandSelect() => HandSelect(onSendHand: (_) {});

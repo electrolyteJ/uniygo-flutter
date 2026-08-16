@@ -1,5 +1,5 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 Widget buildAutomationSwitch({
   required String label,
@@ -46,3 +46,11 @@ Widget buildAutomationSwitch({
     ],
   );
 }
+
+@Preview(name: 'AutomationSwitch', size: Size(220, 48), brightness: Brightness.dark)
+Widget previewAutomationSwitch() => buildAutomationSwitch(
+      label: '自动猜拳',
+      value: true,
+      enabled: true,
+      onChanged: (_) {},
+    );

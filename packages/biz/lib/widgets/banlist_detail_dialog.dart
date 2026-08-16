@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 import 'package:ygo_data/ygo_data.dart';
 import 'package:biz/widgets/card_detail_dialog.dart';
 
@@ -277,7 +278,9 @@ class _BanlistDetailDialogState extends State<BanlistDetailDialog>
             _CardWrap(items: semiLimited, cardLoader: widget.cardLoader),
             const SizedBox(height: 16),
           ],
-          if (widget.lfTable.lfInfos.isEmpty)
+          // 空表与「全不限」都会使三个分组为空，统一显示空态；
+          // 旧实现只判 lfInfos.isEmpty，全不限时会渲染一片空白。
+          if (forbidden.isEmpty && limited.isEmpty && semiLimited.isEmpty)
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(32),
@@ -415,9 +418,12 @@ class _CardWrap extends StatelessWidget {
         final crossAxisCount = (constraints.maxWidth / maxCardWidth)
             .ceil()
             .clamp(2, 6);
-        final width =
-            (constraints.maxWidth - spacing * (crossAxisCount - 1)) /
-            crossAxisCount.clamp(0, maxCardWidth);
+        // 除以列数本身得到每列宽度；旧实现 `crossAxisCount.clamp(0, maxCardWidth)`
+        // 把「列数」按「宽度」clamp，语义错误。再用 maxCardWidth 给宽度封顶。
+        final width = ((constraints.maxWidth -
+                    spacing * (crossAxisCount - 1)) /
+                crossAxisCount)
+            .clamp(0.0, maxCardWidth);
         final height = width / aspectRatio;
         return Wrap(
           spacing: spacing,
@@ -549,12 +555,15 @@ class _CardDetailNavigatorState extends State<_CardDetailNavigator> {
   }
 
   void _goPrevious() {
-    if (_currentIndex > 0) setState(() => _currentIndex--);
+    if (_currentIndex > 0) {
+      setState(() => _currentIndex--);
+    }
   }
 
   void _goNext() {
-    if (_currentIndex < widget.allItems.length - 1)
+    if (_currentIndex < widget.allItems.length - 1) {
       setState(() => _currentIndex++);
+    }
   }
 
   @override
@@ -664,4 +673,18 @@ class _ArrowButton extends StatelessWidget {
     );
   }
 }
+
+@Preview(name: 'BanlistDetailDialog', size: Size(420, 560), brightness: Brightness.dark)
+Widget previewBanlistDetailDialog() => BanlistDetailDialog(
+      lfTable: const LfTable(
+        name: '2024.10 禁限卡表',
+        date: '2024-10-01',
+        lfInfos: {
+          1: LfInfo(code: 89631139, limit: LfType.forbidden, name: '青眼白龙'),
+          2: LfInfo(code: 46986414, limit: LfType.limited, name: '黑魔导'),
+          3: LfInfo(code: 15025844, limit: LfType.semiLimited, name: '神圣精灵'),
+        },
+      ),
+      cardLoader: (_) async => null,
+    );
 

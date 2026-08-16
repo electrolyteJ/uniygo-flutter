@@ -1,48 +1,47 @@
+import 'dart:async';
+import 'dart:developer' as console;
+import 'dart:math' as math;
 import 'dart:ui';
 
-
 import 'package:biz/service_providers.dart';
-import 'package:duel_room2/pages/duel/widgets/field/playmat_anchor_data.dart';
-import 'package:duel_room2/pages/duel/widgets/field/playmat_field_view_data.dart';
+import 'package:biz/ygo_sound_service.dart';
+import 'package:biz/widgets/card_image.dart';
+import 'package:duel_room2/pages/duel/models/playmat_anchor_data.dart';
+import 'package:duel_room2/pages/duel/models/playmat_field_view_data.dart';
 import 'package:duel_room2/pages/duel/widgets/field/prototype_playmat_field.dart';
+import 'package:duel_room2/pages/duel/widgets/hud/duel_field_hud.dart';
+import 'package:duel_room2/pages/duel/widgets/duel_animation_layers.dart';
 import 'package:duel_room2/pages/duel/widgets/hud/hand_cards_bar.dart';
-import 'package:duel_room2/pages/duel/widgets/hud/phase_bar.dart';
-import 'package:duel_room2/pages/duel/widgets/hud/player_status_card.dart';
 import 'package:duel_room2/pages/duel/widgets/inspector/card_detail_drawer.dart';
 import 'package:duel_room2/pages/duel/widgets/inspector/duel_log_drawer.dart';
 import 'package:duel_room2/pages/duel/widgets/inspector/zone_browser_modal.dart';
-import 'package:duel_room2/pages/duel/widgets/menus/duel_field_popover_layout.dart' hide fieldSlotId;
+import 'package:duel_room2/pages/duel/widgets/menus/duel_field_popover_layout.dart';
 import 'package:duel_room2/pages/duel/widgets/menus/field_action_popover.dart';
 import 'package:duel_room2/pages/duel/widgets/menus/hand_action_popover.dart';
 import 'package:duel_room2/pages/duel/widgets/menus/phase_action_menu.dart';
-import 'package:duel_room2/pages/duel/widgets/overlay/announce_card_dialog.dart';
-import 'package:duel_room2/pages/duel/widgets/overlay/card_selector.dart';
 import 'package:duel_room2/pages/duel/widgets/overlay/chain_stack_overlay.dart';
 import 'package:duel_room2/pages/duel/widgets/overlay/confirm_cards_dialog.dart';
 import 'package:duel_room2/pages/duel/widgets/overlay/confirm_floating_card.dart';
-import 'package:duel_room2/pages/duel/widgets/overlay/position_selector.dart';
-import 'package:duel_room2/pages/duel/widgets/overlay/select_prompt_layer.dart';
+import 'package:duel_room2/pages/duel/widgets/overlay/duel_select_overlay.dart';
 import 'package:duel_room2/pages/duel/widgets/overlay/turn_order_hint.dart';
-import 'package:duel_room2/pages/duel/widgets/overlay/yes_no_dialog.dart';
-import 'package:biz/widgets/card_image.dart';
-import 'package:duelink/duelink.dart' show PlayerType, PlayerInfo;
+import 'package:duelink/duelink.dart' show PlayerInfo, PlayerType;
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../duel_room_state.dart';
 import 'card_confirm_state.dart';
+import 'duel_field_derived.dart';
 import 'duel_field_state.dart';
-import 'duel_field_controller.dart';
 import 'field_overlay_state.dart';
+import 'models/battle_presentation.dart';
 import 'models/draw_animation_event.dart';
 import 'models/duel_menu.dart';
 import 'models/field_card.dart';
 import 'models/field_zone_key.dart';
+import 'models/idle_action.dart';
 import 'models/select_state.dart';
 import 'select_window_state.dart';
-
-import '../duel_room_exit.dart';
 
 /// 决斗场地页：负责 store 接线与整体布局。
 ///
@@ -50,14 +49,14 @@ import '../duel_room_exit.dart';
 /// - 状态读取从 `context.watch<DuelFieldStore>()` 改为直连 watch 四个子状态
 ///   provider（duelField / selectWindow / cardConfirm / fieldOverlay），
 ///   任一变更即重建，语义等价原 ChangeNotifier 的全量 notifyListeners；
-///   写单状态直连对应 Notifier，跨状态交互经
-///   `ref.read(duelFieldControllerProvider)` 取控制器调用；
+///   写单状态直连对应 Notifier；服务器消息由 DuelMessageRouter 分发，
+///   跨状态的本地交互与菜单派生逻辑直接内联在本页；
 /// - 先后攻提示从手动 addListener 兜底改为 `ref.listen(isFirstTurn)`；
 /// - Flame 渲染分支与 RenderModeToggle 不实现，场地固定为
 ///   [PrototypePlaymatField]（Flutter 原型渲染）。
 ///
-/// 选择/检视/菜单等交互状态由四个子状态持有，[DuelFieldController]
-/// 只做跨状态编排；弹层几何计算见 duel_field_popover_layout.dart。
+/// 选择/检视/菜单等交互状态由四个子状态持有，跨状态的菜单派生与
+/// 交互入口直接内联在本页；弹层几何计算见 duel_field_popover_layout.dart。
 class DuelFieldPage extends ConsumerStatefulWidget {
   final List<PlayerInfo> players;
   const DuelFieldPage(this.players, {super.key});
@@ -67,7 +66,7 @@ class DuelFieldPage extends ConsumerStatefulWidget {
 }
 
 class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const double _topHudBodyHeight = 112.0;
   static const double _opponentHandGap = 10.0;
   static const double _inspectorTop = 124.0;
@@ -79,6 +78,12 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
   late final AnimationController _drawController;
   DrawAnimationEvent? _activeDrawEvent;
   int? _activeDrawEventId;
+  late final AnimationController _attackController;
+  BattlePresentation? _activeAttack;
+
+  /// 页面主 Stack 的 key：作为手牌矩形上报与抽卡动画的公共坐标空间
+  /// （与场地 anchors 的 localToGlobal 祖先等价的视口坐标系）。
+  final GlobalKey _bodyStackKey = GlobalKey();
 
   // 先后攻提示：进入场地页时居中短暂展示一次。
   bool _showTurnOrderHint = false;
@@ -91,14 +96,10 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
   CardConfirmState get _confirm => ref.read(cardConfirmProvider);
   FieldOverlayState get _overlay => ref.read(fieldOverlayProvider);
   DuelFieldNotifier get _boardN => ref.read(duelFieldProvider.notifier);
-  SelectWindowNotifier get _selectN =>
-      ref.read(selectWindowProvider.notifier);
-  CardConfirmNotifier get _confirmN =>
-      ref.read(cardConfirmProvider.notifier);
-  FieldOverlayNotifier get _overlayN =>
-      ref.read(fieldOverlayProvider.notifier);
-  DuelFieldController get _controller =>
-      ref.read(duelFieldControllerProvider);
+  SelectWindowNotifier get _selectN => ref.read(selectWindowProvider.notifier);
+  CardConfirmNotifier get _confirmN => ref.read(cardConfirmProvider.notifier);
+  FieldOverlayNotifier get _overlayN => ref.read(fieldOverlayProvider.notifier);
+  YgoSoundService get _sound => ref.read(ygoSoundServiceProvider);
 
   @override
   void initState() {
@@ -107,14 +108,22 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     );
-    _drawController.addListener(_handleDrawAnimationTick);
+    // 逐帧进度由 DrawCardAnimation 内部的 AnimatedBuilder 消费，
+    // 页面只在动画开始（_playDrawAnimation）与结束（status listener）时
+    // setState，不再每帧重建整页。
     _drawController.addStatusListener(_handleDrawAnimationStatus);
+    _attackController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 480),
+    );
+    _attackController.addStatusListener(_handleAttackAnimationStatus);
     _scheduleTurnOrderHint();
   }
 
   @override
   void dispose() {
     _drawController.dispose();
+    _attackController.dispose();
     super.dispose();
   }
 
@@ -150,10 +159,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     });
   }
 
-  void _handleDrawAnimationTick() {
-    if (mounted) setState(() {});
-  }
-
   void _playDrawAnimation(DrawAnimationEvent event) {
     if (!mounted) return;
     setState(() {
@@ -163,12 +168,24 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     _drawController.forward(from: 0);
   }
 
+  void _handleAttackAnimationStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    if (!mounted || _activeAttack == null) return;
+    setState(() => _activeAttack = null);
+  }
+
+  void _playAttackAnimation(BattlePresentation presentation) {
+    if (!mounted) return;
+    setState(() => _activeAttack = presentation);
+    _attackController.forward(from: 0);
+  }
+
   /// PhaseLamp 可点击的完整条件：
   /// 1. 当前是己方回合（对方回合不能点）
   /// 2. 当前窗口下有可用阶段动作
   bool _canTapPhaseLamp() =>
       _board.currentPlayer == _board.myController &&
-      _controller.phaseActionsForCurrentWindow().isNotEmpty;
+      ref.watch(phaseActionsProvider).isNotEmpty;
 
   void _handleAnchorsChanged(PlaymatAnchorData anchors) {
     if (!mounted || _fieldAnchors?.signature == anchors.signature) {
@@ -206,26 +223,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     );
   }
 
-  Widget _buildBattlefield(PlaymatFieldViewData fieldViewData) {
-    return PrototypePlaymatField(
-      data: fieldViewData,
-      phase: _board.phase,
-      phaseLampEnabled: _canTapPhaseLamp(),
-      onPhaseLampTap: _controller.togglePhaseMenu,
-      onFieldCardTap: _controller.handleFieldCardTap,
-      onZoneTap: _controller.handleZoneInspect,
-      onAnchorsChanged: _handleAnchorsChanged,
-      selectedSlotId: _overlay.selectedFieldCard == null
-          ? null
-          : fieldSlotId(_overlay.selectedFieldCard!),
-      selectableSlotIds: _selectN.inlineSelectableFieldKeys,
-      checkedSlotIds: _selectN.inlineSelectedFieldKeys,
-      placeTargetSlotIds: _select.placeTargetFieldKeys,
-      confirmedSlotIds: _confirm.confirmedFieldSlotKeys,
-      onPlaceSlotTap: _selectN.respondSelectPlaceKey,
-    );
-  }
-
   Rect _phaseLampRect(Size viewport) {
     final anchors = _fieldAnchors;
     if (anchors != null) {
@@ -242,276 +239,8 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     if (anchoredRect != null) {
       return anchoredRect;
     }
-    final fallback = fieldCardAnchor(
-      viewport,
-      fieldCard,
-      _board.myController,
-    );
+    final fallback = fieldCardAnchor(viewport, fieldCard, _board.myController);
     return Rect.fromCenter(center: fallback, width: 68, height: 96);
-  }
-
-  Widget _buildTopHud(bool isMyTurn) {
-    final mc = _board.myController;
-    final selfName = widget.players
-            .where((p) => p.pos == mc)
-            .map((p) => p.name)
-            .firstOrNull ??
-        '我方';
-    final oppName = widget.players
-            .where((p) => p.pos == 1 - mc)
-            .map((p) => p.name)
-            .firstOrNull ??
-        '对方';
-    // 当前回合玩家的剩余时间
-    final currentTurnPlayer = _board.currentPlayer;
-    final turnTimeLeft = currentTurnPlayer == mc
-        ? _board.selfTimeLeft
-        : _board.opponentTimeLeft;
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: SafeArea(
-        bottom: false,
-        minimum: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-        child: Row(
-          children: [
-            _buildHudIconButton(
-              icon: Icons.arrow_back,
-              onPressed: () {
-                backHomeDialog(
-                  context: context,
-                  ref: ref,
-                  title: '退出决斗',
-                  content: '是否确认退出当前决斗？',
-                );
-              },
-            ),
-            Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.topCenter,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    PlayerStatusCard(
-                      name: oppName,
-                      lp: _board.opponentLp,
-                      lpDelta: _board.opponentLpDelta,
-                      lpEventId: _board.opponentLpEventId,
-                      isSelf: false,
-                      isActiveTurn: !isMyTurn,
-                      handCount: _board.opponentHand.length,
-                      deckCount: _board.oppDeck,
-                      extraCount: _board.oppExtra,
-                      graveCount: _board.oppGrave,
-                      removedCount: _board.oppRemoved,
-                      onExtraTap: () => _controller.openZoneBrowser('opp_extra'),
-                      onGraveTap: () => _controller.openZoneBrowser('opp_grave'),
-                      onRemovedTap: () =>
-                          _controller.openZoneBrowser('opp_removed'),
-                    ),
-                    const SizedBox(width: 16),
-                    PhaseBar(
-                      turnCount: _board.turnCount,
-                      isMyTurn: isMyTurn,
-                      leftTimeSeconds: turnTimeLeft,
-                    ),
-                    const SizedBox(width: 16),
-                    PlayerStatusCard(
-                      name: selfName,
-                      lp: _board.selfLp,
-                      lpDelta: _board.selfLpDelta,
-                      lpEventId: _board.selfLpEventId,
-                      isSelf: true,
-                      isActiveTurn: isMyTurn,
-                      handCount: _board.selfHand.length,
-                      deckCount: _board.selfDeck,
-                      extraCount: _board.selfExtra,
-                      graveCount: _board.selfGrave,
-                      removedCount: _board.selfRemoved,
-                      onExtraTap: () =>
-                          _controller.openZoneBrowser('self_extra'),
-                      onGraveTap: () =>
-                          _controller.openZoneBrowser('self_grave'),
-                      onRemovedTap: () =>
-                          _controller.openZoneBrowser('self_removed'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHudIconButton({
-    required IconData icon,
-    required VoidCallback onPressed,
-  }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(999),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xB8060B14),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: const Color(0x3300F0FF), width: 1.2),
-            boxShadow: const [
-              BoxShadow(color: Color(0x1A00F0FF), blurRadius: 24),
-            ],
-          ),
-          child: IconButton(
-            icon: Icon(icon, color: Colors.white.withValues(alpha: 0.92)),
-            tooltip: '返回',
-            onPressed: onPressed,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ---- 选择提示组装 ----
-
-  /// 把 select 子状态组装成 [SelectPromptLayer] 的纯 UI props，
-  /// 选择响应（respondXxx）的分发全部收口在这里。
-  Widget _buildSelectPromptLayer(SelectPromptMode mode) {
-    final select = _select.currentSelect;
-    switch (mode) {
-      case SelectPromptMode.none:
-        return const SizedBox.shrink();
-      case SelectPromptMode.place:
-        return SelectPromptLayer(
-          mode: mode,
-          placeTargetCount: _select.placeTargetFieldKeys.length,
-        );
-      case SelectPromptMode.inline:
-        // 多选（非单张、非连锁、非解除选择）才需要本地确认按钮。
-        final showConfirm = select != null &&
-            select.type != SelectType.chain &&
-            select.type != SelectType.unselect &&
-            !(select.min == 1 && select.max == 1);
-        return SelectPromptLayer(
-          mode: mode,
-          inlineHint: _select.inlineSelectHint,
-          inlineCancelLabel: select?.cancelable == true
-              ? (select!.type == SelectType.chain ? '不连锁' : '取消')
-              : null,
-          inlineShowFinish:
-              select?.type == SelectType.unselect && select!.finishable,
-          inlineShowConfirm: showConfirm,
-          inlineCanConfirm: _select.inlineSelectCanConfirm,
-          onInlineCancel: _selectN.cancelInlineSelect,
-          onInlineFinish: _selectN.finishInlineUnselect,
-          onInlineConfirm: _selectN.confirmInlineSelect,
-        );
-      case SelectPromptMode.modal:
-        return SelectPromptLayer(
-          mode: mode,
-          modalChild: select == null ? null : _buildSelectModal(select),
-        );
-    }
-  }
-
-  /// 模态选择弹窗：选项落在不可直接点击的区域的回退，
-  /// 以及排序/计数器/效果选项等复杂交互。
-  Widget _buildSelectModal(SelectState select) {
-    final onInspectCard = _controller.inspectCard;
-    switch (select.type) {
-      case SelectType.card:
-      case SelectType.tribute:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => _selectN.respondSelectCard(sequences),
-          onCancel: () => _selectN.respondSelectCard([]),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.unselect:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => _selectN.respondSelectUnselectCard(
-            sequences.isEmpty ? null : sequences.first,
-          ),
-          onCancel: () => _selectN.respondSelectUnselectCard(null),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.chain:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => _selectN.respondSelectChain(
-            sequences.isNotEmpty ? sequences.first : -1,
-          ),
-          onCancel: () => _selectN.respondSelectChain(-1),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.position:
-        return PositionSelector(
-          select: select,
-          onSelect: (position) =>
-              _selectN.respondSelectPosition(position),
-        );
-      case SelectType.effectYn:
-        return YesNoDialog(
-          message: '是否发动效果？',
-          cardCode:
-              select.options.isNotEmpty ? select.options.first.code : null,
-          onInspectCard: onInspectCard,
-          onYes: () => _selectN.respondSelectEffectYn(true),
-          onNo: () => _selectN.respondSelectEffectYn(false),
-        );
-      case SelectType.yesNo:
-        return YesNoDialog(
-          message: '是否执行？',
-          cardCode:
-              select.options.isNotEmpty ? select.options.first.code : null,
-          onInspectCard: onInspectCard,
-          onYes: () => _selectN.respondSelectYesNo(true),
-          onNo: () => _selectN.respondSelectYesNo(false),
-        );
-      case SelectType.option:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => _selectN.respondSelectOption(
-            sequences.isNotEmpty ? sequences.first : 0,
-          ),
-          onCancel: () => _selectN.respondSelectOption(0),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.announceCard:
-        return AnnounceCardDialog(
-          onSearch: _selectN.searchAnnounceCards,
-          onSelect: _selectN.respondAnnounceCard,
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.sum:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) =>
-              _selectN.respondSelectSum(sequences),
-          onCancel: () => _selectN.respondSelectSum([]),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.counter:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) =>
-              _selectN.respondSelectCounter(sequences),
-          onCancel: () => _selectN.respondSelectCounter([]),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.sort:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => _selectN.respondSortCard(sequences),
-          onCancel: () => _selectN.respondSortCard([]),
-          onInspectCard: onInspectCard,
-        );
-      default:
-        return const SizedBox.shrink();
-    }
   }
 
   @override
@@ -522,36 +251,38 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
       if (ref.read(duelRoomProvider).selfType == PlayerType.observer) return;
       _revealTurnOrderHint(next);
     });
-    ref.listen(
-      duelFieldProvider.select((s) => s.drawAnimationEvent),
-      (prev, next) {
-        if (next == null) return;
-        if (next.id == _activeDrawEventId) {
-          if (_activeDrawEvent != next) {
-            setState(() => _activeDrawEvent = next);
-          }
-          return;
+    ref.listen(duelFieldProvider.select((s) => s.drawAnimationEvent), (
+      prev,
+      next,
+    ) {
+      if (next == null) return;
+      if (next.id == _activeDrawEventId) {
+        if (_activeDrawEvent != next) {
+          setState(() => _activeDrawEvent = next);
         }
-        _playDrawAnimation(next);
-      },
-    );
+        return;
+      }
+      _playDrawAnimation(next);
+    });
+    // 攻击宣言（MSG_ATTACK）时播放怪兽攻击动画；MSG_BATTLE 只是回填
+    // 攻守数值，不重播。用 attackerAttack 是否为 null 区分两阶段。
+    ref.listen(duelFieldProvider.select((s) => s.battlePresentation), (
+      prev,
+      next,
+    ) {
+      if (next == null || next.attackerAttack != null) return;
+      _playAttackAnimation(next);
+    });
 
     // 任一子状态变更都触发重建（等价原 ChangeNotifier 全量通知），
-    // 读取经上方的 _board/_select/_confirm/_overlay getter，
-    // 跨状态交互经 _controller，方法调用不依赖 watch。
+    // 读取经上方的 _board/_select/_confirm/_overlay getter。
     ref.watch(duelFieldProvider);
     ref.watch(selectWindowProvider);
     ref.watch(cardConfirmProvider);
     ref.watch(fieldOverlayProvider);
-    final inspectedCardCode = _overlay.inspectedCardCode;
-    final inspectedCardInfo = inspectedCardCode == null
-        ? _overlay.inspectedCardInfo
-        : _boardN.getCardInfo(inspectedCardCode) ??
-            _overlay.inspectedCardInfo;
-    final isMyTurn =
-        _board.currentPlayer == _board.myController;
+    final isMyTurn = _board.currentPlayer == _board.myController;
     final fieldViewData = _buildFieldViewData();
-    if (_controller.needsHigherPriorityDismiss) {
+    if (ref.watch(needsHigherPriorityDismissProvider)) {
       // build 期间不能改状态，推迟到帧末让本地弹层让位。
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _overlayN.clearLocalUi();
@@ -560,16 +291,13 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     final zoneBrowserKey = _overlay.openZoneBrowserKey;
     final zoneBrowserEntries = zoneBrowserKey == null
         ? const <ZoneBrowserCardEntry>[]
-        : _controller.zoneBrowserEntriesFor(zoneBrowserKey);
+        : ref.watch(zoneBrowserEntriesProvider(zoneBrowserKey));
     final zoneBrowserActions = zoneBrowserKey == null
         ? const <ActionMenuEntry>[]
-        : _controller.zoneBrowserActionsForSelection(
-            zoneBrowserKey,
-            zoneBrowserEntries,
-          );
-    final handActionEntries = _controller.buildHandActionMenuEntries();
-    final phaseActionEntries = _controller.buildPhaseActionMenuEntries();
-    final fieldActionEntries = _controller.buildFieldActionEntries();
+        : ref.watch(zoneBrowserActionsProvider(zoneBrowserKey));
+    final handActionEntries = ref.watch(handActionMenuProvider);
+    final phaseActionEntries = ref.watch(phaseActionMenuProvider);
+    final fieldActionEntries = ref.watch(fieldActionMenuProvider);
     // 选择提示统一由 SelectPromptLayer 收口：呈现方式（放置横幅/就地操作栏/
     // 模态弹窗）由 store 判定，页面只区分 none 与 modal（modal 期间隐藏连锁叠层）。
     final selectPromptMode = _selectN.selectPromptMode;
@@ -592,218 +320,402 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
       offset: Offset(0, -8),
       shiftToWithinBound: AxisFlag(x: true, y: true),
     );
-    return Scaffold(
-      backgroundColor: const Color(0xFF010308),
-      body: Stack(
-        fit: StackFit.expand,
-        clipBehavior: Clip.none,
-        children: [
-          Positioned.fill(child: _buildBattlefield(fieldViewData)),
-          Positioned(
-            top: opponentHandTop,
-            left: 0,
-            right: 0,
-            child: HandCardsBar(
-              cardsVisible: false,
-              handCodes: _board.opponentHand,
-              onCardRectsChanged: (rects) {
-                _oppHandCardRects = rects;
-              },
-              highlightedSequences:
-                  _confirm.confirmedHandOwner != _board.myController &&
-                      _confirm.confirmedHandSequences.isNotEmpty
-                  ? _confirm.confirmedHandSequences
-                  : const {},
-            ),
-          ),
-
-          if (hasFieldAnchors &&
-              _overlay.showPhaseMenu &&
-              phaseActionEntries.isNotEmpty)
-            Positioned.fromRect(
-              rect: phaseRect,
-              child: PortalTarget(
-                visible: true,
-                anchor: overlayAnchor,
-                portalFollower: PhaseActionMenu(actions: phaseActionEntries),
-                child: const SizedBox.shrink(),
-              ),
-            ),
-          if (fieldRect != null)
-            Positioned.fromRect(
-              rect: fieldRect,
-              child: PortalTarget(
-                visible: fieldActionEntries.isNotEmpty,
-                anchor: overlayAnchor,
-                portalFollower:
-                    FieldActionPopover(actions: fieldActionEntries),
-                child: const SizedBox.shrink(),
-              ),
-            ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: HandCardsBar(
-              handCodes: _board.selfHand,
-              onCardRectsChanged: (rects) {
-                _selfHandCardRects = rects;
-              },
-              selectedCardSequence: _overlay.selectedHandSequence,
-              onCardTap: _controller.handleHandCardTap,
-              overlayContent: handActionEntries.isEmpty
+    // 页面自带 Portal：内部的 PortalTarget（阶段菜单/场上操作/手牌菜单）
+    // 不再依赖宿主 App 提供全局 Portal；宿主已有 Portal 时嵌套安全。
+    final bodyStackAncestor =
+        _bodyStackKey.currentContext?.findRenderObject() as RenderBox?;
+    return Portal(
+      child: Scaffold(
+        backgroundColor: const Color(0xFF010308),
+        body: Stack(
+          key: _bodyStackKey,
+          fit: StackFit.expand,
+          clipBehavior: Clip.none,
+          children: [
+            PrototypePlaymatField(
+              data: fieldViewData,
+              phase: _board.phase,
+              phaseLampEnabled: _canTapPhaseLamp(),
+              onPhaseLampTap: togglePhaseMenu,
+              onFieldCardTap: handleFieldCardTap,
+              onZoneTap: handleZoneInspect,
+              onAnchorsChanged: _handleAnchorsChanged,
+              selectedSlotId: _overlay.selectedFieldCard == null
                   ? null
-                  : HandActionPopover(actions: handActionEntries),
-              overlayVisible: _overlay.selectedHandSequence != null &&
-                  handActionEntries.isNotEmpty,
-              highlightedSequences:
-                  _confirm.confirmedHandOwner == _board.myController &&
-                      _confirm.confirmedHandSequences.isNotEmpty
-                  ? _confirm.confirmedHandSequences
-                  : selectPromptMode == SelectPromptMode.inline
-                      ? _selectN.inlineSelectableHandSequences
-                      : const {},
-              checkedSequences: selectPromptMode == SelectPromptMode.inline
-                  ? _selectN.inlineSelectedHandSequences
-                  : const {},
+                  : fieldSlotId(_overlay.selectedFieldCard!),
+              selectableSlotIds: _selectN.inlineSelectableFieldKeys,
+              checkedSlotIds: _selectN.inlineSelectedFieldKeys,
+              placeTargetSlotIds: _select.placeTargetFieldKeys,
+              confirmedSlotIds: _confirm.confirmedFieldSlotKeys,
+              activatableZoneKeys: ref.watch(activatableZoneKeysProvider),
+              onPlaceSlotTap: _selectN.respondSelectPlaceKey,
             ),
-          ),
-          if (_activeDrawEvent != null)
-            _buildDrawAnimationLayer(
-              viewport,
-              opponentHandTop,
-              _activeDrawEvent!,
+            _buildOpponentHandBar(bodyStackAncestor, opponentHandTop),
+            _buildPhaseMenu(
+              hasFieldAnchors,
+              phaseRect,
+              overlayAnchor,
+              phaseActionEntries,
             ),
-          Positioned(
-            bottom: 104,
-            right: 16,
-            child: Tooltip(
-              message: '取消操作',
-              child: IconButton.filled(
-                onPressed: _controller.canCancelFieldCardSelection
-                    ? _controller.cancelFieldCardSelection
-                    : null,
-                icon: const Icon(Icons.close),
+            _buildFieldMenu(fieldRect, overlayAnchor, fieldActionEntries),
+            _buildSelfHandBar(
+              bodyStackAncestor,
+              handActionEntries,
+              selectPromptMode,
+            ),
+            if (_activeDrawEvent != null)
+              _buildDrawAnimationLayer(
+                viewport,
+                opponentHandTop,
+                _activeDrawEvent!,
               ),
-            ),
-          ),
-          Positioned(
-            bottom: 18,
-            right: 16,
-            child: IgnorePointer(
-              ignoring: true,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.28),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.08),
-                  ),
-                ),
-                child: Text(
-                  _select.currentSelect?.player ==
-                          _board.myController
-                      ? '等待你的操作'
-                      : '等待对手操作',
-                  style: const TextStyle(
-                    color: Color(0xFF8B9BB4),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Orbitron',
-                  ),
-                ),
+            if (_activeAttack != null)
+              _buildAttackAnimationLayer(viewport, topInset, _activeAttack!),
+            _buildCancelButton(),
+            _buildWaitingHint(),
+            _buildHud(isMyTurn),
+            if (zoneBrowserKey != null)
+              _buildZoneBrowser(
+                zoneBrowserKey,
+                zoneBrowserEntries,
+                zoneBrowserActions,
               ),
+            if (selectPromptMode != SelectPromptMode.none)
+              _buildSelectOverlay(selectPromptMode),
+            if (_confirm.confirmPanel != null) _buildConfirmPanel(),
+            if (_confirm.isFloatPreview) _buildFloatPreview(),
+            if (selectPromptMode != SelectPromptMode.modal &&
+                _confirm.confirmPanel == null)
+              _buildChainOverlay(),
+            if (_overlay.showInspector) _buildInspector(),
+            _buildLogDrawer(),
+            if (_showTurnOrderHint) _buildTurnOrderHint(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---- build 子层组装 ----
+
+  Widget _buildOpponentHandBar(
+    RenderBox? bodyStackAncestor,
+    double opponentHandTop,
+  ) {
+    return Positioned(
+      top: opponentHandTop,
+      left: 0,
+      right: 0,
+      child: HandCardsBar(
+        cardsVisible: false,
+        handCodes: _board.opponentHand,
+        cardRectsAncestor: bodyStackAncestor,
+        onCardRectsChanged: (rects) => _oppHandCardRects = rects,
+        highlightedSequences:
+            _confirm.confirmedHandOwner != _board.myController &&
+                _confirm.confirmedHandSequences.isNotEmpty
+            ? _confirm.confirmedHandSequences
+            : const {},
+      ),
+    );
+  }
+
+  Widget _buildPhaseMenu(
+    bool hasFieldAnchors,
+    Rect phaseRect,
+    Aligned overlayAnchor,
+    List<ActionMenuEntry> phaseActionEntries,
+  ) {
+    if (!hasFieldAnchors ||
+        !_overlay.showPhaseMenu ||
+        phaseActionEntries.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Positioned.fromRect(
+      rect: phaseRect,
+      child: PortalTarget(
+        visible: true,
+        anchor: overlayAnchor,
+        portalFollower: PhaseActionMenu(actions: phaseActionEntries),
+        child: const SizedBox.shrink(),
+      ),
+    );
+  }
+
+  Widget _buildFieldMenu(
+    Rect? fieldRect,
+    Aligned overlayAnchor,
+    List<ActionMenuEntry> fieldActionEntries,
+  ) {
+    if (fieldRect == null) return const SizedBox.shrink();
+    return Positioned.fromRect(
+      rect: fieldRect,
+      child: PortalTarget(
+        visible: fieldActionEntries.isNotEmpty,
+        anchor: overlayAnchor,
+        portalFollower: FieldActionPopover(actions: fieldActionEntries),
+        child: const SizedBox.shrink(),
+      ),
+    );
+  }
+
+  Widget _buildSelfHandBar(
+    RenderBox? bodyStackAncestor,
+    List<ActionMenuEntry> handActionEntries,
+    SelectPromptMode selectPromptMode,
+  ) {
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: HandCardsBar(
+        handCodes: _board.selfHand,
+        cardRectsAncestor: bodyStackAncestor,
+        onCardRectsChanged: (rects) => _selfHandCardRects = rects,
+        selectedCardSequence: _overlay.selectedHandSequence,
+        onCardTap: handleHandCardTap,
+        overlayContent: handActionEntries.isEmpty
+            ? null
+            : HandActionPopover(actions: handActionEntries),
+        overlayVisible:
+            _overlay.selectedHandSequence != null &&
+            handActionEntries.isNotEmpty,
+        highlightedSequences:
+            _confirm.confirmedHandOwner == _board.myController &&
+                _confirm.confirmedHandSequences.isNotEmpty
+            ? _confirm.confirmedHandSequences
+            : selectPromptMode == SelectPromptMode.inline
+            ? _selectN.inlineSelectableHandSequences
+            : const {},
+        checkedSequences: selectPromptMode == SelectPromptMode.inline
+            ? _selectN.inlineSelectedHandSequences
+            : const {},
+      ),
+    );
+  }
+
+  Widget _buildCancelButton() {
+    return Positioned(
+      bottom: 104,
+      right: 16,
+      child: Tooltip(
+        message: '取消操作',
+        child: IconButton.filled(
+          onPressed: canCancelFieldCardSelection
+              ? cancelFieldCardSelection
+              : null,
+          icon: const Icon(Icons.close),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWaitingHint() {
+    return Positioned(
+      bottom: 18,
+      right: 16,
+      child: IgnorePointer(
+        ignoring: true,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.28),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Text(
+            _select.currentSelect?.player == _board.myController
+                ? '等待你的操作'
+                : '等待对手操作',
+            style: const TextStyle(
+              color: Color(0xFF8B9BB4),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Orbitron',
             ),
           ),
-          _buildTopHud(isMyTurn),
-          if (zoneBrowserKey != null)
-            ZoneBrowserModal(
-              zoneBrowserKey: zoneBrowserKey,
-              cards: zoneBrowserEntries,
-              selectedCardSequence:
-                  _overlay.selectedZoneBrowserSequence,
-              onCardTap: _controller.inspectZoneBrowserCard,
-              onClose: _controller.closeZoneBrowser,
-              selectedActions: zoneBrowserActions,
-              hiddenCount:
-                  _controller.hiddenCountForZoneKey(zoneBrowserKey),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHud(bool isMyTurn) {
+    return DuelFieldHud(
+      players: widget.players,
+      isMyTurn: isMyTurn,
+      onOpenZoneBrowser: openZoneBrowser,
+    );
+  }
+
+  Widget _buildZoneBrowser(
+    String zoneBrowserKey,
+    List<ZoneBrowserCardEntry> zoneBrowserEntries,
+    List<ActionMenuEntry> zoneBrowserActions,
+  ) {
+    return ZoneBrowserModal(
+      zoneBrowserKey: zoneBrowserKey,
+      cards: zoneBrowserEntries,
+      selectedCardSequence: _overlay.selectedZoneBrowserSequence,
+      onCardTap: inspectZoneBrowserCard,
+      onClose: closeZoneBrowser,
+      selectedActions: zoneBrowserActions,
+      hiddenCount: ref.watch(zoneHiddenCountProvider(zoneBrowserKey)),
+      cardNameBuilder: (code) =>
+          _boardN.getCardInfo(code)?.name ?? 'Card #$code',
+    );
+  }
+
+  Widget _buildSelectOverlay(SelectPromptMode selectPromptMode) {
+    return Positioned.fill(
+      child: DuelSelectOverlay(
+        mode: selectPromptMode,
+        onInspectCard: inspectCard,
+      ),
+    );
+  }
+
+  Widget _buildConfirmPanel() {
+    return Positioned.fill(
+      child: GestureDetector(
+        onTap: () => _confirmN.dismissConfirmPanel(),
+        child: Container(
+          color: Colors.black.withValues(alpha: 0.65),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+            child: ConfirmCardsDialog(
+              title: _confirm.confirmPanel!.title,
+              codes: _confirm.confirmPanel!.codes,
               cardNameBuilder: (code) =>
                   _boardN.getCardInfo(code)?.name ?? 'Card #$code',
+              onDismiss: () => _confirmN.dismissConfirmPanel(),
             ),
-          if (selectPromptMode != SelectPromptMode.none)
-            Positioned.fill(
-              child: _buildSelectPromptLayer(selectPromptMode),
-            ),
-          if (_confirm.confirmPanel != null)
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: () => _confirmN.dismissConfirmPanel(),
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.65),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                    child: ConfirmCardsDialog(
-                      title: _confirm.confirmPanel!.title,
-                      codes: _confirm.confirmPanel!.codes,
-                      cardNameBuilder: (code) =>
-                          _boardN.getCardInfo(code)?.name ??
-                          'Card #$code',
-                      onDismiss: () => _confirmN.dismissConfirmPanel(),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          if (_confirm.isFloatPreview) _buildFloatPreview(),
-          if (selectPromptMode != SelectPromptMode.modal &&
-              _confirm.confirmPanel == null)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: ChainStackOverlay(
-                  chains: _board.chains,
-                  chainSealed: _board.chainSealed,
-                  cardNameBuilder: (code) =>
-                      _boardN.getCardInfo(code)?.name ?? 'Card #$code',
-                ),
-              ),
-            ),
-          if (_overlay.showInspector)
-            Positioned(
-              left: 18,
-              top: _inspectorTop,
-              bottom: 160,
-              child: CardDetailDrawer(
-                cardInfo: inspectedCardInfo,
-                cardCode: inspectedCardCode,
-                onClose: _overlayN.dismissInspector,
-              ),
-            ),
-          Positioned(
-            top: _logDrawerTop,
-            right: 16,
-            child: DuelLogDrawer(logs: _board.duelLogs),
           ),
+        ),
+      ),
+    );
+  }
 
-          if (_showTurnOrderHint)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Center(
-                  child: TurnOrderHint(
-                    isFirst: _isFirstTurn,
-                    onDismiss: () {
-                      if (mounted) {
-                        setState(() => _showTurnOrderHint = false);
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ),
-        ],
+  Widget _buildChainOverlay() {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: ChainStackOverlay(
+          chains: _board.chains,
+          chainSealed: _board.chainSealed,
+          cardNameBuilder: (code) =>
+              _boardN.getCardInfo(code)?.name ?? 'Card #$code',
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInspector() {
+    final inspectedCardCode = _overlay.inspectedCardCode;
+    final inspectedCardInfo = inspectedCardCode == null
+        ? _overlay.inspectedCardInfo
+        : _boardN.getCardInfo(inspectedCardCode) ?? _overlay.inspectedCardInfo;
+    return Positioned(
+      left: 18,
+      top: _inspectorTop,
+      bottom: 160,
+      child: CardDetailDrawer(
+        cardInfo: inspectedCardInfo,
+        cardCode: inspectedCardCode,
+        onClose: _overlayN.dismissInspector,
+      ),
+    );
+  }
+
+  Widget _buildLogDrawer() {
+    return Positioned(
+      top: _logDrawerTop,
+      right: 16,
+      child: DuelLogDrawer(logs: _board.duelLogs),
+    );
+  }
+
+  Widget _buildTurnOrderHint() {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Center(
+          child: TurnOrderHint(
+            isFirst: _isFirstTurn,
+            onDismiss: () {
+              if (mounted) {
+                setState(() => _showTurnOrderHint = false);
+              }
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttackAnimationLayer(
+    Size viewport,
+    double topInset,
+    BattlePresentation presentation,
+  ) {
+    return AttackAnimation(
+      controller: _attackController,
+      source: _attackSlotRect(viewport, presentation.attackerSlotId),
+      target: _attackTargetRect(viewport, topInset, presentation),
+      cardVisual: _attackCardVisual(presentation),
+    );
+  }
+
+  /// 场上卡槽矩形：优先用场地锚点，缺失时用 [fieldCardAnchor] 兜底。
+  Rect _attackSlotRect(Size viewport, String slotId) {
+    final anchored = _fieldAnchors?.slotRects[slotId];
+    if (anchored != null) return anchored;
+    final card = _board.fieldCards[slotId];
+    if (card != null) {
+      return Rect.fromCenter(
+        center: fieldCardAnchor(viewport, card, _board.myController),
+        width: 68,
+        height: 96,
+      );
+    }
+    return Rect.fromLTWH(
+      viewport.width / 2 - 34,
+      viewport.height / 2 - 48,
+      68,
+      96,
+    );
+  }
+
+  /// 攻击动画终点：攻击怪兽时是对方怪兽卡槽，直接攻击时是对方 LP 区。
+  Rect _attackTargetRect(
+    Size viewport,
+    double topInset,
+    BattlePresentation presentation,
+  ) {
+    final defenderSlotId = presentation.defenderSlotId;
+    if (defenderSlotId != null) {
+      return _attackSlotRect(viewport, defenderSlotId);
+    }
+    // 直接攻击：飞向对方 LP/状态卡区域（顶部 HUD 左侧的对手 PlayerStatusCard）。
+    return Rect.fromLTWH(16, topInset + 12, 220, 70);
+  }
+
+  Widget _attackCardVisual(BattlePresentation presentation) {
+    final code = _board.fieldCards[presentation.attackerSlotId]?.code;
+    if (code != null && code > 0) {
+      return CardImage(code: code, width: 68, height: 96);
+    }
+    return Container(
+      width: 68,
+      height: 96,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(5),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF1A1B3A), Color(0xFF0A0B1E)],
+        ),
+        border: Border.all(color: const Color(0xFFFFD700), width: 1.5),
+      ),
+      child: const Center(
+        child: Icon(Icons.style, color: Color(0xFF00F0FF), size: 28),
       ),
     );
   }
@@ -813,24 +725,17 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     double opponentHandTop,
     DrawAnimationEvent event,
   ) {
-    final progress = Curves.easeOutCubic.transform(_drawController.value);
     final source = _drawSourceRect(viewport, opponentHandTop, event);
     final target = _drawTargetRect(viewport, opponentHandTop, event);
-    final rect = Rect.lerp(source, target, progress)!;
     final isSelf = event.player == _board.myController;
     final code = event.codes.isNotEmpty ? event.codes.first : 0;
-    return Positioned.fromRect(
-      rect: rect,
-      child: IgnorePointer(
-        child: Opacity(
-          opacity: 1.0 - progress * 0.15,
-          child: _drawCardVisual(
-            code,
-            isSelf,
-            revealCard: event.revealCard,
-          ),
-        ),
-      ),
+    // 进度驱动的布局收敛到子组件，内部经 AnimatedBuilder 只重建自己，
+    // 页面层不再随动画每帧 setState。
+    return DrawCardAnimation(
+      controller: _drawController,
+      source: source,
+      target: target,
+      cardVisual: _drawCardVisual(code, isSelf, revealCard: event.revealCard),
     );
   }
 
@@ -871,19 +776,10 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
         90,
       );
     }
-    return Rect.fromLTWH(
-      12,
-      opponentHandTop + 6,
-      64,
-      90,
-    );
+    return Rect.fromLTWH(12, opponentHandTop + 6, 64, 90);
   }
 
-  Widget _drawCardVisual(
-    int code,
-    bool isSelf, {
-    required bool revealCard,
-  }) {
+  Widget _drawCardVisual(int code, bool isSelf, {required bool revealCard}) {
     if (isSelf || revealCard) {
       return CardImage(code: code, width: 64, height: 90);
     }
@@ -914,8 +810,9 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
 
     double? top, bottom, left, right;
     if (zoneRect != null) {
-      top = zoneRect.top - 200;
-      left = zoneRect.center.dx - 75;
+      // 夹取到 >= 0，避免预览卡片飘出可视区域（锚点贴近屏幕边缘时）。
+      top = math.max(0.0, zoneRect.top - 200);
+      left = math.max(0.0, zoneRect.center.dx - 75);
     } else {
       if (isSelf) {
         bottom = 30;
@@ -933,12 +830,180 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
       right: right,
       child: ConfirmFloatingCard(
         codes: _confirm.floatPreviewCodes,
+        // 当前展示下标由 notifier 计时推进（每卡 750ms + 500ms），
+        // 组件自身不再持有自动关闭时序。
+        currentIndex: _confirm.floatPreviewIndex,
         title: _confirm.floatPreviewIsExtra ? '额外卡组顶部' : '卡组顶部',
         cardNameBuilder: (code) =>
             _boardN.getCardInfo(code)?.name ?? 'Card #$code',
         onDismiss: () => _confirmN.dismissConfirmPanel(),
-        autoCloseSeconds: 0.75,
       ),
     );
+  }
+
+  /// 检视卡片：触发卡信息加载并打开详情抽屉。
+  /// 主动加载避免非常规路径（连锁确认等）得知 code 的卡
+  /// 一直停留在 Card #xxxx 占位。
+  void _inspectCardMut(
+    int? code, {
+    bool preserveHandSelection = false,
+    bool preserveZoneBrowser = false,
+  }) {
+    if (code == null || code <= 0) return;
+    unawaited(_boardN.ensureCardInfo(code));
+    _overlayN.applyInspect(
+      code,
+      _boardN.getCardInfo(code),
+      preserveHandSelection: preserveHandSelection,
+      preserveZoneBrowser: preserveZoneBrowser,
+    );
+    console.log(
+      'inspectCard: code=$code, info=${_overlay.inspectedCardInfo?.name}',
+    );
+  }
+
+  void inspectCard(int code) {
+    if (code <= 0) return;
+    _sound.playDialogOpen();
+    _inspectCardMut(code);
+  }
+
+  /// 就地选择模式下点击手牌：可选中则按当前选择语义处理，
+  /// 否则仅检视卡片详情。
+  void handleInlineHandCardTap(int sequence, int code) {
+    final index = _selectN.inlineOptionIndexForHand(sequence);
+    if (index == null) {
+      _inspectCardMut(code, preserveHandSelection: true);
+      return;
+    }
+    _applyInlineOptionTap(index, code);
+  }
+
+  /// 就地选择模式下点击场上卡：可选中则按当前选择语义处理，
+  /// 否则仅检视卡片详情。
+  void handleInlineFieldCardTap(FieldCard card) {
+    final index = _selectN.inlineOptionIndexForField(card);
+    if (index == null) {
+      _inspectCardMut(card.code);
+      return;
+    }
+    _applyInlineOptionTap(index, card.code);
+  }
+
+  void _applyInlineOptionTap(int index, int code) {
+    final select = _select.currentSelect;
+    if (select == null) return;
+    _inspectCardMut(code);
+    switch (select.type) {
+      case SelectType.chain:
+        // 连锁：点卡即发动，响应为选项下标（与 response 一一对应）。
+        _selectN.respondSelectChain(index);
+        return;
+      case SelectType.unselect:
+        // 解除选择：点卡即向服务端切换勾选状态。
+        _selectN.respondSelectUnselectCard(index);
+        return;
+      default:
+        break;
+    }
+    // 单选：点卡即提交；多选：本地勾选后由确认按钮提交。
+    if (select.min == 1 && select.max == 1) {
+      _selectN.respondInlineMulti([index]);
+      return;
+    }
+    _selectN.toggleInlineOption(index);
+  }
+
+  // ---- 手牌 ----
+
+  void handleHandCardTap(int sequence, int code) {
+    // 就地选择窗口优先：高亮卡点击即选择/连锁，其余卡仅检视。
+    if (_selectN.inlineSelectActive) {
+      handleInlineHandCardTap(sequence, code);
+      return;
+    }
+    unawaited(_boardN.ensureCardInfo(code));
+    _overlayN.applyHandCardTap(sequence, code, _boardN.getCardInfo(code));
+  }
+
+  void handleFieldCardTap(FieldCard? fieldCard, int? code) {
+    // 就地选择窗口优先：高亮卡点击即选择/连锁，其余卡仅检视。
+    if (fieldCard != null && _selectN.inlineSelectActive) {
+      handleInlineFieldCardTap(fieldCard);
+      return;
+    }
+    final effectiveCode = code ?? fieldCard?.code;
+    if (effectiveCode != null) {
+      _inspectCardMut(effectiveCode);
+    }
+    final actions = fieldCard == null
+        ? const <PlaymatResolvedAction>[]
+        : resolveFieldActions(fieldCard, _select, _board);
+    console.log(
+      'handleFieldCardTap: card='
+      '${fieldCard == null ? 'null' : 'code=${fieldCard.code} c=${fieldCard.controller} z=${fieldCard.zone} s=${fieldCard.sequence} pos=${fieldCard.position}'} '
+      'actions=[${actions.map((action) => '${action.kind.name}:${action.response}:c=${action.controller}:z=${action.location}:s=${action.sequence}:code=${action.code}').join(', ')}]',
+    );
+    _overlayN.applyFieldCardSelection(
+      fieldCard == null || actions.isEmpty ? null : fieldCard,
+    );
+  }
+
+  bool get canCancelFieldCardSelection => _overlay.selectedFieldCard != null;
+
+  void cancelFieldCardSelection() {
+    _overlayN.applyFieldCardSelection(null);
+  }
+
+  static bool isBrowsableZone(String zoneKey) {
+    switch (zoneKey) {
+      case 'self_grave':
+      case 'opp_grave':
+      case 'self_removed':
+      case 'opp_removed':
+      case 'self_extra':
+      case 'opp_extra':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  void handleZoneInspect(String zoneKey) {
+    if (isBrowsableZone(zoneKey)) {
+      openZoneBrowser(zoneKey);
+    }
+  }
+
+  void openZoneBrowser(String zoneKey) {
+    _sound.playZoneOpen();
+    _overlayN.openZoneBrowser(zoneKey);
+  }
+
+  void closeZoneBrowser() {
+    if (!_overlayN.closeZoneBrowser()) return;
+    _sound.playZoneClose();
+  }
+
+  void inspectZoneBrowserCard(int sequence, int code) {
+    unawaited(_boardN.ensureCardInfo(code));
+    _overlayN.applyZoneBrowserCardInspect(
+      sequence,
+      code,
+      _boardN.getCardInfo(code),
+    );
+  }
+
+  void togglePhaseMenu() {
+    if (ref.read(phaseActionsProvider).isEmpty) {
+      return;
+    }
+    final next = !_overlay.showPhaseMenu;
+    if (next) {
+      _sound.playMenuOpen();
+    } else {
+      _sound.playMenuClose();
+    }
+    _overlayN.setPhaseMenuVisible(next);
   }
 }

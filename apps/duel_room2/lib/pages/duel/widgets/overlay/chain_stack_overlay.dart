@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 
 import 'package:biz/widgets/card_image.dart';
 import '../../models/chain_link.dart';
@@ -63,7 +64,12 @@ class _ChainStackOverlayState extends State<ChainStackOverlay>
   @override
   void didUpdateWidget(covariant ChainStackOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _onChanged();
+    // 仅连锁数据/封印状态变化时重计时；cardNameBuilder 等
+    // 其他 prop 变化（页面每次 build 都会重建本组件）不应打断淡出。
+    if (oldWidget.chains != widget.chains ||
+        oldWidget.chainSealed != widget.chainSealed) {
+      _onChanged();
+    }
   }
 
   bool _shouldShow() => widget.chains.length >= 2 && widget.chainSealed;
@@ -82,12 +88,12 @@ class _ChainStackOverlayState extends State<ChainStackOverlay>
 
   void _startFadeOut() {
     if (!mounted) return;
-    if (_snapshot == null && _fadeController.isCompleted) {
-      // 当前无快照且在完全显示状态：外部 chains 在此期间已被清空
-      // 取最后已知内容做快照（build 里已更新 _snapshot）
-    }
     _fadeController.reverse();
   }
+
+  /// 徽章原始尺寸（3 倍卡图）。
+  static const double _cardWidth = 300.0;
+  static const double _cardHeight = 420.0;
 
   @override
   Widget build(BuildContext context) {
@@ -97,6 +103,13 @@ class _ChainStackOverlayState extends State<ChainStackOverlay>
     if (_snapshot == null) return const SizedBox.shrink();
 
     final displayChains = _snapshot!;
+
+    // 徽章尺寸自适应：卡图高度不超过屏幕高度的 35%，
+    // 小屏（手机竖屏等）按比例缩小，大屏保持原始尺寸。
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final scale = ((screenHeight * 0.35) / _cardHeight).clamp(0.4, 1.0);
+    final cardWidth = _cardWidth * scale;
+    final cardHeight = _cardHeight * scale;
 
     return FadeTransition(
       opacity: _fadeAnim,
@@ -114,6 +127,8 @@ class _ChainStackOverlayState extends State<ChainStackOverlay>
                   code: displayChains[i].code,
                   name: widget.cardNameBuilder(displayChains[i].code),
                   color: const Color(0xFFFFD700),
+                  cardWidth: cardWidth,
+                  cardHeight: cardHeight,
                 ),
               ],
             ],
@@ -123,6 +138,17 @@ class _ChainStackOverlayState extends State<ChainStackOverlay>
     );
   }
 }
+
+@Preview(name: 'ChainStackOverlay', size: Size(700, 520), brightness: Brightness.dark)
+Widget previewChainStackOverlay() => ChainStackOverlay(
+      chains: const [
+        ChainLink(code: 89631139, controller: 0, zone: 4, sequence: 0),
+        ChainLink(code: 46986414, controller: 1, zone: 4, sequence: 1),
+        ChainLink(code: 55144522, controller: 0, zone: 8, sequence: 0),
+      ],
+      chainSealed: true,
+      cardNameBuilder: (code) => 'Card #$code',
+    );
 
 /// 两个连锁 badge 之间的横向箭头指示器。
 class _ChainArrow extends StatelessWidget {
@@ -148,11 +174,17 @@ class _PulseChainBadge extends StatefulWidget {
   final String name;
   final Color color;
 
+  /// 自适应后的卡图尺寸（由父级按屏幕高度缩放后传入）。
+  final double cardWidth;
+  final double cardHeight;
+
   const _PulseChainBadge({
     required this.index,
     required this.code,
     required this.name,
     required this.color,
+    required this.cardWidth,
+    required this.cardHeight,
   });
 
   @override
@@ -161,6 +193,9 @@ class _PulseChainBadge extends StatefulWidget {
 
 class _PulseChainBadgeState extends State<_PulseChainBadge>
     with SingleTickerProviderStateMixin {
+  /// 字号随卡图缩放的参考高度。
+  static const double _referenceCardHeight = 420.0;
+
   late AnimationController _controller;
 
   @override
@@ -178,12 +213,9 @@ class _PulseChainBadgeState extends State<_PulseChainBadge>
     super.dispose();
   }
 
-  // 原来的 3 倍大小
-  static const double _cardWidth = 300.0;
-  static const double _cardHeight = 420.0;
-
   @override
   Widget build(BuildContext context) {
+    final textScale = (widget.cardHeight / _referenceCardHeight).clamp(0.5, 1.0);
     return ScaleTransition(
       scale: Tween<double>(begin: 1.0, end: 1.03).animate(
         CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
@@ -214,11 +246,11 @@ class _PulseChainBadgeState extends State<_PulseChainBadge>
               borderRadius: BorderRadius.circular(4),
               child: CardImage(
                 code: widget.code,
-                width: _cardWidth,
-                height: _cardHeight,
+                width: widget.cardWidth,
+                height: widget.cardHeight,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8 * textScale),
             // 连锁序号
             Text(
               'CHAIN ${widget.index}',
@@ -226,16 +258,19 @@ class _PulseChainBadgeState extends State<_PulseChainBadge>
                 color: widget.color,
                 fontFamily: 'Orbitron',
                 fontWeight: FontWeight.w900,
-                fontSize: 18,
+                fontSize: 18 * textScale,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4 * textScale),
             // 卡名
             SizedBox(
-              width: _cardWidth,
+              width: widget.cardWidth,
               child: Text(
                 widget.name,
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14 * textScale,
+                ),
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
