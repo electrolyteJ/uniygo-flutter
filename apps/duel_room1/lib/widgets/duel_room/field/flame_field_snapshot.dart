@@ -1,5 +1,6 @@
 import 'package:biz/duel/models/battle_presentation.dart';
 import 'package:biz/duel/models/field_card.dart';
+import 'package:collection/collection.dart';
 import 'package:duelink/duelink.dart' show DuelPhase;
 
 /// 推入 Flame 场地的不可变状态快照。
@@ -84,4 +85,49 @@ class FlameFieldSnapshot {
   final Set<String> placeTargetFieldKeys;
 
   List<int> zoneCodesOf(String zoneKey) => zoneCodes[zoneKey] ?? const [];
+
+  /// 内容判等：驱动 [DuelFlameGame.applySnapshot] 的重建短路——
+  /// 快照内容未变时跳过 Flame 侧全量卡槽重建（弹窗/检视等纯 UI
+  /// 状态变化也会触发页面 build，但不应误伤 Flame）。
+  ///
+  /// 集合走 [DeepCollectionEquality]：biz/duel 状态是不可变 copyWith
+  /// 纪律，未变化的卡牌/列表复用实例（FieldCard 无 ==，按实例判等
+  /// 恰好能精确识别"哪张卡变了"）；int/String 集合按值判等。
+  static const _deep = DeepCollectionEquality();
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is FlameFieldSnapshot &&
+        other.myController == myController &&
+        other.phase == phase &&
+        other.inDamageStep == inDamageStep &&
+        identical(other.battlePresentation, battlePresentation) &&
+        other.deckShuffleTick == deckShuffleTick &&
+        other.deckShufflePlayer == deckShufflePlayer &&
+        other.selfDeck == selfDeck &&
+        other.oppDeck == oppDeck &&
+        _deep.equals(other.fieldCards, fieldCards) &&
+        _deep.equals(other.zoneCodes, zoneCodes) &&
+        _deep.equals(other.inlineSelectedFieldKeys, inlineSelectedFieldKeys) &&
+        _deep.equals(other.inlineSelectableFieldKeys, inlineSelectableFieldKeys) &&
+        _deep.equals(other.placeTargetFieldKeys, placeTargetFieldKeys);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    myController,
+    phase,
+    inDamageStep,
+    battlePresentation,
+    deckShuffleTick,
+    deckShufflePlayer,
+    selfDeck,
+    oppDeck,
+    _deep.hash(fieldCards),
+    _deep.hash(zoneCodes),
+    _deep.hash(inlineSelectedFieldKeys),
+    _deep.hash(inlineSelectableFieldKeys),
+    _deep.hash(placeTargetFieldKeys),
+  );
 }

@@ -21,6 +21,7 @@ dependencies:
   go_router: ^14.0.0
   http: ^1.2.1
   flutter_portal: ^1.1.4
+  flutter_animate: ^4.5.0
   biz:
     path: ../../packages/biz
   duelink:

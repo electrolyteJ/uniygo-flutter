@@ -83,6 +83,9 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   /// → 页面 build → 本方法。world 尚未加载完成时只替换快照引用，
   /// 首次 onLoad 会直接按最新快照构建。
   void applySnapshot(FlameFieldSnapshot next) {
+    // 内容判等短路：纯 UI 状态变化（弹窗/检视/菜单）触发的页面 build
+    // 也会推送快照，但 Flame 渲染字段未变时跳过全量卡槽重建。
+    if (next == snapshot) return;
     snapshot = next;
     if (world.isLoaded) {
       world.rebuildField();
