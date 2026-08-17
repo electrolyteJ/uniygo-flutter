@@ -78,6 +78,10 @@ class RoomOptions {
   /// 40分钟自动超时 (neos-ts auto_death)
   final bool autoDeath;
 
+  /// AI 对手模式：-1=规则 AI（默认），0=端侧 ygo-agent 模型，
+  /// 1=远端 predict 服务（neos-ai-agent 协议）。
+  final int agent;
+
   const RoomOptions({
     this.lfTableHash = 0,
     this.rule = 0,
@@ -90,6 +94,7 @@ class RoomOptions {
     this.drawCount = 1,
     this.timeLimit = 180,
     this.autoDeath = false,
+    this.agent = -1,
   });
 
   /// 编码为 AI 连接 URI 的查询参数（本地引擎无需网络，参数经 URI 传递）。
@@ -103,6 +108,7 @@ class RoomOptions {
         'nc': noCheckDeck ? '1' : '0',
         'ns': noShuffleDeck ? '1' : '0',
         'tl': '$timeLimit',
+        'agent': '$agent',
       };
 
   /// 从 AI 连接 URI 的查询参数解析房间选项。缺省值与本地人机对战
@@ -123,6 +129,7 @@ class RoomOptions {
       startHand: num('hand') ?? 5,
       drawCount: num('draw') ?? 1,
       timeLimit: num('tl') ?? 180,
+      agent: num('agent') ?? -1,
     );
   }
 
@@ -179,6 +186,7 @@ class RoomOptions {
     int? drawCount,
     int? timeLimit,
     bool? autoDeath,
+    int? agent,
   }) {
     return RoomOptions(
       lfTableHash: lflist ?? this.lfTableHash,
@@ -192,6 +200,7 @@ class RoomOptions {
       drawCount: drawCount ?? this.drawCount,
       timeLimit: timeLimit ?? this.timeLimit,
       autoDeath: autoDeath ?? this.autoDeath,
+      agent: agent ?? this.agent,
     );
   }
 

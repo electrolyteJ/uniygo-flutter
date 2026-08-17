@@ -1,0 +1,27 @@
+name: duelink_ai_ygo_agent
+description: >-
+  Dart port of ygo-agent's ygoinf feature pipeline (features.py) for
+  bit-exact on-device inference with the 0546_26550M tflite model, plus the
+  shared agent layer (field tracking, action-msg decoding, Input building,
+  answer byte utils) used by both on-device and remote inference.
+version: 0.0.1
+publish_to: 'none'
+
+environment:
+  sdk: ^3.12.2
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  duelink:
+    path: ../duelink
+  ocgcore:
+    path: ../ocgcore
+
+dev_dependencies:
+  archive: ^4.0.0
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter

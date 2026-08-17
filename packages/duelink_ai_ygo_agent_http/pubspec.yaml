@@ -1,0 +1,27 @@
+name: duelink_ai_ygo_agent_http
+description: >-
+  HTTP client for the remote ygo-agent predict service (neos-ts
+  `neos-ai-agent` protocol): createDuel + v0/duels/{duelId}/predict.
+version: 0.0.1
+publish_to: 'none'
+
+environment:
+  sdk: ^3.12.2
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.1
+  duelink:
+    path: ../duelink
+  duelink_ai_ygo_agent:
+    path: ../duelink_ai_ygo_agent
+  ocgcore:
+    path: ../ocgcore
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter

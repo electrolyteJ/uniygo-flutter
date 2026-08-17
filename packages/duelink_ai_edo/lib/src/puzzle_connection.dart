@@ -3,11 +3,12 @@ import 'dart:developer' as console;
 import 'dart:typed_data';
 
 import 'package:duelink/duelink.dart';
+import 'package:duelink_ai/ai_strategy.dart';
 import 'package:ocgcore/ocgcore.dart' show DuelEngine;
+import 'package:ocgcore_edo/puzzle_script_loader.dart';
 import 'package:ygo_data/ygo_data.dart';
 
 import 'puzzle_card_data_loader.dart';
-import 'puzzle_script_loader.dart';
 
 /// 残局本地对局连接 — 实现 DuelConnection，复用 ocgcore 包的 [DuelEngine]。
 ///
@@ -117,7 +118,9 @@ class PuzzleConnection implements DuelConnection {
         _startPuzzle();
         break;
       case CTOS_RESPONSE:
-        _engine.onResponse(msg.response!.encode());
+        // onResponse 已异步化（AI 应答可能走远端 HTTP）；send 是同步接口，
+        // 这里 fire-and-forget，引擎内部以 _pumping 防护重入。
+        unawaited(_engine.onResponse(msg.response!.encode()));
         break;
       case CTOS_SURRENDER:
         _engine.endDuel();
@@ -215,7 +218,7 @@ class PuzzleConnection implements DuelConnection {
           extraSize2: info.extra1,
         ),
       )));
-      _engine.pump();
+      await _engine.pump();
     }());
   }
 

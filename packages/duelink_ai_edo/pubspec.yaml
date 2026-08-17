@@ -11,13 +11,18 @@ dependencies:
     sdk: flutter
   duelink:
     path: ../duelink
+  duelink_ai:
+    path: ../duelink_ai
   ocgcore:
     path: ../ocgcore
+  ocgcore_edo:
+    path: ../ocgcore_edo
   ygo_data:
     path: ../ygo_data
   async: ^2.11.0
   service_loader:
     path: ../service_loader
+
 
 dev_dependencies:
   flutter_test:

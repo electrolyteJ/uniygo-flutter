@@ -17,12 +17,14 @@ workspace:
   - packages/duelink_socket
   - packages/duelink_ai
   - packages/duelink_ai_edo
+  - packages/ocgcore_edo
   - packages/ocgcore
   - packages/wasm_bridge
   - packages/ygo_storage
   - packages/ygo_deck_mycard
-  - packages/ygo_agent
-  - packages/ygo_agent_tflite
+  - packages/duelink_ai_ygo_agent
+  - packages/duelink_ai_ygo_agent_tflite
+  - packages/duelink_ai_ygo_agent_http
   - packages/biz
   - apps/uniygopro
   - apps/cardlive

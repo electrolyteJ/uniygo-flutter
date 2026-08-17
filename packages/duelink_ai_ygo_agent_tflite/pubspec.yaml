@@ -1,0 +1,36 @@
+name: duelink_ai_ygo_agent_tflite
+description: >-
+  On-device LiteRT (TFLite) runtime wrapper for the ygo-agent 0546_26550M
+  model; exposes duelink_ai_ygo_agent's ModelFn backed by flutter_litert.
+version: 0.0.1
+publish_to: 'none'
+
+environment:
+  sdk: ^3.12.2
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_litert: ^3.8.0
+  duelink:
+    path: ../duelink
+  duelink_ai_ygo_agent:
+    path: ../duelink_ai_ygo_agent
+  ocgcore:
+    path: ../ocgcore
+
+dev_dependencies:
+  archive: ^4.0.0
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  assets:
+    # 端侧 ygo-agent 模型（tflite + 训练码表）。
+    # 包内符号链接 → tools/ygo_agent_golden/models。
+    # App 内资产 key 为 packages/duelink_ai_ygo_agent_tflite/assets/ygo_agent/<file>
+    # （见 asset_runtime.dart 的双 key 探测）。
+    - assets/ygo_agent/

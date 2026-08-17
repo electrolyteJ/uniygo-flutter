@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as console;
 import 'dart:typed_data';
@@ -16,7 +17,11 @@ typedef DuelMessageSplitter = List<Uint8List> Function(Uint8List buffer);
 
 /// AI 自动应答器：输入待应答消息的 func 与载荷（不含 func 头字节），
 /// 输出响应字节；返回 null 表示无法自动应答（引擎停住等待）。
-typedef DuelAutoAnswer = Uint8List? Function(int func, Uint8List payload);
+///
+/// 允许异步实现（如远端 HTTP 推理服务）：引擎的 pump 循环会 await
+/// 应答结果。同步实现直接返回字节即可（FutureOr 兼容）。
+typedef DuelAutoAnswer = FutureOr<Uint8List?> Function(
+    int func, Uint8List payload);
 
 /// 对局开局信息 —— startDuel / startPuzzle 的返回值，
 /// 供上层（Connection）合成 MSG_START 等协议消息。
@@ -338,12 +343,16 @@ class DuelEngine {
   /// 推进 process 循环：发射缓冲消息、自动应答 AI 待应答消息，
   /// 直到等待人类输入或对局结束。开局首轮与人类应答后均需调用。
   ///
-  /// 并发保护：若上一次 pump 仍在执行（异步交叉场景），直接忽略。
-  void pump() {
+  /// 异步化说明：AI 自动应答可能是异步的（远端 HTTP 推理），pump
+  /// 返回的 Future 在循环真正停下（等待人类 / 对局结束 / 保护性
+  /// 中止）时才完成。
+  ///
+  /// 并发保护：若上一次 pump 仍在执行（含异步等待期间），直接忽略。
+  Future<void> pump() async {
     if (_pumping || !_duelStarted || _duel == null || _core == null) return;
     _pumping = true;
     try {
-      _pumpLoop();
+      await _pumpLoop();
     } finally {
       _pumping = false;
     }
@@ -400,7 +409,7 @@ class DuelEngine {
     }
   }
 
-  void _pumpLoop() {
+  Future<void> _pumpLoop() async {
     // 自动应答保护：连续应答上限，防止无效应答导致 MSG_RETRY 死循环
     var autoAnswers = 0;
     var emptyWaitRetries = 0;
@@ -418,7 +427,7 @@ class DuelEngine {
       }
 
       if (status == PROCESSOR_WAITING) {
-        if (_pendingSelectPlayer == _aiPlayer && _tryAutoAnswer()) {
+        if (_pendingSelectPlayer == _aiPlayer && await _tryAutoAnswer()) {
           emptyWaitRetries = 0;
           if (++autoAnswers > 512) {
             console.log('DuelEngine: AI auto-answer limit reached, bail');
@@ -479,7 +488,10 @@ class DuelEngine {
   }
 
   /// 人类玩家应答（CTOS_RESPONSE 原始字节）。
-  void onResponse(Uint8List data) {
+  ///
+  /// 返回的 Future 在应答后的 pump 循环结束时完成；调用方需要确认
+  /// MSG_RETRY 恢复逻辑生效时应 await。
+  Future<void> onResponse(Uint8List data) async {
     if (!_duelStarted || _duel == null || _core == null) return;
     // 引擎等待的必须是人类玩家的应答；AI 的应答已由 _tryAutoAnswer 处理，
     // 其余情况（如非等待状态）直接忽略，避免污染 returns 缓冲。
@@ -491,7 +503,7 @@ class DuelEngine {
         : Uint8List.fromList(_pendingSelectPayload!);
     _clearPendingSelect();
     _core!.setResponseb(_duel!, data);
-    pump();
+    await pump();
     if (_sawRetryInPump) {
       _pendingSelectFunc = previousFunc;
       _pendingSelectPlayer = previousPlayer;
@@ -533,7 +545,7 @@ class DuelEngine {
   }
 
   /// AI 回合自动应答：把待应答消息交给注入的 [DuelAutoAnswer] 策略。
-  bool _tryAutoAnswer() {
+  Future<bool> _tryAutoAnswer() async {
     final answer = _autoAnswer;
     final func = _pendingSelectFunc;
     final payload = _pendingSelectPayload;
@@ -541,7 +553,7 @@ class DuelEngine {
       console.log('DuelEngine: no auto-answer for func $func, stall');
       return false;
     }
-    final resp = answer(func, payload);
+    final resp = await answer(func, payload);
     if (resp == null) {
       console.log('DuelEngine: no auto-answer for func $func, stall');
       return false;

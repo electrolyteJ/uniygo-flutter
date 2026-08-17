@@ -1,0 +1,56 @@
+name: ocgcore_edo
+description: Puzzle (残局) duel implementation for duelink using OCGCore engine.
+version: 0.0.1
+environment:
+  sdk: ^3.12.2
+resolution: workspace
+publish_to: 'none'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ocgcore:
+    path: ../ocgcore
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+    assets:
+      # CardScripts 根目录的基础/工具脚本（25 个）
+      - vendor/CardScripts/archetype_setcode_constants.lua
+      - vendor/CardScripts/card_counter_constants.lua
+      - vendor/CardScripts/cards_specific_functions.lua
+      - vendor/CardScripts/chain.lua
+      - vendor/CardScripts/constant.lua
+      - vendor/CardScripts/debug_utility.lua
+      - vendor/CardScripts/deprecated_functions.lua
+      - vendor/CardScripts/proc_equip.lua
+      - vendor/CardScripts/proc_fusion.lua
+      - vendor/CardScripts/proc_fusion_spell.lua
+      - vendor/CardScripts/proc_gemini.lua
+      - vendor/CardScripts/proc_link.lua
+      - vendor/CardScripts/proc_maximum.lua
+      - vendor/CardScripts/proc_normal.lua
+      - vendor/CardScripts/proc_pendulum.lua
+      - vendor/CardScripts/proc_persistent.lua
+      - vendor/CardScripts/proc_ritual.lua
+      - vendor/CardScripts/proc_rush.lua
+      - vendor/CardScripts/proc_skill.lua
+      - vendor/CardScripts/proc_spirit.lua
+      - vendor/CardScripts/proc_synchro.lua
+      - vendor/CardScripts/proc_union.lua
+      - vendor/CardScripts/proc_workaround.lua
+      - vendor/CardScripts/proc_xyz.lua
+      - vendor/CardScripts/utility.lua
+      # CardScripts 卡牌脚本子目录
+      - vendor/CardScripts/goat/
+      - vendor/CardScripts/official/
+      - vendor/CardScripts/pre-errata/
+      - vendor/CardScripts/pre-release/
+      - vendor/CardScripts/rush/
+      - vendor/CardScripts/skill/
+      - vendor/CardScripts/unofficial/
+

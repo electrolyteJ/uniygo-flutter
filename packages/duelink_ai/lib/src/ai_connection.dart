@@ -3,16 +3,15 @@ import 'dart:developer' as console;
 import 'dart:typed_data';
 
 import 'package:duelink/duelink.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:duelink_ai_ygo_agent/duelink_ai_ygo_agent.dart'
+    show AgentAutoAnswerer, DuelEngineFieldQuery;
+import 'package:duelink_ai_ygo_agent_http/duelink_ai_ygo_agent_http.dart';
+import 'package:duelink_ai_ygo_agent_tflite/duelink_ai_ygo_agent_tflite.dart';
 import 'package:ocgcore/ocgcore.dart' show DuelEngine, ScriptLoader;
-import 'package:ygo_agent/ygo_agent.dart' show CodeList;
-import 'package:ygo_agent_tflite/ygo_agent_tflite.dart' show TfliteYgoModel;
 import 'package:ygo_data/ygo_data.dart';
 
+import '../ai_strategy.dart';
 import '../duelink_ai.dart';
-import 'agent/agent_auto_answer.dart';
-import 'agent/field_query.dart';
-import 'card_data_loader.dart';
 
 /// AI 本地对局连接 — 实现 DuelConnection，模拟 ygopro 服务端。
 ///
@@ -53,24 +52,26 @@ class AiConnection implements DuelConnection {
   /// 显式指定的 ocgcore 动态库（测试环境传入，运行时默认为平台自带查找）。
   final Object? lib;
 
-  /// 显式注入的模型运行时（测试/自定义加载路径）。为 null 时 connect
-  /// 尝试从 app 资产加载内置模型（见 [_loadAssetRuntime]）。
-  final AgentRuntime? _injectedRuntime;
+  /// 端侧模型应答器工厂（内部缓存运行时：注入 → 资产加载）。
+  final AgentAutoAnswerFactory _localAgentFactory;
 
-  /// 模型运行时（首次 connect 解析一次，跨重连复用，不随 disconnect 释放）。
-  AgentRuntime? _runtime;
-  bool _runtimeResolved = false;
+  /// 远端模型应答器工厂（内部按 kDefaultAgentServer 创建客户端）。
+  final RemoteAgentAutoAnswerFactory _remoteAgentFactory;
 
-  /// 模型自动应答器（runtime 可用时创建；否则为 null，走规则 AI）。
-  AgentAutoAnswer? _agent;
-
+  /// 模型自动应答器（本地/远端统一接口；agent == -1 时为 null 走规则 AI）。
+  AgentAutoAnswerer? _agentAnswerer;
   late final DuelEngine _engine;
-  AiConnection({this.lib, AgentRuntime? agentRuntime, ScriptLoader? scriptLoader})
-      : _injectedRuntime = agentRuntime {
+  AiConnection(
+      {this.lib,
+      AgentRuntime? agentRuntime,
+      ScriptLoader? scriptLoader,
+      YgoAgentClient? remoteAgentClient})
+      : _localAgentFactory = AgentAutoAnswerFactory(agentRuntime: agentRuntime),
+        _remoteAgentFactory =
+            RemoteAgentAutoAnswerFactory(clientOverride: remoteAgentClient) {
     _engine = DuelEngine(
       emit: _emitEngineMessage,
       splitMessages: splitGameMessages,
-      // 默认 ScriptLoader 从 rootBundle 读脚本；测试环境资产不可用，
       // 可注入文件系统加载器（与 [lib] 注入同理）。
       scriptLoader: scriptLoader ?? ScriptLoader(),
       onDuelEnd: _emitDuelEndOnce,
@@ -84,7 +85,8 @@ class AiConnection implements DuelConnection {
   void _emitEngineMessage(Uint8List data) {
     if (data.isNotEmpty) {
       try {
-        _agent?.observe(data[0], Uint8List.sublistView(data, 1));
+        final payload = Uint8List.sublistView(data, 1);
+        _agentAnswerer?.observe(data[0], payload);
       } catch (e) {
         console.log('AiConnection: agent observe failed func=${data[0]}: $e');
       }
@@ -145,23 +147,31 @@ class AiConnection implements DuelConnection {
     final cardLoader = CardDataLoader(cardConverter: _cardConverter!);
     _engine.setCardReader(cardLoader.load);
     final ruleAnswer = aiAutoAnswer(cardLoader.levelOf);
-    // if (!_runtimeResolved) {
-    //   _runtimeResolved = true;
-    //   _runtime = _injectedRuntime ?? await _loadAssetRuntime();
-    // }
-    final runtime = _runtime;
-    if (runtime != null) {
-      _agent = AgentAutoAnswer(
-        runtime: runtime,
+    if (_roomOptions.agent == 0) {
+      // 端侧模型（tflite 包工厂装配）：模型不可用时回退规则 AI。
+      _agentAnswerer = await _localAgentFactory.create(
         field: DuelEngineFieldQuery(_engine),
-        fallback: ruleAnswer,
         cardData: cardLoader.dataOf,
         startLp: _roomOptions.startLp,
       );
-      _engine.setAutoAnswer(_agent!.answer);
-      console.log('AiConnection: agent auto-answer enabled');
+      if (_agentAnswerer != null) {
+        _engine.setAutoAnswer(_agentAnswerer!.answer);
+        console.log('AiConnection: agent auto-answer enabled');
+      } else {
+        _engine.setAutoAnswer(ruleAnswer);
+        console.log('AiConnection: agent runtime unavailable, rule AI');
+      }
+    } else if (_roomOptions.agent == 1) {
+      // 远端 predict 服务（http 包工厂装配，固定默认公共服务地址）。
+      _agentAnswerer = _remoteAgentFactory.create(
+        field: DuelEngineFieldQuery(_engine),
+        cardData: cardLoader.dataOf,
+        startLp: _roomOptions.startLp,
+      );
+      _engine.setAutoAnswer(_agentAnswerer!.answer);
+      console.log('AiConnection: remote agent auto-answer enabled');
     } else {
-      _agent = null;
+      _agentAnswerer = null;
       _engine.setAutoAnswer(ruleAnswer);
     }
     final ok = await _engine.init(lib);
@@ -169,38 +179,6 @@ class AiConnection implements DuelConnection {
     _stateController.add(_state);
   }
 
-  /// 从 app 资产加载内置 ygo-agent 模型（tflite + 训练码表）。
-  ///
-  /// 资产声明在 duelink_ai 包内（pubspec `assets/ygo_agent/`，符号链接
-  /// 指向 tools/ygo_agent_golden/models）。App 打包后依赖包资产 key 带
-  /// `packages/duelink_ai/` 前缀；同时保留无前缀 key 探测，兼容 app
-  /// 自行声明资产的路径。任一文件缺失 / 模型契约校验失败时返回 null，
-  /// 连接退回规则 AI。
-  Future<AgentRuntime?> _loadAssetRuntime() async {
-    const modelKey = 'assets/ygo_agent/0546_26550M.tflite';
-    const codeListKey = 'assets/ygo_agent/code_list.txt';
-    for (final prefix in const ['', 'packages/duelink_ai/']) {
-      try {
-        final modelBytes =
-            (await rootBundle.load('$prefix$modelKey')).buffer.asUint8List();
-        final codeListText = await rootBundle.loadString('$prefix$codeListKey');
-        final model = TfliteYgoModel.fromBytes(modelBytes);
-        console.log('AiConnection: ygo-agent model loaded '
-            '(${modelBytes.length} bytes, code_list ${codeListText.length} chars)');
-        return AgentRuntime(
-          modelFn: model.modelFn,
-          codeList: CodeList.parse(codeListText),
-          dispose: model.close,
-        );
-      } catch (e) {
-        console.log('AiConnection: ygo-agent asset miss at '
-            '"$prefix$modelKey": $e');
-      }
-    }
-    console.log('AiConnection: ygo-agent model unavailable, '
-        'falling back to rule AI');
-    return null;
-  }
 
   @override
   void send(YgoCtosMsg msg) {
@@ -245,7 +223,9 @@ class AiConnection implements DuelConnection {
         _onTpResult();
         break;
       case CTOS_RESPONSE:
-        _engine.onResponse(msg.response!.encode());
+        // onResponse 已异步化（AI 应答可能走远端 HTTP）；send 是同步接口，
+        // 这里 fire-and-forget，引擎内部以 _pumping 防护重入。
+        unawaited(_engine.onResponse(msg.response!.encode()));
         break;
       case CTOS_SURRENDER:
         _engine.endDuel();
@@ -407,13 +387,15 @@ class AiConnection implements DuelConnection {
         // 模型应答器按局重置（tracker/builder/循环状态）；并在启用模型时
         // 关闭 SIMPLE_AI —— 否则引擎内置 AI 会替 player 1 挡掉细粒度选择，
         // 模型看不到这些决策，历史动作序列偏离训练分布。
-        _agent?.resetDuel(startLp: _roomOptions.startLp);
+        // 本地重建模型状态 / 远端按局重建服务端会话（统一接口，同步
+        // 实现返回 null，await 对两者均安全）。
+        await _agentAnswerer?.resetDuel(startLp: _roomOptions.startLp);
         final info = await _engine.startDuel(
           List<int>.of(_deck),
           startLp: _roomOptions.startLp,
           startHand: _roomOptions.startHand,
           drawCount: _roomOptions.drawCount,
-          simpleAi: _agent == null,
+          simpleAi: _agentAnswerer == null,
         );
         if (info == null) {
           console.log('AiConnection: startDuel returned null — '
@@ -440,7 +422,7 @@ class AiConnection implements DuelConnection {
             ),
           ),
         );
-        _engine.pump();
+        await _engine.pump();
       } catch (e) {
         console.log('AiConnection: startDuel failed with exception: $e');
       }

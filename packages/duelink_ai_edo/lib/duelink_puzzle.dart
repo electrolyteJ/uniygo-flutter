@@ -3,7 +3,6 @@ library duelink_puzzle;
 export 'src/puzzle_card_data_loader.dart';
 export 'src/puzzle_catalog.dart';
 export 'src/puzzle_connection.dart';
-export 'src/puzzle_script_loader.dart';
 export 'src/puzzle_service.dart';
 
 import 'dart:developer' as console;
