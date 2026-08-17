@@ -6,7 +6,7 @@ import 'package:duelink/duelink.dart';
 import 'package:duelink_ai_ygo_agent/duelink_ai_ygo_agent.dart'
     show AgentAutoAnswerer, DuelEngineFieldQuery;
 import 'package:duelink_ai_ygo_agent_http/duelink_ai_ygo_agent_http.dart';
-import 'package:duelink_ai_ygo_agent_tflite/duelink_ai_ygo_agent_tflite.dart';
+import 'package:duelink_ai_ygo_agent_tflite/duelink_ai_ygo_agent_tflite.dart' hide createYgoAgentHttp;
 import 'package:ocgcore/ocgcore.dart' show DuelEngine, ScriptLoader;
 import 'package:ygo_data/ygo_data.dart';
 
@@ -52,23 +52,12 @@ class AiConnection implements DuelConnection {
   /// 显式指定的 ocgcore 动态库（测试环境传入，运行时默认为平台自带查找）。
   final Object? lib;
 
-  /// 端侧模型应答器工厂（内部缓存运行时：注入 → 资产加载）。
-  final AgentAutoAnswerFactory _localAgentFactory;
-
-  /// 远端模型应答器工厂（内部按 kDefaultAgentServer 创建客户端）。
-  final RemoteAgentAutoAnswerFactory _remoteAgentFactory;
-
   /// 模型自动应答器（本地/远端统一接口；agent == -1 时为 null 走规则 AI）。
   AgentAutoAnswerer? _agentAnswerer;
   late final DuelEngine _engine;
   AiConnection(
       {this.lib,
-      AgentRuntime? agentRuntime,
-      ScriptLoader? scriptLoader,
-      YgoAgentClient? remoteAgentClient})
-      : _localAgentFactory = AgentAutoAnswerFactory(agentRuntime: agentRuntime),
-        _remoteAgentFactory =
-            RemoteAgentAutoAnswerFactory(clientOverride: remoteAgentClient) {
+      ScriptLoader? scriptLoader}){
     _engine = DuelEngine(
       emit: _emitEngineMessage,
       splitMessages: splitGameMessages,
@@ -147,33 +136,46 @@ class AiConnection implements DuelConnection {
     final cardLoader = CardDataLoader(cardConverter: _cardConverter!);
     _engine.setCardReader(cardLoader.load);
     final ruleAnswer = aiAutoAnswer(cardLoader.levelOf);
-    if (_roomOptions.agent == 0) {
-      // 端侧模型（tflite 包工厂装配）：模型不可用时回退规则 AI。
-      _agentAnswerer = await _localAgentFactory.create(
-        field: DuelEngineFieldQuery(_engine),
-        cardData: cardLoader.dataOf,
-        startLp: _roomOptions.startLp,
-      );
-      if (_agentAnswerer != null) {
-        _engine.setAutoAnswer(_agentAnswerer!.answer);
-        console.log('AiConnection: agent auto-answer enabled');
-      } else {
-        _engine.setAutoAnswer(ruleAnswer);
-        console.log('AiConnection: agent runtime unavailable, rule AI');
-      }
-    } else if (_roomOptions.agent == 1) {
+    // if (_roomOptions.agent == 0) {
+    //   // 端侧模型（tflite 包工厂装配）：模型不可用时回退规则 AI。
+    //   _agentAnswerer = await createYgoAgentLocal(
+    //     field: DuelEngineFieldQuery(_engine),
+    //     cardData: cardLoader.dataOf,
+    //     startLp: _roomOptions.startLp,
+    //   );
+    //   if (_agentAnswerer != null) {
+    //     _engine.setAutoAnswer(_agentAnswerer!.answer);
+    //     console.log('AiConnection: agent auto-answer enabled');
+    //   } else {
+    //     _engine.setAutoAnswer(ruleAnswer);
+    //     console.log('AiConnection: agent runtime unavailable, rule AI');
+    //   }
+    // } else if (_roomOptions.agent == 1) {
       // 远端 predict 服务（http 包工厂装配，固定默认公共服务地址）。
-      _agentAnswerer = _remoteAgentFactory.create(
+      _agentAnswerer = createYgoAgentHttp(
         field: DuelEngineFieldQuery(_engine),
         cardData: cardLoader.dataOf,
         startLp: _roomOptions.startLp,
       );
-      _engine.setAutoAnswer(_agentAnswerer!.answer);
-      console.log('AiConnection: remote agent auto-answer enabled');
-    } else {
-      _agentAnswerer = null;
-      _engine.setAutoAnswer(ruleAnswer);
-    }
+      // 模型优先、规则兜底：远端模型出错（HTTP 失败/不支持的消息形状）时
+      // 回退规则 AI（ai_strategy.dart），避免整局卡死（"no auto-answer" stall）。
+      final agent = _agentAnswerer;
+      _engine.setAutoAnswer((func, payload) async {
+        if (agent != null) {
+          try {
+            final agentResp = await agent.answer(func, payload);
+            if (agentResp != null) return agentResp;
+          } catch (e) {
+            console.log('AiConnection: agent 应答异常 func=$func: $e');
+          }
+        }
+        return ruleAnswer(func, payload);
+      });
+      console.log('AiConnection: remote agent auto-answer enabled (规则兜底)');
+    // } else {
+    //   _agentAnswerer = null;
+    //   _engine.setAutoAnswer(ruleAnswer);
+    // }
     final ok = await _engine.init(lib);
     _state = ok ? ConnectionState.connected : ConnectionState.error;
     _stateController.add(_state);
@@ -389,7 +391,14 @@ class AiConnection implements DuelConnection {
         // 模型看不到这些决策，历史动作序列偏离训练分布。
         // 本地重建模型状态 / 远端按局重建服务端会话（统一接口，同步
         // 实现返回 null，await 对两者均安全）。
-        await _agentAnswerer?.resetDuel(startLp: _roomOptions.startLp);
+        // 远端会话建连失败（无网/服务不可用）不应阻塞开局：单独 catch，
+        // 由 auto-answer 兜底层继续用规则 AI 应答。
+        try {
+          await _agentAnswerer?.resetDuel(startLp: _roomOptions.startLp);
+        } catch (e) {
+          console.log(
+              'AiConnection: agent resetDuel 失败（回退规则 AI）: $e');
+        }
         final info = await _engine.startDuel(
           List<int>.of(_deck),
           startLp: _roomOptions.startLp,

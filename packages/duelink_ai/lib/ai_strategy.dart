@@ -32,6 +32,34 @@ Uint8List? Function(int func, Uint8List payload) aiAutoAnswer(
       case MSG_SELECT_PLACE:
       case MSG_SELECT_DISFIELD:
         return aiPlaceResponse(MsgSelectPlace.decode(payload));
+      // ── 缺失流程的确定性兜底 ──
+      case MSG_SELECT_CARD:
+        return aiSelectCardResponse(MsgSelectCard.decode(payload));
+      case MSG_SELECT_OPTION:
+        return CtosGameMsgResponse.selectOption(0).encode();
+      case MSG_SELECT_EFFECTYN:
+        return CtosGameMsgResponse.selectEffectYn(1).encode();
+      case MSG_SELECT_YES_NO:
+        return CtosGameMsgResponse.selectEffectYn(1).encode();
+      case MSG_SELECT_POSITION:
+        return CtosGameMsgResponse.selectPosition(POS_FACEUP_ATTACK).encode();
+      case MSG_SELECT_UNSELECT_CARD:
+        return CtosGameMsgResponse.selectSingle(-1).encode();
+      case MSG_SELECT_SUM:
+        return aiSelectSumResponse(MsgSelectSum.decode(payload));
+      case MSG_SELECT_COUNTER:
+        return aiSelectCounterResponse(MsgSelectCounter.decode(payload));
+      case MSG_SORT_CARD:
+        // 保持原序（首字节 0xff，与 SIMPLE_AI 应答一致）。
+        return Uint8List.fromList([0xff]);
+      case MSG_ANNOUNCE_NUMBER:
+        return CtosGameMsgResponse.selectOption(0).encode();
+      case MSG_ANNOUNCE_ATTRIB:
+        return CtosGameMsgResponse.selectOption(0).encode();
+      case MSG_ANNOUNCE_RACE:
+        return CtosGameMsgResponse.selectOption(0).encode();
+      case MSG_ANNOUNCE_CARD:
+        return aiAnnounceCardResponse(MsgAnnounceCard.decode(payload));
     // 这正是"选择→回包→亮牌确认"的标准流程。 服务端发 MSG_CONFIRM_CARDS 不是要你再确认一次，而是把你选择的结果展示出来（给你或给对手看），不需要任何回包。
     //
     // 完整时序
@@ -161,4 +189,49 @@ CtosSelectPlace? _firstFreePlace(MsgSelectPlace cmd) {
     }
   }
   return null;
+}
+
+/// 选卡应答：按窗口顺序取前 min 张（min 为 0 时提交空选择）。
+Uint8List aiSelectCardResponse(MsgSelectCard cmd) {
+  final n = cmd.min.clamp(0, cmd.count);
+  return CtosGameMsgResponse.selectMulti(
+    List<int>.generate(n, (i) => i),
+  ).encode();
+}
+
+/// 合计选卡应答：payload = [必选占位 × mcount, ...可选段下标]，
+/// 贪心累加可选卡直至合计达标（overflow/over 语义下为「≥ 目标」）。
+Uint8List aiSelectSumResponse(MsgSelectSum cmd) {
+  final mcount = cmd.mustSelectCards.length;
+  final payload = <int>[for (var i = 0; i < mcount; i++) 0];
+  var sum = 0;
+  for (var i = 0; i < mcount; i++) {
+    sum += cmd.mustSelectCards[i].level1;
+  }
+  for (var i = 0; i < cmd.selectableCards.length && sum < cmd.levelSum; i++) {
+    payload.add(i);
+    sum += cmd.selectableCards[i].level1;
+  }
+  return CtosGameMsgResponse.selectMulti(payload).encode();
+}
+
+/// 计数器应答：按各卡计数器上限贪心分配，直到凑满需移除总数。
+Uint8List aiSelectCounterResponse(MsgSelectCounter cmd) {
+  final counts = List<int>.filled(cmd.count, 0);
+  var remaining = cmd.min;
+  for (var i = 0; i < cmd.count && remaining > 0; i++) {
+    final cap = cmd.counterCounts[i];
+    final take = remaining > cap ? cap : remaining;
+    counts[i] = take;
+    remaining -= take;
+  }
+  return CtosGameMsgResponse.selectCounter(counts).encode();
+}
+
+/// 宣言卡名应答：固定列表取第一张；自由宣言（codes 为 [1]，即 TRUE）
+/// 无法给出有效卡号，返回 null 交由上层兜底。
+Uint8List? aiAnnounceCardResponse(MsgAnnounceCard cmd) {
+  if (cmd.codes.isEmpty) return null;
+  if (cmd.codes.length == 1 && cmd.codes.first == 1) return null;
+  return CtosGameMsgResponse.selectOption(cmd.codes.first).encode();
 }

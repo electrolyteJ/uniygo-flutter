@@ -5,8 +5,29 @@
 /// 把局面快照发给远端服务决策的替代路径。
 library;
 
-export 'remote_agent_auto_answer.dart';
-export 'remote_agent_factory.dart';
+export 'src/remote_agent_auto_answer.dart';
 export 'src/agent_client.dart';
 export 'src/input_serializer.dart';
 export 'src/remote_predict_session.dart';
+
+import 'package:duelink_ai_ygo_agent/duelink_ai_ygo_agent.dart';
+import 'package:ocgcore/ocgcore.dart' show CardData;
+
+import 'src/remote_agent_auto_answer.dart';
+import 'src/agent_client.dart';
+import 'src/remote_predict_session.dart';
+
+RemoteAgentAutoAnswer createYgoAgentHttp({
+  required AgentFieldQuery field,
+  CardData? Function(int code)? cardData,
+  int startLp = 8000,
+}) {
+  return RemoteAgentAutoAnswer(
+    session: RemotePredictSession(
+      client: YgoAgentClient(server: kDefaultAgentServer),
+    ),
+    field: field,
+    cardData: cardData,
+    startLp: startLp,
+  );
+}

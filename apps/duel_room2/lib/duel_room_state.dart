@@ -14,6 +14,7 @@ import 'package:duelink/duelink.dart' hide CardInfo;
 
 import 'field/duel_field_state.dart';
 
+
 /// 卡组解析结果：主卡/额外/副卡的卡信息列表。
 typedef ResolvedDeck = ({
   List<CardInfo> main,

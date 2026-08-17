@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'duel_room_exit.dart';
-
 /// 决斗结算页：由房间页退出时经 `/duel-result` 路由展示。
 ///
 /// 此时房间页的 ProviderScope 已销毁，页面不读写任何房间 provider，
