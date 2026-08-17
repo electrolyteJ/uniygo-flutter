@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../models/duel_menu.dart';
+import 'package:biz/duel/models/duel_menu.dart';
 import 'hand_action_menu.dart';
 
 class HandActionPopover extends StatelessWidget {

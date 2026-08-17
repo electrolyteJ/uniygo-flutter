@@ -14,7 +14,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   intl: any
-  provider: ^6.1.1
+  flutter_riverpod: ^2.6.1
   audioplayers: ^6.8.1
   flame: ^1.38.0
   shared_preferences: ^2.5.3
@@ -23,28 +23,12 @@ dependencies:
   flutter_portal: ^1.1.4
   biz:
     path: ../../packages/biz
-  service_loader:
-    path: ../../packages/service_loader
   duelink:
     path: ../../packages/duelink
-  duelink_websocket:
-    path: ../../packages/duelink_websocket
-  duelink_socket:
-    path: ../../packages/duelink_socket
-  duelink_ai:
-    path: ../../packages/duelink_ai
-  duelink_ai_edo:
-    path: ../../packages/duelink_ai_edo
   ygo_data:
     path: ../../packages/ygo_data
-  ygo_card_baige:
-    path: ../../packages/ygo_card_baige
-  ygo_card_mycard:
-    path: ../../packages/ygo_card_mycard
   ygo_banlist_mycard:
     path: ../../packages/ygo_banlist_mycard
-  ygo_deck_mycard:
-    path: ../../packages/ygo_deck_mycard
 
 dev_dependencies:
   flutter_test:

@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
-import '../../../models/select_state.dart';
+import 'package:biz/duel/models/select_state.dart';
 import 'package:biz/widgets/card_image.dart';
 
 class PositionSelector extends StatelessWidget {

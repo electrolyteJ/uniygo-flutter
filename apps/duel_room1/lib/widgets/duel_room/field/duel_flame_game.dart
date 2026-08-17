@@ -1,14 +1,19 @@
+import 'package:biz/duel/models/playmat_anchor_data.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
-import '../../../models/field_card.dart';
-import '../../../pages/duel_room/duel_field_store.dart';
-import 'playmat_anchor_data.dart';
+
+import 'package:biz/duel/models/field_card.dart';
 import 'duel_field_world.dart';
+import 'flame_field_snapshot.dart';
 
 /// 决斗场地 FlameGame：只持有 [DuelFieldWorld] 与观察它的
 /// [CameraComponent]，负责鼠标视差输入与 Flutter 侧锚点上报。
 /// 场地内容（棋盘、卡槽）全部挂在 world 下。
+///
+/// 数据来源：widget 层（DuelFieldPage）watch biz/duel 的 Riverpod
+/// Provider 后，把 [FlameFieldSnapshot] 经 [applySnapshot] 推入本游戏；
+/// Flame 侧不订阅任何 Provider（渲染循环与状态管理解耦）。
 class DuelFlameGame extends FlameGame<DuelFieldWorld>
     with MouseMovementDetector {
   static final _phaseLampSize = DuelFieldLayout.phaseLampSize;
@@ -31,32 +36,28 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   static const _minZoom = 0.1;
   static const _maxZoom = 2.6;
 
-  final DuelFieldStore duelStore;
   final Function(FieldCard? card, int? code)? onCardSelect;
   final void Function(String zoneKey)? onZoneInspect;
   final VoidCallback? onPhaseLampTap;
   final bool Function()? isPhaseLampEnabled;
+
+  /// 点击可放置槽位（MSG_SELECT_PLACE）的回调（槽位 key 为
+  /// `controller_zone_sequence`）。
+  final void Function(String slotKey)? onPlaceSlotTap;
   ValueChanged<PlaymatAnchorData>? onAnchorsChanged;
   String? _lastAnchorSignature;
 
+  /// 当前状态快照；world 与各 component 经 `game.snapshot` 读取。
+  FlameFieldSnapshot snapshot = FlameFieldSnapshot.empty();
+
   DuelFlameGame({
-    required this.duelStore,
     this.onCardSelect,
     this.onZoneInspect,
     this.onPhaseLampTap,
     this.isPhaseLampEnabled,
+    this.onPlaceSlotTap,
     this.onAnchorsChanged,
-  }) : super(
-         world: DuelFieldWorld(
-           duelStore: duelStore,
-           onCardSelect: onCardSelect,
-           onZoneInspect: onZoneInspect,
-           onPhaseLampTap: onPhaseLampTap,
-           isPhaseLampEnabled: isPhaseLampEnabled,
-         ),
-       ) {
-    duelStore.addListener(_onDuelStateChanged);
-  }
+  }) : super(world: DuelFieldWorld());
 
   /// 鼠标位置（widget 坐标），驱动 world 的 3D 视差投影。
   Vector2 mousePos = Vector2.zero();
@@ -76,8 +77,17 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     _emitAnchors();
   }
 
-  void _onDuelStateChanged() {
-    world.rebuildField();
+  /// 接收 widget 层推送的最新快照并驱动场地重建。
+  ///
+  /// 等价旧实现里 ChangeNotifier 监听触发的重建：每次 Riverpod 状态变更
+  /// → 页面 build → 本方法。world 尚未加载完成时只替换快照引用，
+  /// 首次 onLoad 会直接按最新快照构建。
+  void applySnapshot(FlameFieldSnapshot next) {
+    snapshot = next;
+    if (world.isLoaded) {
+      world.rebuildField();
+      world.refreshPhaseLamp();
+    }
     _emitAnchors();
   }
 
@@ -148,7 +158,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   }
 
   PlaymatAnchorData buildAnchorDataForSize(Size viewport) {
-    final selfController = duelStore.myController;
+    final selfController = snapshot.myController;
     final opponentController = 1 - selfController;
     final slotRects = <String, Rect>{};
 
@@ -229,11 +239,5 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
       slotRects: slotRects,
       phaseLampRect: phaseLampRect,
     );
-  }
-
-  @override
-  void onRemove() {
-    duelStore.removeListener(_onDuelStateChanged);
-    super.onRemove();
   }
 }

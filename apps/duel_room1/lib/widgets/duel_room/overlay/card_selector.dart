@@ -2,7 +2,7 @@ import 'dart:developer' as console;
 
 import 'package:flutter/material.dart';
 
-import '../../../models/select_state.dart';
+import 'package:biz/duel/models/select_state.dart';
 import 'package:biz/widgets/card_image.dart';
 
 class CardSelector extends StatefulWidget {

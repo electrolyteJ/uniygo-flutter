@@ -3,9 +3,9 @@ import 'package:flame/components.dart';
 import 'package:flame/text.dart';
 import 'package:flutter/material.dart';
 
-import '../../../../models/battle_presentation.dart';
-import '../../../../models/field_zone_key.dart';
-import '../../../../pages/duel_room/duel_field_store.dart';
+import 'package:biz/duel/models/battle_presentation.dart';
+import 'package:biz/duel/models/field_zone_key.dart';
+import '../flame_field_snapshot.dart';
 import '../duel_field_world.dart';
 
 class BattlePresentationComponent extends Component
@@ -28,38 +28,39 @@ class BattlePresentationComponent extends Component
     ),
   );
 
-  final DuelFieldStore duelStore;
-
   double _elapsed = 0;
   double _impactTime = 0;
   BattlePresentation? _lastPresentation;
   bool _wasInDamageStep = false;
 
-  BattlePresentationComponent({required this.duelStore}) : super(priority: 30);
+  /// 当前状态快照（widget 层经游戏推入）。
+  FlameFieldSnapshot get _snapshot => world.game.snapshot;
+
+  BattlePresentationComponent() : super(priority: 30);
 
   @override
   void update(double dt) {
     super.update(dt);
     _elapsed += dt;
 
-    final presentation = duelStore.battlePresentation;
+    final presentation = _snapshot.battlePresentation;
     if (!identical(_lastPresentation, presentation)) {
       _lastPresentation = presentation;
       _impactTime = 0;
     }
 
-    if (duelStore.inDamageStep) {
+    if (_snapshot.inDamageStep) {
       _impactTime += dt;
     } else if (_wasInDamageStep) {
       _impactTime = 0;
     }
-    _wasInDamageStep = duelStore.inDamageStep;
+    _wasInDamageStep = _snapshot.inDamageStep;
   }
 
   @override
   void render(Canvas canvas) {
     super.render(canvas);
-    final presentation = duelStore.battlePresentation;
+    final presentation = _snapshot.battlePresentation;
     if (presentation == null) return;
 
     final attacker = world.worldPositionForSlotId(presentation.attackerSlotId);
@@ -83,8 +84,8 @@ class BattlePresentationComponent extends Component
       canvas,
       center: start,
       color: const Color(0xFFFF7A59),
-      radius: duelStore.inDamageStep ? 54 : 42,
-      intensity: duelStore.inDamageStep ? 1.0 : 0.72,
+      radius: _snapshot.inDamageStep ? 54 : 42,
+      intensity: _snapshot.inDamageStep ? 1.0 : 0.72,
     );
 
     if (!presentation.isDirectAttack) {
@@ -92,14 +93,14 @@ class BattlePresentationComponent extends Component
         canvas,
         center: end,
         color: const Color(0xFF00F0FF),
-        radius: duelStore.inDamageStep ? 54 : 42,
-        intensity: duelStore.inDamageStep ? 1.0 : 0.72,
+        radius: _snapshot.inDamageStep ? 54 : 42,
+        intensity: _snapshot.inDamageStep ? 1.0 : 0.72,
       );
     }
 
     _drawBeam(canvas, path);
     _drawProjectile(canvas, path);
-    if (duelStore.inDamageStep) {
+    if (_snapshot.inDamageStep) {
       _drawImpact(canvas, end, presentation.isDirectAttack);
     }
 
@@ -145,7 +146,7 @@ class BattlePresentationComponent extends Component
   }
 
   bool _slotBelongsToSelf(String slotId) {
-    return parseZoneKey(slotId)?.controller == duelStore.myController;
+    return parseZoneKey(slotId)?.controller == _snapshot.myController;
   }
 
   Offset _beamControlPoint(Offset start, Offset end) {

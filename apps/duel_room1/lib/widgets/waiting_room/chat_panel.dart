@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../models/chat_message.dart';
+import 'package:biz/duel/models/chat_message.dart';
 import 'package:flutter/widget_previews.dart';
 
 /// 聊天面板：纯 UI，消息列表与发送动作均由业务侧注入。
@@ -59,7 +59,7 @@ class _ChatPanelState extends State<ChatPanel> {
         return Colors.redAccent;
       case 1:
         return Colors.lightBlueAccent;
-      case -1:
+      case kSystemChatPlayer:
         return Colors.greenAccent;
       default:
         return Colors.blueGrey.shade400;

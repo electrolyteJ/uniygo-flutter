@@ -3,7 +3,6 @@ import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flame/text.dart';
 import 'package:flutter/material.dart';
-import '../../../../pages/duel_room/duel_field_store.dart';
 import '../duel_field_world.dart';
 
 /// Flame 版阶段指示灯：渲染在 [DuelFieldWorld] 中，紧贴 self_removed（Banish / 除外）
@@ -14,9 +13,11 @@ import '../duel_field_world.dart';
 /// 阶段名 + CURRENT PHASE 副标题）。点击触发 [onTap]（通常为切换阶段菜单）。
 class PhaseLampComponent extends PositionComponent
     with TapCallbacks, HasWorldReference<DuelFieldWorld> {
-  final DuelFieldStore duelStore;
   final VoidCallback? onTap;
   final bool Function()? enabledGetter;
+
+  /// 当前阶段（经游戏快照读取，widget 层推送）。
+  DuelPhase get _phase => world.game.snapshot.phase;
 
   // 锚点卡槽 (self_grave / 墓地) 的棋盘坐标，取自布局常量。
   // 己方墓地位于 Monster 行 colX[6]=252 / monsterY=100，PhaseLamp 左下边 = 墓地卡槽右上边 + (gap, -gap)。
@@ -59,28 +60,21 @@ class PhaseLampComponent extends PositionComponent
 
   bool _enabled = false;
 
-  PhaseLampComponent({
-    required this.duelStore,
-    this.onTap,
-    this.enabledGetter,
-  }) : super(anchor: Anchor.center);
+  PhaseLampComponent({this.onTap, this.enabledGetter})
+    : super(anchor: Anchor.center);
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
     _updateSize();
     position = _projectedPosition();
-    duelStore.addListener(_onStoreChanged);
     _refreshEnabled();
   }
 
-  @override
-  void onRemove() {
-    duelStore.removeListener(_onStoreChanged);
-    super.onRemove();
-  }
-
-  void _onStoreChanged() {
+  /// 快照变更后由 [DuelFieldWorld.refreshPhaseLamp] 调用：
+  /// 重测阶段名尺寸并刷新可点击态（替代旧实现的 store addListener）。
+  void notifyStateChanged() {
+    if (!isLoaded) return;
     _updateSize();
     _refreshEnabled();
   }
@@ -91,7 +85,7 @@ class PhaseLampComponent extends PositionComponent
 
   /// 根据当前阶段名文本的实际测量值更新组件尺寸。
   void _updateSize() {
-    final name = _phaseName(duelStore.phase);
+    final name = _phaseName(_phase);
     final nameMetrics = _phaseNamePaint.getLineMetrics(name);
     final subMetrics = _subtitlePaint.getLineMetrics('CURRENT PHASE');
 
@@ -175,7 +169,7 @@ class PhaseLampComponent extends PositionComponent
     canvas.drawCircle(dotCenter, _dotSolidRadius, Paint()..color = _accent);
 
     // 阶段名 + 副标题（文本块垂直居中）
-    final name = _phaseName(duelStore.phase);
+    final name = _phaseName(_phase);
     final nameMetrics = _phaseNamePaint.getLineMetrics(name);
     final subMetrics = _subtitlePaint.getLineMetrics('CURRENT PHASE');
     final blockHeight = nameMetrics.height + subMetrics.height;

@@ -2,11 +2,8 @@ import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:biz/card_image_loader.dart';
 import 'package:flame/components.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Offset, Size;
-import '../../../models/field_card.dart';
-import '../../../models/field_zone_key.dart';
-import '../../../pages/duel_room/duel_field_store.dart';
+import 'package:biz/duel/models/field_zone_key.dart';
 import 'component/battle_presentation_component.dart';
 import 'component/board_mesh_component.dart';
 import 'component/zone_component.dart';
@@ -66,26 +63,12 @@ class DuelFieldLayout {
 /// 决斗场地世界：持有棋盘网格与全部卡槽组件，并统一负责
 /// Stylized 3D 投影（世界坐标 = 投影后、以棋盘中心为原点的坐标，
 /// 视口居中/偏移由 [CameraComponent] 负责）。
+///
+/// 状态一律经 [DuelFlameGame.snapshot] 读取（widget 层推送的
+/// Riverpod 状态快照），world 与 component 不依赖任何 store/Provider。
 class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
-  final DuelFieldStore duelStore;
-  final Function(FieldCard? card, int? code)? onCardSelect;
-  final void Function(String zoneKey)? onZoneInspect;
-  final VoidCallback? onPhaseLampTap;
-  final bool Function()? isPhaseLampEnabled;
-
   PhaseLampComponent? _phaseLamp;
   ZonesComponent? _zones;
-
-  /// 卡图图片缓存（由 [CardImageLoader] 统一管理）。
-  CardImageLoader get _loader => CardImageLoader.I;
-
-  DuelFieldWorld({
-    required this.duelStore,
-    this.onCardSelect,
-    this.onZoneInspect,
-    this.onPhaseLampTap,
-    this.isPhaseLampEnabled,
-  });
 
   @override
   Future<void> onLoad() async {
@@ -96,17 +79,16 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
   void _initComponents() {
     add(BoardMeshComponent());
     _zones = ZonesComponent(
-      duelStore: duelStore,
-      onCardSelect: onCardSelect,
-      onZoneInspect: onZoneInspect,
+      onCardSelect: game.onCardSelect,
+      onZoneInspect: game.onZoneInspect,
+      onPlaceSlotTap: game.onPlaceSlotTap,
     );
     add(_zones!);
     _zones!.rebuild();
-    add(BattlePresentationComponent(duelStore: duelStore));
+    add(BattlePresentationComponent());
     _phaseLamp = PhaseLampComponent(
-      duelStore: duelStore,
-      onTap: onPhaseLampTap,
-      enabledGetter: isPhaseLampEnabled,
+      onTap: game.onPhaseLampTap,
+      enabledGetter: game.isPhaseLampEnabled,
     );
     add(_phaseLamp!);
   }
@@ -151,6 +133,9 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
   /// 重建场地区域（委托给 [ZonesComponent]）。
   void rebuildField() => _zones?.rebuild();
 
+  /// 快照变更后刷新阶段灯（阶段名/可点击态）。
+  void refreshPhaseLamp() => _phaseLamp?.notifyStateChanged();
+
   Vector2? boardPositionForSlotId(String slotId) {
     final parsed = parseZoneKey(slotId);
     if (parsed == null) return null;
@@ -159,7 +144,7 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
     final sequence = parsed.sequence;
 
     const colX = DuelFieldLayout.colX;
-    final isSelf = controller == duelStore.myController;
+    final isSelf = controller == game.snapshot.myController;
 
     if (zone == 4) {
       if (sequence == 5) return Vector2(-84, 0);

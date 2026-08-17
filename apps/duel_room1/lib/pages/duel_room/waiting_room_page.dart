@@ -1,28 +1,49 @@
-import 'package:biz/service_singleton.dart';
-import 'package:duelink/duelink.dart';
-import 'package:flutter/cupertino.dart';
+import 'dart:async';
+
+import 'package:biz/service_providers.dart';
+import 'package:biz/duel/chat/duel_chat_state.dart';
+import 'package:biz/duel/room/duel_room_state.dart';
+// hide ConnectionState：与 Flutter 的 FutureBuilder ConnectionState 同名冲突。
+import 'package:duelink/duelink.dart' hide ConnectionState;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import 'package:ygo_data/lf_table.dart';
 
 import '../../widgets/waiting_room/chat_panel.dart';
 import '../../widgets/waiting_room/control_bar.dart';
 import '../../widgets/waiting_room/player_panel.dart';
 import '../../widgets/waiting_room/room_info_panel.dart';
-import 'duel_room_store.dart';
-import 'duel_chat_store.dart';
 
-class WaitingRoomPage extends StatelessWidget {
+/// 等待室页（Riverpod 版）：保留 room1 原有视觉结构
+/// （PlayerPanel + RoomInfoPanel/ChatPanel + ControlBar），
+/// 数据源从旧 Store 换成 biz/duel 的 duelRoomProvider/duelChatProvider。
+class WaitingRoomPage extends ConsumerWidget {
   const WaitingRoomPage({super.key});
 
-  void _onToggleAutomation(bool value, ValueChanged<bool> action) {
-    final sound = ServiceSingleton.instance.ygoSoundService;
+  /// 自动化开关切换：先等 notifier 裁决，被接受才播放提示音。
+  ///
+  /// 已准备状态下 notifier 会拒绝变更（返回 false），旧实现先响音后
+  /// 调用 action，被拒绝的切换也会发出声音；同时持久化失败已在
+  /// notifier 内走 errorMessage 渠道，这里兜底 catch，避免未处理异常。
+  Future<void> _onToggleAutomation(
+    WidgetRef ref,
+    bool value,
+    Future<bool> Function(bool) action,
+  ) async {
+    bool accepted;
+    try {
+      accepted = await action(value);
+    } catch (_) {
+      accepted = false;
+    }
+    if (!accepted) return;
+    final sound = ref.read(ygoSoundServiceProvider);
     if (value) {
       sound.playToggleOn();
     } else {
       sound.playToggleOff();
     }
-    action(value);
   }
 
   /// 编辑当前所选卡组：打开卡组编辑器，保存后刷新卡组校验。
@@ -31,33 +52,50 @@ class WaitingRoomPage extends StatelessWidget {
   /// `initialDeckName` / `noCheckDeck` / `lfTableHash` /
   /// `lockDeckSelection` / `lockDeckName`；返回值同为 Map，
   /// 含 `saved`（bool）。
-  Future<void> _onEditDeck(
-    BuildContext context,
-    DuelRoomStore duelRoomStore,
-  ) async {
-    final opts = duelRoomStore.roomOptions;
+  Future<void> _onEditDeck(BuildContext context, WidgetRef ref) async {
+    final controller = ref.read(duelRoomProvider.notifier);
+    final roomState = ref.read(duelRoomProvider);
+    final opts = roomState.roomOptions;
     final result = await context.push<Map<String, Object?>>(
       '/deck-editor',
       extra: <String, Object?>{
-        'initialDeckName': duelRoomStore.selectedDeckName,
+        'initialDeckName': roomState.selectedDeckName,
         if (opts != null) 'noCheckDeck': opts.noCheckDeck,
         if (opts != null) 'lfTableHash': opts.lfTableHash,
         'lockDeckSelection': true,
         'lockDeckName': true,
       },
     );
-    if (context.mounted && (result?['saved'] == true)) {
-      await duelRoomStore.refreshSelectedDeckValidation(context);
+    // 跨页 await 之后 context 可能已卸载。
+    if (!context.mounted) return;
+    if (result?['saved'] == true) {
+      await controller.refreshSelectedDeckValidation();
+    }
+  }
+
+  Future<void> _onToggleReady(BuildContext context, WidgetRef ref) async {
+    final error = await ref.read(duelRoomProvider.notifier).toggleReady();
+    if (error != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    final duelRoomStore = context.watch<DuelRoomStore>();
-    final duelChatStore = context.watch<DuelChatStore>();
-    final opts = duelRoomStore.roomOptions;
-    final mySlotVal = duelRoomStore.selfType.slot;
-    final stage = duelRoomStore.stage;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final room = ref.watch(duelRoomProvider);
+    final roomCtl = ref.read(duelRoomProvider.notifier);
+    final chat = ref.watch(duelChatProvider);
+    final chatCtl = ref.read(duelChatProvider.notifier);
+    final dataService = ref.watch(dataServiceProvider);
+    final opts = room.roomOptions;
+    final mySlotVal = room.selfType.slot;
+    final stage = room.stage;
     final showHandResults = stage is RoomSelectingHand ||
         stage is RoomHandResult ||
         stage is RoomSelectingTurn;
@@ -70,32 +108,31 @@ class WaitingRoomPage extends StatelessWidget {
                 flex: 3,
                 child: PlayerPanel(
                   mySlot: mySlotVal,
-                  players: duelRoomStore.players,
+                  players: room.players,
                   showHandResults: showHandResults,
                   isSelectingHand: stage is RoomSelectingHand,
                   isSelectingTurn: stage is RoomSelectingTurn,
-                  myHandResult: duelRoomStore.myHandResult,
-                  opponentHandResult: duelRoomStore.opponentHandResult,
-                  isHost: duelRoomStore.isHost,
-                  onKick: duelRoomStore.kickPlayer,
-                  deckSelectionEnabled: !duelRoomStore.isSelfReady,
-                  decks: duelRoomStore.availableDecks,
-                  selectedDeckName: duelRoomStore.selectedDeckName,
+                  myHandResult: room.myHandResult,
+                  opponentHandResult: room.opponentHandResult,
+                  isHost: room.isHost,
+                  onKick: roomCtl.kickPlayer,
+                  deckSelectionEnabled: !room.isSelfReady,
+                  decks: room.availableDecks,
+                  selectedDeckName: room.selectedDeckName,
                   onSelectDeck: (value) {
                     if (value != null) {
-                      duelRoomStore.selectDeck(context, value);
+                      unawaited(roomCtl.selectDeck(value));
                     }
                   },
-                  onEditDeck: duelRoomStore.selectedDeckName == null
+                  onEditDeck: room.selectedDeckName == null
                       ? null
-                      : () => _onEditDeck(context, duelRoomStore),
-                  deckInvalidationResult:
-                      duelRoomStore.invalidationDeckResult,
-                  handSelectEnabled: !duelRoomStore.autoHandEnabled,
-                  onSendHand: duelRoomStore.sendHand,
-                  turnSelectEnabled: !duelRoomStore.autoTurnOrderEnabled,
-                  onSendTp: duelRoomStore.sendTp,
-                  observerCount: duelRoomStore.observerCount,
+                      : () => _onEditDeck(context, ref),
+                  deckInvalidationResult: room.invalidationDeckResult,
+                  handSelectEnabled: !room.autoHandEnabled,
+                  onSendHand: roomCtl.sendHand,
+                  turnSelectEnabled: !room.autoTurnOrderEnabled,
+                  onSendTp: roomCtl.sendTp,
+                  observerCount: room.observerCount,
                 ),
               ),
               Expanded(
@@ -104,19 +141,19 @@ class WaitingRoomPage extends StatelessWidget {
                   children: [
                     if (opts != null)
                       FutureBuilder<LfTable?>(
-                        future: duelRoomStore.getLfTable(opts.lfTableHash),
+                        future: roomCtl.getLfTable(opts.lfTableHash),
                         builder: (context, snapshot) {
                           return RoomInfoPanel(
                             opts: opts,
                             lfTable: snapshot.data,
-                            cardLoader: ServiceSingleton.instance.dataService.getCard,
+                            cardLoader: dataService.getCard,
                           );
                         },
                       ),
                     Expanded(
                       child: ChatPanel(
-                        messages: duelChatStore.chatMessages,
-                        onSend: duelChatStore.sendChat,
+                        messages: chat.messages,
+                        onSend: chatCtl.sendChat,
                       ),
                     ),
                   ],
@@ -126,20 +163,26 @@ class WaitingRoomPage extends StatelessWidget {
           ),
         ),
         ControlBar(
-          isHost: duelRoomStore.isHost,
-          selfType: duelRoomStore.selfType,
-          isSelfReady: duelRoomStore.isSelfReady,
-          isAllReady: duelRoomStore.isAllReady,
-          autoHandEnabled: duelRoomStore.autoHandEnabled,
-          autoTurnOrderEnabled: duelRoomStore.autoTurnOrderEnabled,
-          autoDuelEnabled: duelRoomStore.autoDuelEnabled,
-          toggleReady: duelRoomStore.toggleReady,
-          onToggleAutoHand: (v) => _onToggleAutomation(v, duelRoomStore.setAutoHandEnabled),
-          onToggleAutoTurnOrder: (v) => _onToggleAutomation(v, duelRoomStore.setAutoTurnOrderEnabled),
-          onToggleAutoDuel: (v) => _onToggleAutomation(v, duelRoomStore.setAutoDuelEnabled),
-          onStartDuel: duelRoomStore.startDuel,
-          onBecomeDuelist: duelRoomStore.becomeDuelist,
-          onBecomeObserver: duelRoomStore.becomeObserver,
+          isHost: room.isHost,
+          selfType: room.selfType,
+          isSelfReady: room.isSelfReady,
+          isAllReady: room.isAllReady,
+          autoHandEnabled: room.autoHandEnabled,
+          autoTurnOrderEnabled: room.autoTurnOrderEnabled,
+          autoDuelEnabled: room.autoDuelEnabled,
+          toggleReady: (context) => _onToggleReady(context, ref),
+          onToggleAutoHand: (v) => unawaited(
+            _onToggleAutomation(ref, v, roomCtl.setAutoHandEnabled),
+          ),
+          onToggleAutoTurnOrder: (v) => unawaited(
+            _onToggleAutomation(ref, v, roomCtl.setAutoTurnOrderEnabled),
+          ),
+          onToggleAutoDuel: (v) => unawaited(
+            _onToggleAutomation(ref, v, roomCtl.setAutoDuelEnabled),
+          ),
+          onStartDuel: roomCtl.startDuel,
+          onBecomeDuelist: roomCtl.becomeDuelist,
+          onBecomeObserver: roomCtl.becomeObserver,
         ),
       ],
     );

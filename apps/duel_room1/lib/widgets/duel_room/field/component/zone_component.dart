@@ -6,9 +6,9 @@ import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
 import 'package:flame/text.dart';
 import 'package:flutter/material.dart';
-import '../../../../models/field_card.dart';
-import '../../../../models/field_zone_key.dart';
-import '../../../../pages/duel_room/duel_field_store.dart';
+import 'package:biz/duel/models/field_card.dart';
+import 'package:biz/duel/models/field_zone_key.dart';
+import '../flame_field_snapshot.dart';
 import '../duel_field_world.dart';
 import 'deck_shuffle_effect.dart';
 
@@ -27,23 +27,29 @@ enum CardSlotHighlight {
 }
 
 /// 场地区域组件：持有全部卡槽（[CardSlotComponent]），负责按
-/// [DuelFieldStore] 构建槽位布局、重建，以及鼠标移动时的视差重投影。
+/// [FlameFieldSnapshot] 构建槽位布局、重建，以及鼠标移动时的视差重投影。
 ///
 /// 卡槽作为本组件的子节点，位置使用世界坐标（由 [DuelFieldWorld.project3D]
 /// 投影），本组件本身无变换，故子节点世界坐标 = 棋盘世界坐标。
 class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
-  final DuelFieldStore duelStore;
   final Function(FieldCard? card, int? code)? onCardSelect;
   final void Function(String zoneKey)? onZoneInspect;
+
+  /// 点击可放置槽位（MSG_SELECT_PLACE）的回调（槽位 key 为
+  /// `controller_zone_sequence`）。
+  final void Function(String slotKey)? onPlaceSlotTap;
 
   final List<CardSlotComponent> _slots = [];
   Vector2? _lastParallaxMouse;
   int _lastShuffleTick = 0;
 
+  /// 当前状态快照（widget 层经游戏推入）。
+  FlameFieldSnapshot get _snapshot => world.game.snapshot;
+
   ZonesComponent({
-    required this.duelStore,
     this.onCardSelect,
     this.onZoneInspect,
+    this.onPlaceSlotTap,
   });
 
   @override
@@ -55,10 +61,10 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
 
   /// 监听卡组洗切信号，在对应卡组槽位上播放洗牌动效。
   void _spawnShuffleEffect() {
-    final tick = duelStore.deckShuffleTick;
+    final tick = _snapshot.deckShuffleTick;
     if (tick == 0 || tick == _lastShuffleTick) return;
     _lastShuffleTick = tick;
-    final isSelf = duelStore.deckShufflePlayer == duelStore.myController;
+    final isSelf = _snapshot.deckShufflePlayer == _snapshot.myController;
     final x = isSelf ? DuelFieldLayout.colX[6] : DuelFieldLayout.colX[0];
     final y = isSelf ? DuelFieldLayout.stY : -DuelFieldLayout.stY;
     world.add(DeckShuffleEffect(position: world.project3D(x, y)));
@@ -85,7 +91,7 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
   }
 
   void _buildAllSlots() {
-    final selfController = duelStore.myController;
+    final selfController = _snapshot.myController;
     final opponentController = 1 - selfController;
 
     const colX = DuelFieldLayout.colX;
@@ -93,7 +99,7 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
     const stY = DuelFieldLayout.stY;
 
     FieldCard? getCard(int c, int z, int s) =>
-        duelStore.fieldCards[zoneKeyOf(c, z, s)];
+        _snapshot.fieldCards[zoneKeyOf(c, z, s)];
 
     // SpellTrap 行(-stY/+stY)：仅保留 [EXTRA][S/T..][DECK]。
     // Monster 行(-monsterY/+monsterY)：FIELD 与 M1..5 同一水平线。
@@ -170,8 +176,8 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
       onTapOverride: () => onZoneInspect?.call('opp_removed'),
     );
     final emz1 =
-        duelStore.fieldCards['${opponentController}_4_5'] ??
-        duelStore.fieldCards['${selfController}_4_5'];
+        _snapshot.fieldCards['${opponentController}_4_5'] ??
+        _snapshot.fieldCards['${selfController}_4_5'];
     // EMZ 为双方共享的物理槽位，同一槽位可能匹配双方任一 controller 的
     // 选择/放置目标。
     _addSlot(
@@ -187,8 +193,8 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
       ],
     );
     final emz2 =
-        duelStore.fieldCards['${opponentController}_4_6'] ??
-        duelStore.fieldCards['${selfController}_4_6'];
+        _snapshot.fieldCards['${opponentController}_4_6'] ??
+        _snapshot.fieldCards['${selfController}_4_6'];
     _addSlot(
       emz2,
       'EMZ 2',
@@ -278,7 +284,7 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
     required int controller,
     required int zone,
   }) {
-    final codes = duelStore.getZoneCodes(zoneKey);
+    final codes = _snapshot.zoneCodesOf(zoneKey);
     for (var i = codes.length - 1; i >= 0; i--) {
       final code = codes[i];
       if (code <= 0) continue;
@@ -294,9 +300,9 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
   }
 
   FieldCard? _deckPreviewCard(int controller) {
-    final count = controller == duelStore.myController
-        ? duelStore.selfDeck
-        : duelStore.oppDeck;
+    final count = controller == _snapshot.myController
+        ? _snapshot.selfDeck
+        : _snapshot.oppDeck;
     if (count <= 0) {
       return null;
     }
@@ -324,16 +330,16 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
     var highlight = CardSlotHighlight.none;
     VoidCallback? placeTap;
     for (final key in slotKeys) {
-      if (duelStore.inlineSelectedFieldKeys.contains(key)) {
+      if (_snapshot.inlineSelectedFieldKeys.contains(key)) {
         highlight = CardSlotHighlight.checked;
         break;
       }
       if (highlight == CardSlotHighlight.none) {
-        if (duelStore.inlineSelectableFieldKeys.contains(key)) {
+        if (_snapshot.inlineSelectableFieldKeys.contains(key)) {
           highlight = CardSlotHighlight.selectable;
-        } else if (duelStore.placeTargetFieldKeys.contains(key)) {
+        } else if (_snapshot.placeTargetFieldKeys.contains(key)) {
           highlight = CardSlotHighlight.placeTarget;
-          placeTap = () => duelStore.respondSelectPlaceKey(key);
+          placeTap = () => onPlaceSlotTap?.call(key);
         }
       }
     }
@@ -362,7 +368,7 @@ class CardSlotComponent extends PositionComponent
   static const _hoverScale = 1.12;
   static const _hoverLift = 28.0;
 
-  /// YGO position 位掩码（与 PrototypePlaymatField 一致）。
+  /// YGO position 位掩码。
   /// 0x1=表侧攻击, 0x2=里侧攻击, 0x4=表侧守备, 0x8=里侧守备。
   static const int _posFacedownMask = 0x0A; // 0x2 | 0x8
   static const int _posDefenseMask = 0x0C; // 0x4 | 0x8
@@ -610,13 +616,13 @@ class CardSlotComponent extends PositionComponent
     canvas.restore();
 
     // ATK/DEF 徽章：不受旋转影响，始终竖直显示在槽位右上角
-    // 与 PrototypePlaymatField._buildPositionBadge 一致
+    // 位置徽标：攻/守/里侧指示
     if (!isFacedown && isMonster) {
       _renderBadge(canvas, w, h, isDefense);
     }
   }
 
-  /// 绘制卡背（里侧卡牌）— 匹配 PrototypePlaymatField._CardBack。
+  /// 绘制卡背（里侧卡牌）。
   void _renderCardBack(Canvas canvas, double w, double h) {
     if (card?.zone == CARD_ZONE_DECK) {
       _renderDeckBack(canvas, w, h);
