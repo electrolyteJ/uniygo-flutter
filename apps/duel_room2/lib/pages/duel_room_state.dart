@@ -21,6 +21,15 @@ typedef ResolvedDeck = ({
   List<CardInfo> side,
 });
 
+/// 最近一次提交给服务器的卡组构成（卡码列表）。
+///
+/// match 模式（三局两胜）局间换备时作为数量基准：
+/// 换备后主/额/副各分区数量必须与提交时一致。
+typedef SubmittedDeck = ({List<int> main, List<int> extra, List<int> side});
+
+/// 换备编辑的卡组分区。
+enum SidingZone { main, extra, side }
+
 /// 房间页不可变状态快照。
 ///
 /// 房间阶段/玩家列表等均由服务端事件整体替换，适合不可变建模；
@@ -42,6 +51,9 @@ class DuelRoomState {
     this.autoTurnOrderEnabled = false,
     this.autoDuelEnabled = false,
     this.invalidationDeckResult,
+    this.submittedDeck,
+    this.sidingDeck,
+    this.sidingBaseline,
     this.errorMessage,
   });
 
@@ -63,6 +75,19 @@ class DuelRoomState {
 
   /// 卡组校验结果（null=未校验/不校验，空列表=通过）。
   final List<String>? invalidationDeckResult;
+
+  /// 最近一次提交的卡组构成（准备时提交，换备确认后用新构成替换）。
+  ///
+  /// 换备的数量基准；为 null 表示尚未提交过卡组
+  /// （此时进入换备阶段会回退到当前所选卡组的构成）。
+  final SubmittedDeck? submittedDeck;
+
+  /// 正在编辑的换备构成（仅 RoomSideDecking 阶段非 null）。
+  final ResolvedDeck? sidingDeck;
+
+  /// 本次换备的基准构成（进入换备阶段时初始化，仅该阶段非 null）。
+  final ResolvedDeck? sidingBaseline;
+
   final String? errorMessage;
 
   static const _sentinel = Object();
@@ -83,6 +108,9 @@ class DuelRoomState {
     bool? autoTurnOrderEnabled,
     bool? autoDuelEnabled,
     Object? invalidationDeckResult = _sentinel,
+    Object? submittedDeck = _sentinel,
+    Object? sidingDeck = _sentinel,
+    Object? sidingBaseline = _sentinel,
     Object? errorMessage = _sentinel,
   }) {
     return DuelRoomState(
@@ -113,6 +141,15 @@ class DuelRoomState {
       invalidationDeckResult: identical(invalidationDeckResult, _sentinel)
           ? this.invalidationDeckResult
           : invalidationDeckResult as List<String>?,
+      submittedDeck: identical(submittedDeck, _sentinel)
+          ? this.submittedDeck
+          : submittedDeck as SubmittedDeck?,
+      sidingDeck: identical(sidingDeck, _sentinel)
+          ? this.sidingDeck
+          : sidingDeck as ResolvedDeck?,
+      sidingBaseline: identical(sidingBaseline, _sentinel)
+          ? this.sidingBaseline
+          : sidingBaseline as ResolvedDeck?,
       errorMessage: identical(errorMessage, _sentinel)
           ? this.errorMessage
           : errorMessage as String?,
@@ -156,6 +193,27 @@ class DuelRoomState {
       }
     }
     return true;
+  }
+
+  // ─── 换备（match 模式局间换 Side Deck）───────────────
+
+  /// 换备编辑中的主卡组（非换备阶段为 null）。
+  List<CardInfo>? get sidingMain => sidingDeck?.main;
+
+  /// 换备编辑中的额外卡组（非换备阶段为 null）。
+  List<CardInfo>? get sidingExtra => sidingDeck?.extra;
+
+  /// 换备编辑中的副卡组（非换备阶段为 null）。
+  List<CardInfo>? get sidingSide => sidingDeck?.side;
+
+  /// 当前换备构成各分区数量是否与基准一致（一致才允许提交）。
+  bool get isSidingCountsValid {
+    final siding = sidingDeck;
+    final baseline = sidingBaseline;
+    if (siding == null || baseline == null) return false;
+    return siding.main.length == baseline.main.length &&
+        siding.extra.length == baseline.extra.length &&
+        siding.side.length == baseline.side.length;
   }
 }
 
@@ -385,31 +443,41 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
     if (_disposed) return (deck: null, error: null);
 
     // ── 禁限卡表校验 ──
-    final options = state.roomOptions;
-    if (options?.noCheckDeck == false) {
-      final lflistHash = options!.lfTableHash;
-      List<String>? result;
-      try {
-        final lfTable = await _dataService.getLfTable(lflistHash);
-        if (lfTable != null) {
-          final validator = DeckValidator(lfInfos: lfTable.lfInfos);
-          result = validator.validate(main, extra, side);
-        }
-      } catch (e) {
-        // 禁限卡表未加载/加载失败时无法本地校验：跳过本地校验，
-        // 由服务器在提交卡组时兜底校验。
-        console.log('Deck validation skipped (banlist unavailable): $e');
-        result = null;
-      }
-      if (_disposed) return (deck: null, error: null);
-      state = state.copyWith(invalidationDeckResult: result);
-      if (result != null && result.isNotEmpty) {
-        return (deck: null, error: '卡组不合规: ${result.first}');
-      }
-    } else {
-      state = state.copyWith(invalidationDeckResult: null);
+    final result = await _validateDeckLegality(main, extra, side);
+    if (_disposed) return (deck: null, error: null);
+    state = state.copyWith(invalidationDeckResult: result);
+    if (result != null && result.isNotEmpty) {
+      return (deck: null, error: '卡组不合规: ${result.first}');
     }
     return (deck: (main: main, extra: extra, side: side), error: null);
+  }
+
+  /// 对任意卡组构成执行与 [selectDeck] 相同的禁限卡表校验。
+  ///
+  /// 返回违规项列表；空列表 = 通过；null = 未校验（房间未开启卡组检查、
+  /// 禁限表不可用或加载失败），此时由服务器在提交卡组时兜底校验。
+  ///
+  /// 换备确认（[confirmSiding]）复用本方法：换备只交换卡位，
+  /// 不改变全卡池总量，合法性与提交时一致；此校验兜底禁限表在局间
+  /// 变化等极端情况。
+  Future<List<String>?> _validateDeckLegality(
+    List<CardInfo> main,
+    List<CardInfo> extra,
+    List<CardInfo> side,
+  ) async {
+    final options = state.roomOptions;
+    if (options == null || options.noCheckDeck) return null;
+    try {
+      final lfTable = await _dataService.getLfTable(options.lfTableHash);
+      if (lfTable == null) return null;
+      final validator = DeckValidator(lfInfos: lfTable.lfInfos);
+      return validator.validate(main, extra, side);
+    } catch (e) {
+      // 禁限卡表未加载/加载失败时无法本地校验：跳过本地校验，
+      // 由服务器在提交卡组时兜底校验。
+      console.log('Deck validation skipped (banlist unavailable): $e');
+      return null;
+    }
   }
 
   Future<void> refreshSelectedDeckValidation() async {
@@ -439,12 +507,21 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
     if (deck == null || deck.main.isEmpty) {
       return '卡组为空或加载失败';
     }
-    final mainBytes = deckToBytes(deck.main.map((c) => c.code).toList());
-    final extraBytes = deckToBytes(deck.extra.map((c) => c.code).toList());
+    final mainCodes = deck.main.map((c) => c.code).toList();
+    final extraCodes = deck.extra.map((c) => c.code).toList();
+    final sideCodes = deck.side.map((c) => c.code).toList();
+    final mainBytes = deckToBytes(mainCodes);
+    final extraBytes = deckToBytes(extraCodes);
+    final sideBytes = deckToBytes(sideCodes);
     ref
         .read(duelFieldProvider.notifier)
-        .setKnownSelfExtraDeckCodes(deck.extra.map((c) => c.code).toList());
-    _duelService.submitDeck(mainBytes, extraBytes);
+        .setKnownSelfExtraDeckCodes(extraCodes);
+    // match 模式下副卡组随首次提交一并上送，作为局间换备的卡池。
+    _duelService.submitDeck(mainBytes, extraBytes, sideBytes);
+    // 记录提交的卡组构成：match 模式换备的数量基准。
+    state = state.copyWith(
+      submittedDeck: (main: mainCodes, extra: extraCodes, side: sideCodes),
+    );
     _duelService.ready();
     return null;
   }
@@ -505,6 +582,11 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
         observerCount: roomStage.observerCount,
         stage: roomStage,
       );
+      // 离开换备阶段时清理换备编辑状态（进入由下方 case 初始化）。
+      if (roomStage is! RoomSideDecking &&
+          (state.sidingDeck != null || state.sidingBaseline != null)) {
+        next = next.copyWith(sidingDeck: null, sidingBaseline: null);
+      }
       switch (roomStage) {
         case RoomNotJoined():
           break;
@@ -557,11 +639,196 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
           break;
         case RoomDuelEnded():
           break;
+        case RoomSideDecking():
+          // match 模式局间换备：初始化换备编辑状态（异步解析卡信息）。
+          unawaited(_enterSideDecking());
+          break;
         default:
           break;
       }
       state = next;
     });
+  }
+
+  // ─── 换备（match 模式局间换 Side Deck）───────────────
+
+  /// 进入换备阶段：初始化换备编辑状态。
+  ///
+  /// 优先以最近一次提交的卡组构成（[DuelRoomState.submittedDeck]）为基准；
+  /// 没有提交记录时回退到当前所选卡组的构成（走 [selectDeck]，
+  /// 含同一套禁限校验）。解析完成后才写入 state，期间 UI 显示加载态。
+  Future<void> _enterSideDecking() async {
+    ResolvedDeck? comp;
+    final submitted = state.submittedDeck;
+    if (submitted != null) {
+      comp = await _resolveDeckCodes(
+        submitted.main,
+        submitted.extra,
+        submitted.side,
+      );
+    } else {
+      final selection = await selectDeck(state.selectedDeckName);
+      comp = selection.deck;
+    }
+    if (_disposed) return;
+    // 阶段可能已前进（如服务器快速下发下一局 DUEL_START），
+    // 仅在仍处于换备阶段时写入。
+    if (state.stage is! RoomSideDecking) return;
+    if (comp == null) {
+      state = state.copyWith(errorMessage: '换备数据初始化失败');
+      return;
+    }
+    final baseline = (
+      main: [...comp.main],
+      extra: [...comp.extra],
+      side: [...comp.side],
+    );
+    state = state.copyWith(
+      sidingDeck: (
+        main: [...comp.main],
+        extra: [...comp.extra],
+        side: [...comp.side],
+      ),
+      sidingBaseline: baseline,
+    );
+  }
+
+  /// 将换备基准的卡码列表解析为卡信息（复用 dataService 的卡片缓存）。
+  ///
+  /// 无法解析的卡码用占位卡信息兜底，保证换备 UI 仍可编辑与回移。
+  Future<ResolvedDeck> _resolveDeckCodes(
+    List<int> main,
+    List<int> extra,
+    List<int> side,
+  ) async {
+    return (
+      main: await _resolveCodeList(main),
+      extra: await _resolveCodeList(extra),
+      side: await _resolveCodeList(side),
+    );
+  }
+
+  Future<List<CardInfo>> _resolveCodeList(List<int> codes) async {
+    final result = <CardInfo>[];
+    for (final code in codes) {
+      CardInfo? card;
+      try {
+        card = await _dataService.getCard(code);
+      } catch (e) {
+        console.log('Failed to resolve card $code for siding: $e');
+      }
+      if (_disposed) return result;
+      result.add(card ?? CardInfo(code: code, type: 0, name: '卡片 $code'));
+    }
+    return result;
+  }
+
+  /// 换备：把 [from] 分区下标 [index] 处的卡移动到 [to] 分区。
+  ///
+  /// 只允许 主卡组↔副卡组、额外卡组↔副卡组；主卡组↔额外卡组非法
+  /// （YGOPro 换备规则）。返回是否执行了移动：
+  /// 分区对非法、下标越界、不在换备阶段或换备数据未就绪时为 false。
+  bool moveSidingCard(SidingZone from, SidingZone to, int index) {
+    if (state.stage is! RoomSideDecking) return false;
+    final siding = state.sidingDeck;
+    if (siding == null || from == to) return false;
+    final isMainExtraSwap =
+        (from == SidingZone.main && to == SidingZone.extra) ||
+        (from == SidingZone.extra && to == SidingZone.main);
+    if (isMainExtraSwap) return false;
+    final fromList = switch (from) {
+      SidingZone.main => siding.main,
+      SidingZone.extra => siding.extra,
+      SidingZone.side => siding.side,
+    };
+    if (index < 0 || index >= fromList.length) return false;
+    final card = fromList[index];
+    final main = [...siding.main];
+    final extra = [...siding.extra];
+    final side = [...siding.side];
+    switch (from) {
+      case SidingZone.main:
+        main.removeAt(index);
+      case SidingZone.extra:
+        extra.removeAt(index);
+      case SidingZone.side:
+        side.removeAt(index);
+    }
+    switch (to) {
+      case SidingZone.main:
+        main.add(card);
+      case SidingZone.extra:
+        extra.add(card);
+      case SidingZone.side:
+        side.add(card);
+    }
+    state = state.copyWith(sidingDeck: (main: main, extra: extra, side: side));
+    return true;
+  }
+
+  /// 换备：放弃当前编辑，恢复为基准构成。
+  void resetSiding() {
+    if (state.stage is! RoomSideDecking) return;
+    final baseline = state.sidingBaseline;
+    if (baseline == null) return;
+    state = state.copyWith(
+      sidingDeck: (
+        main: [...baseline.main],
+        extra: [...baseline.extra],
+        side: [...baseline.side],
+      ),
+    );
+  }
+
+  /// 换备确认：提交换备后的卡组并 ready。
+  ///
+  /// 前置条件：处于换备阶段、换备数据已就绪、各分区数量与基准一致；
+  /// 数量一致时再执行与 [selectDeck] 相同的禁限卡表校验。
+  /// 返回 null 表示已提交；返回非空字符串为失败原因（页面负责展示）。
+  ///
+  /// 提交成功后新构成替换 [DuelRoomState.submittedDeck]，
+  /// 成为下一局换备的数量基准。
+  Future<String?> confirmSiding() async {
+    if (state.stage is! RoomSideDecking) return '当前不在换备阶段';
+    final siding = state.sidingDeck;
+    final baseline = state.sidingBaseline;
+    if (siding == null || baseline == null) return '换备数据尚未就绪';
+    if (siding.main.length != baseline.main.length ||
+        siding.extra.length != baseline.extra.length ||
+        siding.side.length != baseline.side.length) {
+      return '卡组数量与基准不一致，无法提交';
+    }
+    final legality = await _validateDeckLegality(
+      siding.main,
+      siding.extra,
+      siding.side,
+    );
+    if (_disposed) return null;
+    if (legality != null && legality.isNotEmpty) {
+      return '卡组不合规: ${legality.first}';
+    }
+    final mainCodes = siding.main.map((c) => c.code).toList();
+    final extraCodes = siding.extra.map((c) => c.code).toList();
+    final sideCodes = siding.side.map((c) => c.code).toList();
+    ref
+        .read(duelFieldProvider.notifier)
+        .setKnownSelfExtraDeckCodes(extraCodes);
+    _duelService.submitDeck(
+      deckToBytes(mainCodes),
+      deckToBytes(extraCodes),
+      deckToBytes(sideCodes),
+    );
+    _duelService.ready();
+    // 新构成成为下一次换备的基准。
+    state = state.copyWith(
+      submittedDeck: (main: mainCodes, extra: extraCodes, side: sideCodes),
+      sidingBaseline: (
+        main: [...siding.main],
+        extra: [...siding.extra],
+        side: [...siding.side],
+      ),
+    );
+    return null;
   }
 
   /// 按 lfTableHash 缓存的禁限表 Future，避免每次 build 重建 future

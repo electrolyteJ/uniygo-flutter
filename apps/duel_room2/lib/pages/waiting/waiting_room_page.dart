@@ -17,6 +17,7 @@ import 'widgets/playerslot.dart';
 import 'widgets/room_info_panel.dart';
 import 'widgets/select_hand.dart';
 import 'widgets/select_turn.dart';
+import 'widgets/side_decking_panel.dart';
 
 class WaitingRoomPage extends ConsumerWidget {
   const WaitingRoomPage({super.key});
@@ -74,7 +75,26 @@ class WaitingRoomPage extends ConsumerWidget {
   }
 
   Future<void> _onToggleReady(BuildContext context, WidgetRef ref) async {
-    final error = await ref.read(duelRoomProvider.notifier).toggleReady();
+    final notifier = ref.read(duelRoomProvider.notifier);
+    final stage = ref.read(duelRoomProvider).stage;
+    // 换备阶段「准备」即确认换备：避免误提交换备前的卡组。
+    final error = stage is RoomSideDecking
+        ? await notifier.confirmSiding()
+        : await notifier.toggleReady();
+    if (error != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  /// 换备确认：提交换备后的卡组并 ready，失败原因走 SnackBar。
+  Future<void> _onConfirmSiding(BuildContext context, WidgetRef ref) async {
+    final error = await ref.read(duelRoomProvider.notifier).confirmSiding();
     if (error != null && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -148,21 +168,38 @@ class WaitingRoomPage extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        DeckSelector(
-                          enabled: !room.isSelfReady,
-                          decks: room.availableDecks,
-                          selectedDeckName: room.selectedDeckName,
-                          mySlot: mySlotVal,
-                          onSelectDeck: (value) {
-                            if (value != null) {
-                              roomCtl.selectDeck(value);
-                            }
-                          },
-                          onEditDeck: room.selectedDeckName == null
-                              ? null
-                              : () => _onEditDeck(context, ref),
-                          invalidationResult: room.invalidationDeckResult,
-                        ),
+                        if (stage is RoomSideDecking)
+                          SideDeckingPanel(
+                            isDuelist: mySlotVal >= 0 && mySlotVal <= 1,
+                            sidingMain: room.sidingMain,
+                            sidingExtra: room.sidingExtra,
+                            sidingSide: room.sidingSide,
+                            baselineMainCount:
+                                room.sidingBaseline?.main.length ?? 0,
+                            baselineExtraCount:
+                                room.sidingBaseline?.extra.length ?? 0,
+                            baselineSideCount:
+                                room.sidingBaseline?.side.length ?? 0,
+                            onMoveCard: roomCtl.moveSidingCard,
+                            onReset: roomCtl.resetSiding,
+                            onConfirm: () => _onConfirmSiding(context, ref),
+                          )
+                        else
+                          DeckSelector(
+                            enabled: !room.isSelfReady,
+                            decks: room.availableDecks,
+                            selectedDeckName: room.selectedDeckName,
+                            mySlot: mySlotVal,
+                            onSelectDeck: (value) {
+                              if (value != null) {
+                                roomCtl.selectDeck(value);
+                              }
+                            },
+                            onEditDeck: room.selectedDeckName == null
+                                ? null
+                                : () => _onEditDeck(context, ref),
+                            invalidationResult: room.invalidationDeckResult,
+                          ),
                         const SizedBox(height: 12),
                         if (stage is RoomSelectingHand)
                           HandSelect(

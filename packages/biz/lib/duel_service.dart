@@ -71,8 +71,8 @@ class DuelService implements IDuelService {
   void enterRoom(String password) => _svc.enterRoom(password);
 
   @override
-  void submitDeck(Uint8List mainDeck, Uint8List extraDeck) =>
-      _svc.submitDeck(mainDeck, extraDeck);
+  void submitDeck(Uint8List mainDeck, Uint8List extraDeck, [Uint8List? sideDeck]) =>
+      _svc.submitDeck(mainDeck, extraDeck, sideDeck);
 
   @override
   void ready() => _svc.ready();

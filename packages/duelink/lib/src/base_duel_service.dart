@@ -185,7 +185,10 @@ abstract class BaseDuelService implements IDuelService {
 
   void _onPlayerEnter(StocHsPlayerEnter m) {
     final updated = List<PlayerInfo>.from(_playersOf(_roomStage));
-    updated.add(PlayerInfo(name: m.name, pos: m.pos));
+    // host 约定：YGOPro 协议没有携带房主标识的对局内信号
+    // （RoomInLobby.isHost 只描述自己），按惯例座位 0 即建房者/房主。
+    // 局限：房主中途离开后服务器可能静默转移房主，此字段不会随之更新。
+    updated.add(PlayerInfo(name: m.name, pos: m.pos, host: m.pos == 0));
     _setPlayers(updated);
     console.log(
       'RoomStage: PLAYER_ENTER ${_roomStage} pos:${m.pos} name:${m.name}',
@@ -418,15 +421,16 @@ abstract class BaseDuelService implements IDuelService {
   }
 
   @override
-  void submitDeck(Uint8List mainDeck, Uint8List extraDeck) {
+  void submitDeck(Uint8List mainDeck, Uint8List extraDeck, [Uint8List? sideDeck]) {
     final mainCards = _bytesToInts(mainDeck);
     final extraCards = _bytesToInts(extraDeck);
+    final sideCards = sideDeck == null ? const <int>[] : _bytesToInts(sideDeck);
     _send(
       YgoCtosMsg.updateDeck(
         CtosUpdateDeck(
           mainDeck: mainCards,
           extraDeck: extraCards,
-          sideDeck: [],
+          sideDeck: sideCards,
         ),
       ),
     );

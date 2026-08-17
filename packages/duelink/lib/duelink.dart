@@ -175,7 +175,10 @@ abstract class IDuelService implements IService {
   void enterRoom(String password);
 
   /// 提交卡组。
-  void submitDeck(Uint8List mainDeck, Uint8List extraDeck);
+  ///
+  /// [sideDeck] 可选：match 模式（三局两胜）换备后提交时携带副卡组。
+  /// 不传时按空副卡组处理（兼容既有两参调用）。
+  void submitDeck(Uint8List mainDeck, Uint8List extraDeck, [Uint8List? sideDeck]);
 
   /// 准备就绪。
   void ready();

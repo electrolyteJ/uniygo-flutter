@@ -13,6 +13,9 @@ import 'models/chain_link.dart';
 import 'models/draw_animation_event.dart';
 import 'models/field_card.dart';
 import 'models/field_zone_key.dart';
+// 注：与本文件存在双向 import（duel_room_state 也引用 duelFieldProvider）；
+// Dart 允许 import 环，且两侧都只在运行期惰性读取对方的 provider。
+import '../duel_room_state.dart' show duelRoomProvider;
 
 const Object _undefined = Object();
 
@@ -38,6 +41,41 @@ int _normalizeFieldSequence(int zone, int sequence) {
     return 5;
   }
   return sequence;
+}
+
+// ──────────────────────────────────────────
+// Tag（双打）模式的座位 ↔ 引擎玩家映射
+// ──────────────────────────────────────────
+
+/// Tag 模式下座位所属队伍（ocgcore 约定：座位 0,2 = 队伍 0；座位 1,3 = 队伍 1）。
+///
+/// Tag 对局里引擎只有两个「玩家」（即两支队伍），服务器消息里的 player
+/// 字段是队伍编号 0/1，与 4 个决斗座位号不一一对应，展示前需经此映射。
+/// 1v1 下座位号只有 0/1，`pos % 2 == pos`，映射天然退化为恒等。
+int teamOfSeat(int pos) => pos % 2;
+
+/// [team] 队伍在 [players] 中的全部决斗座位（按座位号升序）。
+///
+/// 只统计决斗座位（pos 0..3）：观战位（pos==7）不参与队伍映射。
+List<PlayerInfo> seatsOfTeam(int team, List<PlayerInfo> players) {
+  final seats = players
+      .where((p) => p.pos >= 0 && p.pos <= 3 && teamOfSeat(p.pos) == team)
+      .toList(growable: false);
+  seats.sort((a, b) => a.pos.compareTo(b.pos));
+  return seats;
+}
+
+/// 一侧玩家名展示：tag 模式把同队队友名字用 " / " 连接（如 "A / B"），
+/// 1v1 每队恰有一个座位，输出与旧的 `pos` 精确匹配逻辑一致。
+/// 该侧没有任何座位时返回 [fallback]。
+String teamDisplayName(
+  int team,
+  List<PlayerInfo> players, {
+  required String fallback,
+}) {
+  final names = seatsOfTeam(team, players).map((p) => p.name);
+  if (names.isEmpty) return fallback;
+  return names.join(' / ');
 }
 
 /// 对局事实状态：服务器写入的战场数据，不可变快照。
@@ -94,6 +132,7 @@ class DuelFieldState {
     this.drawAnimationTick = 0,
     this.duelLogs = const [],
     this.players = const [],
+    this.roomMode,
     this.duelResult,
   });
 
@@ -157,7 +196,10 @@ class DuelFieldState {
   final int handShuffleTick;
   final int handShufflePlayer;
 
-  /// 最近一次抽卡动画事件；页面监听该字段变化播放抽卡飞行动画。
+  /// 最近一次抽卡动画事件；页面监听该字段变化播放抽卡飞行动画
+  /// （播放中到达的新事件由页面侧 FIFO 队列排队，见 DrawAnimationQueue）。
+  /// [DuelFieldNotifier.handleStart] 在新对局开始时将其清为 null，
+  /// 页面以此作为清空本地动画队列的信号。
   final DrawAnimationEvent? drawAnimationEvent;
   final int drawAnimationTick;
 
@@ -166,6 +208,11 @@ class DuelFieldState {
 
   /// 玩家名解析所需的房间玩家列表，由页面在房间阶段变化时同步。
   final List<PlayerInfo> players;
+
+  /// 房间对战模式，由 [DuelFieldNotifier] 从房间状态只读同步。
+  /// null 表示房间信息尚未同步（此时 tag 判定退回「4 决斗座位」启发式，
+  /// 见 [isTagMode]）。tag 模式影响座位↔引擎玩家映射，见 [teamOfSeat]。
+  final RoomMode? roomMode;
 
   final Map<String, Object?>? duelResult;
 
@@ -217,6 +264,7 @@ class DuelFieldState {
     int? drawAnimationTick,
     List<String>? duelLogs,
     List<PlayerInfo>? players,
+    RoomMode? roomMode,
     Object? duelResult = _undefined,
   }) {
     return DuelFieldState(
@@ -278,6 +326,7 @@ class DuelFieldState {
       drawAnimationTick: drawAnimationTick ?? this.drawAnimationTick,
       duelLogs: duelLogs ?? this.duelLogs,
       players: players ?? this.players,
+      roomMode: roomMode ?? this.roomMode,
       duelResult: identical(duelResult, _undefined)
           ? this.duelResult
           : duelResult as Map<String, Object?>?,
@@ -344,13 +393,50 @@ class DuelFieldState {
     return null;
   }
 
-  String playerNameOf(int pos) {
-    return players
-        .firstWhere(
-          (p) => p.pos == pos,
-          orElse: () => PlayerInfo(name: '玩家$pos', pos: pos),
-        )
-        .name;
+  /// 是否 tag（双打）模式。
+  ///
+  /// 优先取房间选项 [roomMode]；房间信息尚未同步（null）时退回
+  /// 「存在 4 个决斗座位」启发式：1v1 只有座位 0/1，tag 为 0..3。
+  /// 该启发式只在房间信息缺失时兜底，正常流程 roomMode 会在进房后即同步。
+  bool get isTagMode {
+    final mode = roomMode;
+    if (mode != null) return mode == RoomMode.tag;
+    return players.where((p) => p.pos >= 0 && p.pos <= 3).length >= 4;
+  }
+
+  /// 把引擎玩家编号解析为展示用玩家名。
+  ///
+  /// 1v1：引擎编号 == 座位号，直接精确匹配。
+  /// tag 模式：引擎只有两个「玩家」（两支队伍），编号即队伍编号
+  /// （座位 0,2 = 队伍 0；座位 1,3 = 队伍 1，见 [teamOfSeat]），
+  /// 无法与 4 个座位一一对应。此处尝试用回合数推导当前行动的队友：
+  /// ocgcore 中回合 1..4 依次对应座位 0..3 轮转，handleStart 把 turnCount
+  /// 置 1 且每条 MSG_NEW_TURN（含第 1 回合）自增一次，故第 T 回合时
+  /// turnCount == T+1，当前座位 = (turnCount - 2) % 4。
+  String playerNameOf(int player) {
+    if (!isTagMode) {
+      return players
+          .firstWhere(
+            (p) => p.pos == player,
+            orElse: () => PlayerInfo(name: '玩家$player', pos: player),
+          )
+          .name;
+    }
+    final seats = seatsOfTeam(player, players);
+    if (seats.isEmpty) return '玩家$player';
+    if (seats.length == 1) return seats.first.name;
+    // 推导当前行动座位；turnCount 尚未走过首个 MSG_NEW_TURN 时无法推导。
+    if (turnCount >= 2) {
+      final expectedSeat = (turnCount - 2) % 4;
+      if (teamOfSeat(expectedSeat) == player) {
+        for (final seat in seats) {
+          if (seat.pos == expectedSeat) return seat.name;
+        }
+      }
+    }
+    // 局限：对局中重连/中途观战/跳回合等使 turnCount 与实际座位轮转脱节时，
+    // 无法确定当前行动的队友，退回队伍首个座位。
+    return seats.first.name;
   }
 }
 
@@ -364,8 +450,17 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   @override
   DuelFieldState build() {
     _dataService = ref.watch(dataServiceProvider);
+    // 同步房间对战模式（tag 判定影响座位↔引擎玩家映射，见 playerNameOf）。
+    // 用 read 取初值 + listen 跟变化，而不用 watch：watch 会在房间状态
+    // 任意变更时重建本 notifier，把整个战场状态清空。
+    final roomMode = ref.read(duelRoomProvider.select((s) => s.roomOptions?.mode));
+    ref.listen(duelRoomProvider.select((s) => s.roomOptions?.mode), (prev, next) {
+      if (next != null && next != state.roomMode) {
+        state = state.copyWith(roomMode: next);
+      }
+    });
     ref.onDispose(_dispose);
-    return const DuelFieldState();
+    return DuelFieldState(roomMode: roomMode);
   }
 
   void _dispose() {
@@ -1364,6 +1459,10 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       opponentHand: const [],
       fieldCards: const {},
       turnCount: 1,
+      // 清空上一局残留的抽卡动画事件：页面以「事件变为 null」作为
+      // 新对局信号，同步清空本地动画队列。
+      drawAnimationEvent: null,
+      drawAnimationTick: 0,
     );
     addLog('决斗开始。');
   }

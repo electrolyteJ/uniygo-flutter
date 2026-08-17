@@ -76,8 +76,14 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
   Map<int, Rect> _selfHandCardRects = const {};
   Map<int, Rect> _oppHandCardRects = const {};
   late final AnimationController _drawController;
-  DrawAnimationEvent? _activeDrawEvent;
-  int? _activeDrawEventId;
+
+  /// 抽卡动画 FIFO 队列：播放中到达的新事件排队等待，不再打断当前动画
+  /// （连续抽卡场景，如「天使的施舍」）；同 id 更新就地 patch，不入队。
+  /// 队列语义见 [DrawAnimationQueue]；页面只维护动画的启动/结束。
+  final DrawAnimationQueue _drawQueue = DrawAnimationQueue();
+
+  /// 正在播放的抽卡动画事件（取自队列 active），null 时不渲染动画层。
+  DrawAnimationEvent? get _activeDrawEvent => _drawQueue.active;
   late final AnimationController _attackController;
   BattlePresentation? _activeAttack;
 
@@ -109,7 +115,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
       duration: const Duration(milliseconds: 1000),
     );
     // 逐帧进度由 DrawCardAnimation 内部的 AnimatedBuilder 消费，
-    // 页面只在动画开始（_playDrawAnimation）与结束（status listener）时
+    // 页面只在动画开始（_playActiveDrawAnimation）与结束（status listener）时
     // setState，不再每帧重建整页。
     _drawController.addStatusListener(_handleDrawAnimationStatus);
     _attackController = AnimationController(
@@ -122,6 +128,8 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
 
   @override
   void dispose() {
+    // 显式清空队列：dispose 后状态监听不再触发，残留事件不应滞留。
+    _drawQueue.clear();
     _drawController.dispose();
     _attackController.dispose();
     super.dispose();
@@ -151,20 +159,20 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
 
   void _handleDrawAnimationStatus(AnimationStatus status) {
     if (status != AnimationStatus.completed) return;
-    if (_activeDrawEvent?.id != _activeDrawEventId) return;
     if (!mounted) return;
-    setState(() {
-      _activeDrawEvent = null;
-      _activeDrawEventId = null;
-    });
+    // 当前动画播完：取出队列里的下一个事件继续播放；
+    // 队列为空则移除动画层（setState 仅发生在动画开始/结束两端）。
+    final next = _drawQueue.drain();
+    setState(() {});
+    if (next != null) {
+      _drawController.forward(from: 0);
+    }
   }
 
-  void _playDrawAnimation(DrawAnimationEvent event) {
+  /// 启动队列当前 active 事件的飞行动画（active 已由队列在 submit 时设置）。
+  void _playActiveDrawAnimation() {
     if (!mounted) return;
-    setState(() {
-      _activeDrawEvent = event;
-      _activeDrawEventId = event.id;
-    });
+    setState(() {});
     _drawController.forward(from: 0);
   }
 
@@ -255,14 +263,28 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
       prev,
       next,
     ) {
-      if (next == null) return;
-      if (next.id == _activeDrawEventId) {
-        if (_activeDrawEvent != next) {
-          setState(() => _activeDrawEvent = next);
+      if (next == null) {
+        // 新对局开始（handleStart 清空事件）：丢弃未播完的动画与排队事件，
+        // 避免上一局残留的抽卡动画飞进新局。
+        if (_drawQueue.isNotEmpty) {
+          _drawQueue.clear();
+          _drawController.stop();
+          setState(() {});
         }
         return;
       }
-      _playDrawAnimation(next);
+      switch (_drawQueue.submit(next)) {
+        case DrawQueueSubmitResult.started:
+          _playActiveDrawAnimation();
+        case DrawQueueSubmitResult.patchedActive:
+          // 同 id 更新命中播放中事件（MSG_CONFIRM_CARDS 后的 reveal 等）：
+          // 只刷新画面数据，不重启动画。
+          setState(() {});
+        case DrawQueueSubmitResult.patchedQueued:
+        case DrawQueueSubmitResult.enqueued:
+          // 排队中：等当前动画播完由 status listener 依序取出。
+          break;
+      }
     });
     // 攻击宣言（MSG_ATTACK）时播放怪兽攻击动画；MSG_BATTLE 只是回填
     // 攻守数值，不重播。用 attackerAttack 是否为 null 区分两阶段。

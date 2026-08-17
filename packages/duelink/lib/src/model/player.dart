@@ -8,7 +8,14 @@ class PlayerInfo {
   final int pos;
   /// 是否已准备
   final bool ready;
-  /// 是否为房主
+
+  /// 是否为房主。
+  ///
+  /// YGOPro 协议没有对局内的房主标识信号（STOC_TYPE_CHANGE 的 isHost
+  /// 只描述自己），该字段由 `BaseDuelService._onPlayerEnter` 按
+  /// 「座位 0 == 建房者/房主」的惯例填充（`host: pos == 0`）。
+  /// 局限：房主中途离开后服务器可能静默转移房主且不通知客户端，
+  /// 此字段可能过期；消费方如需稳妥可自行保留 pos==0 兜底。
   final bool host;
 
   const PlayerInfo({required this.name, this.pos = 0, this.ready = false, this.host = false});
