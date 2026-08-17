@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
 import 'package:biz/widgets/card_image.dart';
-import '../../models/select_state.dart';
+import 'package:biz/duel/models/select_state.dart';
 
 /// MSG_SELECT_COUNTER 模态弹窗：为每张候选卡分配要移除的指示物数量。
 ///

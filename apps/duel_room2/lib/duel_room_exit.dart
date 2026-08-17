@@ -6,8 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'field/duel_field_state.dart';
-import 'duel_room_state.dart';
+import 'package:biz/duel/field/duel_field_state.dart';
+import 'package:biz/duel/room/duel_room_state.dart';
 
 /// 退出决斗前的确认弹窗。
 void backHomeDialog({

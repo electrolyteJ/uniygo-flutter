@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter/widget_previews.dart';
 
-import '../models/chat_message.dart';
+import 'package:biz/duel/models/chat_message.dart';
 
 /// 聊天面板：纯 UI，消息列表与发送动作均由业务侧注入。
 class ChatPanel extends StatefulWidget {

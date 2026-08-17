@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/rendering.dart';
 
-import '../../models/field_card.dart';
+import 'package:biz/duel/models/field_card.dart';
 
 // 卡槽 key 统一由 models/field_zone_key.dart 的 fieldSlotId 提供，
 // 此处不再重复定义（页面 import 也不再需要 hide）。

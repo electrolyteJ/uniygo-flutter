@@ -6,8 +6,8 @@ import 'dart:ui';
 import 'package:biz/service_providers.dart';
 import 'package:biz/ygo_sound_service.dart';
 import 'package:biz/widgets/card_image.dart';
-import 'package:duel_room2/field/models/playmat_anchor_data.dart';
-import 'package:duel_room2/field/models/playmat_field_view_data.dart';
+import 'package:biz/duel/models/playmat_anchor_data.dart';
+import 'package:biz/duel/models/playmat_field_view_data.dart';
 import 'package:duel_room2/field/widgets/field/prototype_playmat_field.dart';
 import 'package:duel_room2/field/widgets/hud/duel_field_hud.dart';
 import 'package:duel_room2/field/widgets/duel_animation_layers.dart';
@@ -29,19 +29,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../duel_room_state.dart';
-import 'card_confirm_state.dart';
-import 'duel_field_derived.dart';
-import 'duel_field_state.dart';
-import 'field_overlay_state.dart';
-import 'models/battle_presentation.dart';
-import 'models/draw_animation_event.dart';
-import 'models/duel_menu.dart';
-import 'models/field_card.dart';
-import 'models/field_zone_key.dart';
-import 'models/idle_action.dart';
-import 'models/select_state.dart';
-import 'select_window_state.dart';
+import 'package:biz/duel/room/duel_room_state.dart';
+import 'package:biz/duel/field/card_confirm_state.dart';
+import 'package:biz/duel/field/duel_field_derived.dart';
+import 'package:biz/duel/field/duel_field_state.dart';
+import 'package:biz/duel/field/field_overlay_state.dart';
+import 'package:biz/duel/models/battle_presentation.dart';
+import 'package:biz/duel/models/draw_animation_event.dart';
+import 'package:biz/duel/models/duel_menu.dart';
+import 'package:biz/duel/models/field_card.dart';
+import 'package:biz/duel/models/field_zone_key.dart';
+import 'package:biz/duel/models/idle_action.dart';
+import 'package:biz/duel/models/select_state.dart';
+import 'package:biz/duel/field/select_window_state.dart';
 
 /// 决斗场地页：负责 store 接线与整体布局。
 ///

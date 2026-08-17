@@ -5,7 +5,7 @@ import 'package:flutter/widget_previews.dart';
 
 import 'package:biz/widgets/card_image.dart';
 import 'package:biz/widgets/cyber_button.dart';
-import '../../models/duel_menu.dart';
+import 'package:biz/duel/models/duel_menu.dart';
 
 String _zoneTitle(String zoneKey) {
   switch (zoneKey) {

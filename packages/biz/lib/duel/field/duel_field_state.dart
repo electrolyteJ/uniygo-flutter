@@ -4,18 +4,18 @@ import 'dart:developer' as console;
 import 'package:biz/service_providers.dart';
 import 'package:biz/ygo_data_service.dart';
 import 'package:duelink/duelink.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ygo_data/card_info.dart' as pkg;
 
-import 'models/battle_presentation.dart';
-import 'models/chain_link.dart';
-import 'models/draw_animation_event.dart';
-import 'models/field_card.dart';
-import 'models/field_zone_key.dart';
+import '../models/battle_presentation.dart';
+import '../models/chain_link.dart';
+import '../models/draw_animation_event.dart';
+import '../models/field_card.dart';
+import '../models/field_zone_key.dart';
 // 注：与本文件存在双向 import（duel_room_state 也引用 duelFieldProvider）；
 // Dart 允许 import 环，且两侧都只在运行期惰性读取对方的 provider。
-import '../duel_room_state.dart' show duelRoomProvider;
+import '../room/duel_room_state.dart' show duelRoomProvider;
 
 const Object _undefined = Object();
 

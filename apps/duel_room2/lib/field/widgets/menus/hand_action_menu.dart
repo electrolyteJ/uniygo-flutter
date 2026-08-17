@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
 import 'package:biz/widgets/cyber_button.dart';
-import '../../models/duel_menu.dart';
+import 'package:biz/duel/models/duel_menu.dart';
 
 
 class HandActionMenu extends StatelessWidget {

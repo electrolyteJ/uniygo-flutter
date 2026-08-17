@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../duel_field_state.dart';
-import '../../models/select_state.dart';
-import '../../select_window_state.dart';
+import 'package:biz/duel/field/duel_field_state.dart';
+import 'package:biz/duel/models/select_state.dart';
+import 'package:biz/duel/field/select_window_state.dart';
 import 'announce_card_dialog.dart';
 import 'announce_choice_dialog.dart';
 import 'card_selector.dart';

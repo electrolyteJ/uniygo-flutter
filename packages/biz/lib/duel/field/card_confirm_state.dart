@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'models/confirm_cards.dart';
+import '../models/confirm_cards.dart';
 
 const Object _undefined = Object();
 

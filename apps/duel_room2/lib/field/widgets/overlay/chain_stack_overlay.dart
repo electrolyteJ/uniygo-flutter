@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
 import 'package:biz/widgets/card_image.dart';
-import '../../models/chain_link.dart';
+import 'package:biz/duel/models/chain_link.dart';
 
 /// 连锁堆叠展示组件。
 ///

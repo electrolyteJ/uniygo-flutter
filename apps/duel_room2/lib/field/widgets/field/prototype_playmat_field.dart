@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
 import 'package:biz/widgets/card_image.dart';
-import '../../models/field_card.dart';
+import 'package:biz/duel/models/field_card.dart';
 import '../duel_shuffle_shake.dart';
 import 'duel_field_background.dart';
 import 'duel_field_layout.dart';
 import 'phase_lamp.dart';
-import '../../models/playmat_anchor_data.dart';
-import '../../models/playmat_field_view_data.dart';
+import 'package:biz/duel/models/playmat_anchor_data.dart';
+import 'package:biz/duel/models/playmat_field_view_data.dart';
 
 /// PrototypePlaymatField 是一个用于展示游戏场地的 Flutter 组件，
 /// 支持显示玩家和对手的卡槽、卡牌以及相关信息。

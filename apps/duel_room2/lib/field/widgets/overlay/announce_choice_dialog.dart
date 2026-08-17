@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
-import '../../models/select_state.dart';
+import 'package:biz/duel/models/select_state.dart';
 
 /// 宣言数值/属性/种族的通用选择弹窗：从给定选项列表中选一项。
 ///

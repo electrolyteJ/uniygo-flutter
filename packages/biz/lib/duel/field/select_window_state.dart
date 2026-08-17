@@ -9,12 +9,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ygo_data/card_info.dart' as pkg;
 
 import 'duel_field_state.dart';
-import 'models/battle_action.dart';
-import 'models/field_card.dart';
-import 'models/field_zone_key.dart';
-import 'models/idle_action.dart';
-import 'models/select_state.dart';
-import 'models/sum_check.dart' as sum_check;
+import '../models/battle_action.dart';
+import '../models/field_card.dart';
+import '../models/field_zone_key.dart';
+import '../models/idle_action.dart';
+import '../models/select_state.dart';
+import '../models/sum_check.dart' as sum_check;
 
 const Object _undefined = Object();
 

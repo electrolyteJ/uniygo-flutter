@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ygo_data/card_info.dart' as pkg;
 
-import 'models/field_card.dart';
+import '../models/field_card.dart';
 
 
 const Object _undefined = Object();

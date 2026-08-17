@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:biz/service_providers.dart';
-import 'package:duel_room2/waiting/duel_chat_state.dart';
+import 'package:biz/duel/chat/duel_chat_state.dart';
 import 'package:duel_room2/waiting/waiting_room_page.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
@@ -10,14 +10,14 @@ import 'package:go_router/go_router.dart';
 
 import 'constants.dart';
 import 'duel_room_exit.dart';
-import 'duel_room_state.dart';
-import 'field/card_confirm_state.dart';
+import 'package:biz/duel/room/duel_room_state.dart';
+import 'package:biz/duel/field/card_confirm_state.dart';
 import 'field/duel_field_page.dart';
-import 'field/duel_field_state.dart';
-import 'field/duel_message_router.dart';
-import 'field/field_overlay_state.dart';
-import 'field/models/select_state.dart';
-import 'field/select_window_state.dart';
+import 'package:biz/duel/field/duel_field_state.dart';
+import 'package:biz/duel/field/duel_message_router.dart';
+import 'package:biz/duel/field/field_overlay_state.dart';
+import 'package:biz/duel/models/select_state.dart';
+import 'package:biz/duel/field/select_window_state.dart';
 // 条件导出分发器：Web 上解析到 ocgcore_web_debug_web.dart（真实探测），
 // 其他平台解析到 stub。此前直接 import stub，Web 上永远显示 'n/a'。
 

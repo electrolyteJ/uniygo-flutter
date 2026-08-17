@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter/widget_previews.dart';
 
-import '../../models/select_state.dart';
+import 'package:biz/duel/models/select_state.dart';
 
 
 /// 选择提示层：放置提示横幅、就地选择操作栏或模态弹窗（三者互斥）。

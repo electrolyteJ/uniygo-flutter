@@ -5,7 +5,7 @@ import 'package:duelink/duelink.dart' show PlayerInfo;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../duel_field_state.dart';
+import 'package:biz/duel/field/duel_field_state.dart';
 import '../../../duel_room_exit.dart';
 import 'phase_bar.dart';
 import 'player_status_card.dart';

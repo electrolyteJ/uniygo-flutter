@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import 'package:ygo_data/card_info.dart' show CardInfo;
 
-import '../../duel_room_state.dart' show SidingZone;
+import 'package:biz/duel/room/duel_room_state.dart' show SidingZone;
 
 /// 换备面板（match 模式局间换 Side Deck）。
 ///

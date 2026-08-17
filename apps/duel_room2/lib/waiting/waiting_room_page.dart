@@ -8,8 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ygo_data/lf_table.dart';
 
-import 'duel_chat_state.dart';
-import '../duel_room_state.dart';
+import 'package:biz/duel/chat/duel_chat_state.dart';
+import 'package:biz/duel/room/duel_room_state.dart';
 import 'widgets/chat_panel.dart';
 import 'widgets/control_bar.dart';
 import 'widgets/deck_selector.dart';

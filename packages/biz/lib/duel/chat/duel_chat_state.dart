@@ -5,8 +5,8 @@ import 'package:duelink/duelink.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../duel_room_state.dart';
-import 'models/chat_message.dart';
+import '../room/duel_room_state.dart';
+import '../models/chat_message.dart';
 
 /// 聊天状态：消息列表（不可变替换）。
 @immutable
