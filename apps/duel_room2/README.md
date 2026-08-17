@@ -67,7 +67,7 @@ lib/
   constants.dart            # 常量 + getDuelPhaseText 等 l10n 文案
   debug/                    # ocgcore Web 调试探测
   l10n/                     # 本地化文案
-  pages/duel/               # 对局特征：四子状态/协调器、模型、场地/HUD/弹窗组件
+  pages/field/               # 对局特征：四子状态/协调器、模型、场地/HUD/弹窗组件
   pages/waiting/            # 等待室特征：聊天状态、模型、等待室组件
   pages/duel_room_page.dart # 房间入口 + 房间级 ProviderScope 装配
   pages/duel_room_state.dart # 房间阶段机状态

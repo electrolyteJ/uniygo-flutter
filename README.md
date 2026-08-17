@@ -1,21 +1,11 @@
 # uniygopro
 
-A new Flutter project.
+coding agent完成一个需求需要如下要素 
+- 网络接口定义
+- 设计稿(ui 、ux)
+- 产品逻辑(玩法、业务)
 
 ## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-
 
 git submodule update --init --recursive
 git clone --recursive git@github.com:ProjectIgnis/CardScripts.git

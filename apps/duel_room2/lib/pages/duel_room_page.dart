@@ -9,14 +9,14 @@ import 'package:go_router/go_router.dart';
 import '../constants.dart';
 // 条件导出分发器：Web 上解析到 ocgcore_web_debug_web.dart（真实探测），
 // 其他平台解析到 stub。此前直接 import stub，Web 上永远显示 'n/a'。
-import 'duel/card_confirm_state.dart';
-import 'duel/duel_message_router.dart';
-import 'duel/duel_field_page.dart';
-import 'duel/duel_field_state.dart';
+import 'field/card_confirm_state.dart';
+import 'field/duel_message_router.dart';
+import 'field/duel_field_page.dart';
+import 'field/duel_field_state.dart';
 import 'duel_room_exit.dart';
-import 'duel/field_overlay_state.dart';
-import 'duel/models/select_state.dart';
-import 'duel/select_window_state.dart';
+import 'field/field_overlay_state.dart';
+import 'field/models/select_state.dart';
+import 'field/select_window_state.dart';
 import 'duel_room_state.dart';
 import 'waiting/duel_chat_state.dart';
 import 'waiting/waiting_room_page.dart';

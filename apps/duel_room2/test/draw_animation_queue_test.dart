@@ -1,4 +1,4 @@
-import 'package:duel_room2/pages/duel/models/draw_animation_event.dart';
+import 'package:duel_room2/pages/field/models/draw_animation_event.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 构造测试事件：id 唯一标识一次抽卡（同 id 更新 = patch，不入队）。

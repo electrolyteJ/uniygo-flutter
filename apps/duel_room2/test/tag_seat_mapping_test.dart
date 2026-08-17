@@ -1,4 +1,4 @@
-import 'package:duel_room2/pages/duel/duel_field_state.dart';
+import 'package:duel_room2/pages/field/duel_field_state.dart';
 import 'package:duelink/duelink.dart' show PlayerInfo, RoomMode;
 import 'package:flutter_test/flutter_test.dart';
 

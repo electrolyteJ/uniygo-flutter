@@ -12,7 +12,7 @@ import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
 import 'package:biz/util/ygo_data_util.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
 
-import 'duel/duel_field_state.dart';
+import 'field/duel_field_state.dart';
 
 /// 卡组解析结果：主卡/额外/副卡的卡信息列表。
 typedef ResolvedDeck = ({
@@ -59,20 +59,20 @@ class DuelRoomState {
 
   final RoomStage stage;
   final PlayerType selfType;
+  final String? selectedDeckName;
   final bool isHost;
+  final bool? isFirstTurn;
   final List<PlayerInfo> players;
   final int observerCount;
   final int? myHandResult;
   final int? opponentHandResult;
-  final bool? isFirstTurn;
   final RoomOptions? roomOptions;
 
-  final String? selectedDeckName;
-  final List<DeckInfo> availableDecks;
   final bool autoHandEnabled;
   final bool autoTurnOrderEnabled;
   final bool autoDuelEnabled;
 
+  final List<DeckInfo> availableDecks;
   /// 卡组校验结果（null=未校验/不校验，空列表=通过）。
   final List<String>? invalidationDeckResult;
 
