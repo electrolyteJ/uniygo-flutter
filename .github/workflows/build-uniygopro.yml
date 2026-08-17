@@ -45,7 +45,7 @@ on:
         type: boolean
 
 env:
-  FLUTTER_VERSION: '3.44.6'
+  FLUTTER_VERSION: '3.47.0'
   APP_NAME: 'uniygopro'
   APP_DIR: 'apps/uniygopro'
 
