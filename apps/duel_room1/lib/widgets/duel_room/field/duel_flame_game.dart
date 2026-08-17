@@ -45,6 +45,13 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   /// `controller_zone_sequence`）。
   final void Function(String slotKey)? onPlaceSlotTap;
   ValueChanged<PlaymatAnchorData>? onAnchorsChanged;
+
+  /// 电子龙（卡码 70095154）新出现在怪兽区时触发（双方玩家都会），
+  /// 参数为槽位 key；页面据此播放 3D 召唤演出。
+  final void Function(String slotKey)? onCyberDragonSummon;
+
+  /// 电子龙卡码（ocgcore 卡片密码）。
+  static const int cyberDragonCode = 70095154;
   String? _lastAnchorSignature;
 
   /// 当前状态快照；world 与各 component 经 `game.snapshot` 读取。
@@ -57,7 +64,27 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     this.isPhaseLampEnabled,
     this.onPlaceSlotTap,
     this.onAnchorsChanged,
+    this.onCyberDragonSummon,
   }) : super(world: DuelFieldWorld());
+
+  /// 电子龙召唤检测：diff 新旧快照，怪兽区（zone==1）新出现的
+  /// 电子龙触发一次演出回调。纯 UI 层检测（与洗牌 tick 信号同理），
+  /// 不需要 biz 逻辑层改动。
+  void _detectCyberDragonSummon(
+    FlameFieldSnapshot prev,
+    FlameFieldSnapshot next,
+  ) {
+    final onSummon = onCyberDragonSummon;
+    if (onSummon == null) return;
+    for (final entry in next.fieldCards.entries) {
+      final card = entry.value;
+      if (card.code == cyberDragonCode &&
+          card.zone == 1 &&
+          !prev.fieldCards.containsKey(entry.key)) {
+        onSummon(entry.key);
+      }
+    }
+  }
 
   /// 鼠标位置（widget 坐标），驱动 world 的 3D 视差投影。
   Vector2 mousePos = Vector2.zero();
@@ -86,6 +113,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     // 内容判等短路：纯 UI 状态变化（弹窗/检视/菜单）触发的页面 build
     // 也会推送快照，但 Flame 渲染字段未变时跳过全量卡槽重建。
     if (next == snapshot) return;
+    _detectCyberDragonSummon(snapshot, next);
     snapshot = next;
     if (world.isLoaded) {
       world.rebuildField();

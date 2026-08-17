@@ -17,6 +17,7 @@ import 'package:biz/duel/models/field_zone_key.dart';
 import 'package:biz/duel/models/idle_action.dart';
 import 'package:biz/duel/models/select_state.dart';
 import 'package:duelink/duelink.dart' show PlayerInfo, PlayerType;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +25,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../widgets/duel_room/field/duel_flame_game.dart';
 import '../../widgets/duel_room/field/flame_field_snapshot.dart';
 import '../../widgets/duel_room/field/flame_playmat_field.dart';
+import '../../widgets/duel_room/field/summon/summon_3d_overlay.dart';
 import '../../widgets/duel_room/hud/hand_cards_bar.dart';
 import '../../widgets/duel_room/hud/phase_bar.dart';
 import '../../widgets/duel_room/hud/player_status_card.dart';
@@ -142,7 +144,27 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       isPhaseLampEnabled: _canTapPhaseLamp,
       onPlaceSlotTap: (key) => _selectN.respondSelectPlaceKey(key),
       onAnchorsChanged: _handleAnchorsChanged,
+      onCyberDragonSummon: _handleCyberDragonSummon,
     );
+  }
+
+  /// 3D 召唤演出的目标点（overlay 局部坐标）；null 表示无演出。
+  Offset? _summonTarget;
+
+  /// 电子龙进入怪兽区：以目标卡槽为中心播放 flame_3d 召唤演出。
+  /// Web/无 Flutter GPU 平台跳过（overlay 自身也不会被创建）。
+  void _handleCyberDragonSummon(String slotKey) {
+    if (kIsWeb || _summonTarget != null) return;
+    // applySnapshot 发生在 build 路径上，setState 推迟到帧末
+    // （与 _handleAnchorsChanged 同理）。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _summonTarget != null) return;
+      final rect = _fieldAnchors?.slotRects[slotKey];
+      final size = MediaQuery.sizeOf(context);
+      setState(() {
+        _summonTarget = rect?.center ?? Offset(size.width / 2, size.height / 2);
+      });
+    });
   }
 
   void _handleAnchorsChanged(PlaymatAnchorData anchors) {
@@ -565,6 +587,30 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
           clipBehavior: Clip.none,
           children: [
             Positioned.fill(child: _buildBattlefield()),
+            // 电子龙 3D 召唤演出（透明 overlay，不拦截指针；演完自移除）。
+            if (_summonTarget != null)
+              Positioned.fill(
+                child: Summon3DOverlay(
+                  targetCenter: _summonTarget!,
+                  onDone: () => setState(() => _summonTarget = null),
+                ),
+              ),
+            // debug 入口：手动触发一次召唤演出验证 3D 管线。
+            if (kDebugMode && !kIsWeb && _summonTarget == null)
+              Positioned(
+                right: 8,
+                bottom: 128,
+                child: IconButton(
+                  key: const ValueKey('debug-summon-cyber-dragon'),
+                  iconSize: 20,
+                  tooltip: '测试电子龙召唤',
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white12,
+                  ),
+                  icon: const Icon(Icons.smart_toy_outlined),
+                  onPressed: () => _handleCyberDragonSummon(''),
+                ),
+              ),
             Positioned(
               top: opponentHandTop,
               left: 0,

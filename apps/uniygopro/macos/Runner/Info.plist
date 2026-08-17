@@ -4,6 +4,11 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<!-- flame_3d / Flutter GPU 召唤 3D 演出需要 Impeller + Flutter GPU -->
+	<key>FLTEnableImpeller</key>
+	<true/>
+	<key>FLTEnableFlutterGPU</key>
+	<true/>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIconFile</key>

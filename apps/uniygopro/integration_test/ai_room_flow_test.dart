@@ -18,6 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:uniygopro/main.dart' as app;
 import 'package:biz/ygo_sound_service.dart';
+import 'package:duel_room1/widgets/duel_room/field/summon/summon_3d_overlay.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -50,6 +51,22 @@ void main() {
     // ── 3. 猜拳/选先攻/进入决斗（对胜负不做假设）──
     await _driveUntilDuel(tester);
     _failIfFlutterException(tester, 'after entering duel');
+
+    // ── 4. 电子龙 3D 召唤演出（flame_3d / Flutter GPU 管线冒烟）──
+    // debug 按钮触发完整 3D overlay：初始化 Flutter GPU → 加载程序化
+    // 机械龙 → 播放 1.55s 演出 → 自动移除。任何 GPU/渲染异常都会经
+    // takeException 暴露。
+    final summonButton = find.byKey(const ValueKey('debug-summon-cyber-dragon'));
+    expect(summonButton, findsOneWidget);
+    await tester.tap(summonButton);
+    await tester.pump();
+    expect(find.byType(Summon3DOverlay), findsOneWidget);
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    _failIfFlutterException(tester, 'during cyber dragon summon 3D');
+    // 演出结束 overlay 应已自动移除（1.55s < 2.4s 泵送窗口）。
+    expect(find.byType(Summon3DOverlay), findsNothing);
 
     final status = _readStatusText(tester);
     // Printed so flutter drive logs expose the last observed runtime state.
