@@ -17,6 +17,9 @@ enum ServerType {
 
   /// 残局房 — 本地预设残局挑战（无需联网/卡组）
   puzzleRoom,
+
+  /// 怪兽动画 — cardlive 召唤动画鉴赏（无需联网）
+  monsterLive,
 }
 
 /// 单个对战服务器的配置。
@@ -143,5 +146,13 @@ const List<GameServer> gameServers = [
     host: 'local',
     port: 0,
     type: ServerType.puzzleRoom,
+  ),
+  GameServer(
+    id: 'card-live',
+    displayName: '怪兽动画',
+    description: '怪兽召唤动画鉴赏，3D 演出循环播放',
+    host: 'local',
+    port: 0,
+    type: ServerType.monsterLive,
   ),
 ];

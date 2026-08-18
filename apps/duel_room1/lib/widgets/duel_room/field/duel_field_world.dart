@@ -5,8 +5,9 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart' show Offset, Size;
 import 'package:biz/duel/models/field_zone_key.dart';
 import 'package:biz/duel/models/summon_effect_event.dart';
+import 'package:cardlive/cardlive.dart';
 import 'component/battle_presentation_component.dart';
-import 'effect/summon_effect_component.dart';
+import 'effect/summon_effect_adapter.dart';
 import 'component/board_mesh_component.dart';
 import 'component/zone_component.dart';
 import 'component/phase_lamp_component.dart';
@@ -71,7 +72,9 @@ class DuelFieldLayout {
 class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
   PhaseLampComponent? _phaseLamp;
   ZonesComponent? _zones;
-  final SummonEffectComponent _summonEffect = SummonEffectComponent();
+  final SummonQueueDriver _summonDriver = SummonQueueDriver(priority: 25);
+  late final SummonEffectAdapter _summonAdapter =
+      SummonEffectAdapter(_summonDriver);
 
   @override
   Future<void> onLoad() async {
@@ -89,7 +92,8 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
     add(_zones!);
     _zones!.rebuild();
     add(BattlePresentationComponent());
-    add(_summonEffect);
+    add(_summonDriver);
+    add(_summonAdapter);
     _phaseLamp = PhaseLampComponent(
       onTap: game.onPhaseLampTap,
       enabledGetter: game.isPhaseLampEnabled,
@@ -140,9 +144,9 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
   /// 快照变更后刷新阶段灯（阶段名/可点击态）。
   void refreshPhaseLamp() => _phaseLamp?.notifyStateChanged();
 
-  /// debug 入口：立即播放一条召唤特效（绕过快照队列）。
+  /// debug 入口：立即播放一条召唤特效（绕过快照 tick，直接入队驱动器）。
   void debugPlaySummonEffect(SummonEffectEvent event) =>
-      _summonEffect.playNow(event);
+      _summonDriver.enqueue(summonSpecForEvent(this, event));
 
   Vector2? boardPositionForSlotId(String slotId) {
     final parsed = parseZoneKey(slotId);

@@ -30,14 +30,8 @@ dependencies:
     path: ../../packages/ygo_data
   ygo_banlist_mycard:
     path: ../../packages/ygo_banlist_mycard
-  # flame_3d 0.3.0（pub 最新）未适配 Flutter 3.47 的 flutter_gpu API，
-  # 锁定 flame monorepo 的修复提交（"fix: Adapt to Flutter 3.47" #3995），
-  # 待 0.3.1+ 发布后可切回 hosted。
-  flame_3d:
-    git:
-      url: https://github.com/flame-engine/flame.git
-      path: packages/flame_3d
-      ref: 0453bad6e726ff90610baec86e5c24dc4c89a5a4
+  cardlive:
+    path: ../cardlive
   flutter_scene: ^0.21.1
 
 dev_dependencies:

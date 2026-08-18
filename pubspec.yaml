@@ -27,10 +27,11 @@ workspace:
   - packages/duelink_ai_ygo_agent_http
   - packages/biz
   - apps/uniygopro
-  - apps/cardlive
+  - apps/deck_editor3
   - apps/duelarena
   - apps/holoduel
   - apps/mdduel
   - apps/duel_room1
   - apps/duel_room2
   - apps/duel_settings
+  - apps/cardlive

@@ -18,7 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:uniygopro/main.dart' as app;
 import 'package:biz/ygo_sound_service.dart';
-import 'package:duel_room1/widgets/duel_room/field/summon/summon_3d_overlay.dart';
+import 'package:cardlive/cardlive.dart' show Summon3DOverlay;
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();

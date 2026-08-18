@@ -1,104 +1,36 @@
 name: cardlive
-description: "A new Flutter project."
-# The following line prevents the package from being accidentally published to
-# pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
-
-# The following defines the version and build number for your application.
-# A version number is three numbers separated by dots, like 1.2.43
-# followed by an optional build number separated by a +.
-# Both the version and the builder number may be overridden in flutter
-# build by specifying --build-name and --build-number, respectively.
-# In Android, build-name is used as versionName while build-number used as versionCode.
-# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
-# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
-# Read more about iOS versioning at
-# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
-# In Windows, build-name is used as the major, minor, and patch parts
-# of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+description: "怪兽召唤动画鉴赏：3D 召唤演出（原 duel_room1 电子龙演出）+ 怪兽列表预览页。"
+publish_to: 'none'
+version: 0.0.1
 
 environment:
   sdk: ^3.12.2
 
 resolution: workspace
 
-# Dependencies specify other packages that your package needs in order to work.
-# To automatically upgrade your package dependencies to the latest versions
-# consider running `flutter pub upgrade --major-versions`. Alternatively,
-# dependencies can be manually updated by changing the version numbers below to
-# the latest version available on pub.dev. To see which dependencies have newer
-# versions available, run `flutter pub outdated`.
 dependencies:
   flutter:
     sdk: flutter
-  flutter_gpu:
-    sdk: flutter
-  flame: ^1.11.0
-  cupertino_icons: ^1.0.8
-  http: ^1.2.1
-
-  path_provider: ^2.1.3
-  cached_network_image: ^3.4.1
-  flutter_animate: ^4.5.0
-  provider: ^6.1.2
-  service_loader:
-    path: ../../packages/service_loader
   ygo_data:
     path: ../../packages/ygo_data
-  ygo_card_mycard:
-    path: ../../packages/ygo_card_mycard
-  ygo_deck_mycard:
-    path: ../../packages/ygo_deck_mycard
-  ygo_deck_mdpro3:
-      path: ../../packages/ygo_deck_mdpro3
-  ygo_banlist_mycard:
-    path: ../../packages/ygo_banlist_mycard
+  flutter_animate: ^4.5.0
+  flutter_scene: ^0.21.1
+  flame: ^1.38.0
+  # flame_3d 0.3.0（pub 最新）未适配 Flutter 3.47 的 flutter_gpu API，
+  # 锁定 flame monorepo 的修复提交（"fix: Adapt to Flutter 3.47" #3995），
+  # 待 0.3.1+ 发布后可切回 hosted。
+  flame_3d:
+    git:
+      url: https://github.com/flame-engine/flame.git
+      path: packages/flame_3d
+      ref: 0453bad6e726ff90610baec86e5c24dc4c89a5a4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  build_runner: ^2.15.1
-  service_loader_gen:
-    path: ../../packages/service_loader_gen
 
-# For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
-
-# The following section is specific to Flutter packages.
 flutter:
-
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
   uses-material-design: true
-
-  # To add assets to your application, add an assets section, like this:
-#  assets:
-#    - assets/scripts/
-
-  # An image asset can refer to one or more resolution-specific "variants", see
-  # https://flutter.dev/to/resolution-aware-images
-
-  # For details regarding adding assets from package dependencies, see
-  # https://flutter.dev/to/asset-from-package
-
-  # To add custom fonts to your application, add a fonts section here,
-  # in this "flutter" section. Each entry in this list should have a
-  # "family" key with the font family name, and a "fonts" key with a
-  # list giving the asset and other descriptors for the font. For
-  # example:
-  # fonts:
-  #   - family: Schyler
-  #     fonts:
-  #       - asset: fonts/Schyler-Regular.ttf
-  #       - asset: fonts/Schyler-Italic.ttf
-  #         style: italic
-  #   - family: Trajan Pro
-  #     fonts:
-  #       - asset: fonts/TrajanPro.ttf
-  #       - asset: fonts/TrajanPro_Bold.ttf
-  #         weight: 700
-  #
-  # For details regarding fonts from package dependencies,
-  # see https://flutter.dev/to/font-from-package
+  assets:
+    - assets/models/

@@ -89,6 +89,12 @@ class HomePage extends StatelessWidget {
 
   void _onServerTap(BuildContext context, GameServer server) {
     ServiceSingleton.instance.ygoSoundService.playButtonTap();
+    if (server.type == ServerType.monsterLive) {
+      // 怪兽动画鉴赏页（cardlive）：直接跳转，无房间弹窗。
+      ServiceSingleton.instance.ygoSoundService.playPageTransition();
+      context.go('/card-live');
+      return;
+    }
     ServiceSingleton.instance.ygoSoundService.playDialogOpen();
     if (server.type == ServerType.puzzleRoom) {
       showRoomDialog(context, PuzzleRoomSheet(server: server));
@@ -124,6 +130,8 @@ class _ServerCard extends StatelessWidget {
         return Icons.smart_toy;
       case ServerType.puzzleRoom:
         return Icons.extension;
+      case ServerType.monsterLive:
+        return Icons.movie_filter;
     }
   }
 
@@ -139,6 +147,8 @@ class _ServerCard extends StatelessWidget {
         return Colors.deepOrange;
       case ServerType.puzzleRoom:
         return Colors.deepPurpleAccent;
+      case ServerType.monsterLive:
+        return Colors.tealAccent;
     }
   }
 

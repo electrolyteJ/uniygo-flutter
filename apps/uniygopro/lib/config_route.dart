@@ -1,3 +1,4 @@
+import 'package:cardlive/cardlive.dart' show CardLivePage;
 import 'package:duel_room1/pages/duel_room/duel_result_page.dart';
 import 'package:duel_room1/pages/duel_room/duel_room_page.dart';
 import 'package:go_router/go_router.dart';
@@ -28,6 +29,7 @@ final router = GoRouter(
           DuelResultPage(result: state.extra! as Map<String, Object?>),
     ),
     GoRoute(path: '/side', builder: (_, _) => const SidePage()),
+    GoRoute(path: '/card-live', builder: (_, _) => const CardLivePage()),
     GoRoute(
       path: '/deck-editor',
       builder: (_, state) => DeckEditorPage(
