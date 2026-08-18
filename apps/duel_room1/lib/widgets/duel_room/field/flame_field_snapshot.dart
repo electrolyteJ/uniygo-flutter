@@ -1,4 +1,5 @@
 import 'package:biz/duel/models/battle_presentation.dart';
+import 'package:biz/duel/models/summon_effect_event.dart';
 import 'package:biz/duel/models/field_card.dart';
 import 'package:collection/collection.dart';
 import 'package:duelink/duelink.dart' show DuelPhase;
@@ -21,6 +22,8 @@ class FlameFieldSnapshot {
     required this.battlePresentation,
     required this.deckShuffleTick,
     required this.deckShufflePlayer,
+    required this.summonEffectTick,
+    required this.summonEffectEvent,
     required this.selfDeck,
     required this.oppDeck,
     required this.zoneCodes,
@@ -39,6 +42,8 @@ class FlameFieldSnapshot {
         battlePresentation: null,
         deckShuffleTick: 0,
         deckShufflePlayer: 0,
+        summonEffectTick: 0,
+        summonEffectEvent: null,
         selfDeck: 0,
         oppDeck: 0,
         zoneCodes: const {},
@@ -65,6 +70,10 @@ class FlameFieldSnapshot {
   /// 卡组洗切信号（tick 自增触发一次洗牌动效）。
   final int deckShuffleTick;
   final int deckShufflePlayer;
+
+  /// 召唤特效信号（tick 自增触发一条几何召唤阵演出）。
+  final int summonEffectTick;
+  final SummonEffectEvent? summonEffectEvent;
 
   /// 双方卡组数量（卡组槽位预览卡）。
   final int selfDeck;

@@ -191,6 +191,8 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       battlePresentation: _board.battlePresentation,
       deckShuffleTick: _board.deckShuffleTick,
       deckShufflePlayer: _board.deckShufflePlayer,
+      summonEffectTick: _board.summonEffectTick,
+      summonEffectEvent: _board.summonEffectEvent,
       selfDeck: _board.selfDeck,
       oppDeck: _board.oppDeck,
       zoneCodes: {
@@ -609,6 +611,22 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
                   ),
                   icon: const Icon(Icons.smart_toy_outlined),
                   onPressed: () => _handleCyberDragonSummon(''),
+                ),
+              ),
+            // debug 入口：手动触发通用层几何召唤阵特效。
+            if (kDebugMode)
+              Positioned(
+                right: 8,
+                bottom: 168,
+                child: IconButton(
+                  key: const ValueKey('debug-summon-effect'),
+                  iconSize: 20,
+                  tooltip: '测试召唤特效（几何阵）',
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white12,
+                  ),
+                  icon: const Icon(Icons.auto_awesome),
+                  onPressed: () => _ensureFlameGame().debugPlaySummonEffect(),
                 ),
               ),
             Positioned(

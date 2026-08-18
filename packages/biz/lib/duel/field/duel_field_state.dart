@@ -12,6 +12,7 @@ import '../models/battle_presentation.dart';
 import '../models/chain_link.dart';
 import '../models/draw_animation_event.dart';
 import '../models/field_card.dart';
+import '../models/summon_effect_event.dart';
 import '../models/field_zone_key.dart';
 // 注：与本文件存在双向 import（duel_room_state 也引用 duelFieldProvider）；
 // Dart 允许 import 环，且两侧都只在运行期惰性读取对方的 provider。
@@ -130,6 +131,8 @@ class DuelFieldState {
     this.handShufflePlayer = 0,
     this.drawAnimationEvent,
     this.drawAnimationTick = 0,
+    this.summonEffectEvent,
+    this.summonEffectTick = 0,
     this.duelLogs = const [],
     this.players = const [],
     this.roomMode,
@@ -203,6 +206,11 @@ class DuelFieldState {
   final DrawAnimationEvent? drawAnimationEvent;
   final int drawAnimationTick;
 
+  /// 最近一次召唤特效事件；表现层监听 tick 变化播放几何召唤阵演出
+  /// （连续召唤由表现层 FIFO 排队，语义同 [drawAnimationEvent]）。
+  final SummonEffectEvent? summonEffectEvent;
+  final int summonEffectTick;
+
   /// 对局日志（战报），供日志抽屉展示。
   final List<String> duelLogs;
 
@@ -262,6 +270,8 @@ class DuelFieldState {
     int? handShufflePlayer,
     Object? drawAnimationEvent = _undefined,
     int? drawAnimationTick,
+    Object? summonEffectEvent = _undefined,
+    int? summonEffectTick,
     List<String>? duelLogs,
     List<PlayerInfo>? players,
     RoomMode? roomMode,
@@ -324,6 +334,10 @@ class DuelFieldState {
           ? this.drawAnimationEvent
           : drawAnimationEvent as DrawAnimationEvent?,
       drawAnimationTick: drawAnimationTick ?? this.drawAnimationTick,
+      summonEffectEvent: identical(summonEffectEvent, _undefined)
+          ? this.summonEffectEvent
+          : summonEffectEvent as SummonEffectEvent?,
+      summonEffectTick: summonEffectTick ?? this.summonEffectTick,
       duelLogs: duelLogs ?? this.duelLogs,
       players: players ?? this.players,
       roomMode: roomMode ?? this.roomMode,
@@ -1647,8 +1661,29 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   void handleSummonFinished(String actionLabel) {
     final key = state.lastSummonKey;
     final name = key != null ? state.fieldCards[key]?.name ?? '怪兽' : '怪兽';
+    if (key != null) {
+      _emitSummonEffect(key, actionLabel);
+    }
     state = state.copyWith(lastSummonKey: null);
     addLog('$name $actionLabel成功。');
+  }
+
+  /// 依据完成消息与卡数据推断特效类型并发事件（SUMMONED 时机播放）。
+  void _emitSummonEffect(String slotId, String actionLabel) {
+    final code = state.fieldCards[slotId]?.code ?? 0;
+    final type = resolveSummonEffectType(
+      actionLabel,
+      code > 0 ? getCardInfo(code) : null,
+    );
+    state = state.copyWith(
+      summonEffectEvent: SummonEffectEvent(
+        id: state.summonEffectTick + 1,
+        code: code,
+        slotId: slotId,
+        type: type,
+      ),
+      summonEffectTick: state.summonEffectTick + 1,
+    );
   }
 
   void handleHint(MsgHint msg) {
@@ -1698,6 +1733,20 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     }
     final name = getCardInfo(msg.code)?.name ?? '卡片';
     addLog('$name 已盖放。');
+    // 盖放尘雾特效（背面放置不升卡图；对手盖放 code 未知为 0）。
+    state = state.copyWith(
+      summonEffectEvent: SummonEffectEvent(
+        id: state.summonEffectTick + 1,
+        code: msg.code,
+        slotId: zoneKeyOf(
+          msg.location.controller,
+          msg.location.location,
+          msg.location.sequence,
+        ),
+        type: SummonEffectType.set,
+      ),
+      summonEffectTick: state.summonEffectTick + 1,
+    );
   }
 
   void handleBattle(MsgBattle msg) {

@@ -47,3 +47,5 @@ app.*.map.json
 
 # Vendored checkout (submodule entry disabled in .gitmodules)
 tools/ygo_agent_golden/vendor/ygo-agent/
+# Widget Preview related
+.widget_preview/

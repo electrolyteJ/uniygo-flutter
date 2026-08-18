@@ -4,6 +4,8 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import 'package:biz/duel/models/field_card.dart';
+import 'package:biz/duel/models/summon_effect_event.dart';
+
 import 'duel_field_world.dart';
 import 'flame_field_snapshot.dart';
 
@@ -269,6 +271,18 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     return PlaymatAnchorData(
       slotRects: slotRects,
       phaseLampRect: phaseLampRect,
+    );
+  }
+
+  /// debug 入口：在我方 0 号怪兽区立即播放一条青眼白龙召唤特效。
+  void debugPlaySummonEffect() {
+    world.debugPlaySummonEffect(
+      const SummonEffectEvent(
+        id: -1,
+        code: 89631139, // 青眼白龙
+        slotId: '0_4_0',
+        type: SummonEffectType.normal,
+      ),
     );
   }
 }

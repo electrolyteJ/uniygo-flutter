@@ -38,6 +38,7 @@ dependencies:
       url: https://github.com/flame-engine/flame.git
       path: packages/flame_3d
       ref: 0453bad6e726ff90610baec86e5c24dc4c89a5a4
+  flutter_scene: ^0.21.1
 
 dev_dependencies:
   flutter_test:
