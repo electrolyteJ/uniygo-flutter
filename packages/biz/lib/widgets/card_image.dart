@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:biz/card_image_loader.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import 'package:flutter/widget_previews.dart';
@@ -8,9 +9,11 @@ import 'package:flutter/widget_previews.dart';
 /// 统一卡片图片组件。
 ///
 /// 双重加载策略确保任何场景下都能出图：
-/// 1. 优先查 [CardImageLoader] 全局 [ui.Image] 缓存 → [RawImage] 瞬间渲染
-/// 2. 缓存 miss → [Image.network] 正常加载（自备 Flutter ImageCache），
-///    同时后台预热 [CardImageLoader] 供 Flame 侧复用
+/// 1. 优先查 [CardImageLoader] L1 内存 [ui.Image] 缓存 → [RawImage] 瞬间渲染
+/// 2. miss → [CachedNetworkImage]：与 Flame 侧共享 [CardImageLoader.cacheManager]
+///    磁盘层（30 天免重验证 + LRU 文件淘汰）+ Flutter ImageCache 内存层，
+///    彻底替代旧版裸 Image.network（无磁盘缓存、被 ImageCache 静默逐出）。
+///    同时后台预热 L1 供 Flame 侧复用。
 class CardImage extends StatefulWidget {
   final int code;
   final double width;
@@ -54,17 +57,15 @@ class _CardImageState extends State<CardImage> {
   void _checkCache() {
     final img = CardImageLoader.I.get(widget.code);
     if (img != null) {
-      setState(() => _cachedImage = img);
+      _cachedImage = img;
     }
     _warmUnifiedCache();
   }
 
-  /// 后台预热统一缓存（仅 miss 时发起一次），供 Flame 侧复用。
+  /// 后台预热 L1（磁盘命中时近乎零成本），供 Flame 侧复用。
   void _warmUnifiedCache() {
     if (_warmed) return;
     _warmed = true;
-    final cached = CardImageLoader.I.get(widget.code);
-    if (cached != null) return;
     CardImageLoader.I.load(widget.code).then((img) {
       if (!mounted || img == null) return;
       setState(() => _cachedImage = img);
@@ -84,7 +85,7 @@ class _CardImageState extends State<CardImage> {
 
     Widget content;
     if (cached != null) {
-      // 统一缓存命中 → 直接用 ui.Image 渲染
+      // L1 命中 → 直接用 ui.Image 渲染
       content = RawImage(
         image: cached,
         width: w,
@@ -93,13 +94,18 @@ class _CardImageState extends State<CardImage> {
         filterQuality: ui.FilterQuality.low,
       );
     } else {
-      // 缓存 miss → Image.network 正常加载，
-      // 同时 _warmUnifiedCache 已在后台预热
-      content = Image.network(
-        _url,
+      // L1 miss → CachedNetworkImage（磁盘 + Flutter ImageCache 内存）
+      content = CachedNetworkImage(
+        imageUrl: _url,
+        cacheManager: CardImageLoader.I.cacheManager,
         fit: widget.fit,
-        loadingBuilder: _loadingBuilder,
-        errorBuilder: _errorBuilder,
+        width: w,
+        height: h,
+        // 按展示尺寸解码，避免大图占内存（小缩略图不必解码全尺寸）
+        memCacheWidth: _decodeWidth(w),
+        progressIndicatorBuilder: (context, url, progress) =>
+            _placeholder(progress: progress.progress),
+        errorWidget: (context, url, error) => _placeholder(),
       );
     }
 
@@ -114,24 +120,9 @@ class _CardImageState extends State<CardImage> {
     );
   }
 
-  Widget _loadingBuilder(
-    BuildContext context,
-    Widget child,
-    ImageChunkEvent? loadingProgress,
-  ) {
-    if (loadingProgress == null) return child;
-    final total = loadingProgress.expectedTotalBytes;
-    final progress =
-        total != null ? loadingProgress.cumulativeBytesLoaded / total : null;
-    return _placeholder(progress: progress);
-  }
-
-  Widget _errorBuilder(
-    BuildContext context,
-    Object? error,
-    StackTrace? stackTrace,
-  ) =>
-      _placeholder();
+  /// 解码宽度 = 展示宽度 2 倍（Retina），下限 256 保证大图弹窗清晰。
+  static int _decodeWidth(double displayWidth) =>
+      (displayWidth * 2).round().clamp(256, 1024);
 
   Widget _placeholder({double? progress}) {
     return Container(
@@ -169,6 +160,6 @@ class _CardImageState extends State<CardImage> {
     );
   }
 }
-@Preview(name: 'CardImage', size: Size(200, 280), brightness: Brightness.dark)
-Widget _previewCardImage() => CardImage(code: 89631139, width: 180, height: 256);
 
+@Preview(name: 'CardImage', size: Size(200, 280), brightness: Brightness.dark)
+Widget previewCardImage() => CardImage(code: 89631139, width: 180, height: 256);
