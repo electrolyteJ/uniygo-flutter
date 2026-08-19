@@ -6,7 +6,8 @@ import 'package:duelink/duelink.dart';
 import 'package:duelink_ai_ygo_agent/duelink_ai_ygo_agent.dart'
     show AgentAutoAnswerer, DuelEngineFieldQuery;
 import 'package:duelink_ai_ygo_agent_http/duelink_ai_ygo_agent_http.dart';
-import 'package:duelink_ai_ygo_agent_tflite/duelink_ai_ygo_agent_tflite.dart' hide createYgoAgentHttp;
+import 'package:duelink_ai_ygo_agent_tflite/duelink_ai_ygo_agent_tflite.dart'
+    hide createYgoAgentHttp;
 import 'package:ocgcore/ocgcore.dart' show DuelEngine, ScriptLoader;
 import 'package:ygo_data/ygo_data.dart';
 
@@ -55,9 +56,7 @@ class AiConnection implements DuelConnection {
   /// 模型自动应答器（本地/远端统一接口；agent == -1 时为 null 走规则 AI）。
   AgentAutoAnswerer? _agentAnswerer;
   late final DuelEngine _engine;
-  AiConnection(
-      {this.lib,
-      ScriptLoader? scriptLoader}){
+  AiConnection({this.lib, ScriptLoader? scriptLoader}) {
     _engine = DuelEngine(
       emit: _emitEngineMessage,
       splitMessages: splitGameMessages,
@@ -99,6 +98,12 @@ class AiConnection implements DuelConnection {
   String _name = '';
   bool _humanReady = false;
   bool _roomJoined = false;
+
+  /// 人类是否在观战位（CTOS_HS_TO_OBSERVER / CTOS_HS_TO_DUELIST 切换）。
+  bool _humanIsObserver = false;
+
+  /// 当前观战人数（用于 STOC_HS_WATCH_CHANGE 计数）。
+  int _observerCount = 0;
   bool _handPhaseStarted = false;
   bool _duelEndEmitted = false;
   int _humanHandChoice = 0;
@@ -151,27 +156,27 @@ class AiConnection implements DuelConnection {
     //     console.log('AiConnection: agent runtime unavailable, rule AI');
     //   }
     // } else if (_roomOptions.agent == 1) {
-      // 远端 predict 服务（http 包工厂装配，固定默认公共服务地址）。
-      _agentAnswerer = createYgoAgentHttp(
-        field: DuelEngineFieldQuery(_engine),
-        cardData: cardLoader.dataOf,
-        startLp: _roomOptions.startLp,
-      );
-      // 模型优先、规则兜底：远端模型出错（HTTP 失败/不支持的消息形状）时
-      // 回退规则 AI（ai_strategy.dart），避免整局卡死（"no auto-answer" stall）。
-      final agent = _agentAnswerer;
-      _engine.setAutoAnswer((func, payload) async {
-        if (agent != null) {
-          try {
-            final agentResp = await agent.answer(func, payload);
-            if (agentResp != null) return agentResp;
-          } catch (e) {
-            console.log('AiConnection: agent 应答异常 func=$func: $e');
-          }
+    // 远端 predict 服务（http 包工厂装配，固定默认公共服务地址）。
+    _agentAnswerer = createYgoAgentHttp(
+      field: DuelEngineFieldQuery(_engine),
+      cardData: cardLoader.dataOf,
+      startLp: _roomOptions.startLp,
+    );
+    // 模型优先、规则兜底：远端模型出错（HTTP 失败/不支持的消息形状）时
+    // 回退规则 AI（ai_strategy.dart），避免整局卡死（"no auto-answer" stall）。
+    final agent = _agentAnswerer;
+    _engine.setAutoAnswer((func, payload) async {
+      if (agent != null) {
+        try {
+          final agentResp = await agent.answer(func, payload);
+          if (agentResp != null) return agentResp;
+        } catch (e) {
+          console.log('AiConnection: agent 应答异常 func=$func: $e');
         }
-        return ruleAnswer(func, payload);
-      });
-      console.log('AiConnection: remote agent auto-answer enabled (规则兜底)');
+      }
+      return ruleAnswer(func, payload);
+    });
+    console.log('AiConnection: remote agent auto-answer enabled (规则兜底)');
     // } else {
     //   _agentAnswerer = null;
     //   _engine.setAutoAnswer(ruleAnswer);
@@ -180,7 +185,6 @@ class AiConnection implements DuelConnection {
     _state = ok ? ConnectionState.connected : ConnectionState.error;
     _stateController.add(_state);
   }
-
 
   @override
   void send(YgoCtosMsg msg) {
@@ -196,13 +200,17 @@ class AiConnection implements DuelConnection {
         _parseDeck(msg.updateDeck!.encode());
         break;
       case CTOS_HS_READY:
+        // 观战态无席位，忽略 ready（正常 UI 不会发出，防御性处理）。
+        if (_humanIsObserver) return;
         _humanReady = true;
         _emit(
           YgoStocMsg.hsPlayerChange(
             StocHsPlayerChange(pos: 0, state: HS_PLAYER_STATE_READY),
           ),
         );
-        _checkReady();
+        // 注意：ready 只是就绪标记，不在此开局（对齐 233 服）。开局由
+        // CTOS_HS_START 触发；「准备&决斗」（autoDuelEnabled）由
+        // biz 层 DuelRoomNotifier 在全员就绪后自动调 startDuel 下发。
         break;
       case CTOS_HS_NOT_READY:
         _humanReady = false;
@@ -215,6 +223,12 @@ class AiConnection implements DuelConnection {
       case CTOS_HS_START:
         // STOC_DUEL_START 由 _startHandPhase 统一发送（幂等），避免重复
         _startHandPhase();
+        break;
+      case CTOS_HS_TO_OBSERVER:
+        _onBecomeObserver();
+        break;
+      case CTOS_HS_TO_DUELIST:
+        _onBecomeDuelist();
         break;
       case CTOS_HAND_RESULT:
         _humanHandChoice = msg.handResult!.hand;
@@ -255,6 +269,8 @@ class AiConnection implements DuelConnection {
   void _resetRoomState() {
     _roomJoined = false;
     _humanReady = false;
+    _humanIsObserver = false;
+    _observerCount = 0;
     _handPhaseStarted = false;
     _duelEndEmitted = false;
     _deck.clear();
@@ -320,18 +336,54 @@ class AiConnection implements DuelConnection {
     _scheduleAIJoin();
   }
 
-  void _checkReady() {
-    if (_humanReady && _deck.isNotEmpty) {
-      // AI 在进房时已自动 ready（见 _scheduleAIJoin）
-      _startHandPhase();
-    }
+  /// 人类玩家转为观战：离席 + 观战数 + 自身类型变更（对齐服务端的
+  /// STOC_HS_PLAYER_CHANGE(TO_OBSERVER) + STOC_HS_WATCH_CHANGE +
+  /// STOC_TYPE_CHANGE 组合）。
+  ///
+  /// 本地 AI 房只有一个 AI 对手，观战状态下无法开局（[_startHandPhase]
+  /// 会拒绝）；观战只是席位/类型状态切换。
+  void _onBecomeObserver() {
+    if (_humanIsObserver || !_roomJoined) return;
+    _humanIsObserver = true;
+    _humanReady = false;
+    _observerCount++;
+    _emit(
+      YgoStocMsg.hsPlayerChange(
+        StocHsPlayerChange(pos: 0, state: HS_PLAYER_STATE_TO_OBSERVER),
+      ),
+    );
+    _emit(YgoStocMsg.hsWatchChange(StocHsWatchChange(count: _observerCount)));
+    _emit(
+      YgoStocMsg.typeChange(
+        StocTypeChange(isHost: true, selfType: SELF_TYPE_OBSERVER),
+      ),
+    );
+  }
+
+  /// 观战转回玩家：重新入座 0 号位（AI 固定 1 号位）+ 恢复自身类型。
+  void _onBecomeDuelist() {
+    if (!_humanIsObserver || !_roomJoined) return;
+    _humanIsObserver = false;
+    if (_observerCount > 0) _observerCount--;
+    _emit(YgoStocMsg.hsWatchChange(StocHsWatchChange(count: _observerCount)));
+    _emit(
+      YgoStocMsg.hsPlayerEnter(
+        StocHsPlayerEnter(name: _name.isNotEmpty ? _name : 'Human', pos: 0),
+      ),
+    );
+    _emit(
+      YgoStocMsg.typeChange(
+        StocTypeChange(isHost: true, selfType: SELF_TYPE_PLAYER1),
+      ),
+    );
   }
 
   void _startHandPhase() {
     // HS_READY 与 HS_START 都可能触发，幂等保护避免重复发消息。
     // 服务端进入对局时先下发 STOC_DUEL_START（RoomStartDuel），随后才开始猜拳。
     // 正确顺序：RoomInLobby → RoomStartDuel → RoomSelectingHand → ...
-    if (_handPhaseStarted) return;
+    // 观战者不能开局：本地 AI 房没有人类玩家席位时对局无法成立。
+    if (_handPhaseStarted || _humanIsObserver) return;
     _handPhaseStarted = true;
     _emit(YgoStocMsg.duelStart());
     _emit(YgoStocMsg.selectHand());
@@ -385,7 +437,9 @@ class AiConnection implements DuelConnection {
     // STOC_DUEL_START 已在对局开始时（_startHandPhase）发送，这里不再重复下发。
     unawaited(() async {
       try {
-        console.log('AiConnection: starting duel with ${_deck.length} cards...');
+        console.log(
+          'AiConnection: starting duel with ${_deck.length} cards...',
+        );
         // 模型应答器按局重置（tracker/builder/循环状态）；并在启用模型时
         // 关闭 SIMPLE_AI —— 否则引擎内置 AI 会替 player 1 挡掉细粒度选择，
         // 模型看不到这些决策，历史动作序列偏离训练分布。
@@ -396,8 +450,7 @@ class AiConnection implements DuelConnection {
         try {
           await _agentAnswerer?.resetDuel(startLp: _roomOptions.startLp);
         } catch (e) {
-          console.log(
-              'AiConnection: agent resetDuel 失败（回退规则 AI）: $e');
+          console.log('AiConnection: agent resetDuel 失败（回退规则 AI）: $e');
         }
         final info = await _engine.startDuel(
           List<int>.of(_deck),
@@ -407,8 +460,10 @@ class AiConnection implements DuelConnection {
           simpleAi: _agentAnswerer == null,
         );
         if (info == null) {
-          console.log('AiConnection: startDuel returned null — '
-              'deck may be empty or engine init failed');
+          console.log(
+            'AiConnection: startDuel returned null — '
+            'deck may be empty or engine init failed',
+          );
           return;
         }
         console.log('AiConnection: duel started, emitting MSG_START');

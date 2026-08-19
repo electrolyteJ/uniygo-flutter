@@ -90,67 +90,23 @@ class Summon3DGame extends FlameGame3D<World3D, CameraComponent3D> {
     await super.onLoad();
     await (_gpuBackendReady ??= GpuBackend.initialize());
     await world.addAll([
-      LightComponent.ambient(intensity: 0.45),
-      LightComponent.point(position: Vector3(2.5, 3.5, 3.5), intensity: 1.3),
+      // flame_3d 无 IBL：金属材质全靠直射光，而点光按 1/d² 衰减
+      // （d≈5 时仅剩 ~1/25），强度需按这个量级给。
+      LightComponent.ambient(intensity: 0.75),
+      LightComponent.point(position: Vector3(2.5, 3.5, 3.5), intensity: 40),
       LightComponent.point(
         position: Vector3(-2.5, 1.0, -2.0),
         color: const Color(0xFF88AAFF),
-        intensity: 0.6,
+        intensity: 22,
       ),
+      if (modelAsset != null)
+        GlbDragonRig(
+          assetPath: modelAsset!,
+          onCompleted: onDone,
+          basePosition: dragonTarget,
+          loop: loop,
+        )
     ]);
-    await glbshow(world, modelAsset);
     onReady?.call();
   }
-}
-
-glbshow(World3D world, String? modelAsset) async {
-  if (modelAsset == null) return;
-  final model = await loadCardliveModel(modelAsset);
-  final targetHeight = 1.7;
-  // 归一化：按节点变换后的包围盒缩放到 targetHeight，
-  // x/z 居中，底面落在 y=0。
-  final bounds = _modelBounds(model);
-  final size = bounds.max - bounds.min;
-  final fitScale = size.y > 1e-6 ? targetHeight / size.y : 1.0;
-  final centerX = (bounds.min.x + bounds.max.x) / 2;
-  final centerZ = (bounds.min.z + bounds.max.z) / 2;
-  final _model = ModelComponent(
-    model: model,
-    scale: Vector3.all(fitScale),
-    position: Vector3(
-      -centerX * fitScale,
-      -bounds.min.y * fitScale,
-      -centerZ * fitScale,
-    ),
-  );
-  await world.add(_model);
-}
-
-Aabb3 _modelBounds(Model model) {
-  final processed = model.processNodes(AnimationState());
-  var minX = double.infinity;
-  var minY = double.infinity;
-  var minZ = double.infinity;
-  var maxX = double.negativeInfinity;
-  var maxY = double.negativeInfinity;
-  var maxZ = double.negativeInfinity;
-  for (final node in processed.values) {
-    final mesh = node.node.mesh;
-    if (mesh == null) continue;
-    final box = mesh.aabb;
-    for (final x in [box.min.x, box.max.x]) {
-      for (final y in [box.min.y, box.max.y]) {
-        for (final z in [box.min.z, box.max.z]) {
-          final p = node.combinedTransform.transform3(Vector3(x, y, z));
-          minX = math.min(minX, p.x);
-          minY = math.min(minY, p.y);
-          minZ = math.min(minZ, p.z);
-          maxX = math.max(maxX, p.x);
-          maxY = math.max(maxY, p.y);
-          maxZ = math.max(maxZ, p.z);
-        }
-      }
-    }
-  }
-  return Aabb3.minMax(Vector3(minX, minY, minZ), Vector3(maxX, maxY, maxZ));
 }

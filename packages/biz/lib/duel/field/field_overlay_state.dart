@@ -3,7 +3,6 @@ import 'package:ygo_data/card_info.dart' as pkg;
 
 import '../models/field_card.dart';
 
-
 const Object _undefined = Object();
 
 /// 场地浮层状态：玩家自己打开的本地查看 UI，不可变快照。
@@ -75,8 +74,8 @@ class FieldOverlayState {
           : selectedHandSequence as int?,
       selectedZoneBrowserSequence:
           identical(selectedZoneBrowserSequence, _undefined)
-              ? this.selectedZoneBrowserSequence
-              : selectedZoneBrowserSequence as int?,
+          ? this.selectedZoneBrowserSequence
+          : selectedZoneBrowserSequence as int?,
       selectedFieldCard: identical(selectedFieldCard, _undefined)
           ? this.selectedFieldCard
           : selectedFieldCard as FieldCard?,
@@ -191,11 +190,7 @@ class FieldOverlayNotifier extends Notifier<FieldOverlayState> {
   }
 
   /// 区域浏览器内点卡：选中并检视（保留浏览器打开状态）。
-  void applyZoneBrowserCardInspect(
-    int sequence,
-    int code,
-    pkg.CardInfo? info,
-  ) {
+  void applyZoneBrowserCardInspect(int sequence, int code, pkg.CardInfo? info) {
     var next = state.copyWith(
       selectedZoneBrowserSequence: sequence,
       selectedFieldCard: null,
@@ -225,10 +220,7 @@ class FieldOverlayNotifier extends Notifier<FieldOverlayState> {
 
   /// 手牌动作菜单条目触发后的选中态清理。
   void clearHandSelectionAndClosePhaseMenu() {
-    state = state.copyWith(
-      selectedHandSequence: null,
-      showPhaseMenu: false,
-    );
+    state = state.copyWith(selectedHandSequence: null, showPhaseMenu: false);
   }
 
   /// 指令响应成功后的选中态清理；[closeZoneBrowser] 为 true 时
@@ -238,10 +230,10 @@ class FieldOverlayNotifier extends Notifier<FieldOverlayState> {
       selectedHandSequence: null,
       selectedFieldCard: null,
       showPhaseMenu: false,
-      openZoneBrowserKey:
-          closeZoneBrowser ? null : state.openZoneBrowserKey,
-      selectedZoneBrowserSequence:
-          closeZoneBrowser ? null : state.selectedZoneBrowserSequence,
+      openZoneBrowserKey: closeZoneBrowser ? null : state.openZoneBrowserKey,
+      selectedZoneBrowserSequence: closeZoneBrowser
+          ? null
+          : state.selectedZoneBrowserSequence,
     );
   }
 
@@ -261,5 +253,5 @@ class FieldOverlayNotifier extends Notifier<FieldOverlayState> {
 /// 场地浮层状态的 provider，按房间 ProviderScope override 隔离。
 final fieldOverlayProvider =
     NotifierProvider<FieldOverlayNotifier, FieldOverlayState>(
-  FieldOverlayNotifier.new,
-);
+      FieldOverlayNotifier.new,
+    );

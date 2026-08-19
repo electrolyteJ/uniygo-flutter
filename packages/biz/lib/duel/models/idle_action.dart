@@ -1,37 +1,7 @@
-class PlaymatResolvedAction {
-  final String label;
-  final int response;
-  final PlaymatResolvedActionKind kind;
-  final int? code;
-  final int? controller;
-  final int? location;
-  final int? sequence;
+import 'playmat_resolved_action.dart';
 
-  const PlaymatResolvedAction({
-    required this.label,
-    required this.response,
-    this.kind = PlaymatResolvedActionKind.unknown,
-    this.code,
-    this.controller,
-    this.location,
-    this.sequence,
-  });
-}
-enum PlaymatResolvedActionKind {
-  summon,
-  specialSummon,
-  positionChange,
-  monsterSet,
-  spellSet,
-  activate,
-  attack,
-  directAttack,
-  toBattlePhase,
-  toMainPhase2,
-  toEndPhase,
-  unknown,
-}
-
+/// 主阶段可执行动作（MSG_SELECT_IDLECMD 的一项）：
+/// 召唤/特召/改表示/盖放/发动，[type] 为引擎指令序号。
 class IdleAction {
   final int type;
   final int sequence;
@@ -51,40 +21,22 @@ class IdleAction {
     required this.position,
   });
 
-  String label(int myController) {
-    switch (type) {
-      case 0:
-        return '召唤';
-      case 1:
-        return controller == myController ? '特殊召唤（己方）' : '特殊召唤（对方）';
-      case 2:
-        return '改变表示形式';
-      case 3:
-      case 4:
-        return '盖放';
-      case 5:
-        return '发动效果';
-      default:
-        return '行动 #$sequence';
-    }
-  }
+  String label(int myController) => switch (type) {
+    0 => '召唤',
+    1 => controller == myController ? '特殊召唤（己方）' : '特殊召唤（对方）',
+    2 => '改变表示形式',
+    3 || 4 => '盖放',
+    5 => '发动效果',
+    _ => '行动 #$sequence',
+  };
 
-  PlaymatResolvedActionKind get kind {
-    switch (type) {
-      case 0:
-        return PlaymatResolvedActionKind.summon;
-      case 1:
-        return PlaymatResolvedActionKind.specialSummon;
-      case 2:
-        return PlaymatResolvedActionKind.positionChange;
-      case 3:
-        return PlaymatResolvedActionKind.monsterSet;
-      case 4:
-        return PlaymatResolvedActionKind.spellSet;
-      case 5:
-        return PlaymatResolvedActionKind.activate;
-      default:
-        return PlaymatResolvedActionKind.unknown;
-    }
-  }
+  PlaymatResolvedActionKind get kind => switch (type) {
+    0 => PlaymatResolvedActionKind.summon,
+    1 => PlaymatResolvedActionKind.specialSummon,
+    2 => PlaymatResolvedActionKind.positionChange,
+    3 => PlaymatResolvedActionKind.monsterSet,
+    4 => PlaymatResolvedActionKind.spellSet,
+    5 => PlaymatResolvedActionKind.activate,
+    _ => PlaymatResolvedActionKind.unknown,
+  };
 }

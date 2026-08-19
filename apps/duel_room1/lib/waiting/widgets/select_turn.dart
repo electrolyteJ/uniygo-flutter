@@ -1,0 +1,52 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
+
+class TpSelect extends StatelessWidget {
+  final void Function(bool) onSendTp;
+  final bool enabled;
+
+  const TpSelect({super.key, required this.onSendTp, this.enabled = true});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+      ),
+      // 标题由宿主面板（TurnSelectPanel）提供，这里只保留先攻/后攻按钮。
+      // Column/Row 均包容内容（min）：宿主面板居中展示，不撑满屏幕。
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FilledButton(
+                key: const ValueKey('tp-select-first'),
+                onPressed: enabled ? () => onSendTp(true) : null,
+                style: FilledButton.styleFrom(backgroundColor: Colors.teal),
+                child: const Text('先攻'),
+              ),
+              const SizedBox(width: 16),
+              FilledButton(
+                key: const ValueKey('tp-select-second'),
+                onPressed: enabled ? () => onSendTp(false) : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.deepOrange,
+                ),
+                child: const Text('后攻'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+@Preview(name: 'TpSelect', size: Size(300, 200), brightness: Brightness.dark)
+Widget _previewTpSelect() => TpSelect(onSendTp: (_) {});

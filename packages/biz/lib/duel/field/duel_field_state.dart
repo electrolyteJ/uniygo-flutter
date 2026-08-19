@@ -137,6 +137,7 @@ class DuelFieldState {
     this.players = const [],
     this.roomMode,
     this.duelResult,
+    this.cardInfoVersion = 0,
   });
 
   /// 当前场上可见卡片，key 格式为 `controller_zone_sequence`。
@@ -214,6 +215,12 @@ class DuelFieldState {
   /// 对局日志（战报），供日志抽屉展示。
   final List<String> duelLogs;
 
+  /// 卡信息缓存版本号：ensureCardInfo 批量入库完成后 +1。
+  /// 卡名/卡图缓存不在本状态内（属 dataService 缓存），该版本号是
+  /// "缓存有更新"的订阅信号，供细粒度 Consumer（检视器/确认面板等）
+  /// watch，替代原先整页 watch 传导的卡名刷新。
+  final int cardInfoVersion;
+
   /// 玩家名解析所需的房间玩家列表，由页面在房间阶段变化时同步。
   final List<PlayerInfo> players;
 
@@ -273,6 +280,7 @@ class DuelFieldState {
     Object? summonEffectEvent = _undefined,
     int? summonEffectTick,
     List<String>? duelLogs,
+    int? cardInfoVersion,
     List<PlayerInfo>? players,
     RoomMode? roomMode,
     Object? duelResult = _undefined,
@@ -339,6 +347,7 @@ class DuelFieldState {
           : summonEffectEvent as SummonEffectEvent?,
       summonEffectTick: summonEffectTick ?? this.summonEffectTick,
       duelLogs: duelLogs ?? this.duelLogs,
+      cardInfoVersion: cardInfoVersion ?? this.cardInfoVersion,
       players: players ?? this.players,
       roomMode: roomMode ?? this.roomMode,
       duelResult: identical(duelResult, _undefined)
@@ -467,8 +476,13 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     // 同步房间对战模式（tag 判定影响座位↔引擎玩家映射，见 playerNameOf）。
     // 用 read 取初值 + listen 跟变化，而不用 watch：watch 会在房间状态
     // 任意变更时重建本 notifier，把整个战场状态清空。
-    final roomMode = ref.read(duelRoomProvider.select((s) => s.roomOptions?.mode));
-    ref.listen(duelRoomProvider.select((s) => s.roomOptions?.mode), (prev, next) {
+    final roomMode = ref.read(
+      duelRoomProvider.select((s) => s.roomOptions?.mode),
+    );
+    ref.listen(duelRoomProvider.select((s) => s.roomOptions?.mode), (
+      prev,
+      next,
+    ) {
       if (next != null && next != state.roomMode) {
         state = state.copyWith(roomMode: next);
       }
@@ -513,8 +527,9 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       _pendingCardLoads = 0;
       if (_cardCacheDirty && !_disposed) {
         _cardCacheDirty = false;
-        // 缓存填充后触发一次刷新（copyWith 无参也产生新实例，保证通知）。
-        state = state.copyWith();
+        // 缓存填充后递增版本号通知订阅方（检视器/确认面板等按版本号
+        // watch，拿到新卡名；无参 copyWith 对 select 订阅者不产生信号）。
+        state = state.copyWith(cardInfoVersion: state.cardInfoVersion + 1);
       }
     }
   }
@@ -1514,8 +1529,8 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       lastAttackFrom: from,
       lastAttackTo: to,
       battlePresentation: BattlePresentation(
-        attackerSlotId: from,
-        defenderSlotId: to,
+        attackerZoneKey: from,
+        defenderZoneKey: to,
         attackerName: attackerName,
         defenderName: to == null ? null : state.fieldCards[to]?.name ?? '怪兽',
       ),
@@ -1679,7 +1694,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       summonEffectEvent: SummonEffectEvent(
         id: state.summonEffectTick + 1,
         code: code,
-        slotId: slotId,
+        zoneKey: slotId,
         type: type,
       ),
       summonEffectTick: state.summonEffectTick + 1,
@@ -1738,7 +1753,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       summonEffectEvent: SummonEffectEvent(
         id: state.summonEffectTick + 1,
         code: msg.code,
-        slotId: zoneKeyOf(
+        zoneKey: zoneKeyOf(
           msg.location.controller,
           msg.location.location,
           msg.location.sequence,
@@ -1758,12 +1773,12 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       'A=${msg.defenderAttack} D=${msg.defenderDefense} P=${msg.defenderPosition}; '
       'hasDefender=${msg.hasDefender}',
     );
-    final attackerSlotId = zoneKeyOf(
+    final attackerZoneKey = zoneKeyOf(
       msg.attacker.controller,
       msg.attacker.location,
       msg.attacker.sequence,
     );
-    final defenderSlotId = msg.hasDefender
+    final defenderZoneKey = msg.hasDefender
         ? zoneKeyOf(
             msg.defender.controller,
             msg.defender.location,
@@ -1773,20 +1788,20 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     final base =
         state.battlePresentation ??
         BattlePresentation(
-          attackerSlotId: attackerSlotId,
-          defenderSlotId: defenderSlotId,
-          attackerName: state.fieldCards[attackerSlotId]?.name ?? '怪兽',
-          defenderName: defenderSlotId == null
+          attackerZoneKey: attackerZoneKey,
+          defenderZoneKey: defenderZoneKey,
+          attackerName: state.fieldCards[attackerZoneKey]?.name ?? '怪兽',
+          defenderName: defenderZoneKey == null
               ? null
-              : state.fieldCards[defenderSlotId]?.name ?? '怪兽',
+              : state.fieldCards[defenderZoneKey]?.name ?? '怪兽',
         );
     final presentation = base.copyWith(
-      attackerSlotId: attackerSlotId,
-      defenderSlotId: defenderSlotId,
-      attackerName: state.fieldCards[attackerSlotId]?.name ?? '怪兽',
-      defenderName: defenderSlotId == null
+      attackerZoneKey: attackerZoneKey,
+      defenderZoneKey: defenderZoneKey,
+      attackerName: state.fieldCards[attackerZoneKey]?.name ?? '怪兽',
+      defenderName: defenderZoneKey == null
           ? null
-          : state.fieldCards[defenderSlotId]?.name ?? '怪兽',
+          : state.fieldCards[defenderZoneKey]?.name ?? '怪兽',
       attackerAttack: msg.attackerAttack,
       attackerDefense: msg.attackerDefense,
       attackerPosition: msg.attackerPosition,

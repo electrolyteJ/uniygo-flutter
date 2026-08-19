@@ -62,6 +62,7 @@ const List<LiveMonster> monsterCatalog = [
     metalColor: Color(0xFFF4F8FF),
     jointColor: Color(0xFF61759B),
     glowColor: Color(0xFF82C8FF),
+    modelAsset: 'models/DamagedHelmet.glb',
   ),
   LiveMonster(
     id: 'dark-magician',
@@ -72,6 +73,7 @@ const List<LiveMonster> monsterCatalog = [
     metalColor: Color(0xFF6A5AA0),
     jointColor: Color(0xFF33285C),
     glowColor: Color(0xFFD06BFF),
+    modelAsset: 'models/cyber_dragon2.glb',
   ),
   LiveMonster(
     id: 'red-eyes-black-dragon',
@@ -92,6 +94,7 @@ const List<LiveMonster> monsterCatalog = [
     metalColor: Color(0xFFE9F1FF),
     jointColor: Color(0xFF7A8DB0),
     glowColor: Color(0xFF9FD6FF),
+    modelAsset: 'models/generated_model_20260819_0033.glb',
   ),
   LiveMonster(
     id: 'elemental-hero-neos',

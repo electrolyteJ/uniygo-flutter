@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/confirm_cards.dart';
+import '../models/confirm_panel.dart';
 
 const Object _undefined = Object();
 
@@ -103,11 +103,7 @@ class CardConfirmNotifier extends Notifier<CardConfirmState> {
   /// [CardConfirmState.floatPreviewIndex] 从 0 起逐卡 +1；
   /// 最后一卡展示完毕后再留 500ms 收尾，然后清空预览并把下标归零。
   /// UI（ConfirmFloatingCard.currentIndex）只渲染该下标，不再自行计时。
-  void showFloatPreview(
-    List<int> codes,
-    int owner, {
-    required bool isExtra,
-  }) {
+  void showFloatPreview(List<int> codes, int owner, {required bool isExtra}) {
     _confirmTimer?.cancel();
     state = state.copyWith(
       floatPreviewCodes: codes,
@@ -130,8 +126,10 @@ class CardConfirmNotifier extends Notifier<CardConfirmState> {
       if (nextIndex >= previewCodes.length) {
         // 最后一卡已展示完整一档：+500ms 收尾后清空并归零。
         timer.cancel();
-        _confirmTimer =
-            Timer(const Duration(milliseconds: 500), _clearFloatPreview);
+        _confirmTimer = Timer(
+          const Duration(milliseconds: 500),
+          _clearFloatPreview,
+        );
         return;
       }
       state = state.copyWith(floatPreviewIndex: nextIndex);
@@ -168,10 +166,7 @@ class CardConfirmNotifier extends Notifier<CardConfirmState> {
 
       if (panelCodes.isNotEmpty) {
         state = state.copyWith(
-          confirmPanel: ConfirmPanel(
-            title: title,
-            codes: panelCodes.toList(),
-          ),
+          confirmPanel: ConfirmPanel(title: title, codes: panelCodes.toList()),
         );
       }
     });
@@ -202,5 +197,5 @@ class CardConfirmNotifier extends Notifier<CardConfirmState> {
 /// 卡片确认状态的 provider，按房间 ProviderScope override 隔离。
 final cardConfirmProvider =
     NotifierProvider<CardConfirmNotifier, CardConfirmState>(
-  CardConfirmNotifier.new,
-);
+      CardConfirmNotifier.new,
+    );

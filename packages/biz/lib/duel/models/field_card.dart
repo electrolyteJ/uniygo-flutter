@@ -1,5 +1,7 @@
 import 'field_zone_key.dart';
 
+/// 场上的一张卡（含身份、位置、表示形式与数值；
+/// 卡槽定位见 [zoneKeyOf]）。
 class FieldCard {
   final int code;
   final int controller;
@@ -25,5 +27,6 @@ class FieldCard {
     this.name,
   });
 
-  String get key => zoneKeyOf(controller, zone, sequence);
+  /// 卡槽标识（`controller_zone_sequence`，见 [zoneKeyOf]）。
+  String get zoneKey => zoneKeyOf(controller, zone, sequence);
 }

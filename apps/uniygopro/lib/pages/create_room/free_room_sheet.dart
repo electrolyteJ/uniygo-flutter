@@ -3,7 +3,6 @@
 // ────────────────────────────────────────────────────────────
 
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
 
 import 'package:duelink/duelink.dart';
 import 'package:go_router/go_router.dart';
@@ -111,15 +110,12 @@ class _FreeRoomSheetState extends State<FreeRoomSheet>
       child: sheetContainer(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final hasBoundedHeight = constraints.maxHeight.isFinite;
-            final availableBodyHeight = hasBoundedHeight
-                ? math.max(
-                    220.0,
-                    constraints.maxHeight - (canCreate ? 126.0 : 96.0),
-                  )
-                : 520.0;
             final currentTab = _tabCtrl?.index ?? 0;
 
+            // 表单主体用 Flexible 占据「头部之后的剩余高度」而非固定
+            // 像素预算——头部实际高度（标题/描述/环境选择/TabBar）随时
+            // 变化，硬编码扣减容易欠账导致 RenderFlex 溢出；表单内部
+            // 自带 SingleChildScrollView，超出剩余空间时自行滚动。
             return Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -166,8 +162,7 @@ class _FreeRoomSheetState extends State<FreeRoomSheet>
                     ],
                   ),
                   const SizedBox(height: 8),
-                  ConstrainedBox(
-                    constraints: BoxConstraints(maxHeight: availableBodyHeight),
+                  Flexible(
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 180),
                       switchInCurve: Curves.easeOut,
@@ -182,7 +177,7 @@ class _FreeRoomSheetState extends State<FreeRoomSheet>
                   ),
                 ] else ...[
                   const SizedBox(height: 16),
-                  _buildJoinForm(),
+                  Flexible(child: _buildJoinForm()),
                 ],
               ],
             );

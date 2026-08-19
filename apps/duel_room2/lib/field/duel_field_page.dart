@@ -7,7 +7,7 @@ import 'package:biz/service_providers.dart';
 import 'package:biz/ygo_sound_service.dart';
 import 'package:biz/widgets/card_image.dart';
 import 'package:biz/duel/models/playmat_anchor_data.dart';
-import 'package:biz/duel/models/playmat_field_view_data.dart';
+import 'package:duel_room2/field/models/playmat_field_view_data.dart';
 import 'package:duel_room2/field/widgets/field/prototype_playmat_field.dart';
 import 'package:duel_room2/field/widgets/hud/duel_field_hud.dart';
 import 'package:duel_room2/field/widgets/duel_animation_layers.dart';
@@ -39,7 +39,7 @@ import 'package:biz/duel/models/draw_animation_event.dart';
 import 'package:biz/duel/models/duel_menu.dart';
 import 'package:biz/duel/models/field_card.dart';
 import 'package:biz/duel/models/field_zone_key.dart';
-import 'package:biz/duel/models/idle_action.dart';
+import 'package:biz/duel/models/playmat_resolved_action.dart';
 import 'package:biz/duel/models/select_state.dart';
 import 'package:biz/duel/field/select_window_state.dart';
 
@@ -710,7 +710,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
   ) {
     return AttackAnimation(
       controller: _attackController,
-      source: _attackSlotRect(viewport, presentation.attackerSlotId),
+      source: _attackSlotRect(viewport, presentation.attackerZoneKey),
       target: _attackTargetRect(viewport, opponentHandTop, presentation),
       cardVisual: _attackCardVisual(presentation),
     );
@@ -742,13 +742,13 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     double opponentHandTop,
     BattlePresentation presentation,
   ) {
-    final defenderSlotId = presentation.defenderSlotId;
-    if (defenderSlotId != null) {
-      return _attackSlotRect(viewport, defenderSlotId);
+    final defenderZoneKey = presentation.defenderZoneKey;
+    if (defenderZoneKey != null) {
+      return _attackSlotRect(viewport, defenderZoneKey);
     }
     // 直接攻击：飞向被攻击玩家的手牌位置（对方手牌在上，己方手牌在下）。
     final attackerController =
-        int.tryParse(presentation.attackerSlotId.split('_').first) ?? 0;
+        int.tryParse(presentation.attackerZoneKey.split('_').first) ?? 0;
     final attackingSelf = attackerController == _board.myController;
     final targetCenter = attackingSelf
         ? Offset(viewport.width / 2, opponentHandTop + 48)
@@ -757,7 +757,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
   }
 
   Widget _attackCardVisual(BattlePresentation presentation) {
-    final code = _board.fieldCards[presentation.attackerSlotId]?.code;
+    final code = _board.fieldCards[presentation.attackerZoneKey]?.code;
     if (code != null && code > 0) {
       return CardImage(code: code, width: 68, height: 96);
     }

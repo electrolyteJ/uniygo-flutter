@@ -95,6 +95,18 @@ class CyberDragonRig extends Object3D {
   @override
   void draw(RenderContext context) {}
 
+  /// 覆盖局部包围盒：flame_3d 的 AABB 脏标记只向上传播，祖先移动时
+  /// 子组件世界 AABB 冻结在初始帧位置，本 rig 会被误判 outside 而
+  /// 跳过全部子组件（见 GlbDragonRig 同款注释）。
+  @override
+  Aabb3 computeLocalAabb() => Aabb3.minMax(
+        Vector3.all(-_effectRadius),
+        Vector3.all(_effectRadius),
+      );
+
+  /// 演出活动半径：螺旋半径 + 升起行程 + 落地闪光球膨胀。
+  static const double _effectRadius = 6.0;
+
   void _buildBody() {
     for (var i = 0; i < _segmentCount; i++) {
       final frac = i / (_segmentCount - 1);
@@ -143,7 +155,7 @@ class CyberDragonRig extends Object3D {
         MeshComponent(
           mesh: ConeMesh(radius: 0.06, height: 0.5, material: _metalMaterial),
           position: headPos + Vector3(0.14 * side, 0.16, -0.18),
-          rotation: Quaternion.euler(-0.9, 0, 0.12 * side),
+          rotation: Quaternion.euler(0, -0.9, 0.12 * side),
         ),
       );
     }
@@ -192,7 +204,7 @@ class CyberDragonRig extends Object3D {
       basePosition.y + rootY,
       basePosition.z,
     );
-    transform.rotation.setFrom(Quaternion.euler(0, spin, 0));
+    transform.rotation.setFrom(Quaternion.euler(spin, 0, 0));
     transform.scale.splat(scale); // splat 在 NotifyingVector3 覆写清单内，确保触发变换通知
 
     // ---- 蛇形波动（节段相位差正弦） ----
@@ -221,6 +233,12 @@ class CyberDragonRig extends Object3D {
         onCompleted();
         removeFromParent();
       }
+    }
+    // flame_3d 的 AABB 脏标记只向上传播：rig 移动后各子组件的世界
+    // AABB 不会自动重算（其变换矩阵已随向下传播刷新，缺的只是触发
+    // 重算），每帧统一标记让子组件剔除判定跟得上。
+    for (final child in children.whereType<Component3D>()) {
+      child.markAabbDirty();
     }
   }
 }

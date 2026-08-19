@@ -134,10 +134,27 @@ jobs:
           cd $env:APP_DIR
           flutter pub get
 
+      - name: Build libocgcore.dll (from vendor sources)
+        shell: pwsh
+        run: |
+          # 插件打包需要 packages/ocgcore/windows/libs/x64/ocgcore.dll
+          # （未入库，CI 现场从 vendor 源码构建；子模块已 recursive 拉取）
+          cmake -S packages/ocgcore/native -B packages/ocgcore/native/build -A x64
+          cmake --build packages/ocgcore/native/build --config Release
+          New-Item -ItemType Directory -Force packages/ocgcore/windows/libs/x64 | Out-Null
+          Copy-Item packages/ocgcore/native/build/Release/ocgcore.dll packages/ocgcore/windows/libs/x64/ocgcore.dll
+
       - name: Build Windows (Release)
         run: |
           cd $env:APP_DIR
           flutter build windows --release
+
+      - name: Upload libocgcore.dll artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libocgcore-windows-x64
+          path: packages/ocgcore/windows/libs/x64/ocgcore.dll
+          retention-days: 30
 
       - name: Package Windows artifacts
         shell: pwsh

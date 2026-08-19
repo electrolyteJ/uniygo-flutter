@@ -9,6 +9,7 @@ environment:
 resolution: workspace
 
 dependencies:
+  go_router: ^14.0.0
   flutter:
     sdk: flutter
   ygo_data:

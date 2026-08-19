@@ -15,3 +15,10 @@ x86/
 *.[Cc]ache
 # but keep track of directories ending in .cache
 !*.[Cc]ache/
+
+# 预编译 DLL 产物（CI 从 packages/ocgcore/native 构建后可提交固化）
+!libs/
+!libs/x64/
+!libs/x86/
+!libs/x64/*.dll
+!libs/x86/*.dll

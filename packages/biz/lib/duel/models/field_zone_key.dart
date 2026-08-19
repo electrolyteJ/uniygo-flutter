@@ -6,7 +6,7 @@ import 'field_card.dart';
 String zoneKeyOf(int controller, int zone, int sequence) =>
     '${controller}_${zone}_$sequence';
 
-/// [FieldCard] 的卡槽 key，等价于 [FieldCard.key]。
+/// [FieldCard] 的卡槽标识，等价于 [FieldCard.zoneKey]。
 String fieldSlotId(FieldCard card) =>
     zoneKeyOf(card.controller, card.zone, card.sequence);
 

@@ -1,5 +1,7 @@
-import 'idle_action.dart';
+import 'playmat_resolved_action.dart';
 
+/// 战斗阶段可执行动作（MSG_SELECT_BATTLE_CMD 的一项）：
+/// 发动效果或（直接）攻击，[type] 为引擎指令序号。
 class BattleAction {
   final int type;
   final int sequence;
@@ -29,27 +31,18 @@ class BattleAction {
     this.targetPosition = 0,
   });
 
-  String get label {
-    switch (type) {
-      case 0:
-        return '发动效果';
-      case 1:
-        return directAttack ? '直接攻击' : '攻击';
-      default:
-        return '行动 #$sequence';
-    }
-  }
+  String get label => switch (type) {
+    0 => '发动效果',
+    1 => directAttack ? '直接攻击' : '攻击',
+    _ => '行动 #$sequence',
+  };
 
-  PlaymatResolvedActionKind get kind {
-    switch (type) {
-      case 0:
-        return PlaymatResolvedActionKind.activate;
-      case 1:
-        return directAttack
-            ? PlaymatResolvedActionKind.directAttack
-            : PlaymatResolvedActionKind.attack;
-      default:
-        return PlaymatResolvedActionKind.unknown;
-    }
-  }
+  PlaymatResolvedActionKind get kind => switch (type) {
+    0 => PlaymatResolvedActionKind.activate,
+    1 =>
+      directAttack
+          ? PlaymatResolvedActionKind.directAttack
+          : PlaymatResolvedActionKind.attack,
+    _ => PlaymatResolvedActionKind.unknown,
+  };
 }

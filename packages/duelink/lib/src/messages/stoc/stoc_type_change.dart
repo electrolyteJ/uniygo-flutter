@@ -14,9 +14,12 @@ import '../../protocol/buffer_io.dart';
 /// 参考 neos-ts 的 stocTypeChange.ts 定义。
 class StocTypeChange {
   final bool isHost;
+
   /// 0=PLAYER1, 1=PLAYER2, 7=OBSERVER
   final int _selfType;
-  const StocTypeChange({required this.isHost, required this._selfType});
+  // 命名参数不能以下划线开头：对外暴露 selfType，内部存 _selfType。
+  const StocTypeChange({required this.isHost, required int selfType})
+    : _selfType = selfType;
 
   PlayerType get selfType => PlayerType.of(_selfType);
   int get protoId => STOC_TYPE_CHANGE;

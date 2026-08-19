@@ -1,5 +1,7 @@
 import 'dart:collection';
 
+/// 一次抽卡动画事件（MSG_DRAW 到达时由 duel_field_state 发出，
+/// 经状态快照推到页面，由 [DrawAnimationQueue] 排队播放）。
 class DrawAnimationEvent {
   final int id;
   final int player;

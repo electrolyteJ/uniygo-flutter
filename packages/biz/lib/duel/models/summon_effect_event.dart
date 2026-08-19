@@ -26,23 +26,23 @@ enum SummonEffectType {
 }
 
 class SummonEffectEvent {
-  const SummonEffectEvent({
-    required this.id,
-    required this.code,
-    required this.slotId,
-    required this.type,
-  });
-
   /// 事件 id（= 发出时的 tick 值，单调递增）。
   final int id;
 
   /// 卡号（0 = 未知，如对手盖放）；卡图经 CardImageLoader 按 code 取。
   final int code;
 
-  /// 目标卡槽 zoneKey（`controller_zone_sequence`），定位世界坐标。
-  final String slotId;
+  /// 目标卡槽标识（`controller_zone_sequence`，见 zoneKeyOf），定位世界坐标。
+  final String zoneKey;
 
   final SummonEffectType type;
+
+  const SummonEffectEvent({
+    required this.id,
+    required this.code,
+    required this.zoneKey,
+    required this.type,
+  });
 }
 
 /// 依据完成消息与卡数据推断特效类型（纯函数，便于测试）。
@@ -52,7 +52,10 @@ class SummonEffectEvent {
 /// extra 差异化：仪式/融合/同调/超量/链接在协议上都是特殊召唤，
 /// 按卡数据类型细分（灵摆融合等多类别卡取第一个命中项，
 /// 优先级 link > xyz > synchro > fusion > ritual）。
-SummonEffectType resolveSummonEffectType(String actionLabel, pkg.CardInfo? info) {
+SummonEffectType resolveSummonEffectType(
+  String actionLabel,
+  pkg.CardInfo? info,
+) {
   var type = switch (actionLabel) {
     '召唤' => SummonEffectType.normal,
     '反转召唤' => SummonEffectType.flip,

@@ -13,6 +13,7 @@ import '../models/battle_action.dart';
 import '../models/field_card.dart';
 import '../models/field_zone_key.dart';
 import '../models/idle_action.dart';
+import '../models/playmat_resolved_action.dart';
 import '../models/select_state.dart';
 import '../models/sum_check.dart' as sum_check;
 
@@ -184,9 +185,11 @@ class SelectWindowState {
     };
   }
 
-  /// 就地选择的提示文案。
+  /// 就地选择的提示文案。无当前选择窗口时返回空串
+  /// （selector 会在 clearSelect 后的空状态下重新求值，不能在这里崩）。
   String get inlineSelectHint {
-    final select = currentSelect!;
+    final select = currentSelect;
+    if (select == null) return '';
     final count = inlineSelectedOptionIndices.length;
     // 引擎下发的选择提示优先（如「请选择攻击对象」）；多选时附推进度。
     final hint = select.hint;
@@ -1241,28 +1244,8 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   /// 己方手牌或双方场上（怪兽/魔陷区）的可见位置。
   /// 任一选项落在卡组/墓地/除外/对方手牌等不可直接点击的区域时，
   /// 整体回退到弹窗选择。
-  bool get inlineSelectActive {
-    final select = state.currentSelect;
-    if (select == null ||
-        !_inlineSelectTypes.contains(select.type) ||
-        select.options.isEmpty) {
-      return false;
-    }
-    return select.options.every(_isInlineVisibleOption);
-  }
-
-  bool _isInlineVisibleOption(SelectOption option) {
-    if (option.zone == CARD_ZONE_HAND) {
-      return option.controller == _board.myController;
-    }
-    if (option.zone == CARD_ZONE_MZONE || option.zone == CARD_ZONE_SZONE) {
-      return _board.fieldCards.containsKey(
-        zoneKeyOf(option.controller, option.zone, option.sequence),
-      );
-    }
-    // 卡组、墓地、额外、除外等区域不可直接点击，应通过弹窗选择
-    return false;
-  }
+  bool get inlineSelectActive =>
+      resolveInlineSelectActive(state.currentSelect, _board);
 
   /// 就地选择中可点击的己方手牌下标。
   Set<int> get inlineSelectableHandSequences {
@@ -1341,21 +1324,8 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
 
   /// 选择提示的统一呈现方式：页面只消费该结果插入 SelectPromptLayer，
   /// 不再各自判断放置/就地/模态的互斥关系。
-  SelectPromptMode get selectPromptMode {
-    final select = state.currentSelect;
-    // 阶段指令窗口由阶段菜单/场上操作处理，不出选择提示。
-    if (select == null || state.hasPhaseCommandWindow) {
-      return SelectPromptMode.none;
-    }
-    // place 一律走 place 提示层：即使可用槽位为空（如 EMZ 被共享占用、
-    // 服务端位图异常导致 options 被清空），也只显示放置提示，不能落入
-    // modal 的黑色遮罩，否则整页无法交互。
-    if (select.type == SelectType.place) {
-      return SelectPromptMode.place;
-    }
-    if (inlineSelectActive) return SelectPromptMode.inline;
-    return SelectPromptMode.modal;
-  }
+  SelectPromptMode get selectPromptMode =>
+      resolveSelectPromptMode(state, _board);
 
   /// 手牌下标对应的就地选择选项下标；不可选时返回 null。
   int? inlineOptionIndexForHand(int sequence) {
@@ -1561,4 +1531,53 @@ List<SelectOption> _announceMaskOptions(
     }
   }
   return options;
+}
+
+/// 选择提示呈现方式的纯函数版（跨 selectWindow+duelField 派生）。
+/// 供 derived 的 selectPromptModeProvider 与 Notifier.selectPromptMode 共用。
+SelectPromptMode resolveSelectPromptMode(
+  SelectWindowState select,
+  DuelFieldState board,
+) {
+  final current = select.currentSelect;
+  // 阶段指令窗口由阶段菜单/场上操作处理，不出选择提示。
+  if (current == null || select.hasPhaseCommandWindow) {
+    return SelectPromptMode.none;
+  }
+  // place 一律走 place 提示层：即使可用槽位为空（如 EMZ 被共享占用、
+  // 服务端位图异常导致 options 被清空），也只显示放置提示，不能落入
+  // modal 的黑色遮罩，否则整页无法交互。
+  if (current.type == SelectType.place) {
+    return SelectPromptMode.place;
+  }
+  if (resolveInlineSelectActive(current, board)) {
+    return SelectPromptMode.inline;
+  }
+  return SelectPromptMode.modal;
+}
+
+/// 就地选择可用性（纯函数版）：选项全部落在可直接点击的区域
+/// （己方手牌 / 双方场上实际存在的卡）。
+bool resolveInlineSelectActive(SelectState? select, DuelFieldState board) {
+  if (select == null ||
+      !_inlineSelectTypes.contains(select.type) ||
+      select.options.isEmpty) {
+    return false;
+  }
+  return select.options.every(
+    (option) => _isInlineVisibleOptionIn(option, board),
+  );
+}
+
+bool _isInlineVisibleOptionIn(SelectOption option, DuelFieldState board) {
+  if (option.zone == CARD_ZONE_HAND) {
+    return option.controller == board.myController;
+  }
+  if (option.zone == CARD_ZONE_MZONE || option.zone == CARD_ZONE_SZONE) {
+    return board.fieldCards.containsKey(
+      zoneKeyOf(option.controller, option.zone, option.sequence),
+    );
+  }
+  // 卡组、墓地、额外、除外等区域不可直接点击，应通过弹窗选择
+  return false;
 }

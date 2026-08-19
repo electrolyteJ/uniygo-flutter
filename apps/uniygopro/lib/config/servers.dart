@@ -53,10 +53,6 @@ enum DuelEnvironment {
   /// 默认 mycard 自定义房间
   mycard("wss", 'mycard', 'tiramisu.moenext.com', 7912),
   mercury233("tcp", 'mercury233', 's1.ygo233.com', 233),
-
-  /// 233 服无禁限端口：无禁限卡表 + 部分卡片使用原版效果。
-  mercury233_2012("tcp", 'mercury233无禁限', 's1.ygo233.com', 2012),
-
   /// 先行卡测试环境
   koishi_preRelease("wss", 'koishi先行卡测试', 'koishi.momobako.com', 889),
   mycard_preRelease("wss", 'mycard先行卡测试', 'mygo.superpre.pro', 888),
@@ -85,8 +81,7 @@ enum DuelEnvironment {
   bool get canCreate =>
       this == mycard ||
       this == ygopro ||
-      this == mercury233 ||
-      this == mercury233_2012;
+      this == mercury233;
 
   /// 是否为 AI 本地人机对战环境
   bool get isAi => this == ai;
@@ -99,8 +94,7 @@ enum DuelEnvironment {
 
   bool get usesRoomStringDsl =>
       this == mercury233 ||
-      this == mercury233_preRelease ||
-      this == mercury233_2012;
+      this == mercury233_preRelease;
 }
 
 /// 所有可用对战服务器列表。

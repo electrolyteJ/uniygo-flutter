@@ -1,6 +1,6 @@
 import 'package:cardlive/cardlive.dart' show CardLivePage;
-import 'package:duel_room1/pages/duel_room/duel_result_page.dart';
-import 'package:duel_room1/pages/duel_room/duel_room_page.dart';
+import 'package:duel_room1/duel_result_page.dart';
+import 'package:duel_room1/duel_room_page.dart';
 import 'package:go_router/go_router.dart';
 import 'pages/home_page.dart';
 import 'pages/create_room/match_page.dart';

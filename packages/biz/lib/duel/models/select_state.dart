@@ -96,6 +96,7 @@ class SelectState {
   }
 }
 
+/// 选择窗口中的一个可选项（卡 + 位置；SUM/COUNTER 语义见字段注释）。
 class SelectOption {
   final int code;
   final int controller;
@@ -142,6 +143,7 @@ enum SelectPromptMode {
   modal,
 }
 
+/// 选择窗口类型（与服务端 MSG_SELECT_* / MSG_ANNOUNCE_* 一一对应）。
 enum SelectType {
   /// MSG_SELECT_IDLE_CMD：主要阶段空闲指令窗口
   /// （发动/召唤/盖放/转阶段等），由阶段菜单与手牌/场上操作承载。

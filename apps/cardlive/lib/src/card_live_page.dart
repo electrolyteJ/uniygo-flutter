@@ -1,6 +1,7 @@
 import 'package:cardlive/src/summon_stage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'monster_catalog.dart';
 
@@ -27,10 +28,10 @@ class _CardLivePageState extends State<CardLivePage> {
       appBar: AppBar(
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
-          onPressed: () {
-            // context.go('/');
-            // Navigator.of(context).pop('/');
-          },
+          // 经 go_router 声明式回退：入口是 context.go('/card-live')（替换
+          // 路由栈），原始 Navigator.pop 会 pop 掉栈内最后一条路由，
+          // 与 go_router 同帧重建兜底栈冲突（Navigator dispose 时 locked）。
+          onPressed: () => context.go('/'),
         ),
         title: const Row(
           mainAxisSize: MainAxisSize.min,

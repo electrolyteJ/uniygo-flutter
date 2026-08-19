@@ -7,9 +7,12 @@ import 'package:ygo_data/card_info.dart' as pkg;
 import 'duel_field_state.dart';
 import 'field_overlay_state.dart';
 import '../models/battle_action.dart';
+import '../models/chain_link.dart';
+import '../models/select_state.dart';
 import '../models/duel_menu.dart';
 import '../models/field_card.dart';
 import '../models/idle_action.dart';
+import '../models/playmat_resolved_action.dart';
 import 'select_window_state.dart';
 
 /// 场地派生读取：把「当前窗口 + 选中态」派生为动作/菜单条目，供页面
@@ -593,3 +596,89 @@ final activatableZoneKeysProvider = Provider<Set<String>>((ref) {
   }
   return result;
 }, dependencies: [duelFieldProvider, selectWindowProvider]);
+
+// ── 页面细粒度订阅切片（duel_room1 DuelFieldPage 用） ──────────────
+//
+// 切片为 record：Dart record 自带结构判等，Riverpod Provider/select
+// 仅在切片内容变化时通知下游，替代整页 watch 四子状态的全量重建。
+// List 字段按实例判等——biz 状态为不可变 copyWith 纪律，内容未变时
+// 复用实例，恰好等价"内容未变不重建"。
+
+/// 顶部 HUD（双状态卡 + 阶段条）订阅切片。
+typedef DuelHudSlice = ({
+  int myController,
+  int currentPlayer,
+  int selfLp,
+  int opponentLp,
+  int selfLpDelta,
+  int opponentLpDelta,
+  int selfLpEventId,
+  int opponentLpEventId,
+  int selfHandCount,
+  int opponentHandCount,
+  int selfDeck,
+  int oppDeck,
+  int selfExtra,
+  int oppExtra,
+  int selfGrave,
+  int oppGrave,
+  int selfRemoved,
+  int oppRemoved,
+  int turnCount,
+  int selfTimeLeft,
+  int opponentTimeLeft,
+});
+
+/// 己方手牌栏切片（手牌列表实例 + 己方控制器编号）。
+typedef SelfHandSlice = ({List<int> selfHand, int myController});
+
+/// 对手手牌栏切片。
+typedef OppHandSlice = ({List<int> opponentHand, int myController});
+
+/// 连锁叠层切片。
+typedef ChainSlice = ({List<ChainLink> chains, bool chainSealed});
+
+DuelHudSlice selectHudSlice(DuelFieldState s) => (
+  myController: s.myController,
+  currentPlayer: s.currentPlayer,
+  selfLp: s.selfLp,
+  opponentLp: s.opponentLp,
+  selfLpDelta: s.selfLpDelta,
+  opponentLpDelta: s.opponentLpDelta,
+  selfLpEventId: s.selfLpEventId,
+  opponentLpEventId: s.opponentLpEventId,
+  selfHandCount: s.selfHand.length,
+  opponentHandCount: s.opponentHand.length,
+  selfDeck: s.selfDeck,
+  oppDeck: s.oppDeck,
+  selfExtra: s.selfExtra,
+  oppExtra: s.oppExtra,
+  selfGrave: s.selfGrave,
+  oppGrave: s.oppGrave,
+  selfRemoved: s.selfRemoved,
+  oppRemoved: s.oppRemoved,
+  turnCount: s.turnCount,
+  selfTimeLeft: s.selfTimeLeft,
+  opponentTimeLeft: s.opponentTimeLeft,
+);
+
+SelfHandSlice selectSelfHandSlice(DuelFieldState s) =>
+    (selfHand: s.selfHand, myController: s.myController);
+
+OppHandSlice selectOppHandSlice(DuelFieldState s) =>
+    (opponentHand: s.opponentHand, myController: s.myController);
+
+ChainSlice selectChainSlice(DuelFieldState s) =>
+    (chains: s.chains, chainSealed: s.chainSealed);
+
+List<String> selectLogSlice(DuelFieldState s) => s.duelLogs;
+
+/// 选择提示呈现方式（跨 selectWindow+duelField 派生）。
+/// 页面按区域订阅本 provider，替代整页 watch 后的 notifier 读取。
+final selectPromptModeProvider = Provider<SelectPromptMode>(
+  (ref) => resolveSelectPromptMode(
+    ref.watch(selectWindowProvider),
+    ref.watch(duelFieldProvider),
+  ),
+  dependencies: [selectWindowProvider, duelFieldProvider],
+);

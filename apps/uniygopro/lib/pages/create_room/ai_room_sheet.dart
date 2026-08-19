@@ -2,8 +2,6 @@
 // AI Room Sheet (人机对战入口 + 房间参数)
 // ────────────────────────────────────────────────────────────
 
-import 'dart:math' as math;
-
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,14 +10,16 @@ import 'package:provider/provider.dart';
 
 import '../../config/servers.dart';
 import 'package:biz/service_singleton.dart';
+import '../../models/mercury233_room_spec.dart';
+import '../../models/mercury233_room_string_codec.dart';
+import '../../widgets/create_room/mercury233_room_params_form.dart';
 import '../../widgets/create_room/room_dialog.dart';
 import 'match_store.dart';
 
 /// AI 类型选择
 enum _AiType {
   local('本地 AI', '与本地 AI 进行一场单局对战，无需联网。'),
-  server233('233 服 AI', '连接 ygo233.com 服务器，与服务器端 AI 对战。'),
-  server2332012('233 无禁限 AI', '连接 ygo233.com 2012 端口（无禁限卡表，部分卡片原版效果）。');
+  server233('233 服 AI', '连接 ygo233.com 服务器，与服务器端 AI 对战（禁限卡可选，无禁限为 NF 标记）。');
 
   final String label;
   final String description;
@@ -27,6 +27,11 @@ enum _AiType {
 }
 
 /// AI 对决面板 — 选择房间参数后进入人机对战。
+///
+/// 房间参数（大师规则/卡片允许/禁限卡表/LP/手牌/抽卡/时间/
+/// 卡组检查开关）与 233 建房表单共用 [Mercury233RoomParamsForm]，
+/// 状态统一为 [Mercury233RoomSpec]；233 服 AI 主机密码由同一份 spec
+/// 经 [Mercury233RoomStringCodec.buildTokens] 生成。
 class AiRoomSheet extends StatefulWidget {
   final GameServer server;
   const AiRoomSheet({super.key, required this.server});
@@ -37,57 +42,48 @@ class AiRoomSheet extends StatefulWidget {
 
 class _AiRoomSheetState extends State<AiRoomSheet> {
   _AiType _aiType = _AiType.local;
-  int _startLp = 8000;
-  int _startHand = 5;
-  int _drawCount = 1;
-  int _rule = 0;
-  DuelRule _duelRule = DuelRule.mr2020;
-  int _timeLimit = 180;
-  bool _noCheckDeck = true;
-  bool _noShuffleDeck = false;
+
+  /// 房间参数（单局、无房间名）。AI 对战默认不检查卡组。
+  Mercury233RoomSpec _spec = const Mercury233RoomSpec(noCheckDeck: true);
   bool _connecting = false;
 
-  /// 为 233 服 AI 生成主机密码：AI 必须首位 + 特殊代码。
-  /// 参考 https://ygo233.com/lab：主机密码输入 AI 即可自动生成 AI 对手，
-  /// 不需要也不能使用 # 和房间名。
-  String _build233AiPassword() {
-    final codes = <String>[
-      'AI',
-      // 单局模式不输出特殊标记
-      switch (_duelRule) {
-        DuelRule.mr3 => 'MR3',
-        DuelRule.mr4 => 'MR4',
-        DuelRule.mr2020 => 'MR5',
-      },
-      switch (_rule) {
-        0 => '', // OCG (默认)
-        1 => 'TO', // 仅 TCG
-        2 => 'OT', // OT 混
-        4 => 'NU', // 专有卡禁止
-        _ => '', // 自制卡/所有卡片 → 默认
-      },
-      if (_timeLimit != 0 && _timeLimit != 180) 'TM$_timeLimit',
-      if (_startLp != 8000) 'LP$_startLp',
-      if (_startHand != 5) 'ST$_startHand',
-      if (_drawCount != 1) 'DR$_drawCount',
-      if (_noCheckDeck) 'NC',
-      if (_noShuffleDeck) 'NS',
-    ]..removeWhere((code) => code.isEmpty);
-    return codes.join(',');
+  /// 卡片允许（233 卡池枚举）→ 本地引擎 RoomOptions 的 rule int。
+  int get _engineRule => switch (_spec.cardPoolMode) {
+    Mercury233CardPoolMode.ocg => 0,
+    Mercury233CardPoolMode.tcgOnly => 1,
+    Mercury233CardPoolMode.tcgAndOcg => 2,
+    Mercury233CardPoolMode.noUnique => 4,
+  };
+
+  /// 禁限卡表选项与自由房同源：dataService 的全部 lflist 表 +
+  /// 末尾追加无禁限（NF）。
+  Future<List<Mercury233BanlistOption>> _loadBanlistOptions() async {
+    final tables =
+        await ServiceSingleton.instance.dataService.getAllLfTable();
+    return buildMercury233BanlistOptions(tables.values);
   }
+
+  /// 为 233 服 AI 生成主机密码：AI 必须首位 + 协议 token。
+  /// 参考 https://ygo233.com/lab：主机密码输入 AI 即可自动生成 AI 对手，
+  /// 不需要也不能使用 # 和房间名。token 拼装复用
+  /// [Mercury233RoomStringCodec.buildTokens]，与自由房房间串同源。
+  String _build233AiPassword() => <String>[
+    'AI',
+    ...Mercury233RoomStringCodec.buildTokens(_spec),
+  ].join(',');
 
   Future<void> _start() async {
     final matchStore = context.read<MatchStore>();
     final options = RoomOptions(
       mode: RoomMode.single,
-      rule: _rule,
-      duelRule: _duelRule,
-      noCheckDeck: _noCheckDeck,
-      noShuffleDeck: _noShuffleDeck,
-      startLp: _startLp,
-      startHand: _startHand,
-      drawCount: _drawCount,
-      timeLimit: _timeLimit,
+      rule: _engineRule,
+      duelRule: _spec.duelRule,
+      noCheckDeck: _spec.noCheckDeck,
+      noShuffleDeck: _spec.noShuffleDeck,
+      startLp: _spec.startLp,
+      startHand: _spec.startHand,
+      drawCount: _spec.drawCount,
+      timeLimit: _spec.timeLimit,
     );
     setState(() => _connecting = true);
 
@@ -102,17 +98,18 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
         RoomPassword.encodeJoin(),
       );
     } else {
-      // 233 服 AI：主机密码输入 AI（+ 特殊代码）即可自动生成 AI 对手，
-      // 无需再手动发送 /ai。2012 端口为无禁限 + 原版效果。
+      // 233 服 AI：主机密码输入 AI（+ 协议 token）即可自动生成 AI 对手，
+      // 无需再手动发送 /ai。禁限（含无禁限 NF）走密码 token，统一连 233 端口。
       final aiPassword = _build233AiPassword();
-      final env = _aiType == _AiType.server2332012
-          ? DuelEnvironment.mercury233_2012
-          : DuelEnvironment.mercury233;
       matchStore.configureCreatedRoom(
         roomOptions: options,
         roomName: 'AI 人机对战',
       );
-      matchStore.selectServer(widget.server, env, aiPassword);
+      matchStore.selectServer(
+        widget.server,
+        DuelEnvironment.mercury233,
+        aiPassword,
+      );
     }
     final params = matchStore.toDuelRoomParams();
     Navigator.of(context).pop();
@@ -129,11 +126,9 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
       child: sheetContainer(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final hasBoundedHeight = constraints.maxHeight.isFinite;
-            final availableBodyHeight = hasBoundedHeight
-                ? math.max(240.0, constraints.maxHeight - 116.0)
-                : 520.0;
-
+            // 表单主体用 Flexible 占据头部之后的剩余高度（不用固定
+            // 像素预算，避免头部高度变化导致 RenderFlex 溢出）；主体
+            // 自带 SingleChildScrollView，超出时自行滚动。
             return Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -158,8 +153,7 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
                 // ── AI 类型选择器 ──
                 _aiTypeSelector(),
                 const SizedBox(height: 12),
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: availableBodyHeight),
+                Flexible(
                   child: SingleChildScrollView(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -172,85 +166,13 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        numberRow(
-                          '初始 LP',
-                          _startLp,
-                          (v) => setState(() => _startLp = v),
-                          max: 65535,
-                        ),
-                        numberRow(
-                          '初始手牌',
-                          _startHand,
-                          (v) => setState(() => _startHand = v),
-                          max: 15,
-                        ),
-                        numberRow(
-                          '每回合抽卡',
-                          _drawCount,
-                          (v) => setState(() => _drawCount = v),
-                          max: 15,
-                        ),
-                        const SizedBox(height: 6),
-                        dropdownRow<int>(
-                          label: '卡片允许',
-                          value: _rule,
-                          items: const [
-                            DropdownMenuItem(value: 0, child: Text('OCG')),
-                            DropdownMenuItem(value: 1, child: Text('TCG')),
-                            DropdownMenuItem(value: 2, child: Text('OT 混')),
-                            DropdownMenuItem(value: 3, child: Text('自制卡')),
-                            DropdownMenuItem(value: 4, child: Text('专有卡禁止')),
-                            DropdownMenuItem(value: 5, child: Text('所有卡片')),
-                          ],
-                          onChanged: (v) => setState(() => _rule = v!),
-                        ),
-                        dropdownRow<DuelRule>(
-                          label: '决斗规则',
-                          value: _duelRule,
-                          items: const [
-                            DropdownMenuItem(
-                              value: DuelRule.mr3,
-                              child: Text('大师规则 3 (2014)'),
-                            ),
-                            DropdownMenuItem(
-                              value: DuelRule.mr4,
-                              child: Text('新大师规则 (2017)'),
-                            ),
-                            DropdownMenuItem(
-                              value: DuelRule.mr2020,
-                              child: Text('大师规则 2020'),
-                            ),
-                          ],
-                          onChanged: (v) => setState(() => _duelRule = v!),
-                        ),
-                        dropdownRow<int>(
-                          label: '时间限制',
-                          value: _timeLimit,
-                          items: const [
-                            DropdownMenuItem(value: 0, child: Text('无限制')),
-                            DropdownMenuItem(value: 180, child: Text('3 分钟')),
-                            DropdownMenuItem(value: 240, child: Text('4 分钟')),
-                            DropdownMenuItem(value: 300, child: Text('5 分钟')),
-                            DropdownMenuItem(value: 600, child: Text('10 分钟')),
-                          ],
-                          onChanged: (v) => setState(() => _timeLimit = v!),
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            checkRow(
-                              '不检查卡组',
-                              _noCheckDeck,
-                              (v) => setState(() => _noCheckDeck = v ?? false),
-                            ),
-                            const SizedBox(width: 16),
-                            checkRow(
-                              '不切洗卡组',
-                              _noShuffleDeck,
-                              (v) =>
-                                  setState(() => _noShuffleDeck = v ?? false),
-                            ),
-                          ],
+                        // ── 与 233 建房表单共用的参数控件 ──
+                        Mercury233RoomParamsForm(
+                          spec: _spec,
+                          onSpecChanged: (v) => setState(() => _spec = v),
+                          banlistOptionsLoader: _loadBanlistOptions,
+                          // 本地 AI 没有禁限概念，隐藏该选项。
+                          showBanlist: _aiType != _AiType.local,
                         ),
                         // ── 233 服 AI 房间串预览 ──
                         if (_aiType != _AiType.local) ...[

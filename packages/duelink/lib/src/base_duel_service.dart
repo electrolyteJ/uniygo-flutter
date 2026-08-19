@@ -177,7 +177,13 @@ abstract class BaseDuelService implements IDuelService {
       observerCount: _obsOf(_roomStage),
       selfType: m.selfType,
       isHost: m.isHost,
-      options: _pendingOptions ?? const RoomOptions(),
+      // 大厅中途的 TYPE_CHANGE（如观战/玩家切换）不带 JOIN_GAME，
+      // 此时保留当前大厅的 options，避免被默认值覆盖。
+      options:
+          _pendingOptions ??
+          (_roomStage is RoomInLobby
+              ? (_roomStage as RoomInLobby).options
+              : const RoomOptions()),
     );
     _pendingOptions = null;
     console.log('RoomStage: TYPE_CHANGE → RoomInLobby ${_roomStage}');
@@ -197,10 +203,11 @@ abstract class BaseDuelService implements IDuelService {
 
   void _onPlayerChange(StocHsPlayerChange m) {
     final updated = List<PlayerInfo>.from(_playersOf(_roomStage));
-    console.log('RoomStage: PLAYER_CHANGE pos:${m.pos} action:${m.state} ${updated}');
+    console.log(
+      'RoomStage: PLAYER_CHANGE pos:${m.pos} action:${m.state} ${updated}',
+    );
 
-    if (m.state == PlayerChange.leave ||
-        m.state == PlayerChange.toObserver) {
+    if (m.state == PlayerChange.leave || m.state == PlayerChange.toObserver) {
       updated.removeWhere((p) => p.pos == m.pos);
       _roomStage = _withPlayers(updated);
       if (m.state == PlayerChange.toObserver) {
@@ -421,7 +428,11 @@ abstract class BaseDuelService implements IDuelService {
   }
 
   @override
-  void submitDeck(Uint8List mainDeck, Uint8List extraDeck, [Uint8List? sideDeck]) {
+  void submitDeck(
+    Uint8List mainDeck,
+    Uint8List extraDeck, [
+    Uint8List? sideDeck,
+  ]) {
     final mainCards = _bytesToInts(mainDeck);
     final extraCards = _bytesToInts(extraDeck);
     final sideCards = sideDeck == null ? const <int>[] : _bytesToInts(sideDeck);

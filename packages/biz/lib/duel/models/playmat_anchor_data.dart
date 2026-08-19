@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+/// 场地锚点数据（各卡槽与阶段灯在 widget 坐标系下的矩形），
+/// 供 HUD/弹层对齐 Flame 场地；[signature] 用于变更判等。
 class PlaymatAnchorData {
   final Map<String, Rect> slotRects;
   final Rect phaseLampRect;

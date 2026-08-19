@@ -74,41 +74,120 @@ class _FileScriptLoader extends ScriptLoader {
 /// （service_singleton.dart 注入），测试环境没有注册服务，需要用
 /// [AiDuelService.setCardConverter] 显式注入等价的卡数据源。
 final Map<int, CardInfo> _testCardInfos = {
-  89631139: const CardInfo(code: 89631139, type: 0x11, level: 8,
-      attribute: 0x10, race: 0x2000, attack: 3000, defense: 2500,
-      name: 'Blue-Eyes White Dragon'),
-  46986414: const CardInfo(code: 46986414, type: 0x11, level: 7,
-      attribute: 0x20, race: 0x2, attack: 2500, defense: 2100,
-      name: 'Dark Magician'),
-  15025844: const CardInfo(code: 15025844, type: 0x11, level: 4,
-      attribute: 0x10, race: 0x2, attack: 800, defense: 2000,
-      name: 'Mystical Elf'),
-  91152256: const CardInfo(code: 91152256, type: 0x11, level: 4,
-      attribute: 0x01, race: 0x1, attack: 1400, defense: 1200,
-      name: 'Celtic Guardian'),
-  13039848: const CardInfo(code: 13039848, type: 0x11, level: 3,
-      attribute: 0x01, race: 0x100, attack: 1300, defense: 2000,
-      name: 'Giant Soldier of Stone'),
-  6368038: const CardInfo(code: 6368038, type: 0x11, level: 7,
-      attribute: 0x01, race: 0x1, attack: 2300, defense: 2100,
-      name: 'Gaia The Fierce Knight'),
-  28279543: const CardInfo(code: 28279543, type: 0x11, level: 5,
-      attribute: 0x20, race: 0x2000, attack: 2000, defense: 1500,
-      name: 'Curse of Dragon'),
-  74677422: const CardInfo(code: 74677422, type: 0x11, level: 7,
-      attribute: 0x20, race: 0x2000, attack: 2400, defense: 2000,
-      name: 'Red-Eyes Black Dragon'),
-  88819587: const CardInfo(code: 88819587, type: 0x11, level: 4,
-      attribute: 0x04, race: 0x2000, attack: 1200, defense: 700,
-      name: 'Baby Dragon'),
-  76184692: const CardInfo(code: 76184692, type: 0x11, level: 4,
-      attribute: 0x01, race: 0x8000, attack: 1200, defense: 1000,
-      name: 'Hitotsu-Me Giant'),
-  55144522: const CardInfo(code: 55144522, type: 0x2,
-      name: 'Pot of Greed', desc: 'Draw 2 cards.'),
-  4206964: const CardInfo(code: 4206964, type: 0x4, name: 'Trap Hole',
-      desc: 'When your opponent Normal Summons a monster with 1000 or '
-          'more ATK: Target that monster; destroy it.'),
+  89631139: const CardInfo(
+    code: 89631139,
+    type: 0x11,
+    level: 8,
+    attribute: 0x10,
+    race: 0x2000,
+    attack: 3000,
+    defense: 2500,
+    name: 'Blue-Eyes White Dragon',
+  ),
+  46986414: const CardInfo(
+    code: 46986414,
+    type: 0x11,
+    level: 7,
+    attribute: 0x20,
+    race: 0x2,
+    attack: 2500,
+    defense: 2100,
+    name: 'Dark Magician',
+  ),
+  15025844: const CardInfo(
+    code: 15025844,
+    type: 0x11,
+    level: 4,
+    attribute: 0x10,
+    race: 0x2,
+    attack: 800,
+    defense: 2000,
+    name: 'Mystical Elf',
+  ),
+  91152256: const CardInfo(
+    code: 91152256,
+    type: 0x11,
+    level: 4,
+    attribute: 0x01,
+    race: 0x1,
+    attack: 1400,
+    defense: 1200,
+    name: 'Celtic Guardian',
+  ),
+  13039848: const CardInfo(
+    code: 13039848,
+    type: 0x11,
+    level: 3,
+    attribute: 0x01,
+    race: 0x100,
+    attack: 1300,
+    defense: 2000,
+    name: 'Giant Soldier of Stone',
+  ),
+  6368038: const CardInfo(
+    code: 6368038,
+    type: 0x11,
+    level: 7,
+    attribute: 0x01,
+    race: 0x1,
+    attack: 2300,
+    defense: 2100,
+    name: 'Gaia The Fierce Knight',
+  ),
+  28279543: const CardInfo(
+    code: 28279543,
+    type: 0x11,
+    level: 5,
+    attribute: 0x20,
+    race: 0x2000,
+    attack: 2000,
+    defense: 1500,
+    name: 'Curse of Dragon',
+  ),
+  74677422: const CardInfo(
+    code: 74677422,
+    type: 0x11,
+    level: 7,
+    attribute: 0x20,
+    race: 0x2000,
+    attack: 2400,
+    defense: 2000,
+    name: 'Red-Eyes Black Dragon',
+  ),
+  88819587: const CardInfo(
+    code: 88819587,
+    type: 0x11,
+    level: 4,
+    attribute: 0x04,
+    race: 0x2000,
+    attack: 1200,
+    defense: 700,
+    name: 'Baby Dragon',
+  ),
+  76184692: const CardInfo(
+    code: 76184692,
+    type: 0x11,
+    level: 4,
+    attribute: 0x01,
+    race: 0x8000,
+    attack: 1200,
+    defense: 1000,
+    name: 'Hitotsu-Me Giant',
+  ),
+  55144522: const CardInfo(
+    code: 55144522,
+    type: 0x2,
+    name: 'Pot of Greed',
+    desc: 'Draw 2 cards.',
+  ),
+  4206964: const CardInfo(
+    code: 4206964,
+    type: 0x4,
+    name: 'Trap Hole',
+    desc:
+        'When your opponent Normal Summons a monster with 1000 or '
+        'more ATK: Target that monster; destroy it.',
+  ),
 };
 
 void _injectTestCards(AiDuelService service) {
@@ -216,13 +295,19 @@ CtosSelectPlace _firstFreePlace(MsgSelectPlace m) {
   for (var s = 0; s <= 4; s++) {
     if (m.field & (1 << s) == 0) {
       return CtosSelectPlace(
-          player: m.player, zone: CARD_ZONE_MZONE, sequence: s);
+        player: m.player,
+        zone: CARD_ZONE_MZONE,
+        sequence: s,
+      );
     }
   }
   for (var s = 0; s <= 4; s++) {
     if (m.field & (1 << (8 + s)) == 0) {
       return CtosSelectPlace(
-          player: m.player, zone: CARD_ZONE_SZONE, sequence: s);
+        player: m.player,
+        zone: CARD_ZONE_SZONE,
+        sequence: s,
+      );
     }
   }
   // 兜底：额外怪兽区
@@ -232,7 +317,10 @@ CtosSelectPlace _firstFreePlace(MsgSelectPlace m) {
 /// 应答单个人类方的选择类消息（被动策略：不连锁、不发动、直接结束）。
 /// 返回是否应答了该消息。
 bool _answerHumanPrompt(
-    AiDuelService service, StocGameMessage gm, {required bool endTurn}) {
+  AiDuelService service,
+  StocGameMessage gm, {
+  required bool endTurn,
+}) {
   if (!_isHumanPrompt(gm)) return false;
   switch (gm.func) {
     case MSG_SELECT_IDLE_CMD:
@@ -254,8 +342,11 @@ bool _answerHumanPrompt(
       } else if (cmd.enableM2) {
         service.playGameResponse(CtosGameMsgResponse.selectBattleCmd(2));
       } else if (cmd.commandGroups[1].options.isNotEmpty) {
-        service.playGameResponse(CtosGameMsgResponse.selectBattleCmd(
-            cmd.commandGroups[1].options.first.response));
+        service.playGameResponse(
+          CtosGameMsgResponse.selectBattleCmd(
+            cmd.commandGroups[1].options.first.response,
+          ),
+        );
       } else {
         return false;
       }
@@ -282,12 +373,14 @@ bool _answerHumanPrompt(
     case MSG_SELECT_DISFIELD:
       final selPlace = gm.innerMsg as MsgSelectPlace;
       service.playGameResponse(
-          CtosGameMsgResponse.selectPlace(_firstFreePlace(selPlace)));
+        CtosGameMsgResponse.selectPlace(_firstFreePlace(selPlace)),
+      );
       return true;
 
     case MSG_SELECT_POSITION:
       service.playGameResponse(
-          CtosGameMsgResponse.selectPosition(POS_FACEUP_ATTACK));
+        CtosGameMsgResponse.selectPosition(POS_FACEUP_ATTACK),
+      );
       return true;
 
     case MSG_SELECT_CARD:
@@ -367,7 +460,9 @@ void main() {
     () async {
       // ---- 初始化 ----
       final service = AiDuelService(
-          lib: _loadCoreLib(), scriptLoader: _FileScriptLoader());
+        lib: _loadCoreLib(),
+        scriptLoader: _FileScriptLoader(),
+      );
       _injectTestCards(service);
       // AI 固定出剪刀(1)，人类石头必胜 → 确定性走 SELECT_TP 分支
       service.fixedAiHandChoice = 1;
@@ -394,8 +489,11 @@ void main() {
       await service.connect(Uri.parse("ai://localhost:8080"));
       // broadcast 状态流是异步派发的，给一拍再断言
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      expect(service.connectionState, ConnectionState.connected,
-          reason: 'ocgcore 动态库应加载成功并进入 connected');
+      expect(
+        service.connectionState,
+        ConnectionState.connected,
+        reason: 'ocgcore 动态库应加载成功并进入 connected',
+      );
 
       service.setPlayerName('TestPlayer');
       service.enterRoom(RoomPassword.encodeJoin());
@@ -404,6 +502,8 @@ void main() {
       final deck = _buildTestDeck();
       service.submitDeck(_encodeDeck(deck), Uint8List(0));
       service.ready();
+      // ready 只是就绪标记（对齐线上服务器）：房主显式 HS_START 才开局。
+      service.startDuel();
 
       // ========================================================
       // 阶段 2: 猜拳（AI 固定剪刀，人类石头必胜）→ 选择先后攻
@@ -412,7 +512,7 @@ void main() {
         (m) => m.protoId == STOC_SELECT_HAND,
         timeout: const Duration(seconds: 5),
       );
-      expect(selectHand, isNotNull, reason: 'ready 后应收到 STOC_SELECT_HAND');
+      expect(selectHand, isNotNull, reason: 'startDuel 后应收到 STOC_SELECT_HAND');
 
       // 猜拳：石头(2) 胜 AI 的剪刀(1)
       service.chooseHand(HandType.rock);
@@ -433,18 +533,17 @@ void main() {
       if (idleCmd1 == null) {
         printAll(allMsgs, allStages, allPhases);
       }
-      expect(idleCmd1, isNotNull,
-          reason: '应该收到 MSG_SELECT_IDLE_CMD（A 的主阶段）');
+      expect(idleCmd1, isNotNull, reason: '应该收到 MSG_SELECT_IDLE_CMD（A 的主阶段）');
       if (idleCmd1 == null) {
         return;
       }
 
       // ── A 操作 1: 召唤怪兽（手牌首个可通召的是精灵剑士 1400）──
       final summonGroup = idleCmd1.commandGroups[0]; // summon
-      expect(summonGroup.options.isNotEmpty, isTrue,
-          reason: '初始手牌应有可通常召唤的怪兽');
+      expect(summonGroup.options.isNotEmpty, isTrue, reason: '初始手牌应有可通常召唤的怪兽');
       service.playGameResponse(
-          CtosGameMsgResponse.selectIdleCmd(summonGroup.options.first.response));
+        CtosGameMsgResponse.selectIdleCmd(summonGroup.options.first.response),
+      );
 
       // 召唤流程中的选位/选表示形式由 _nextHumanIdleCmd 代答
       final idleCmd2 = await _nextHumanIdleCmd(service, cursor);
@@ -457,7 +556,8 @@ void main() {
         for (final o in activateGroup.options) {
           if (o.cardInfo.code == kPotOfGreed) {
             service.playGameResponse(
-                CtosGameMsgResponse.selectIdleCmd(o.response));
+              CtosGameMsgResponse.selectIdleCmd(o.response),
+            );
             break;
           }
         }
@@ -473,7 +573,8 @@ void main() {
         for (final o in ssetGroup.options) {
           if (o.cardInfo.code == kTrapHole) {
             service.playGameResponse(
-                CtosGameMsgResponse.selectIdleCmd(o.response));
+              CtosGameMsgResponse.selectIdleCmd(o.response),
+            );
             break;
           }
         }
@@ -501,16 +602,23 @@ void main() {
       // ========================================================
       // 验证关键事件
       // ========================================================
-      expect(allStages.any((s) => s is RoomInLobby), isTrue,
-          reason: '应该进入大厅');
-      expect(allStages.any((s) => s is RoomSelectingHand), isTrue,
-          reason: '应该有猜拳阶段');
-      expect(allStages.any((s) => s is RoomHandResult), isTrue,
-          reason: '应该有猜拳结果');
-      expect(allStages.any((s) => s is RoomSelectingTurn), isTrue,
-          reason: '应该可以选择先后攻');
-      expect(allStages.any((s) => s is RoomInDuel), isTrue,
-          reason: '应该进入决斗状态');
+      expect(allStages.any((s) => s is RoomInLobby), isTrue, reason: '应该进入大厅');
+      expect(
+        allStages.any((s) => s is RoomSelectingHand),
+        isTrue,
+        reason: '应该有猜拳阶段',
+      );
+      expect(
+        allStages.any((s) => s is RoomHandResult),
+        isTrue,
+        reason: '应该有猜拳结果',
+      );
+      expect(
+        allStages.any((s) => s is RoomSelectingTurn),
+        isTrue,
+        reason: '应该可以选择先后攻',
+      );
+      expect(allStages.any((s) => s is RoomInDuel), isTrue, reason: '应该进入决斗状态');
       expect(duelFinished, isTrue, reason: '决斗应该结束（MSG_WIN 或 STOC_DUEL_END）');
 
       // 检查是否有召唤相关消息
@@ -528,12 +636,12 @@ void main() {
       print('  有新回合消息: ${_hasGameMsg(allMsgs, MSG_NEW_TURN)}');
       print('  决斗结束: $duelFinished');
       print(
-          '  总消息数: ${allMsgs.length} (其中 gameMsg: ${allMsgs.where((m) => m.gameMsg != null).length})');
+        '  总消息数: ${allMsgs.length} (其中 gameMsg: ${allMsgs.where((m) => m.gameMsg != null).length})',
+      );
       print('===================');
 
       expect(hasSummoning, isTrue, reason: 'A 回合应有召唤消息');
-      expect(_hasGameMsg(allMsgs, MSG_NEW_TURN), isTrue,
-          reason: '应该历经过多个回合');
+      expect(_hasGameMsg(allMsgs, MSG_NEW_TURN), isTrue, reason: '应该历经过多个回合');
     },
   );
 
@@ -545,7 +653,9 @@ void main() {
     timeout: const Timeout(Duration(minutes: 1)),
     () async {
       final service = AiDuelService(
-          lib: _loadCoreLib(), scriptLoader: _FileScriptLoader());
+        lib: _loadCoreLib(),
+        scriptLoader: _FileScriptLoader(),
+      );
       _injectTestCards(service);
       // AI 固定出剪刀(1)，人类石头必胜 → 确定性走 SELECT_TP 分支
       service.fixedAiHandChoice = 1;
@@ -571,20 +681,24 @@ void main() {
       final deck = _buildTestDeck();
       service.submitDeck(_encodeDeck(deck), Uint8List(0));
       service.ready();
+      // ready 只是就绪标记（对齐线上服务器）：房主显式 HS_START 才开局。
+      service.startDuel();
 
       // 等待猜拳阶段
       final selectHand = await cursor.waitFor(
         (m) => m.protoId == STOC_SELECT_HAND,
         timeout: const Duration(seconds: 5),
       );
-      expect(selectHand, isNotNull, reason: 'ready 后应进入猜拳');
+      expect(selectHand, isNotNull, reason: 'startDuel 后应进入猜拳');
 
       // 石头（胜 AI 的剪刀）
       service.chooseHand(HandType.rock);
 
       // 等待 SELECT_TP 后选先攻
-      await cursor.waitFor((m) => m.protoId == STOC_SELECT_TP,
-          timeout: const Duration(seconds: 5));
+      await cursor.waitFor(
+        (m) => m.protoId == STOC_SELECT_TP,
+        timeout: const Duration(seconds: 5),
+      );
       service.chooseTurnOrder(true);
 
       // 等待决斗开始消息
@@ -593,17 +707,106 @@ void main() {
         timeout: const Duration(seconds: 10),
       );
 
-      final stageNames =
-          allStages.map((s) => s.runtimeType.toString()).toList();
+      final stageNames = allStages
+          .map((s) => s.runtimeType.toString())
+          .toList();
       print('房间流程阶段: ${stageNames.join(" → ")}');
 
       expect(allStages.any((s) => s is RoomInLobby), isTrue);
       expect(allStages.any((s) => s is RoomSelectingHand), isTrue);
       expect(allStages.any((s) => s is RoomHandResult), isTrue);
       expect(
-          allStages.any((s) => s is RoomSelectingTurn) ||
-              allStages.any((s) => s is RoomInDuel),
-          isTrue);
+        allStages.any((s) => s is RoomSelectingTurn) ||
+            allStages.any((s) => s is RoomInDuel),
+        isTrue,
+      );
+    },
+  );
+
+  // ----------------------------------------------------------
+  // 回归测试：ready 不自动开局（需 HS_START）；观战/回座切换生效。
+  // 对齐线上服务器：ready 仅是就绪标记；观战切换应产生
+  // PLAYER_CHANGE(TO_OBSERVER) + TYPE_CHANGE(selfType=observer)。
+  // ----------------------------------------------------------
+  test(
+    '房间流程: ready 不自动开局 / 观战切换 / startDuel 开局',
+    timeout: const Timeout(Duration(minutes: 1)),
+    () async {
+      final service = AiDuelService(
+        lib: _loadCoreLib(),
+        scriptLoader: _FileScriptLoader(),
+      );
+      _injectTestCards(service);
+      service.fixedAiHandChoice = 1;
+      final allMsgs = <YgoStocMsg>[];
+      final allStages = <RoomStage>[];
+      final cursor = _MsgCursor(allMsgs);
+
+      final msgSub = service.onServerMessage.listen(allMsgs.add);
+      final stageSub = service.onRoomStageChange.listen(allStages.add);
+
+      addTearDown(() async {
+        await msgSub.cancel();
+        await stageSub.cancel();
+        await service.disconnect();
+      });
+
+      /// 轮询等待满足条件的大厅阶段快照。
+      Future<RoomInLobby?> waitLobby(bool Function(RoomInLobby) test) async {
+        final deadline = DateTime.now().add(const Duration(seconds: 3));
+        while (DateTime.now().isBefore(deadline)) {
+          for (final s in allStages.whereType<RoomInLobby>()) {
+            if (test(s)) return s;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        return null;
+      }
+
+      await service.connect(Uri());
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(service.connectionState, ConnectionState.connected);
+
+      service.setPlayerName('ObserverTest');
+      service.enterRoom(RoomPassword.encodeJoin());
+      service.submitDeck(_encodeDeck(_buildTestDeck()), Uint8List(0));
+      service.ready();
+
+      // ready 后不应自动进入猜拳（回归：旧实现 ready 即开局）。
+      final premature = await cursor.waitFor(
+        (m) => m.protoId == STOC_SELECT_HAND,
+        timeout: const Duration(milliseconds: 1500),
+      );
+      expect(premature, isNull, reason: 'ready 不应自动开始猜拳');
+
+      // ---- 观战切换 ----
+      service.becomeObserver();
+      final obs = await waitLobby((s) => s.selfType == PlayerType.observer);
+      expect(obs, isNotNull, reason: 'becomeObserver 后应进入观战大厅');
+      expect(obs!.observerCount, 1, reason: '观战人数应为 1');
+      expect(
+        obs!.players.any((p) => p.name == 'ObserverTest'),
+        isFalse,
+        reason: '观战后人类玩家应离席',
+      );
+
+      // ---- 回座 ----
+      service.becomeDuelist();
+      final back = await waitLobby(
+        (s) =>
+            s.selfType == PlayerType.player1 &&
+            s.players.any((p) => p.name == 'ObserverTest'),
+      );
+      expect(back, isNotNull, reason: 'becomeDuelist 后应回座为 player1');
+      expect(back!.observerCount, 0);
+
+      // ---- 回座后显式 startDuel 可正常开局 ----
+      service.startDuel();
+      final selectHand = await cursor.waitFor(
+        (m) => m.protoId == STOC_SELECT_HAND,
+        timeout: const Duration(seconds: 5),
+      );
+      expect(selectHand, isNotNull, reason: 'startDuel 后应进入猜拳');
     },
   );
 }
@@ -633,7 +836,8 @@ void printAll(
     final gm = m.gameMsg;
     if (gm != null) {
       print(
-          '  STOC_GAME_MSG func=${gm.func} (0x${gm.func.toRadixString(16).padLeft(2, '0')}) inner=${gm.innerMsg.runtimeType} → $gm');
+        '  STOC_GAME_MSG func=${gm.func} (0x${gm.func.toRadixString(16).padLeft(2, '0')}) inner=${gm.innerMsg.runtimeType} → $gm',
+      );
     } else {
       print('  STOC protoId=${m.protoId} → $m');
     }

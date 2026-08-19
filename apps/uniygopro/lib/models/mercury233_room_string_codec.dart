@@ -24,7 +24,13 @@ class Mercury233RoomStringCodec {
     );
   }
 
-  static String _buildStructured(Mercury233RoomSpec spec) {
+  /// 233 服协议参数 token 序列（模式/MR/卡池/TM/LP/ST/DR/禁限/NC/NS，
+  /// 按服务器解析顺序，已过滤默认项）。
+  ///
+  /// 房间串与 AI 主机密码共享的唯一 token 拼装点——两侧都不得再各自
+  /// 手拼 token。房间串在其后追加 `#房间名`；AI 密码在其前置 `AI`
+  /// 标记且不带房间名。
+  static List<String> buildTokens(Mercury233RoomSpec spec) {
     final codes = <String>[
       switch (spec.mode) {
         RoomMode.single => '',
@@ -50,7 +56,11 @@ class Mercury233RoomStringCodec {
       if (spec.noCheckDeck) 'NC',
       if (spec.noShuffleDeck) 'NS',
     ]..removeWhere((code) => code.isEmpty);
+    return codes;
+  }
 
+  static String _buildStructured(Mercury233RoomSpec spec) {
+    final codes = buildTokens(spec);
     final prefix = codes.isEmpty ? '' : '${codes.join(',')}#';
     return '$prefix${spec.roomName.trim()}';
   }

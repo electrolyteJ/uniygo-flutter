@@ -1,9 +1,10 @@
-
 const _battlePresentationKeep = Object();
 
+/// 攻击宣言/战斗数值呈现（波束 + 信息牌）：
+/// 攻击方与防守方（直接攻击时为空）的卡槽与攻防面板数据。
 class BattlePresentation {
-  final String attackerSlotId;
-  final String? defenderSlotId;
+  final String attackerZoneKey;
+  final String? defenderZoneKey;
   final String attackerName;
   final String? defenderName;
   final int? attackerAttack;
@@ -14,8 +15,8 @@ class BattlePresentation {
   final int? defenderPosition;
 
   const BattlePresentation({
-    required this.attackerSlotId,
-    required this.defenderSlotId,
+    required this.attackerZoneKey,
+    required this.defenderZoneKey,
     required this.attackerName,
     required this.defenderName,
     this.attackerAttack,
@@ -26,11 +27,11 @@ class BattlePresentation {
     this.defenderPosition,
   });
 
-  bool get isDirectAttack => defenderSlotId == null;
+  bool get isDirectAttack => defenderZoneKey == null;
 
   BattlePresentation copyWith({
-    String? attackerSlotId,
-    Object? defenderSlotId = _battlePresentationKeep,
+    String? attackerZoneKey,
+    Object? defenderZoneKey = _battlePresentationKeep,
     String? attackerName,
     Object? defenderName = _battlePresentationKeep,
     Object? attackerAttack = _battlePresentationKeep,
@@ -41,10 +42,10 @@ class BattlePresentation {
     Object? defenderPosition = _battlePresentationKeep,
   }) {
     return BattlePresentation(
-      attackerSlotId: attackerSlotId ?? this.attackerSlotId,
-      defenderSlotId: identical(defenderSlotId, _battlePresentationKeep)
-          ? this.defenderSlotId
-          : defenderSlotId as String?,
+      attackerZoneKey: attackerZoneKey ?? this.attackerZoneKey,
+      defenderZoneKey: identical(defenderZoneKey, _battlePresentationKeep)
+          ? this.defenderZoneKey
+          : defenderZoneKey as String?,
       attackerName: attackerName ?? this.attackerName,
       defenderName: identical(defenderName, _battlePresentationKeep)
           ? this.defenderName
@@ -69,4 +70,37 @@ class BattlePresentation {
           : defenderPosition as int?,
     );
   }
+
+  /// 值判等：biz 状态 copyWith 每次产出新实例，Flame 快照短路
+  /// （FlameFieldSnapshot.==）依赖内容判等区分"战斗呈现是否真的变了"，
+  /// 避免同内容新实例击穿短路导致全量槽位重建。
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is BattlePresentation &&
+        other.attackerZoneKey == attackerZoneKey &&
+        other.defenderZoneKey == defenderZoneKey &&
+        other.attackerName == attackerName &&
+        other.defenderName == defenderName &&
+        other.attackerAttack == attackerAttack &&
+        other.attackerDefense == attackerDefense &&
+        other.attackerPosition == attackerPosition &&
+        other.defenderAttack == defenderAttack &&
+        other.defenderDefense == defenderDefense &&
+        other.defenderPosition == defenderPosition;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    attackerZoneKey,
+    defenderZoneKey,
+    attackerName,
+    defenderName,
+    attackerAttack,
+    attackerDefense,
+    attackerPosition,
+    defenderAttack,
+    defenderDefense,
+    defenderPosition,
+  );
 }
