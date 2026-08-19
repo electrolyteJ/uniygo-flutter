@@ -1492,6 +1492,14 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       // 新对局信号，同步清空本地动画队列。
       drawAnimationEvent: null,
       drawAnimationTick: 0,
+      // Match 局间重开：清掉上一局残留的 per-duel 状态——
+      // 胜负结果（否则退出导航会拿上一局结算）、连锁栈、战斗演出、
+      // 阶段与当前回合玩家（MSG_NEW_TURN / MSG_NEW_PHASE 随后即会刷新）。
+      duelResult: null,
+      chains: const [],
+      battlePresentation: null,
+      phase: DuelPhase.idle,
+      currentPlayer: 0,
     );
     addLog('决斗开始。');
   }

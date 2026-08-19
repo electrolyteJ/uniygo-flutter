@@ -172,6 +172,21 @@ abstract class BaseDuelService implements IDuelService {
   }
 
   void _onTypeChange(StocTypeChange m) {
+    // Match 局间可能再下发 TYPE_CHANGE（座位/类型刷新）。一旦已离开大厅
+    // （对局中 / 换备 / 结算），不得把状态打回 RoomInLobby——否则对局进行中
+    // 会重新弹出等待室浮层盖住场地。此时仅记录，阶段保持不变。
+    final pastLobby =
+        _roomStage is RoomStartDuel ||
+        _roomStage is RoomSelectingHand ||
+        _roomStage is RoomHandResult ||
+        _roomStage is RoomSelectingTurn ||
+        _roomStage is RoomInDuel ||
+        _roomStage is RoomDuelEnded ||
+        _roomStage is RoomSideDecking;
+    if (pastLobby) {
+      console.log('RoomStage: TYPE_CHANGE (in $_roomStage, keeping stage)');
+      return;
+    }
     _roomStage = RoomInLobby(
       players: _playersOf(_roomStage),
       observerCount: _obsOf(_roomStage),
@@ -276,6 +291,13 @@ abstract class BaseDuelService implements IDuelService {
   }
 
   void _onDuelStart() {
+    // Match 局间：MSG_START 可能先于 STOC_DUEL_START 把阶段推进到
+    // RoomInDuel，后到的 DUEL_START 不得把阶段打回 RoomStartDuel
+    // （会重新弹出等待室浮层盖住已进行中的对局）。
+    if (_roomStage is RoomInDuel) {
+      console.log('RoomStage: DUEL_START (already RoomInDuel, keeping)');
+      return;
+    }
     _roomStage = RoomStartDuel(
       players: _playersOf(_roomStage),
       observerCount: _obsOf(_roomStage),

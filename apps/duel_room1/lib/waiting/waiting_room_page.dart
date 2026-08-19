@@ -190,6 +190,11 @@ class WaitingRoomPage extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  // 换备阶段隐藏底部控制条：其「准备」按钮走 toggleReady，
+                  // 会重新提交原始卡组（而非换备后的构成），与换备面板的
+                  // 「确认换备」冲突、导致按原卡组开局或提交混乱；换备提交
+                  // 统一走 SideDeckingPanel 的 confirmSiding。
+                  if (!isSideDecking)
                   ControlBar(
                     isHost: room.isHost,
                     selfType: room.selfType,
