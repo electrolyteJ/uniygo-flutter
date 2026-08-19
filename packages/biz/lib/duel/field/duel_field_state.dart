@@ -985,9 +985,8 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   /// 不发服务端协议——牌序由服务端维护，本地重排仅影响己方显示）。
   void shuffleSelfHand() {
     if (state.selfHand.length < 2) return;
-    final name = state.playerNameOf(state.myController);
     final shuffled = [...state.selfHand]..shuffle();
-    addLog('$name 洗切了手牌。');
+    addLog('洗切了手牌。', player: state.myController);
     state = state.copyWith(
       selfHand: shuffled,
       handShufflePlayer: state.myController,
@@ -997,7 +996,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
 
   /// 处理洗额外卡组消息（MSG_SHUFFLE_EXTRA）。
   void handleShuffleExtra(MsgShuffleExtra msg) {
-    addLog('${state.playerNameOf(msg.player)} 洗切了额外卡组。');
+    addLog('洗切了额外卡组。', player: msg.player);
     state = state.copyWith(
       extraShufflePlayer: msg.player,
       extraShuffleTick: state.extraShuffleTick + 1,
@@ -1457,9 +1456,13 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   // ──────────────────────────────────────────
 
   /// 记录对局日志并触发刷新。
-  void addLog(String log) {
-    console.log('Duel log: $log');
-    state = state.copyWith(duelLogs: [...state.duelLogs, log]);
+  ///
+  /// [player] 非空时该条战报加《玩家名》前缀（标注动作归属方）；
+  /// 系统/阶段类消息不传 player，保持无前缀。
+  void addLog(String log, {int? player}) {
+    final text = player == null ? log : '《${state.playerNameOf(player)}》 $log';
+    console.log('Duel log: $text');
+    state = state.copyWith(duelLogs: [...state.duelLogs, text]);
   }
 
   /// 同步房间玩家列表，供日志文案解析玩家名。
@@ -1510,7 +1513,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       currentPlayer: msg.player,
       turnCount: state.turnCount + 1,
     );
-    addLog('${state.playerNameOf(msg.player)} 的回合。');
+    addLog('的回合。', player: msg.player);
   }
 
   void handleWaiting(MsgWait msg) {
@@ -1545,22 +1548,22 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     );
     if (to != null) {
       final targetName = state.fieldCards[to]?.name ?? '怪兽';
-      addLog('$attackerName 攻击 $targetName。');
+      addLog('$attackerName 攻击 $targetName。', player: msg.attacker.controller);
     } else {
-      addLog('$attackerName 发动直接攻击。');
+      addLog('$attackerName 发动直接攻击。', player: msg.attacker.controller);
     }
   }
 
   void handleDamage(dynamic data) {
     final msg = data as MsgDamage;
     _applyLpChange(msg.player, -msg.value);
-    addLog('${state.playerNameOf(msg.player)} 受到 ${msg.value} 点伤害。');
+    addLog('受到 ${msg.value} 点伤害。', player: msg.player);
   }
 
   void handleRecover(dynamic data) {
     final msg = data as MsgRecover;
     _applyLpChange(msg.player, msg.value);
-    addLog('${state.playerNameOf(msg.player)} 回复了 ${msg.value} 点生命值。');
+    addLog('回复了 ${msg.value} 点生命值。', player: msg.player);
   }
 
   void handleLpUpdate(dynamic data) {
@@ -1590,7 +1593,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   void handlePayLife(dynamic data) {
     final msg = data as MsgPayLpCost;
     _applyLpChange(msg.player, -msg.value);
-    addLog('${state.playerNameOf(msg.player)} 支付了 ${msg.value} 点生命值。');
+    addLog('支付了 ${msg.value} 点生命值。', player: msg.player);
   }
 
   void syncConfirmedCard(CardInfo card) {
@@ -1678,7 +1681,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       unawaited(ensureCardInfo(code));
     }
     final name = getCardInfo(code)?.name ?? '怪兽';
-    addLog('正在$actionLabel $name。');
+    addLog('正在$actionLabel $name。', player: location.controller);
   }
 
   void handleSummonFinished(String actionLabel) {
@@ -1687,8 +1690,9 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     if (key != null) {
       _emitSummonEffect(key, actionLabel);
     }
+    final player = key != null ? state.fieldCards[key]?.controller : null;
     state = state.copyWith(lastSummonKey: null);
-    addLog('$name $actionLabel成功。');
+    addLog('$name $actionLabel成功。', player: player);
   }
 
   /// 依据完成消息与卡数据推断特效类型并发事件（SUMMONED 时机播放）。
@@ -1755,7 +1759,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       unawaited(ensureCardInfo(msg.code));
     }
     final name = getCardInfo(msg.code)?.name ?? '卡片';
-    addLog('$name 已盖放。');
+    addLog('$name 已盖放。', player: msg.location.controller);
     // 盖放尘雾特效（背面放置不升卡图；对手盖放 code 未知为 0）。
     state = state.copyWith(
       summonEffectEvent: SummonEffectEvent(
@@ -1818,14 +1822,20 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       defenderPosition: msg.hasDefender ? msg.defenderPosition : null,
     );
     state = state.copyWith(battlePresentation: presentation);
+    // 攻击方归属：由攻击方槽位的控制者解析玩家名前缀。
+    final attackerController = state.fieldCards[attackerZoneKey]?.controller;
     if (msg.hasDefender) {
       addLog(
         '${presentation.attackerName} ${_battleValueLabel(msg.attackerAttack, msg.attackerDefense, msg.attackerPosition)} '
         'VS '
         '${presentation.defenderName} ${_battleValueLabel(msg.defenderAttack, msg.defenderDefense, msg.defenderPosition)}。',
+        player: attackerController,
       );
     } else {
-      addLog('${presentation.attackerName} 进行直接攻击结算。');
+      addLog(
+        '${presentation.attackerName} 进行直接攻击结算。',
+        player: attackerController,
+      );
     }
   }
 
@@ -1835,7 +1845,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
 
   void handleShuffleDeck(dynamic data) {
     final msg = data as MsgShuffleDeck;
-    addLog('${state.playerNameOf(msg.player)} 洗切了卡组。');
+    addLog('洗切了卡组。', player: msg.player);
     state = state.copyWith(
       deckShufflePlayer: msg.player,
       deckShuffleTick: state.deckShuffleTick + 1,

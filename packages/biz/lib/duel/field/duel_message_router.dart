@@ -181,8 +181,9 @@ class DuelMessageRouter extends Notifier<void> {
           'handleServerMessage: MSG_CHAINING（连锁发动） innerMsg=${gameMsg.innerMsg}',
         );
         _boardN.setChainSealed(false);
-        final name = _boardN.handleChaining(innerMsg);
-        _boardN.addLog('连锁发动 $name。');
+        final chainMsg = innerMsg as MsgChaining;
+        final name = _boardN.handleChaining(chainMsg);
+        _boardN.addLog('连锁发动 $name。', player: chainMsg.location.controller);
         _sound.playChain();
         break;
       case MSG_CHAINED: // 连锁入链
@@ -217,8 +218,9 @@ class DuelMessageRouter extends Notifier<void> {
         console.log(
           'handleServerMessage: MSG_SUMMONING（正在召唤） innerMsg=${gameMsg.innerMsg}',
         );
-        final name = _boardN.handleSummoning(innerMsg);
-        _boardN.addLog('正在召唤 $name。');
+        final summonMsg = innerMsg as MsgSummoning;
+        final name = _boardN.handleSummoning(summonMsg);
+        _boardN.addLog('正在召唤 $name。', player: summonMsg.location.controller);
         _sound.playSummon();
         break;
       case MSG_SUMMONED: // 召唤完成
@@ -351,9 +353,7 @@ class DuelMessageRouter extends Notifier<void> {
           );
           final msg = innerMsg as MsgDraw;
           _boardN.applyDraw(msg);
-          _boardN.addLog(
-            '${_board.playerNameOf(msg.player)} 抽了 ${msg.count} 张卡。',
-          );
+          _boardN.addLog('抽了 ${msg.count} 张卡。', player: msg.player);
         }
         _sound.playCardDraw();
         break;
@@ -401,6 +401,7 @@ class DuelMessageRouter extends Notifier<void> {
         final posChangeName = card?.name;
         _boardN.addLog(
           posChangeName == null ? '卡片表示形式变更。' : '$posChangeName 表示形式变更。',
+          player: card?.controller,
         );
         _sound.playPosChange();
         break;
@@ -546,12 +547,11 @@ class DuelMessageRouter extends Notifier<void> {
         );
         {
           final toss = innerMsg as MsgToss;
-          final owner = _board.playerNameOf(toss.player);
           // ocgcore 硬币结果编码：0=反面，1=正面。
           final results = toss.results
               .map((r) => r == 1 ? '正面' : '反面')
               .join('、');
-          _boardN.addLog('$owner 抛硬币：$results。');
+          _boardN.addLog('抛硬币：$results。', player: toss.player);
         }
         _sound.playCoinToss();
         break;
@@ -561,8 +561,7 @@ class DuelMessageRouter extends Notifier<void> {
         );
         {
           final toss = innerMsg as MsgToss;
-          final owner = _board.playerNameOf(toss.player);
-          _boardN.addLog('$owner 掷骰子：${toss.results.join('、')}。');
+          _boardN.addLog('掷骰子：${toss.results.join('、')}。', player: toss.player);
         }
         _sound.playDice();
         break;
@@ -584,7 +583,7 @@ class DuelMessageRouter extends Notifier<void> {
       MSG_CONFIRM_EXTRATOP => '额外卡组顶部卡片',
       _ => '卡片',
     };
-    _boardN.addLog('$owner 确认了 $zoneLabel 的 ${msg.count} 张卡。');
+    _boardN.addLog('确认了 $zoneLabel 的 ${msg.count} 张卡。', player: msg.player);
     _boardN.revealDeckToHandDraw(msg.cards);
     if (msg.skipPanel == 1) {
       console.log('Confirm cards: skip panel, only highlight.');

@@ -168,12 +168,15 @@ class AiConnection implements DuelConnection {
     _engine.setAutoAnswer((func, payload) async {
       if (agent != null) {
         try {
+          console.log('AiConnection: agent auto-answering func=$func...');
           final agentResp = await agent.answer(func, payload);
+          console.log('AiConnection: agent auto-answer func=$func resp=${agentResp?.length}');
           if (agentResp != null) return agentResp;
         } catch (e) {
           console.log('AiConnection: agent 应答异常 func=$func: $e');
         }
       }
+      console.log('AiConnection: rule AI auto-answering func=$func...');
       return ruleAnswer(func, payload);
     });
     console.log('AiConnection: remote agent auto-answer enabled (规则兜底)');
