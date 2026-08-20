@@ -4,6 +4,15 @@ import 'package:flutter/material.dart';
 
 import 'package:biz/duel/models/select_state.dart';
 import 'package:biz/widgets/card_image.dart';
+import 'package:duelink/duelink.dart'
+    show
+        CARD_ZONE_DECK,
+        CARD_ZONE_EXTRA,
+        CARD_ZONE_GRAVE,
+        CARD_ZONE_HAND,
+        CARD_ZONE_MZONE,
+        CARD_ZONE_REMOVED,
+        CARD_ZONE_SZONE;
 
 class CardSelector extends StatefulWidget {
   final SelectState select;
@@ -171,6 +180,15 @@ class _CardSelectorState extends State<CardSelector> {
               CardImage(code: option.code, width: 92, height: 132)
             else
               _buildEmptySlotPlaceholder(),
+            // 卡片来源徽标（墓地/卡组/场上…）：选卡弹窗里多张同名/陌生卡
+            // 并列时，玩家无法分辨每张卡来自哪里（如「活死人的呼声」选墓地、
+            // 「增援」选卡组）。option 的 zone/controller 即线格式位置。
+            if (select.type != SelectType.option)
+              Positioned(
+                top: 2,
+                left: 2,
+                child: _buildSourceBadge(option, select),
+              ),
             if (!selected)
               Positioned.fill(
                 child: IgnorePointer(
@@ -277,5 +295,46 @@ class _CardSelectorState extends State<CardSelector> {
         child: Icon(Icons.add, color: Colors.white24, size: 24),
       ),
     );
+  }
+
+  /// 卡片来源徽标：区域名（墓地/卡组/…），卡属于对方时加「对方」前缀。
+  Widget _buildSourceBadge(SelectOption option, SelectState select) {
+    final label = _sourceLabel(option, select);
+    if (label == null) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: const Color(0x5500F0FF), width: 0.8),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFF9AEFFF),
+          fontSize: 8,
+          height: 1.2,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  /// zone（CARD_ZONE_* 位掩码）+ controller → 中文来源标签。
+  /// 位置未知（zone==0，如部分 option/chain 回退形状）时返回 null 不显示。
+  static String? _sourceLabel(SelectOption option, SelectState select) {
+    final zone = switch (option.zone) {
+      CARD_ZONE_DECK => '卡组',
+      CARD_ZONE_HAND => '手牌',
+      CARD_ZONE_MZONE => '怪兽区',
+      CARD_ZONE_SZONE => '魔陷区',
+      CARD_ZONE_GRAVE => '墓地',
+      CARD_ZONE_REMOVED => '除外',
+      CARD_ZONE_EXTRA => '额外',
+      _ => null,
+    };
+    if (zone == null) return null;
+    // controller 与选择者不同 = 对方的卡（select.player 是选择发起方）。
+    return option.controller != select.player ? '对方$zone' : zone;
   }
 }

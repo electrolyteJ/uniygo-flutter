@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:biz/service_providers.dart';
+import 'package:biz/widgets/card_image.dart';
 import 'package:biz/ygo_sound_service.dart';
+import 'package:biz/duel/models/draw_animation_event.dart';
 import 'package:biz/duel/models/playmat_anchor_data.dart';
 import 'package:biz/duel/room/duel_room_state.dart';
 import 'package:biz/duel/field/card_confirm_state.dart';
@@ -25,6 +27,7 @@ import 'package:duel_room1/field/models/duel_field_layout.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:duel_room1/field/flame_playmat_field.dart';
 import 'package:duel_room1/field/widgets/hud/hand_cards_bar.dart';
+import 'package:duel_room1/field/widgets/draw_card_animation.dart';
 import 'package:duel_room1/field/widgets/hud/phase_bar.dart';
 import 'package:duel_room1/field/widgets/hud/player_status_card.dart';
 import 'package:duel_room1/field/widgets/inspector/card_detail_drawer.dart';
@@ -78,13 +81,34 @@ class DuelFieldPage extends ConsumerStatefulWidget {
   ConsumerState<DuelFieldPage> createState() => _DuelFieldPageState();
 }
 
-class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
+class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
+    with SingleTickerProviderStateMixin {
   static const double _topHudBodyHeight = 112.0;
   static const double _opponentHandGap = 10.0;
   static const double _inspectorTop = 124.0;
 
   DuelFlameGame? _flameGame;
   PlaymatAnchorData? _fieldAnchors;
+
+  // 抽卡动画：FIFO 队列（biz 纯逻辑）+ 飞行控制器。
+  // 逐帧进度由 DrawCardAnimation 内部的 AnimatedBuilder 消费，
+  // 页面只在动画开始/结束时 setState。
+  final DrawAnimationQueue _drawQueue = DrawAnimationQueue();
+  late final AnimationController _drawController;
+
+  /// 双方手牌各卡的屏幕矩形（手牌栏帧末上报），抽卡动画终点。
+  Map<int, Rect> _selfHandCardRects = const {};
+  Map<int, Rect> _oppHandCardRects = const {};
+
+  /// 页面主 Stack 的 key：手牌矩形上报与抽卡动画的公共坐标空间
+  /// （与场地 anchors 的 localToGlobal 祖先等价的视口坐标系）。
+  final GlobalKey _bodyStackKey = GlobalKey();
+
+  /// 双方各自的洗牌 tick（单调递增）：handShuffleTick 是全局共享序号，
+  /// 直接透传给两侧手牌栏会在"对方洗牌→己方洗牌"时把 0 值变化误判成
+  /// 新的洗牌事件，这里按 player 拆成每侧独立的单调 tick。
+  int _selfHandShuffleTick = 0;
+  int _oppHandShuffleTick = 0;
 
   // 快照推送订阅：只有场地/选择窗口状态变化才推入 Flame，
   // 替代原先 build 路径上的 applySnapshot 副作用。
@@ -109,6 +133,11 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   @override
   void initState() {
     super.initState();
+    _drawController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _drawController.addStatusListener(_handleDrawAnimationStatus);
     _scheduleTurnOrderHint();
     _boardSub = ref.listenManual(duelFieldProvider, (_, _) => _pushSnapshot());
     _selectSub = ref.listenManual(
@@ -119,9 +148,31 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
 
   @override
   void dispose() {
+    // 显式清空队列：dispose 后状态监听不再触发，残留事件不应滞留。
+    _drawQueue.clear();
+    _drawController.dispose();
     _boardSub?.close();
     _selectSub?.close();
     super.dispose();
+  }
+
+  void _handleDrawAnimationStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    if (!mounted) return;
+    // 当前动画播完：取出队列里的下一个事件继续播放；
+    // 队列为空则移除动画层（setState 仅发生在动画开始/结束两端）。
+    final next = _drawQueue.drain();
+    setState(() {});
+    if (next != null) {
+      _drawController.forward(from: 0);
+    }
+  }
+
+  /// 启动队列当前 active 事件的飞行动画（active 已由队列在 submit 时设置）。
+  void _playActiveDrawAnimation() {
+    if (!mounted) return;
+    setState(() {});
+    _drawController.forward(from: 0);
   }
 
   /// 把最新快照推入 Flame 游戏（订阅回调与首帧初始化共用）。
@@ -208,6 +259,8 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       battlePresentation: _board.battlePresentation,
       deckShuffleTick: _board.deckShuffleTick,
       deckShufflePlayer: _board.deckShufflePlayer,
+      extraShuffleTick: _board.extraShuffleTick,
+      extraShufflePlayer: _board.extraShufflePlayer,
       summonEffectTick: _board.summonEffectTick,
       summonEffectEvent: _board.summonEffectEvent,
       selfDeck: _board.selfDeck,
@@ -591,6 +644,49 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
         if (mounted) _overlayN.clearLocalUi();
       });
     }
+    // 抽卡事件（MSG_DRAW）：FIFO 队列播放飞行动画。
+    ref.listen(duelFieldProvider.select((s) => s.drawAnimationEvent), (
+      prev,
+      next,
+    ) {
+      if (next == null) {
+        // 新对局开始（handleStart 清空事件）：丢弃未播完的动画与排队事件，
+        // 避免上一局残留的抽卡动画飞进新局。
+        if (_drawQueue.isNotEmpty) {
+          _drawQueue.clear();
+          _drawController.stop();
+          setState(() {});
+        }
+        return;
+      }
+      switch (_drawQueue.submit(next)) {
+        case DrawQueueSubmitResult.started:
+          _playActiveDrawAnimation();
+        case DrawQueueSubmitResult.patchedActive:
+          // 同 id 更新命中播放中事件（MSG_CONFIRM_CARDS 后的 reveal 等）：
+          // 只刷新画面数据，不重启动画。
+          setState(() {});
+        case DrawQueueSubmitResult.patchedQueued:
+        case DrawQueueSubmitResult.enqueued:
+          // 排队中：等当前动画播完由 status listener 依序取出。
+          break;
+      }
+    });
+    // 洗手牌事件（MSG_SHUFFLE_HAND）：按 player 拆到每侧独立的单调 tick。
+    ref.listen(duelFieldProvider.select((s) => s.handShuffleTick), (
+      prev,
+      next,
+    ) {
+      if (next == 0) return;
+      final board = ref.read(duelFieldProvider);
+      setState(() {
+        if (board.handShufflePlayer == board.myController) {
+          _selfHandShuffleTick = next;
+        } else {
+          _oppHandShuffleTick = next;
+        }
+      });
+    });
     // 弹层几何（viewport/phaseRect/overlayAnchor 等）已随 HUD 层移至
     // _buildHudOverlay。
     // 页面自带 Portal：内部的 PortalTarget（阶段菜单/场上操作/手牌菜单）
@@ -599,6 +695,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       child: Scaffold(
         backgroundColor: const Color(0xFF010308),
         body: Stack(
+          key: _bodyStackKey,
           fit: StackFit.expand,
           clipBehavior: Clip.none,
           children: [
@@ -630,6 +727,9 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       offset: Offset(0, -8),
       shiftToWithinBound: AxisFlag(x: true, y: true),
     );
+    // 手牌矩形上报/抽卡动画的公共坐标空间（body Stack）。
+    final bodyStackAncestor =
+        _bodyStackKey.currentContext?.findRenderObject() as RenderBox?;
     return Stack(
       fit: StackFit.expand,
       clipBehavior: Clip.none,
@@ -686,6 +786,9 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
                         confirmedSeqs.isNotEmpty
                     ? confirmedSeqs
                     : const {},
+                shuffleTick: _oppHandShuffleTick,
+                onCardRectsChanged: (rects) => _oppHandCardRects = rects,
+                cardRectsAncestor: bodyStackAncestor,
               );
             },
           ),
@@ -777,6 +880,9 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
                 checkedSequences: inlineActive
                     ? selectN.inlineSelectedHandSequences
                     : const {},
+                shuffleTick: _selfHandShuffleTick,
+                onCardRectsChanged: (rects) => _selfHandCardRects = rects,
+                cardRectsAncestor: bodyStackAncestor,
               );
             },
           ),
@@ -914,6 +1020,9 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
             return _buildInspector(inspector);
           },
         ),
+        // 抽卡飞行动画层（卡组 → 手牌栏；IgnorePointer 不挡操作）。
+        if (_drawQueue.active != null)
+          _buildDrawAnimationLayer(viewport, opponentHandTop, _drawQueue.active!),
         if (_showTurnOrderHint)
           Positioned.fill(
             child: IgnorePointer(
@@ -930,6 +1039,94 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
             ),
           ),
       ],
+    );
+  }
+
+  // ---- 抽卡动画 ----
+
+  Widget _buildDrawAnimationLayer(
+    Size viewport,
+    double opponentHandTop,
+    DrawAnimationEvent event,
+  ) {
+    final source = _drawSourceRect(viewport, opponentHandTop, event);
+    final target = _drawTargetRect(viewport, opponentHandTop, event);
+    final isSelf = event.player == _board.myController;
+    final code = event.codes.isNotEmpty ? event.codes.first : 0;
+    // 进度驱动的布局收敛到子组件，内部经 AnimatedBuilder 只重建自己，
+    // 页面层不再随动画每帧 setState。
+    return DrawCardAnimation(
+      controller: _drawController,
+      source: source,
+      target: target,
+      cardVisual: _drawCardVisual(code, isSelf, revealCard: event.revealCard),
+    );
+  }
+
+  /// 抽卡动画起点：对应方的卡组槽位（Flame anchors 上报），
+  /// 缺失时按屏幕边缘估算兜底。
+  Rect _drawSourceRect(
+    Size viewport,
+    double opponentHandTop,
+    DrawAnimationEvent event,
+  ) {
+    final isSelf = event.player == _board.myController;
+    final deckKey = isSelf ? 'self_deck' : 'opp_deck';
+    return _fieldAnchors?.slotRects[deckKey] ??
+        Rect.fromLTWH(
+          viewport.width / 2 - 32,
+          isSelf ? viewport.height - 120 : opponentHandTop + 6,
+          64,
+          90,
+        );
+  }
+
+  /// 抽卡动画终点：对应方手牌栏中目标卡的矩形（手牌栏帧末上报），
+  /// 缺失时按手牌栏区域估算兜底。
+  Rect _drawTargetRect(
+    Size viewport,
+    double opponentHandTop,
+    DrawAnimationEvent event,
+  ) {
+    final isSelf = event.player == _board.myController;
+    final handRects = isSelf ? _selfHandCardRects : _oppHandCardRects;
+    final handCodes = isSelf ? _board.selfHand : _board.opponentHand;
+    if (handCodes.isNotEmpty) {
+      final targetIndex = isSelf ? handCodes.length - 1 : 0;
+      final targetRect = handRects[targetIndex];
+      if (targetRect != null) return targetRect;
+    }
+    if (isSelf) {
+      return Rect.fromLTWH(
+        viewport.width - 64 - 12,
+        viewport.height - 96,
+        64,
+        90,
+      );
+    }
+    return Rect.fromLTWH(12, opponentHandTop + 6, 64, 90);
+  }
+
+  /// 飞行中的卡面：己方抽卡与公开抽卡显示卡面，对方抽卡显示卡背。
+  Widget _drawCardVisual(int code, bool isSelf, {required bool revealCard}) {
+    if (isSelf || revealCard) {
+      return CardImage(code: code, width: 64, height: 90);
+    }
+    return Container(
+      width: 64,
+      height: 90,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(5),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF1A1B3A), Color(0xFF0A0B1E)],
+        ),
+        border: Border.all(color: const Color(0xFFFFD700), width: 1.5),
+      ),
+      child: const Center(
+        child: Icon(Icons.style, color: Color(0xFF00F0FF), size: 28),
+      ),
     );
   }
 

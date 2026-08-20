@@ -35,6 +35,7 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
   int? _specsController;
   Vector2? _lastParallaxMouse;
   int _lastShuffleTick = 0;
+  int _lastExtraShuffleTick = 0;
 
   /// 当前状态快照（widget 层经游戏推入）。
   FlameFieldSnapshot get _snapshot => world.game.snapshot;
@@ -46,6 +47,7 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
     super.update(dt);
     _syncParallax();
     _spawnShuffleEffect();
+    _spawnExtraShuffleEffect();
   }
 
   /// 监听卡组洗切信号，在对应卡组槽位上播放洗牌动效。
@@ -55,6 +57,19 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
     _lastShuffleTick = tick;
     final isSelf = _snapshot.deckShufflePlayer == _snapshot.myController;
     final x = isSelf ? DuelFieldLayout.colX[6] : DuelFieldLayout.colX[0];
+    final y = isSelf ? DuelFieldLayout.stY : -DuelFieldLayout.stY;
+    world.add(DeckShuffleEffect(position: world.project3D(x, y)));
+  }
+
+  /// 监听额外卡组洗切信号，在对应额外卡组槽位上播放洗牌动效
+  /// （与主卡组同一套 DeckShuffleEffect，位置换到 EXTRA 槽：
+  /// 己方 colX[0]/stY，对方 colX[6]/-stY，与 anchors 布局一致）。
+  void _spawnExtraShuffleEffect() {
+    final tick = _snapshot.extraShuffleTick;
+    if (tick == 0 || tick == _lastExtraShuffleTick) return;
+    _lastExtraShuffleTick = tick;
+    final isSelf = _snapshot.extraShufflePlayer == _snapshot.myController;
+    final x = isSelf ? DuelFieldLayout.colX[0] : DuelFieldLayout.colX[6];
     final y = isSelf ? DuelFieldLayout.stY : -DuelFieldLayout.stY;
     world.add(DeckShuffleEffect(position: world.project3D(x, y)));
   }

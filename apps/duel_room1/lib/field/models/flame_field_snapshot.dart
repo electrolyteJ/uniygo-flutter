@@ -22,6 +22,8 @@ class FlameFieldSnapshot {
     required this.battlePresentation,
     required this.deckShuffleTick,
     required this.deckShufflePlayer,
+    required this.extraShuffleTick,
+    required this.extraShufflePlayer,
     required this.summonEffectTick,
     required this.summonEffectEvent,
     required this.selfDeck,
@@ -42,6 +44,8 @@ class FlameFieldSnapshot {
         battlePresentation: null,
         deckShuffleTick: 0,
         deckShufflePlayer: 0,
+        extraShuffleTick: 0,
+        extraShufflePlayer: 0,
         summonEffectTick: 0,
         summonEffectEvent: null,
         selfDeck: 0,
@@ -70,6 +74,10 @@ class FlameFieldSnapshot {
   /// 卡组洗切信号（tick 自增触发一次洗牌动效）。
   final int deckShuffleTick;
   final int deckShufflePlayer;
+
+  /// 额外卡组洗切信号（tick 自增触发一次洗牌动效）。
+  final int extraShuffleTick;
+  final int extraShufflePlayer;
 
   /// 召唤特效信号（tick 自增触发一条几何召唤阵演出）。
   final int summonEffectTick;
@@ -114,6 +122,8 @@ class FlameFieldSnapshot {
         other.battlePresentation == battlePresentation &&
         other.deckShuffleTick == deckShuffleTick &&
         other.deckShufflePlayer == deckShufflePlayer &&
+        other.extraShuffleTick == extraShuffleTick &&
+        other.extraShufflePlayer == extraShufflePlayer &&
         other.summonEffectTick == summonEffectTick &&
         identical(other.summonEffectEvent, summonEffectEvent) &&
         other.selfDeck == selfDeck &&
@@ -136,6 +146,8 @@ class FlameFieldSnapshot {
     battlePresentation,
     deckShuffleTick,
     deckShufflePlayer,
+    extraShuffleTick,
+    extraShufflePlayer,
     summonEffectTick,
     summonEffectEvent,
     selfDeck,

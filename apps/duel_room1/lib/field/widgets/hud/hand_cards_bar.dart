@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 
@@ -31,6 +33,17 @@ class HandCardsBar extends StatefulWidget {
   /// 就地选择模式中已勾选的手牌下标（比高亮更强的选中态）。
   final Set<int> checkedSequences;
 
+  /// 手牌洗切信号（biz 的 handShuffleTick）：变化时播放一次
+  /// 「来回换位」洗牌动画。
+  final int shuffleTick;
+
+  /// 每张手牌矩形变化时上报（下标 → 矩形），供抽卡动画定位终点。
+  final ValueChanged<Map<int, Rect>>? onCardRectsChanged;
+
+  /// [onCardRectsChanged] 上报矩形所在的祖先坐标空间（页面主 Stack），
+  /// 保证与场地 anchors 的 slotRects 同一坐标系。
+  final RenderBox? cardRectsAncestor;
+
   const HandCardsBar({
     super.key,
     required this.handCodes,
@@ -41,19 +54,101 @@ class HandCardsBar extends StatefulWidget {
     this.overlayVisible = false,
     this.highlightedSequences = const {},
     this.checkedSequences = const {},
+    this.shuffleTick = 0,
+    this.onCardRectsChanged,
+    this.cardRectsAncestor,
   });
 
   @override
   State<HandCardsBar> createState() => _HandCardsBarState();
 }
 
-class _HandCardsBarState extends State<HandCardsBar> {
+class _HandCardsBarState extends State<HandCardsBar>
+    with SingleTickerProviderStateMixin {
   int? _hoveredSequence;
+  final Map<int, GlobalKey> _cardKeys = {};
+  bool _rectReportQueued = false;
+
+  late final AnimationController _shuffleController;
+  List<double> _shuffleOffsets = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _shuffleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant HandCardsBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shuffleTick != widget.shuffleTick) {
+      _startShuffle();
+    }
+  }
+
+  @override
+  void dispose() {
+    _shuffleController.dispose();
+    super.dispose();
+  }
+
+  /// 每张手牌生成一个随机横向偏移（约 ±1.5 个卡位），播放
+  /// 「来回替换位置」的洗牌动画，而非整条手牌左右抖动。
+  void _startShuffle() {
+    final count = widget.handCodes.length;
+    if (count < 2) return;
+    final rnd = math.Random();
+    _shuffleOffsets = List.generate(count, (_) {
+      return (rnd.nextDouble() * 2 - 1) * 108.0;
+    });
+    _shuffleController.forward(from: 0);
+  }
+
+  /// 帧末上报每张手牌的矩形（供抽卡动画终点定位）。
+  void _scheduleRectReport() {
+    if (_rectReportQueued) return;
+    _rectReportQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _rectReportQueued = false;
+      if (!mounted || widget.onCardRectsChanged == null) return;
+      final ancestor = widget.cardRectsAncestor;
+      final rects = <int, Rect>{};
+      for (final entry in _cardKeys.entries) {
+        final context = entry.value.currentContext;
+        if (context == null) continue;
+        final box = context.findRenderObject() as RenderBox?;
+        if (box == null || !box.hasSize) continue;
+        // 与场地 anchor 相同的祖先坐标空间，保证抽卡动画
+        // 终点与 _fieldAnchors.slotRects 起点坐标系一致。
+        final topLeft = ancestor != null && ancestor.attached
+            ? box.localToGlobal(Offset.zero, ancestor: ancestor)
+            : box.localToGlobal(Offset.zero);
+        rects[entry.key] = topLeft & box.size;
+      }
+      widget.onCardRectsChanged!(rects);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     if (widget.handCodes.isEmpty) return const SizedBox(height: 96);
+    _scheduleRectReport();
 
+    return AnimatedBuilder(
+      animation: _shuffleController,
+      builder: (context, child) {
+        final t = _shuffleController.value;
+        // 洗牌进度：0 → 1 → 0（先换位，再回位）。
+        final progress = math.sin(t * math.pi);
+        return _buildBar(context, progress);
+      },
+    );
+  }
+
+  Widget _buildBar(BuildContext context, double shuffleProgress) {
     return Container(
       // v10 .hand: 底部手牌栏，卡片 68x94 微微探出轨道
       height: 96,
@@ -97,17 +192,26 @@ class _HandCardsBarState extends State<HandCardsBar> {
               // 旋转角度：向两侧呈放射状轻微倾斜
               final double rotation = relativePos * 0.10;
 
-              final Widget card = Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 4,
-                ), // 对应 gap: 8px (左右各4)
-                child: MouseRegion(
-                  onEnter: (_) => setState(() => _hoveredSequence = index),
-                  onExit: (_) => setState(() => _hoveredSequence = null),
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: () => widget.onCardTap?.call(index, code),
-                    child: AnimatedContainer(
+              final cardKey = _cardKeys.putIfAbsent(index, GlobalKey.new);
+              // 手牌数量变化时 _shuffleOffsets 可能还是上次的长度，做越界保护。
+              final shuffleDx = index < _shuffleOffsets.length
+                  ? _shuffleOffsets[index] * shuffleProgress
+                  : 0.0;
+              final Widget card = KeyedSubtree(
+                key: cardKey,
+                child: Transform.translate(
+                  offset: Offset(shuffleDx, 0),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                    ), // 对应 gap: 8px (左右各4)
+                    child: MouseRegion(
+                      onEnter: (_) => setState(() => _hoveredSequence = index),
+                      onExit: (_) => setState(() => _hoveredSequence = null),
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () => widget.onCardTap?.call(index, code),
+                        child: AnimatedContainer(
                       duration: const Duration(milliseconds: 250),
                       // 使用 HTML 中定义的 cubic-bezier(0.34, 1.56, 0.64, 1) 实现灵动的回弹感
                       curve: const Cubic(0.34, 1.56, 0.64, 1),
@@ -190,7 +294,9 @@ class _HandCardsBarState extends State<HandCardsBar> {
                     ),
                   ),
                 ),
-              );
+              ),
+            ),
+          );
 
               return isSelected && widget.overlayContent != null
                   ? PortalTarget(
