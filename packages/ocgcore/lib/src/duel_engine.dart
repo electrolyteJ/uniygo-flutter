@@ -92,6 +92,20 @@ class DuelEngine {
   Uint8List? _pendingSelectPayload;
   bool _sawRetryInPump = false;
 
+  // ── AI 应答在途跟踪（MSG_RETRY 恢复）──
+  /// 最近一次已喂给引擎、尚未确认被接受的 AI 应答所属问题。
+  ///
+  /// 之后引擎吐出新的选择类消息 = 应答被接受（[_emitGameMsg] 清除）；
+  /// 吐出 MSG_RETRY = 应答被校验拒绝（[_pumpLoop] 恢复 pending 重新应答）。
+  /// 人类路径的等价恢复在 [onResponse] 里（_sawRetryInPump 还原）。
+  (int func, int player, Uint8List payload)? _aiAnswerInFlight;
+
+  /// 当前问题的 AI 连续重答次数（防确定性错误应答死循环）。
+  int _aiAnswerRetries = 0;
+
+  /// AI 同一问题最多重答次数（超过则放弃本局该问题，避免死循环）。
+  static const int _maxAiAnswerRetries = 3;
+
   void setCardReader(CardReader reader) {
     _cardReader = reader;
   }
@@ -437,7 +451,30 @@ class DuelEngine {
         }
 
         if (emitResult.emittedRetry) {
-          // MSG_RETRY 表示上一条响应非法；保持 WAITING，等客户端重新应答。
+          // MSG_RETRY 表示上一条响应非法。
+          final inflight = _aiAnswerInFlight;
+          if (inflight != null && _aiAnswerRetries < _maxAiAnswerRetries) {
+            // 是 AI 的应答被拒：恢复 pending 让自动应答器重答（远端模型
+            // 非确定性可换一答；规则 AI 确定性同答会在次数上限后放弃）。
+            _aiAnswerRetries++;
+            console.log(
+              'DuelEngine: AI answer rejected (MSG_RETRY), re-answering '
+              'func=${inflight.$1} (attempt ${_aiAnswerRetries + 1})',
+            );
+            _pendingSelectFunc = inflight.$1;
+            _pendingSelectPlayer = inflight.$2;
+            _pendingSelectPayload = inflight.$3;
+            emptyWaitRetries = 0;
+            continue;
+          }
+          if (inflight != null) {
+            console.log(
+              'DuelEngine: AI answer rejected repeatedly '
+              '(func=${inflight.$1}), bail',
+            );
+          }
+          // 人类应答的 retry：保持 WAITING，等客户端重新应答
+          // （pending 已由 onResponse 的 _sawRetryInPump 恢复）。
           emptyWaitRetries = 0;
           break;
         }
@@ -558,6 +595,14 @@ class DuelEngine {
       console.log('DuelEngine: no auto-answer for func $func, stall');
       return false;
     }
+    // 应答先记为"在途"再清 pending：引擎若校验拒绝（MSG_RETRY），
+    // _pumpLoop 据此恢复问题重新应答；引擎若推进到新选择类消息，
+    // _emitGameMsg 会清除在途记录。
+    _aiAnswerInFlight = (
+      func,
+      _pendingSelectPlayer ?? _aiPlayer,
+      Uint8List.fromList(payload),
+    );
     _clearPendingSelect();
     _core!.setResponseb(_duel!, resp);
     return true;
@@ -625,6 +670,9 @@ class DuelEngine {
         emittedNonBlockingWaitMessage = true;
       }
       if (m.isNotEmpty && _selectFuncs.contains(m[0])) {
+        // 新的选择类问题出现 = 上一条 AI 应答已被引擎接受
+        _aiAnswerInFlight = null;
+        _aiAnswerRetries = 0;
         _pendingSelectFunc = m[0];
         _pendingSelectPayload = m.length > 1
             ? Uint8List.sublistView(m, 1)

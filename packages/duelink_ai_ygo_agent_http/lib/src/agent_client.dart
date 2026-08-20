@@ -50,21 +50,30 @@ class YgoAgentApiException implements Exception {
 
 /// neos-ts `predictDuel` / `createDuel` 的 Dart 等价物。
 class YgoAgentClient {
-  YgoAgentClient({required String server, http.Client? httpClient})
-      : _server = server.endsWith('/')
-            ? server.substring(0, server.length - 1)
-            : server,
-        _http = httpClient ?? http.Client();
+  YgoAgentClient({
+    required String server,
+    http.Client? httpClient,
+    this.timeout = const Duration(seconds: 10),
+  }) : _server = server.endsWith('/')
+           ? server.substring(0, server.length - 1)
+           : server,
+       _http = httpClient ?? http.Client();
 
   /// 服务根地址，如 `https://sapi.moecube.com:444/neos-ai-agent`。
   final String _server;
   final http.Client _http;
 
+  /// 单次请求超时。服务端挂死（接受连接但不响应）时按此时限失败，
+  /// 由上层回退规则 AI —— 缺省无超时会把整个对局冻结在 pump 循环里。
+  final Duration timeout;
+
   static const _jsonHeaders = {'Content-Type': 'application/json'};
 
   /// 创建对局会话（neos-ts `createDuel`，`POST v0/duels`）。
   Future<CreatedDuel> createDuel() async {
-    final resp = await _http.post(Uri.parse('$_server/v0/duels'));
+    final resp = await _http
+        .post(Uri.parse('$_server/v0/duels'))
+        .timeout(timeout);
     final body = _decode(resp, 'v0/duels');
     return CreatedDuel(
       duelId: body['duelId'] as String,
@@ -83,15 +92,17 @@ class YgoAgentClient {
     required int prevActionIdx,
   }) async {
     final path = 'v0/duels/$duelId/predict';
-    final resp = await _http.post(
-      Uri.parse('$_server/$path'),
-      headers: _jsonHeaders,
-      body: jsonEncode({
-        'index': index,
-        'input': input.toJson(),
-        'prev_action_idx': prevActionIdx,
-      }),
-    );
+    final resp = await _http
+        .post(
+          Uri.parse('$_server/$path'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'index': index,
+            'input': input.toJson(),
+            'prev_action_idx': prevActionIdx,
+          }),
+        )
+        .timeout(timeout);
     final body = _decode(resp, path);
     return PredictResponse(
       index: body['index'] as int,

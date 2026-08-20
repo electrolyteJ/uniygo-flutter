@@ -177,7 +177,14 @@ class AiConnection implements DuelConnection {
         }
       }
       console.log('AiConnection: rule AI auto-answering func=$func...');
-      return ruleAnswer(func, payload);
+      try {
+        return ruleAnswer(func, payload);
+      } catch (e) {
+        // 规则 AI 解码/编码异常不应逃逸出引擎 pump 循环（会把对局冻结在
+        // 不一致状态）；返回 null 由引擎按"无法应答"停住并保留 pending。
+        console.log('AiConnection: rule AI 应答异常 func=$func: $e');
+        return null;
+      }
     });
     console.log('AiConnection: remote agent auto-answer enabled (规则兜底)');
     // } else {
