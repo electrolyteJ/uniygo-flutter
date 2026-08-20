@@ -8,7 +8,7 @@ import 'component/battle_presentation_component.dart';
 import 'package:duel_room1/field/component/summon_effect_adapter.dart';
 import 'component/board_mesh_component.dart';
 import 'component/zone_component.dart';
-import 'component/phase_lamp_component.dart';
+import 'component/phase_rail_component.dart';
 import 'duel_flame_game.dart';
 import 'package:duel_room1/field/models/duel_field_layout.dart';
 
@@ -22,7 +22,7 @@ export 'package:duel_room1/field/models/duel_field_layout.dart';
 /// 状态一律经 [DuelFlameGame.snapshot] 读取（widget 层推送的
 /// Riverpod 状态快照），world 与 component 不依赖任何 store/Provider。
 class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
-  PhaseLampComponent? _phaseLamp;
+  PhaseRailComponent? _phaseRail;
   ZonesComponent? _zones;
   final SummonQueueDriver _summonDriver = SummonQueueDriver(priority: 25);
   late final SummonEffectAdapter _summonAdapter = SummonEffectAdapter(
@@ -47,11 +47,11 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
     add(BattlePresentationComponent());
     add(_summonDriver);
     add(_summonAdapter);
-    _phaseLamp = PhaseLampComponent(
+    _phaseRail = PhaseRailComponent(
       onTap: game.onPhaseLampTap,
       enabledGetter: game.isPhaseLampEnabled,
     );
-    add(_phaseLamp!);
+    add(_phaseRail!);
   }
 
   /// Hot reload 支持：移除并重建全部子组件。
@@ -63,7 +63,7 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
       child.removeFromParent();
     }
     _zones = null;
-    _phaseLamp = null;
+    _phaseRail = null;
     _initComponents();
   }
 
@@ -98,8 +98,8 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
   /// 重建场地区域（委托给 [ZonesComponent]）。
   void rebuildField() => _zones?.rebuild();
 
-  /// 快照变更后刷新阶段灯（阶段名/可点击态）。
-  void refreshPhaseLamp() => _phaseLamp?.notifyStateChanged();
+  /// 快照变更后刷新阶段轨道（当前阶段/可点击态）。
+  void refreshPhaseRail() => _phaseRail?.notifyStateChanged();
 
   Vector2? boardPositionForZoneKey(String zoneKey) {
     final parsed = parseZoneKey(zoneKey);

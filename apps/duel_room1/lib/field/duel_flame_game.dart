@@ -7,6 +7,7 @@ import 'package:biz/duel/models/field_card.dart';
 
 import 'duel_field_world.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
+import 'package:duel_room1/field/models/phase_rail_layout.dart';
 
 /// 决斗场地 FlameGame：只持有 [DuelFieldWorld] 与观察它的
 /// [CameraComponent]，负责鼠标视差输入与 Flutter 侧锚点上报。
@@ -17,7 +18,11 @@ import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 /// Flame 侧不订阅任何 Provider（渲染循环与状态管理解耦）。
 class DuelFlameGame extends FlameGame<DuelFieldWorld>
     with MouseMovementDetector {
-  static final _phaseLampSize = DuelFieldLayout.phaseLampSize;
+  /// 阶段轨道（右侧垂直阶段按钮列）的组件尺寸，锚点上报用同一几何。
+  static final _phaseRailSize = Size(
+    PhaseRailLayout.pillWidth + 20,
+    PhaseRailLayout.height + 20,
+  );
 
   /// 沉浸式布局参数：把卡槽阵列在「扣除 HUD 的可见区」内最大化铺满。
   /// 所有数值均为世界/像素坐标（project3D 恒等时两者相等）。
@@ -25,7 +30,9 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   /// 卡槽阵列内容尺寸（含 hover 中心缩放的小幅溢出与边距余量）。
   /// 注：场地卡槽的 hover 上浮(lift)当前已关闭，仅 1.12 中心缩放，
   /// 每边溢出约 4-6px，故高度取静态阵列 496 + 少量边距。
-  static const _boardContentWidth = 600.0; // 2 * (colX[6] + slotWidth/2 + 边距)
+  /// 宽度覆盖右侧阶段轨道（PhaseRailLayout.rightEdge），横屏高度受限
+  /// 场景 zoom 不变，轨道免费入镜。
+  static const _boardContentWidth = PhaseRailLayout.boardContentWidth;
   static const _boardContentHeight = 510.0; // 双方怪兽/魔陷两层 + EMZ + 边距
   /// 视口四周需为 HUD 预留的不可侵占空间（对称水平预留，用于左右状态卡；
   /// 不考虑检查器展开的覆盖）。
@@ -95,7 +102,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
       // （selectWindowProvider 的选择窗口/阶段动作可用性），该输入不在
       // FlameFieldSnapshot 字段里。空闲指令（MSG_SELECT_IDLE_CMD）到达时
       // 快照内容往往不变，判等短路会漏掉刷新，使灯停在禁用态点了没反应。
-      world.refreshPhaseLamp();
+      world.refreshPhaseRail();
     }
     if (changed) _emitAnchors();
   }
@@ -246,27 +253,16 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     slotRects['${selfController}_4_6'] = emz2Rect;
     slotRects['${opponentController}_4_5'] = emz2Rect;
 
-    final phaseReference =
-        slotRects['self_grave'] ??
-        slotRects['self_removed'] ??
-        slotRects['${selfController}_4_4'];
-    final phaseLampRect = phaseReference == null
-        ? Rect.fromLTWH(
-            viewport.width * DuelFieldLayout.phaseLampFallbackRatio.dx,
-            viewport.height * DuelFieldLayout.phaseLampFallbackRatio.dy,
-            _phaseLampSize.width,
-            _phaseLampSize.height,
-          )
-        : Rect.fromCenter(
-            center: Offset(
-              phaseReference.center.dx +
-                  DuelFieldLayout.phaseLampOffset.dx * zoom,
-              phaseReference.center.dy +
-                  DuelFieldLayout.phaseLampOffset.dy * zoom,
-            ),
-            width: _phaseLampSize.width * zoom,
-            height: _phaseLampSize.height * zoom,
-          );
+    // 阶段轨道位置固定（PhaseRailLayout.centerX/centerY，棋盘中线右侧），
+    // 不依赖卡槽锚点，直接由世界坐标换算。
+    final railCenter = worldToWidget(
+      world.project3D(PhaseRailLayout.centerX, PhaseRailLayout.centerY),
+    );
+    final phaseLampRect = Rect.fromCenter(
+      center: railCenter,
+      width: _phaseRailSize.width * zoom,
+      height: _phaseRailSize.height * zoom,
+    );
 
     return PlaymatAnchorData(
       slotRects: slotRects,

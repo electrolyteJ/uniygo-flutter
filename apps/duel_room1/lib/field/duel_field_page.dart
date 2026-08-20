@@ -26,6 +26,7 @@ import 'package:duel_room1/field/duel_flame_game.dart';
 import 'package:duel_room1/field/models/chain_order_map.dart';
 import 'package:duel_room1/field/models/duel_field_layout.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
+import 'package:duel_room1/field/models/phase_rail_layout.dart';
 import 'package:duel_room1/field/flame_playmat_field.dart';
 import 'package:duel_room1/field/widgets/hud/hand_cards_bar.dart';
 import 'package:duel_room1/field/widgets/draw_card_animation.dart';
@@ -299,17 +300,12 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     if (anchors != null) {
       return anchors.phaseLampRect;
     }
-    // anchors 未就绪时的兜底：与 DuelFieldLayout.phaseLampFallbackRatio 对齐。
-    // x=0.88 对应 self_grave（我方墓地，棋盘右区 colX[6] Monster 行）；y=0.53 对应 Monster 行上沿附近。
-    final fallback = Offset(
-      viewport.width * DuelFieldLayout.phaseLampFallbackRatio.dx,
-      viewport.height * DuelFieldLayout.phaseLampFallbackRatio.dy,
-    );
-    return Rect.fromLTWH(
-      fallback.dx,
-      fallback.dy,
-      DuelFieldLayout.phaseLampSize.width,
-      DuelFieldLayout.phaseLampSize.height,
+    // anchors 未就绪时的兜底：右侧垂直阶段轨道（PhaseRailLayout）的
+    // 近似位置——视口右缘外 6%、垂直居中。
+    return Rect.fromCenter(
+      center: Offset(viewport.width * 0.94, viewport.height * 0.5),
+      width: PhaseRailLayout.pillWidth + 20,
+      height: PhaseRailLayout.height + 20,
     );
   }
 

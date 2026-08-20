@@ -594,21 +594,16 @@ class DuelMessageRouter extends Notifier<void> {
     );
     _confirmN.cancelTimer();
 
-    if (func == MSG_CONFIRM_DECKTOP) {
-      _confirmN.showFloatPreview(
-        msg.cards.map((card) => card.code).toList(),
-        msg.player,
-        isExtra: false,
-      );
-      return;
-    }
-
-    if (func == MSG_CONFIRM_EXTRATOP) {
-      _confirmN.showFloatPreview(
-        msg.cards.map((card) => card.code).toList(),
-        msg.player,
-        isExtra: true,
-      );
+    if (func == MSG_CONFIRM_DECKTOP || func == MSG_CONFIRM_EXTRATOP) {
+      final codes = msg.cards.map((card) => card.code).toList();
+      final isExtra = func == MSG_CONFIRM_EXTRATOP;
+      if (codes.length > 1) {
+        // 多张：用确认面板一次性铺开全部卡。逐张浮动轮播任一时刻只能
+        // 看到一张，玩家无法同时查看多张确认卡（如「卡组顶部 3 张」）。
+        _confirmN.showConfirmPanel(title: '$owner $zoneLabel', codes: codes);
+      } else {
+        _confirmN.showFloatPreview(codes, msg.player, isExtra: isExtra);
+      }
       return;
     }
 
