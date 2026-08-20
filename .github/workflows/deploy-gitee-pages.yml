@@ -1,0 +1,87 @@
+name: Deploy Web to Gitee Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: gitee-pages
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: '3.47.0'
+  APP_DIR: 'apps/uniygopro'
+  GITEE_BRANCH: 'pages'
+
+jobs:
+  deploy:
+    name: Build & Deploy to Gitee Pages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          cd ${{ env.APP_DIR }}
+          flutter pub get
+
+      - name: Build Web (Release)
+        run: |
+          cd ${{ env.APP_DIR }}
+          # Gitee Pages 默认地址是 https://<user>.gitee.io/<repo>/，与 GitHub Pages 相同需 base-href；
+          # 若 Gitee 仓库名与 GitHub 仓库名不同，或绑定了自定义域名（根路径部署），请调整此参数。
+          flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+
+      - name: Deploy to Gitee Pages branch
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_USER: ${{ secrets.GITEE_USER }}
+          GITEE_REPO: ${{ secrets.GITEE_REPO }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GITEE_TOKEN:-}" ] || [ -z "${GITEE_USER:-}" ] || [ -z "${GITEE_REPO:-}" ]; then
+            echo "::error::缺少 secrets: GITEE_TOKEN / GITEE_USER / GITEE_REPO（在仓库 Settings → Secrets and variables 配置）"
+            exit 1
+          fi
+
+          cd "${{ env.APP_DIR }}/build/web"
+          git init -b "${{ env.GITEE_BRANCH }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "deploy: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+
+          # 用 http.extraHeader 传递 token，避免出现在日志 URL 中
+          git -c "http.https://gitee.com/.extraheader=Authorization: Basic $(printf '%s:%s' "$GITEE_USER" "$GITEE_TOKEN" | base64 | tr -d '\n')" \
+            push -f "https://gitee.com/${GITEE_USER}/${GITEE_REPO}.git" "HEAD:${{ env.GITEE_BRANCH }}"
+
+      - name: Trigger Gitee Pages rebuild
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_USER: ${{ secrets.GITEE_USER }}
+          GITEE_REPO: ${{ secrets.GITEE_REPO }}
+        run: |
+          set -euo pipefail
+          # Gitee Pages API：PUT /repos/{owner}/{repo}/pages，触发从指定分支重新构建
+          # build_type: 1 = 从仓库分支构建；0 = 上传产物（本 workflow 用分支构建）
+          resp=$(curl -sS -X PUT "https://gitee.com/api/v5/repos/${GITEE_USER}/${GITEE_REPO}/pages" \
+            -H "Content-Type: application/json" \
+            -d "{\"access_token\":\"${GITEE_TOKEN}\",\"site_branch\":\"${{ env.GITEE_BRANCH }}\",\"build_type\":1}")
+          echo "Gitee Pages API 响应: $resp"
+          # 响应含 "status" 字段即视为成功（例如 {"status":"success",...}）
+          if ! echo "$resp" | grep -q '"status"'; then
+            echo "::error::Gitee Pages 部署失败，请检查: 1) 仓库已开通 Pages 服务 2) token 有 pages 权限 3) Gitee 免费版需实名"
+            exit 1
+          fi
