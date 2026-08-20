@@ -27,4 +27,4 @@ dev_dependencies:
 flutter:
   assets:
     - assets/decks/
-    - vendor/ygopro-card-list/pack/
+#    - vendor/ygopro-card-list/pack/
