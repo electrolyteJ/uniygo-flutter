@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/widget_previews.dart';
 
 /// 顶部居中回合徽章（回合数 + 当前行动方 + 剩余时间）。
 class PhaseBar extends StatelessWidget {
@@ -93,7 +92,3 @@ class PhaseBar extends StatelessWidget {
     );
   }
 }
-
-@Preview(name: 'PhaseBar', size: Size(300, 80), brightness: Brightness.dark)
-Widget _previewPhaseBar() =>
-    const PhaseBar(turnCount: 1, isMyTurn: true, leftTimeSeconds: 120);

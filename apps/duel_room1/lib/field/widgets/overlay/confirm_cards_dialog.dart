@@ -23,7 +23,7 @@ class ConfirmCardsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.of(context).pop(),
+      onTap: () => onDismiss?.call(),
       child: Center(
         child: GestureDetector(
           onTap: () {},
@@ -76,7 +76,7 @@ class ConfirmCardsDialog extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     GestureDetector(
-                      onTap: () => Navigator.of(context).pop(),
+                      onTap: () => onDismiss?.call(),
                       child: Container(
                         width: 28,
                         height: 28,

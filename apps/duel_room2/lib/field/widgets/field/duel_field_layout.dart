@@ -17,11 +17,6 @@ class DuelFieldLayout {
   static const slotWidth = 68.0;
   static const slotHeight = 96.0;
 
-  /// Deck（卡组）区域 x 坐标（绝对值）。
-  /// self 在 colX[0] 左侧（-deckX），opponent 在 colX[6] 右侧（+deckX）。
-  /// 间距与 colX 列间距一致（84）。
-  static const deckX = 336.0; // colX[6] + 84 = 252 + 84
-
   /// PhaseLamp 锚点：self_grave（墓地）卡槽（第 7 列 / Monster 行）。
   /// 己方墓地位于 Monster 行 monsterY 的 colX[6] 位置（己方 Monster 行最右）。
   /// PhaseLamp 左下边 = 墓地卡槽右上边 + (gap, -gap)（右移 8px，上移 8px）。

@@ -42,7 +42,18 @@ class SummonEffectAdapter extends Component
 
   final SummonQueueDriver driver;
 
+  /// 卡图补充加载的短超时预算：召唤动画前 0.35s 为聚集阶段（无卡面），
+  /// 预算内等到图即可让本次特效带上卡面；超时按无图入队，不阻塞特效。
+  static const _imageWaitBudget = Duration(milliseconds: 350);
+
   int _lastTick = 0;
+  bool _disposed = false;
+
+  @override
+  void onRemove() {
+    _disposed = true;
+    super.onRemove();
+  }
 
   @override
   void update(double dt) {
@@ -54,8 +65,26 @@ class SummonEffectAdapter extends Component
       // tick 与事件 id 不一致（如同批多条消息只见到最新一条）时，
       // 以可见的最新事件为准，中间的退化丢弃（同 deckShuffleTick 语义）。
       if (event != null) {
-        driver.enqueue(summonSpecForEvent(world, event));
+        _enqueue(event);
       }
     }
+  }
+
+  /// 入队召唤特效。卡图命中同步缓存时直接入队；未命中（卡组/手牌
+  /// 召唤的卡通常没缓存）则触发加载，在 [_imageWaitBudget] 内等到
+  /// 就带卡面入队，超时/失败按无卡面入队（加载结果已入缓存，后续
+  /// 特效与卡槽可直接命中）。
+  void _enqueue(SummonEffectEvent event) {
+    if (event.code <= 0 || world.getCachedCardImage(event.code) != null) {
+      driver.enqueue(summonSpecForEvent(world, event));
+      return;
+    }
+    world
+        .loadCardImage(event.code)
+        .timeout(_imageWaitBudget, onTimeout: () => null)
+        .then((_) {
+          if (_disposed) return;
+          driver.enqueue(summonSpecForEvent(world, event));
+        });
   }
 }

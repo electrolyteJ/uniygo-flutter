@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer' as console;
 
 import 'package:biz/service_providers.dart';
 import 'package:flutter/material.dart';
@@ -28,6 +27,9 @@ void backHomeDialog({
         ),
         TextButton(
           onPressed: () {
+            // 先关弹窗再离房：弹窗推在 root navigator 上，backHome 里的
+            // context.go 只改写 router 内部栈，不关弹窗它会悬浮在首页/结算页上。
+            Navigator.of(ctx).pop();
             unawaited(backHome(context, ref, surrenderOnExit: true));
           },
           style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -77,7 +79,6 @@ Future<void> backHome(
   // 这里直接返回，由 leaveRoomAfterNotJoined 用房间页自身的 ref 完成导航。
   if (!context.mounted) return;
   final duelResult = ref.read(duelFieldProvider).duelResult;
-  console.log('backHome: duelResult=$duelResult');
   // 单次导航直达目标：有结算去结算页，否则回首页。
   if (duelResult != null) {
     context.go('/duel-result', extra: duelResult);

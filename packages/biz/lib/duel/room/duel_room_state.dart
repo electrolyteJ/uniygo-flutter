@@ -55,6 +55,7 @@ class DuelRoomState {
     this.submittedDeck,
     this.sidingDeck,
     this.sidingBaseline,
+    this.sidingInitFailed = false,
     this.errorMessage,
   });
 
@@ -89,6 +90,13 @@ class DuelRoomState {
   /// 本次换备的基准构成（进入换备阶段时初始化，仅该阶段非 null）。
   final ResolvedDeck? sidingBaseline;
 
+  /// 换备数据初始化是否失败（仅 RoomSideDecking 阶段有意义）。
+  ///
+  /// 与 [errorMessage] 的区别：errorMessage 会被页面 SnackBar 消费后
+  /// 清除，无法作为持久失败状态；该标志保持到重试成功或离开换备阶段，
+  /// 供换备面板展示失败文案与重试入口。
+  final bool sidingInitFailed;
+
   final String? errorMessage;
 
   static const _sentinel = Object();
@@ -112,6 +120,7 @@ class DuelRoomState {
     Object? submittedDeck = _sentinel,
     Object? sidingDeck = _sentinel,
     Object? sidingBaseline = _sentinel,
+    bool? sidingInitFailed,
     Object? errorMessage = _sentinel,
   }) {
     return DuelRoomState(
@@ -151,6 +160,7 @@ class DuelRoomState {
       sidingBaseline: identical(sidingBaseline, _sentinel)
           ? this.sidingBaseline
           : sidingBaseline as ResolvedDeck?,
+      sidingInitFailed: sidingInitFailed ?? this.sidingInitFailed,
       errorMessage: identical(errorMessage, _sentinel)
           ? this.errorMessage
           : errorMessage as String?,
@@ -169,7 +179,8 @@ class DuelRoomState {
   /// 当前自己对应的决斗位是否已经准备。
   bool get isSelfReady {
     final mySlot = selfType.slot;
-    if (mySlot < 0 || mySlot > 1) {
+    // 决斗位 0-3（tag 模式含 2/3 号位）；observer(7)/unknown(-1) 不算。
+    if (mySlot < 0 || mySlot > 3) {
       return false;
     }
     return players.where((p) => p.pos == selfType.slot).any((p) => p.ready);
@@ -177,20 +188,21 @@ class DuelRoomState {
 
   /// 当前房间中双方玩家是否都已经准备。
   ///
-  /// 必须 pos0 与 pos1 两个决斗位都有人就绪才算「全部就绪」：
-  /// 旧实现只看 `players.length >= 2`，tag 模式下来了两个同队座位
-  /// （如 pos0+pos2）也会误判为可以开局。
+  /// 必须全部决斗位都有人就绪才算「全部就绪」：单局/比赛为 pos0+pos1，
+  /// tag（双打）为 pos0-3 四座。旧实现只看 `players.length >= 2`，
+  /// tag 模式下来了两个同队座位（如 pos0+pos2）也会误判为可以开局。
   bool get isAllReady {
-    final pos0 = players.where((p) => p.pos == 0).toList();
-    final pos1 = players.where((p) => p.pos == 1).toList();
-    if (pos0.isEmpty || pos1.isEmpty) {
-      return false;
+    final requiredSeats = roomOptions?.mode == RoomMode.tag
+        ? const [0, 1, 2, 3]
+        : const [0, 1];
+    for (final seat in requiredSeats) {
+      if (players.every((p) => p.pos != seat)) {
+        return false; // 决斗位空缺
+      }
     }
     for (final p in players) {
-      if (p.pos == 0 || p.pos == 1) {
-        if (!p.ready) {
-          return false;
-        }
+      if (requiredSeats.contains(p.pos) && !p.ready) {
+        return false;
       }
     }
     return true;
@@ -424,7 +436,12 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
     if (deckName == null) {
       return (deck: null, error: '未选择卡组');
     }
-    state = state.copyWith(selectedDeckName: deckName);
+    // 清空上一卡组的校验结果：加载/校验是异步的，期间 UI 不应继续
+    // 展示属于旧卡组的结果。
+    state = state.copyWith(
+      selectedDeckName: deckName,
+      invalidationDeckResult: null,
+    );
     DeckInfo? deckInfo;
     try {
       deckInfo = await _dataService.loadDeck(deckName);
@@ -446,6 +463,11 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
     // ── 禁限卡表校验 ──
     final result = await _validateDeckLegality(main, extra, side);
     if (_disposed) return (deck: null, error: null);
+    // 竞态防护：校验往返期间玩家可能已切到别的卡组，后返回的旧请求
+    // 不得覆盖新选择的校验结果（旧结果直接丢弃，新选择的请求会写入）。
+    if (state.selectedDeckName != deckName) {
+      return (deck: null, error: null);
+    }
     state = state.copyWith(invalidationDeckResult: result);
     if (result != null && result.isNotEmpty) {
       return (deck: null, error: '卡组不合规: ${result.first}');
@@ -505,7 +527,10 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
       return selection.error;
     }
     final deck = selection.deck;
-    if (deck == null || deck.main.isEmpty) {
+    // deck==null 且 error==null：selectDeck 因房间销毁或选择已过期而
+    // 放弃（玩家在等待期间切换了卡组），本次准备静默取消。
+    if (deck == null) return null;
+    if (deck.main.isEmpty) {
       return '卡组为空或加载失败';
     }
     final mainCodes = deck.main.map((c) => c.code).toList();
@@ -585,8 +610,14 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
       );
       // 离开换备阶段时清理换备编辑状态（进入由下方 case 初始化）。
       if (roomStage is! RoomSideDecking &&
-          (state.sidingDeck != null || state.sidingBaseline != null)) {
-        next = next.copyWith(sidingDeck: null, sidingBaseline: null);
+          (state.sidingDeck != null ||
+              state.sidingBaseline != null ||
+              state.sidingInitFailed)) {
+        next = next.copyWith(
+          sidingDeck: null,
+          sidingBaseline: null,
+          sidingInitFailed: false,
+        );
       }
       switch (roomStage) {
         case RoomNotJoined():
@@ -676,7 +707,10 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
     // 仅在仍处于换备阶段时写入。
     if (state.stage is! RoomSideDecking) return;
     if (comp == null) {
-      state = state.copyWith(errorMessage: '换备数据初始化失败');
+      state = state.copyWith(
+        errorMessage: '换备数据初始化失败',
+        sidingInitFailed: true,
+      );
       return;
     }
     final baseline = (
@@ -691,7 +725,19 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
         side: [...comp.side],
       ),
       sidingBaseline: baseline,
+      sidingInitFailed: false,
     );
+  }
+
+  /// 重试换备数据初始化（[DuelRoomState.sidingInitFailed] 后由 UI 调用）。
+  ///
+  /// 仅在仍处于换备阶段且换备数据未就绪时有效；重试即重新走
+  /// [_enterSideDecking]（成功/失败会刷新 sidingInitFailed）。
+  void retrySidingInit() {
+    if (state.stage is! RoomSideDecking) return;
+    if (state.sidingDeck != null) return;
+    state = state.copyWith(sidingInitFailed: false);
+    unawaited(_enterSideDecking());
   }
 
   /// 将换备基准的卡码列表解析为卡信息（复用 dataService 的卡片缓存）。
@@ -805,6 +851,9 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
       siding.side,
     );
     if (_disposed) return null;
+    // 校验往返期间服务器可能已推进阶段（如对手超时判负直接结束），
+    // 此时不应再向旧阶段提交卡组。
+    if (state.stage is! RoomSideDecking) return '换备阶段已结束';
     if (legality != null && legality.isNotEmpty) {
       return '卡组不合规: ${legality.first}';
     }

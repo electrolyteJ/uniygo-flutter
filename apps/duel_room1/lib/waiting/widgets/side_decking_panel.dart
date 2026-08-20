@@ -6,15 +6,16 @@ import 'package:biz/duel/room/duel_room_state.dart' show SidingZone;
 
 /// 换备面板（match 模式局间换 Side Deck）。
 ///
-/// 纯展示 + 回调：换备构成、基准数量与全部操作由
-/// [DuelRoomNotifier] 驱动，本组件不持有任何状态。
+/// 展示 + 回调：换备构成、基准数量与全部操作由
+/// [DuelRoomNotifier] 驱动；本组件仅持有「确认提交中」的本地防抖标记。
 ///
 /// 交互约定（YGOPro 换备规则）：
 /// - 主卡组卡片点击后移入副卡组；额外卡组卡片点击后移入副卡组；
-/// - 副卡组卡片提供「→主」「→额」两个按钮选择去向；
+/// - 副卡组卡片提供「→主」「→额」两个按钮选择去向
+///   （「→额」仅对额外卡组类型——融合/同调/超量/连接——显示）；
 /// - 主卡组 ↔ 额外卡组之间不允许直接交换；
 /// - 各分区数量与基准一致时「确认换备」才可点击。
-class SideDeckingPanel extends StatelessWidget {
+class SideDeckingPanel extends StatefulWidget {
   /// 自己是否为决斗者；观战者只显示等待状态。
   final bool isDuelist;
 
@@ -22,6 +23,12 @@ class SideDeckingPanel extends StatelessWidget {
   final List<CardInfo>? sidingMain;
   final List<CardInfo>? sidingExtra;
   final List<CardInfo>? sidingSide;
+
+  /// 换备数据初始化是否失败（持久标志，区别于加载中）。
+  final bool sidingInitFailed;
+
+  /// 初始化失败后的重试回调（null 表示当前不可重试）。
+  final VoidCallback? onRetryInit;
 
   /// 基准数量（换备前后各分区数量必须保持一致）。
   final int baselineMainCount;
@@ -34,8 +41,9 @@ class SideDeckingPanel extends StatelessWidget {
   /// 恢复为基准构成。
   final VoidCallback onReset;
 
-  /// 确认换备（提交卡组并 ready）。
-  final VoidCallback onConfirm;
+  /// 确认换备（提交卡组并 ready）；返回的 Future 在提交完成后结束，
+  /// 面板据此在提交期间禁用按钮，防止禁限校验往返时双击重复提交。
+  final Future<void> Function() onConfirm;
 
   const SideDeckingPanel({
     super.key,
@@ -43,6 +51,8 @@ class SideDeckingPanel extends StatelessWidget {
     required this.sidingMain,
     required this.sidingExtra,
     required this.sidingSide,
+    this.sidingInitFailed = false,
+    this.onRetryInit,
     required this.baselineMainCount,
     required this.baselineExtraCount,
     required this.baselineSideCount,
@@ -51,13 +61,31 @@ class SideDeckingPanel extends StatelessWidget {
     required this.onConfirm,
   });
 
+  @override
+  State<SideDeckingPanel> createState() => _SideDeckingPanelState();
+}
+
+class _SideDeckingPanelState extends State<SideDeckingPanel> {
+  /// 确认提交中（含禁限校验的网络往返）：期间禁用按钮防重复提交。
+  bool _submitting = false;
+
   bool get _countsValid =>
-      sidingMain != null &&
-      sidingExtra != null &&
-      sidingSide != null &&
-      sidingMain!.length == baselineMainCount &&
-      sidingExtra!.length == baselineExtraCount &&
-      sidingSide!.length == baselineSideCount;
+      widget.sidingMain != null &&
+      widget.sidingExtra != null &&
+      widget.sidingSide != null &&
+      widget.sidingMain!.length == widget.baselineMainCount &&
+      widget.sidingExtra!.length == widget.baselineExtraCount &&
+      widget.sidingSide!.length == widget.baselineSideCount;
+
+  Future<void> _confirm() async {
+    if (_submitting) return;
+    setState(() => _submitting = true);
+    try {
+      await widget.onConfirm();
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,18 +123,35 @@ class SideDeckingPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          if (!isDuelist)
+          if (!widget.isDuelist)
             _statusRow(Icons.hourglass_bottom, '决斗者换备中…')
-          else if (sidingMain == null ||
-              sidingExtra == null ||
-              sidingSide == null)
-            _statusRow(Icons.settings, '正在准备换备数据…')
+          else if (widget.sidingMain == null ||
+              widget.sidingExtra == null ||
+              widget.sidingSide == null)
+            // 初始化失败给重试入口（否则面板会永远停在加载态，
+            // 而换备期间 ControlBar 隐藏，没有其他出口）。
+            widget.sidingInitFailed
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: _statusRow(
+                          Icons.error_outline,
+                          '换备数据初始化失败',
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: widget.onRetryInit,
+                        child: const Text('重试'),
+                      ),
+                    ],
+                  )
+                : _statusRow(Icons.settings, '正在准备换备数据…')
           else ...[
             _cardSection(
               icon: Icons.style,
               title: '主卡组',
-              cards: sidingMain!,
-              baselineCount: baselineMainCount,
+              cards: widget.sidingMain!,
+              baselineCount: widget.baselineMainCount,
               zone: SidingZone.main,
               hint: '点击移入副卡组',
             ),
@@ -114,8 +159,8 @@ class SideDeckingPanel extends StatelessWidget {
             _cardSection(
               icon: Icons.auto_awesome,
               title: '额外卡组',
-              cards: sidingExtra!,
-              baselineCount: baselineExtraCount,
+              cards: widget.sidingExtra!,
+              baselineCount: widget.baselineExtraCount,
               zone: SidingZone.extra,
               hint: '点击移入副卡组',
             ),
@@ -125,7 +170,7 @@ class SideDeckingPanel extends StatelessWidget {
             Row(
               children: [
                 OutlinedButton.icon(
-                  onPressed: onReset,
+                  onPressed: widget.onReset,
                   icon: const Icon(Icons.restart_alt, size: 16),
                   label: const Text('重置'),
                   style: OutlinedButton.styleFrom(
@@ -141,9 +186,15 @@ class SideDeckingPanel extends StatelessWidget {
                 Expanded(
                   child: FilledButton.icon(
                     key: const ValueKey('side-decking-confirm'),
-                    onPressed: _countsValid ? onConfirm : null,
-                    icon: const Icon(Icons.check_circle, size: 16),
-                    label: const Text('确认换备'),
+                    onPressed: _countsValid && !_submitting ? _confirm : null,
+                    icon: _submitting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.check_circle, size: 16),
+                    label: Text(_submitting ? '提交中…' : '确认换备'),
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.green.shade700,
                       foregroundColor: Colors.white,
@@ -204,7 +255,7 @@ class SideDeckingPanel extends StatelessWidget {
               for (var i = 0; i < cards.length; i++)
                 _cardChip(
                   cards[i],
-                  onTap: () => onMoveCard(zone, SidingZone.side, i),
+                  onTap: () => widget.onMoveCard(zone, SidingZone.side, i),
                 ),
             ],
           ),
@@ -214,7 +265,7 @@ class SideDeckingPanel extends StatelessWidget {
 
   /// 副卡组分区：每张卡提供「→主」「→额」两个去向按钮。
   Widget _sideSection() {
-    final cards = sidingSide!;
+    final cards = widget.sidingSide!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -222,7 +273,7 @@ class SideDeckingPanel extends StatelessWidget {
           Icons.inventory_2,
           '副卡组',
           cards.length,
-          baselineSideCount,
+          widget.baselineSideCount,
           '选择去向',
         ),
         const SizedBox(height: 4),
@@ -253,13 +304,25 @@ class SideDeckingPanel extends StatelessWidget {
                       ),
                       _moveButton(
                         '→主',
-                        () => onMoveCard(SidingZone.side, SidingZone.main, i),
+                        () => widget.onMoveCard(
+                          SidingZone.side,
+                          SidingZone.main,
+                          i,
+                        ),
                       ),
-                      const SizedBox(width: 4),
-                      _moveButton(
-                        '→额',
-                        () => onMoveCard(SidingZone.side, SidingZone.extra, i),
-                      ),
+                      // 「→额」仅对额外卡组类型显示：魔陷等塞不进
+                      // 额外卡组，提交了也会被服务端拒绝。
+                      if (_isExtraDeckCard(cards[i])) ...[
+                        const SizedBox(width: 4),
+                        _moveButton(
+                          '→额',
+                          () => widget.onMoveCard(
+                            SidingZone.side,
+                            SidingZone.extra,
+                            i,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -302,6 +365,10 @@ class SideDeckingPanel extends StatelessWidget {
       ],
     );
   }
+
+  /// 是否额外卡组类型（融合/同调/超量/连接）：决定副卡区「→额」去向。
+  static bool _isExtraDeckCard(CardInfo card) =>
+      card.isFusion || card.isSynchro || card.isXyz || card.isLink;
 
   /// 可点击卡片 chip（主/额外分区）。
   Widget _cardChip(CardInfo card, {required VoidCallback onTap}) {
@@ -377,5 +444,5 @@ Widget previewSideDeckingPanel() => SideDeckingPanel(
       baselineSideCount: 1,
       onMoveCard: (_, _, _) {},
       onReset: () {},
-      onConfirm: () {},
+      onConfirm: () async {},
     );

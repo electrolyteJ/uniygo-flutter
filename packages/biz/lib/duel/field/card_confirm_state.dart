@@ -48,7 +48,11 @@ class CardConfirmState {
   /// field_confirm 阶段需要高亮的手牌序列号集合。
   final Set<int> confirmedHandSequences;
 
-  /// confirmedHandSequences 对应的玩家编号 (0=己方, 1=对方)。
+  /// confirmedHandSequences 对应的玩家编号。
+  ///
+  /// 注意：这里存的是引擎 controller 原值（MSG 里的 player 字段），
+  /// 不是「0=己方」的显示语义——消费方应与 myController 比较
+  /// （tag 模式下 controller 与座位号的对应关系由对局状态维护）。
   final int confirmedHandOwner;
 
   /// 是否处于 decktop/extratop 浮动预览阶段（区别于 field_confirm）。

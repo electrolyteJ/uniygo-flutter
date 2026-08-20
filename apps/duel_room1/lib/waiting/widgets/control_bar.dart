@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart';
 import 'automation_switch.dart';
-import 'package:flutter/widget_previews.dart';
 
 class ControlBar extends StatelessWidget {
   final bool isHost;
@@ -43,8 +42,8 @@ class ControlBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isPlayer =
-        selfType == PlayerType.player1 || selfType == PlayerType.player2;
+    // tag 模式 2/3 号位（player3/player4）同样是决斗者。
+    final isPlayer = selfType.isDuelist;
     // 不设底色：等待室已改为半透明弹窗，面板背景由弹窗容器提供。
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -177,21 +176,3 @@ class ControlBar extends StatelessWidget {
     );
   }
 }
-
-@Preview(name: 'ControlBar', size: Size(420, 170), brightness: Brightness.dark)
-Widget _previewControlBar() => ControlBar(
-  isHost: true,
-  selfType: PlayerType.player1,
-  isSelfReady: false,
-  isAllReady: false,
-  autoHandEnabled: false,
-  autoTurnOrderEnabled: false,
-  autoDuelEnabled: false,
-  toggleReady: (_) {},
-  onToggleAutoHand: (_) {},
-  onToggleAutoTurnOrder: (_) {},
-  onToggleAutoDuel: (_) {},
-  onStartDuel: () {},
-  onBecomeDuelist: () {},
-  onBecomeObserver: () {},
-);

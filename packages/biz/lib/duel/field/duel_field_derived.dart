@@ -1,6 +1,7 @@
 import 'dart:developer' as console;
 
 import 'package:duelink/duelink.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ygo_data/card_info.dart' as pkg;
 
@@ -309,16 +310,20 @@ List<PlaymatResolvedAction> resolveFieldActions(
   if (actions.isEmpty &&
       select.hasIdleCommandWindow &&
       select.ownsCurrentWindow(board.myController)) {
-    final candidateDebug = select.selectedIdleActions
-        .map(
-          (action) =>
-              '${action.type}:${action.sequence}:code=${action.code}:c=${action.controller}:z=${action.location}:s=${action.locationSequence}',
-        )
-        .join(', ');
-    console.log(
-      'fieldActionsForCard: no match for code=${fieldCard.code} c=${fieldCard.controller} z=${fieldCard.zone} s=${fieldCard.sequence}; '
-      'idleActions=[$candidateDebug]',
-    );
+    final candidateDebug = !kDebugMode
+        ? ''
+        : select.selectedIdleActions
+            .map(
+              (action) =>
+                  '${action.type}:${action.sequence}:code=${action.code}:c=${action.controller}:z=${action.location}:s=${action.locationSequence}',
+            )
+            .join(', ');
+    if (kDebugMode) {
+      console.log(
+        'fieldActionsForCard: no match for code=${fieldCard.code} c=${fieldCard.controller} z=${fieldCard.zone} s=${fieldCard.sequence}; '
+        'idleActions=[$candidateDebug]',
+      );
+    }
   }
   return actions;
 }
@@ -330,7 +335,9 @@ void _dispatchResolvedAction(
   required FieldOverlayNotifier overlayN,
   bool closeZoneBrowser = false,
 }) {
-  console.log('dispatchResolvedAction: ${action.kind} ${action.label}');
+  if (kDebugMode) {
+    console.log('dispatchResolvedAction: ${action.kind} ${action.label}');
+  }
   if (!selectN.respondCurrentCommand(action.response)) {
     return;
   }
@@ -413,10 +420,12 @@ final fieldActionMenuProvider = Provider<List<ActionMenuEntry>>(
       return const [];
     }
     final cardInfo = boardN.getCardInfo(fieldCard.code);
-    console.log(
-      'buildFieldActionEntries: code=${fieldCard.code} '
-      'cardInfo=${cardInfo?.name ?? cardInfo}',
-    );
+    if (kDebugMode) {
+      console.log(
+        'buildFieldActionEntries: code=${fieldCard.code} '
+        'cardInfo=${cardInfo?.name ?? cardInfo}',
+      );
+    }
     return resolveFieldActions(fieldCard, select, board)
         .map(
           (action) => ActionMenuEntry(

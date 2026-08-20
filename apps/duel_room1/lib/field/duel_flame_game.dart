@@ -134,7 +134,20 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
 
     const res = _horizontalReserved;
     final availW = (vw - res * 2).clamp(1.0, vw);
-    final availH = (vh - _topReserved - _bottomReserved).clamp(1.0, vh);
+    // 预留量随视口高度收缩：横屏/矮视口下固定预留（230+116）可能
+    // 吃掉整个屏高，把 availH 钳到 1、zoom 锁死下限、棋盘缩成一条缝。
+    // 预留总量超过半屏时等比压缩，保证至少留一半高度给棋盘；
+    // 竖屏高视口（vh ≳ 692）下总预留不超半屏，行为不变。
+    var topReserved = _topReserved;
+    var bottomReserved = _bottomReserved;
+    final maxReserved = vh * 0.5;
+    final totalReserved = topReserved + bottomReserved;
+    if (totalReserved > maxReserved) {
+      final scale = maxReserved / totalReserved;
+      topReserved *= scale;
+      bottomReserved *= scale;
+    }
+    final availH = (vh - topReserved - bottomReserved).clamp(1.0, vh);
     final zoomW = availW / _boardContentWidth;
     final zoomH = availH / _boardContentHeight;
     final zoom = (zoomW < zoomH ? zoomW : zoomH).clamp(_minZoom, _maxZoom);
@@ -142,7 +155,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     camera.viewfinder.zoom = zoom;
     // 可见区中心相对视口中心的像素偏移，换算成世界坐标（除以 zoom）。
     // 水平预留对称，centerX = 0；y = (bottom - top)/2。
-    final centerY = (_bottomReserved - _topReserved) / (2 * zoom);
+    final centerY = (bottomReserved - topReserved) / (2 * zoom);
     camera.viewfinder.position = Vector2(0, centerY);
   }
 
@@ -171,12 +184,20 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     final opponentController = 1 - selfController;
     final slotRects = <String, Rect>{};
 
+    // 槽位尺寸与阶段灯偏移均为世界单位，输出到 widget 坐标系需乘以
+    // 相机 zoom（中心点已经 worldToWidget 完成 zoom 换算，是对的）。
+    // zoom 变化后 rect 随之变化，signature 覆盖 center 与 width/height，
+    // 会重新 emit。
+    final zoom = camera.viewfinder.zoom;
+    final slotW = DuelFieldLayout.slotWidth * zoom;
+    final slotH = DuelFieldLayout.slotHeight * zoom;
+
     void addRect(String zoneKey, double boardX, double boardY) {
       final center = worldToWidget(world.project3D(boardX, boardY));
       slotRects[zoneKey] = Rect.fromCenter(
         center: center,
-        width: DuelFieldLayout.slotWidth,
-        height: DuelFieldLayout.slotHeight,
+        width: slotW,
+        height: slotH,
       );
     }
 
@@ -211,13 +232,13 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
 
     final emz1Rect = Rect.fromCenter(
       center: worldToWidget(world.project3D(-84.0, 0)),
-      width: DuelFieldLayout.slotWidth,
-      height: DuelFieldLayout.slotHeight,
+      width: slotW,
+      height: slotH,
     );
     final emz2Rect = Rect.fromCenter(
       center: worldToWidget(world.project3D(84.0, 0)),
-      width: DuelFieldLayout.slotWidth,
-      height: DuelFieldLayout.slotHeight,
+      width: slotW,
+      height: slotH,
     );
     // EMZ 物理槽位双方镜像：己方 s5 ↔ 对手 s6（emz1），己方 s6 ↔ 对手 s5（emz2）。
     slotRects['${selfController}_4_5'] = emz1Rect;
@@ -238,11 +259,13 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
           )
         : Rect.fromCenter(
             center: Offset(
-              phaseReference.center.dx + DuelFieldLayout.phaseLampOffset.dx,
-              phaseReference.center.dy + DuelFieldLayout.phaseLampOffset.dy,
+              phaseReference.center.dx +
+                  DuelFieldLayout.phaseLampOffset.dx * zoom,
+              phaseReference.center.dy +
+                  DuelFieldLayout.phaseLampOffset.dy * zoom,
             ),
-            width: _phaseLampSize.width,
-            height: _phaseLampSize.height,
+            width: _phaseLampSize.width * zoom,
+            height: _phaseLampSize.height * zoom,
           );
 
     return PlaymatAnchorData(

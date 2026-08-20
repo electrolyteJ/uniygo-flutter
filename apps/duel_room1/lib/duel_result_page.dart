@@ -13,12 +13,14 @@ class DuelResultPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final didWin = result['didWin'] as bool;
-    final selfName = result['selfName'] as String;
-    final opponentName = result['opponentName'] as String;
-    final selfLp = result['selfLp'] as int;
-    final opponentLp = result['opponentLp'] as int;
-    final reason = result['reason'] as int;
+    // 防御性解析路由 extra：深链/热重载/生产端数据漂移可能缺字段，
+    // 裸 as 强转会直接 TypeError 崩溃，缺失时回退合理默认值。
+    final didWin = result['didWin'] as bool? ?? false;
+    final selfName = result['selfName'] as String? ?? '自己';
+    final opponentName = result['opponentName'] as String? ?? '对手';
+    final selfLp = result['selfLp'] as int? ?? 0;
+    final opponentLp = result['opponentLp'] as int? ?? 0;
+    final reason = result['reason'] as int?;
     final accent = didWin
         ? const Color(0xFFD7B65A)
         : const Color(0xFF7BA7D9);
@@ -85,7 +87,7 @@ class DuelResultPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      '结束原因：${_reasonText(reason)}',
+                      '结束原因：${reason == null ? '未知' : _reasonText(reason)}',
                       style: const TextStyle(
                         color: Colors.white54,
                         fontSize: 12,

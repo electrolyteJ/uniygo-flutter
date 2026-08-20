@@ -22,6 +22,7 @@ class CardDetailDrawer extends StatelessWidget {
     const panelDark = Color(0xF1080C14);
     // 高度由父级 Positioned(top/bottom) 约束决定，自适应屏幕：
     // 填满两张 PlayerStatusCard 之间的可用空间。
+    final resolvedCode = cardInfo?.code ?? cardCode ?? 0;
 
     return ClipRect(
       child: BackdropFilter(
@@ -68,15 +69,6 @@ class CardDetailDrawer extends StatelessWidget {
                         letterSpacing: 0.9,
                       ),
                     ),
-                    const Text(
-                      'LARGE',
-                      style: TextStyle(
-                        color: cyanGlow,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        fontFamily: 'Orbitron',
-                      ),
-                    ),
                     if (onClose != null)
                       GestureDetector(
                         onTap: onClose,
@@ -112,11 +104,20 @@ class CardDetailDrawer extends StatelessWidget {
                             ],
                           ),
                           clipBehavior: Clip.antiAlias,
-                          child: CardImage(
-                            code: cardInfo?.code ?? cardCode ?? 0,
-                            width: 206,
-                            height: 294,
-                          ),
+                          // 无有效卡密时不发请求，渲染静态占位
+                          child: resolvedCode > 0
+                              ? CardImage(
+                                  code: resolvedCode,
+                                  width: 206,
+                                  height: 294,
+                                )
+                              : const Center(
+                                  child: Icon(
+                                    Icons.image_not_supported_outlined,
+                                    color: Color(0xFF8B9BB4),
+                                    size: 40,
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 18),

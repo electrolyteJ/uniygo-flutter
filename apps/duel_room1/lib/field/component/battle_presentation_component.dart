@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
+import 'package:duelink/duelink.dart' show POS_DEFENSE;
 import 'package:flame/components.dart';
 import 'package:flame/text.dart';
 import 'package:flutter/material.dart';
@@ -32,6 +34,43 @@ class BattlePresentationComponent extends Component
   double _impactTime = 0;
   BattlePresentation? _lastPresentation;
   bool _wasInDamageStep = false;
+
+  // ── 光束渲染缓存 ──
+  // path / 渐变 shader / PathMetric 仅在攻守双方位置变化时重建，
+  // 避免每帧 LinearGradient.createShader + path.computeMetrics()。
+  static const _beamGradient = LinearGradient(
+    colors: [
+      Color(0x00FFF6AA),
+      Color(0xBBFFF6AA),
+      Color(0xFFF67B4B),
+      Color(0xB900F0FF),
+      Color(0x0000F0FF),
+    ],
+    stops: [0, 0.2, 0.5, 0.8, 1],
+  );
+  Path? _beamPath;
+  Shader? _beamShader;
+  ui.PathMetric? _beamMetric;
+  double _beamStartX = double.nan;
+  double _beamStartY = double.nan;
+  double _beamEndX = double.nan;
+  double _beamEndY = double.nan;
+
+  // 动态 pulse 线宽留在热路径：复用 Paint，每帧只改 strokeWidth/shader。
+  final Paint _beamGlowPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
+  static final _beamCorePaint = Paint()
+    ..color = const Color(0xFFFFF6D6).withValues(alpha: 0.95)
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeWidth = 3.2;
+  static final _projectileGlowPaint = Paint()
+    ..color = const Color(0xFFFFF6D6)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+  static final _projectileCorePaint = Paint()
+    ..color = const Color(0xFFFF7A59);
 
   /// 当前状态快照（widget 层经游戏推入）。
   FlameFieldSnapshot get _snapshot => world.game.snapshot;
@@ -69,16 +108,13 @@ class BattlePresentationComponent extends Component
     if (attacker == null) return;
 
     final defender = presentation.defenderZoneKey == null
-        ? _directAttackTarget(attacker, presentation.attackerZoneKey)
+        ? _directAttackTarget(presentation.attackerZoneKey)
         : world.worldPositionForZoneKey(presentation.defenderZoneKey!);
     if (defender == null) return;
 
     final start = Offset(attacker.x, attacker.y);
     final end = Offset(defender.x, defender.y);
-    final control = _beamControlPoint(start, end);
-    final path = Path()
-      ..moveTo(start.dx, start.dy)
-      ..quadraticBezierTo(control.dx, control.dy, end.dx, end.dy);
+    final path = _beamPathFor(start, end);
 
     _drawFocus(
       canvas,
@@ -136,12 +172,40 @@ class BattlePresentationComponent extends Component
     );
   }
 
-  Vector2 _directAttackTarget(Vector2 attacker, String attackerZoneKey) {
+  /// 直接攻击的目标点：攻击方的「棋盘坐标 x」+ 越过底/顶行的 y，再投影。
+  /// 注意必须取棋盘坐标（[DuelFieldWorld.boardPositionForZoneKey]），
+  /// 不能复用 render 里已投影的世界坐标，否则恢复 3D 投影后会二次投影错位。
+  Vector2? _directAttackTarget(String attackerZoneKey) {
+    final board = world.boardPositionForZoneKey(attackerZoneKey);
+    if (board == null) return null;
     final towardTop = _slotBelongsToSelf(attackerZoneKey);
     final targetY = towardTop
         ? -DuelFieldLayout.stY - 72
         : DuelFieldLayout.stY + 72;
-    return world.project3D(attacker.x, targetY);
+    return world.project3D(board.x, targetY);
+  }
+
+  /// 攻守位置不变时复用缓存的 beam path（同时刷新渐变 shader 与 PathMetric）。
+  Path _beamPathFor(Offset start, Offset end) {
+    var path = _beamPath;
+    if (path == null ||
+        start.dx != _beamStartX ||
+        start.dy != _beamStartY ||
+        end.dx != _beamEndX ||
+        end.dy != _beamEndY) {
+      _beamStartX = start.dx;
+      _beamStartY = start.dy;
+      _beamEndX = end.dx;
+      _beamEndY = end.dy;
+      final control = _beamControlPoint(start, end);
+      path = Path()
+        ..moveTo(start.dx, start.dy)
+        ..quadraticBezierTo(control.dx, control.dy, end.dx, end.dy);
+      _beamPath = path;
+      _beamShader = _beamGradient.createShader(path.getBounds().inflate(24));
+      _beamMetric = path.computeMetrics().firstOrNull;
+    }
+    return path;
   }
 
   bool _slotBelongsToSelf(String slotId) {
@@ -157,57 +221,27 @@ class BattlePresentationComponent extends Component
 
   void _drawBeam(Canvas canvas, Path path) {
     final pulse = 0.82 + (math.sin(_elapsed * 8) * 0.18);
-    final bounds = path.getBounds().inflate(24);
-    final gradient = LinearGradient(
-      colors: const [
-        Color(0x00FFF6AA),
-        Color(0xBBFFF6AA),
-        Color(0xFFF67B4B),
-        Color(0xB900F0FF),
-        Color(0x0000F0FF),
-      ],
-      stops: const [0, 0.2, 0.5, 0.8, 1],
-    );
 
     canvas.drawPath(
       path,
-      Paint()
-        ..shader = gradient.createShader(bounds)
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 12 * pulse
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+      _beamGlowPaint
+        ..shader = _beamShader
+        ..strokeWidth = 12 * pulse,
     );
 
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = const Color(0xFFFFF6D6).withValues(alpha: 0.95)
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 3.2,
-    );
+    canvas.drawPath(path, _beamCorePaint);
   }
 
   void _drawProjectile(Canvas canvas, Path path) {
-    final metric = path.computeMetrics().firstOrNull;
+    // PathMetric 随 path 缓存（见 _beamPathFor），每条 path 只取一次。
+    final metric = _beamMetric;
     if (metric == null) return;
     final progress = (_elapsed * 1.9) % 1;
     final tangent = metric.getTangentForOffset(metric.length * progress);
     if (tangent == null) return;
 
-    canvas.drawCircle(
-      tangent.position,
-      8,
-      Paint()
-        ..color = const Color(0xFFFFF6D6)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
-    );
-    canvas.drawCircle(
-      tangent.position,
-      3.4,
-      Paint()..color = const Color(0xFFFF7A59),
-    );
+    canvas.drawCircle(tangent.position, 8, _projectileGlowPaint);
+    canvas.drawCircle(tangent.position, 3.4, _projectileCorePaint);
   }
 
   void _drawImpact(Canvas canvas, Offset center, bool isDirectAttack) {
@@ -331,7 +365,7 @@ class BattlePresentationComponent extends Component
     if (attack == null && defense == null) {
       return 'ATK ?';
     }
-    final isDefense = position != null && (position & 0x0C) != 0;
+    final isDefense = position != null && (position & POS_DEFENSE) != 0;
     if (isDefense) {
       return 'DEF ${defense ?? '?'}';
     }

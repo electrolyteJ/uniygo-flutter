@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:biz/duel/models/select_state.dart';
-import 'package:flutter/widget_previews.dart';
 
 /// 选择提示层：放置提示横幅、就地选择操作栏或模态弹窗（三者互斥）。
 ///
@@ -197,11 +196,3 @@ class SelectPromptLayer extends StatelessWidget {
     );
   }
 }
-
-@Preview(
-  name: 'SelectPromptLayer',
-  size: Size(400, 60),
-  brightness: Brightness.dark,
-)
-Widget _previewSelectPromptLayer() =>
-    const SelectPromptLayer(mode: SelectPromptMode.none);

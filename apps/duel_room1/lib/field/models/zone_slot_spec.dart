@@ -75,28 +75,36 @@ class ZoneSlotSpec {
 
 /// 解析槽位的交互态（高亮 + 放置目标 key）。
 ///
-/// 语义与原 ZonesComponent._addSlot 内联逻辑一致：
-/// 已勾选 > 可选中 > 放置目标；遍历 [slotKeys] 取首个命中项。
+/// 优先级 checked > selectable > placeTarget，与 [slotKeys] 顺序无关：
+/// 循环内独立收集候选，循环后按优先级挑选（EMZ 槽位同时携带双方 key 时，
+/// 先命中的 placeTarget 不再挡住后续 selectable 升级高亮）。
 ({CardSlotHighlight highlight, String? placeTargetKey}) resolveSlotInteraction(
   FlameFieldSnapshot snapshot,
   List<String> slotKeys,
 ) {
-  var highlight = CardSlotHighlight.none;
+  var selectable = false;
   String? placeTargetKey;
   for (final key in slotKeys) {
     if (snapshot.inlineSelectedFieldKeys.contains(key)) {
       return (highlight: CardSlotHighlight.checked, placeTargetKey: null);
     }
-    if (highlight == CardSlotHighlight.none) {
-      if (snapshot.inlineSelectableFieldKeys.contains(key)) {
-        highlight = CardSlotHighlight.selectable;
-      } else if (snapshot.placeTargetFieldKeys.contains(key)) {
-        highlight = CardSlotHighlight.placeTarget;
-        placeTargetKey = key;
-      }
+    if (snapshot.inlineSelectableFieldKeys.contains(key)) {
+      selectable = true;
+    } else if (placeTargetKey == null &&
+        snapshot.placeTargetFieldKeys.contains(key)) {
+      placeTargetKey = key;
     }
   }
-  return (highlight: highlight, placeTargetKey: placeTargetKey);
+  if (selectable) {
+    return (highlight: CardSlotHighlight.selectable, placeTargetKey: null);
+  }
+  if (placeTargetKey != null) {
+    return (
+      highlight: CardSlotHighlight.placeTarget,
+      placeTargetKey: placeTargetKey,
+    );
+  }
+  return (highlight: CardSlotHighlight.none, placeTargetKey: null);
 }
 
 /// 场地全部 32 个槽位的静态布局 + 动态解析闭包。

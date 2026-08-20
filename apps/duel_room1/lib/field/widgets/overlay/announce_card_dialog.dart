@@ -25,6 +25,7 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
   final TextEditingController _controller = TextEditingController();
   List<pkg.CardInfo> _results = const <pkg.CardInfo>[];
   bool _isSearching = false;
+  bool _searchFailed = false;
   String _activeQuery = '';
   int _searchToken = 0;
   Timer? _debounce;
@@ -49,6 +50,7 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
     setState(() {
       _activeQuery = query;
       _isSearching = query.isNotEmpty;
+      _searchFailed = false;
       if (query.isEmpty) {
         _results = const <pkg.CardInfo>[];
       }
@@ -56,14 +58,27 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
     if (query.isEmpty) {
       return;
     }
-    final results = await widget.onSearch(query);
-    if (!mounted || token != _searchToken) {
-      return;
+    try {
+      final results = await widget.onSearch(query);
+      if (!mounted || token != _searchToken) {
+        return;
+      }
+      setState(() => _results = results);
+    } catch (_) {
+      // 搜索失败（如网络异常）：清空结果并展示错误提示，避免弹窗卡在加载态
+      if (!mounted || token != _searchToken) {
+        return;
+      }
+      setState(() {
+        _results = const <pkg.CardInfo>[];
+        _searchFailed = true;
+      });
+    } finally {
+      // 无论成功失败都要结束转圈；组件已卸载或已有新搜索时跳过
+      if (mounted && token == _searchToken) {
+        setState(() => _isSearching = false);
+      }
     }
-    setState(() {
-      _isSearching = false;
-      _results = results;
-    });
   }
 
   @override
@@ -178,6 +193,18 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
     }
     if (_isSearching) {
       return const Center(child: CircularProgressIndicator());
+    }
+    if (_searchFailed) {
+      return const Center(
+        child: Text(
+          '搜索失败，请稍后重试',
+          style: TextStyle(
+            color: Color(0xFF70859A),
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
     }
     if (_results.isEmpty) {
       return const Center(

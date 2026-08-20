@@ -44,8 +44,6 @@ dependencies:
   provider: ^6.1.2
   service_loader:
     path: ../../packages/service_loader
-  cardlive:
-    path: ../cardlive
   ygo_data:
     path: ../../packages/ygo_data
   ygo_card_mycard:

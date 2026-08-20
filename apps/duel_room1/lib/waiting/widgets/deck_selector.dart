@@ -1,3 +1,4 @@
+import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 
 import 'package:ygo_data/deck_info.dart';
@@ -5,8 +6,14 @@ import 'package:ygo_data/deck_info.dart';
 class DeckSelector extends StatelessWidget {
   final bool enabled;
   final List<DeckInfo> decks;
+
+  /// 卡组列表首载是否仍在进行（区分「加载中」与「真空」）。
+  final bool deckListLoading;
   final String? selectedDeckName;
-  final int mySlot;
+
+  /// 自身玩家类型（非观战即决斗者，tag 模式座位 2/3 为
+  /// player3/player4，同样算决斗者）。
+  final PlayerType selfType;
   final ValueChanged<String?>? onSelectDeck;
   final VoidCallback? onEditDeck;
   final List<String>? invalidationResult;
@@ -15,8 +22,9 @@ class DeckSelector extends StatelessWidget {
     super.key,
     this.enabled = true,
     required this.decks,
+    this.deckListLoading = false,
     required this.selectedDeckName,
-    required this.mySlot,
+    required this.selfType,
     required this.onSelectDeck,
     this.onEditDeck,
     this.invalidationResult,
@@ -25,7 +33,8 @@ class DeckSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final invalid = invalidationResult?.isNotEmpty == true;
-    final isPlayer = mySlot >= 0 && mySlot <= 1;
+    // 决斗者判断按身份而非座位号：tag 模式座位 2/3 也是决斗者。
+    final isPlayer = selfType != PlayerType.observer;
     final hasSelectedDeck =
         selectedDeckName != null &&
         decks.any((d) => d.deckName == selectedDeckName);
@@ -53,7 +62,8 @@ class DeckSelector extends StatelessWidget {
           const SizedBox(height: 8),
           if (decks.isEmpty)
             Text(
-              '没有可用卡组，请先在主页创建卡组',
+              // 首载进行中与「真空」区分，避免加载期间闪空提示。
+              deckListLoading ? '卡组加载中…' : '没有可用卡组，请先在主页创建卡组',
               style: TextStyle(color: Colors.blueGrey.shade500, fontSize: 12),
             )
           else
@@ -65,7 +75,9 @@ class DeckSelector extends StatelessWidget {
                 border: Border.all(color: Colors.blueGrey.shade600),
               ),
               child: DropdownButton<String>(
-                value: selectedDeckName,
+                // 卡组重命名/删除后所选名可能已不在列表中，
+                // value 逃逸会触发 DropdownButton 断言，逃逸时回退为未选中。
+                value: hasSelectedDeck ? selectedDeckName : null,
                 isExpanded: true,
                 underline: const SizedBox.shrink(),
                 dropdownColor: Colors.blueGrey.shade800,
@@ -79,8 +91,7 @@ class DeckSelector extends StatelessWidget {
                 onChanged: enabled ? onSelectDeck : null,
               ),
             ),
-          if (selectedDeckName != null &&
-              decks.any((d) => d.deckName == selectedDeckName))
+          if (hasSelectedDeck)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
@@ -160,7 +171,10 @@ class DeckSelector extends StatelessWidget {
                 ),
               ),
             ),
-          if (!invalid)
+          // invalidationResult 三态：非空=不合规（上方红条），
+          // 空列表=校验通过，null=未校验（房间未开启卡组检查或禁限表
+          // 不可用，由服务端提交时兜底）——未校验给中性提示，不冒充合规。
+          if (!invalid && invalidationResult != null)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Row(
@@ -175,6 +189,27 @@ class DeckSelector extends StatelessWidget {
                     '卡组合规',
                     style: TextStyle(
                       color: Colors.green.shade400,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (invalidationResult == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.help_outline,
+                    size: 14,
+                    color: Colors.blueGrey.shade400,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '卡组未校验',
+                    style: TextStyle(
+                      color: Colors.blueGrey.shade400,
                       fontSize: 12,
                     ),
                   ),

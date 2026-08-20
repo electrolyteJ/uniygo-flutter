@@ -1,4 +1,4 @@
-import 'dart:developer' as console;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -43,15 +43,13 @@ class _CardSelectorState extends State<CardSelector> {
   @override
   Widget build(BuildContext context) {
     final select = widget.select;
-    console.log(
-      'CardSelector build: ${select.options.length} options, min=${select.min}, max=${select.max}',
-    );
     return LayoutBuilder(
       builder: (context, constraints) {
         const itemWidth = 108.0;
         final count = select.options.length;
+        // 下界不能超过 maxWidth，否则窄屏（<~388px）下 clamp 抛 ArgumentError
         final panelWidth = (itemWidth * count + 32.0).clamp(
-          itemWidth * 3 + 32.0,
+          math.min<double>(itemWidth * 3 + 32.0, constraints.maxWidth),
           constraints.maxWidth,
         );
         return Container(

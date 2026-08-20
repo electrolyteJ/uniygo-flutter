@@ -30,7 +30,7 @@ class HandActionMenu extends StatelessWidget {
             border: Border.all(color: const Color(0xFF00F0FF), width: 1.4),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00F0FF).withOpacity(0.25),
+                color: const Color(0xFF00F0FF).withValues(alpha: 0.25),
                 blurRadius: 28,
               ),
             ],

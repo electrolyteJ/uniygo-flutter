@@ -4,10 +4,10 @@ import 'package:ygo_data/card_info.dart';
 import 'package:ygo_data/lf_table.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 import 'package:ygo_data/ygo_data.dart';
-import '../service/script_service.dart';
+import 'service/script_service.dart';
 import 'package:cardlive/cardlive.dart';
-import '../widgets/card_animation.dart';
-import '../widgets/card_detail.dart';
+import 'widgets/card_animation.dart';
+import 'widgets/card_detail.dart';
 
 class CardListPage extends StatefulWidget {
   const CardListPage({super.key});

@@ -4,16 +4,15 @@ import 'package:biz/duel/chat/duel_chat_state.dart';
 import 'package:flutter/material.dart';
 
 import 'package:biz/duel/models/chat_message.dart';
-import 'package:flutter/widget_previews.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// 聊天浮窗停靠几何：与场地页 DuelLogDrawer（debuglog UI）同位
-/// （top:126, right:16）。由 DuelRoomPage 负责停靠定位；
-/// 等待室弹窗据此预留右侧空间避免重叠。
-const double kChatDockTop = 126.0;
+/// 聊天浮窗停靠几何：右下角（bottom:16, right:16）。由 DuelRoomPage
+/// 负责停靠定位；日志抽屉 DuelLogDrawer 锚在聊天面板顶边之上
+///（不再固定 top:126），等待室弹窗据此预留右侧空间避免重叠。
 const double kChatDockRight = 16.0;
 const double kChatDockBottom = 16.0;
 const double kChatDockWidth = 320.0;
+const double kChatDockGap = 8.0;
 
 /// 聊天面板：房间页右侧的独立浮窗，直连房间 scope 的 duelChatProvider
 ///（消息列表/发送）。需在房间 ProviderScope 内使用。
@@ -74,8 +73,11 @@ class _ChatPanelState extends ConsumerState<ChatPanel> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(duelChatProvider.select((s) => s.messages.length), (prev, next) {
-      if (next != prev) _scrollToBottom();
+    // 监听消息列表本身（不可变替换，新消息必然产生新实例）：
+    // 不能选 messages.length——DuelChatNotifier 有 500 条上限，
+    // 到顶后 length 恒定，自动滚动会永久失效。
+    ref.listen(duelChatProvider.select((s) => s.messages), (prev, next) {
+      _scrollToBottom();
     });
     final chatCtl = ref.read(duelChatProvider.notifier);
     final chat = ref.watch(duelChatProvider);
@@ -210,6 +212,3 @@ class _ChatPanelState extends ConsumerState<ChatPanel> {
     );
   }
 }
-
-@Preview(name: 'ChatPanel', size: Size(360, 400), brightness: Brightness.dark)
-Widget _previewChatPanel() => const ChatPanel();

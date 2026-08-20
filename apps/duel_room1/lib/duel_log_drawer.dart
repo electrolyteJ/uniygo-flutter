@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/widget_previews.dart';
 
 class DuelLogDrawer extends StatelessWidget {
   final List<String> logs;
@@ -56,7 +55,7 @@ class DuelLogDrawer extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.2),
+                      color: Colors.red.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(2),
                     ),
                     child: const Text(
@@ -71,13 +70,12 @@ class DuelLogDrawer extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 6),
-              // Flexible(loose)：父级给定有限高度（房间页右侧固定高停靠）时
-              // 填满并滚动；日志少时收缩。不能用 shrinkWrap 裸列表——
-              // 日志多时会按内容撑高、顶破父级高度（RenderFlex overflow）。
+              // Flexible(loose) + 惰性列表：父级给定有限高度（房间页右侧
+              // 固定高停靠）时填满并滚动。不能加 shrinkWrap——那会强制
+              // 全量构建所有日志项（biz 侧 duelLogs 无上限），长对局必卡。
               Flexible(
                 fit: FlexFit.loose,
                 child: ListView.separated(
-                  shrinkWrap: true,
                   physics: const ClampingScrollPhysics(),
                   itemCount: logs.isEmpty ? 1 : logs.length,
                   separatorBuilder: (context, index) => const Divider(
@@ -119,10 +117,3 @@ class DuelLogDrawer extends StatelessWidget {
     );
   }
 }
-
-@Preview(
-  name: 'DuelLogDrawer',
-  size: Size(400, 500),
-  brightness: Brightness.dark,
-)
-Widget _previewDuelLogDrawer() => DuelLogDrawer(logs: const []);

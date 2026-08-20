@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widget_previews.dart';
 
 import 'overlay_panel.dart';
 import 'select_turn.dart';
@@ -76,11 +75,3 @@ class _TurnSelectPanelState extends State<TurnSelectPanel> {
     );
   }
 }
-
-@Preview(
-  name: 'TurnSelectPanel',
-  size: Size(420, 240),
-  brightness: Brightness.dark,
-)
-Widget _previewTurnSelectPanel() =>
-    TurnSelectPanel(enabled: true, onSendTp: (_) {});

@@ -67,7 +67,6 @@ class ZoneBrowserModal extends StatelessWidget {
               child: GestureDetector(
                 onTap: () {},
                 child: Container(
-                  width: 720,
                   constraints: const BoxConstraints(
                     maxWidth: 720,
                     maxHeight: 560,

@@ -38,11 +38,24 @@ enum PlayerType {
   unknown(-1),
   player1(0),
   player2(1),
+
+  /// tag（双打）模式的 2/3 号决斗位。YGOPro 协议在 tag 模式下
+  /// 直接以下标 2/3 上报座位，曾落入 [unknown] 导致这两个座位
+  /// 被各 UI 误判为非决斗者。
+  player3(2),
+  player4(3),
   observer(7);
 
   final int slot;
 
   const PlayerType(this.slot);
+
+  /// 是否为决斗位（非观战、非未知）。
+  bool get isDuelist =>
+      this == PlayerType.player1 ||
+      this == PlayerType.player2 ||
+      this == PlayerType.player3 ||
+      this == PlayerType.player4;
 
   static PlayerType of(int value) {
     switch (value) {
@@ -50,6 +63,10 @@ enum PlayerType {
         return PlayerType.player1;
       case 1:
         return PlayerType.player2;
+      case 2:
+        return PlayerType.player3;
+      case 3:
+        return PlayerType.player4;
       case 7:
         return PlayerType.observer;
       default:

@@ -14,7 +14,6 @@ class PositionSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final options = select?.options ?? const [];
-    final code = options.isNotEmpty ? options.first.code : 0;
     return LayoutBuilder(
       builder: (context, constraints) {
         const itemWidth = 108.0;
@@ -50,7 +49,7 @@ class PositionSelector extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           for (final option in options)
-                            _buildPositionItem(option, code),
+                            _buildPositionItem(option),
                         ],
                       )
                     : SingleChildScrollView(
@@ -58,7 +57,7 @@ class PositionSelector extends StatelessWidget {
                         child: Row(
                           children: [
                             for (final option in options)
-                              _buildPositionItem(option, code),
+                              _buildPositionItem(option),
                           ],
                         ),
                       ),
@@ -70,7 +69,7 @@ class PositionSelector extends StatelessWidget {
     );
   }
 
-  Widget _buildPositionItem(SelectOption option, int code) {
+  Widget _buildPositionItem(SelectOption option) {
     final position = option.position ?? 0;
     return GestureDetector(
       onTap: () => onSelect(position),
@@ -100,7 +99,9 @@ class PositionSelector extends StatelessWidget {
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: Center(child: _buildPreviewCard(code, position)),
+                    child: Center(
+                      child: _buildPreviewCard(option.code, position),
+                    ),
                   ),
                 ],
               ),

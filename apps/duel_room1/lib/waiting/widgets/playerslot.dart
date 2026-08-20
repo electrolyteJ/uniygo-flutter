@@ -1,4 +1,5 @@
 import 'package:duelink/duelink.dart';
+// characters 扩展由 flutter/material 间接导出，无需显式 import。
 import 'package:flutter/material.dart';
 
 /// 玩家槽位：头像/名称/房主标记/准备状态/踢人。
@@ -20,6 +21,13 @@ class PlayerSlot extends StatelessWidget {
     this.canKick = false,
     required this.onKick,
   });
+
+  /// 头像首字符：空名回退 '?'；按字素簇取首字符，
+  /// 避免按 UTF-16 码元切下标 0 截断 emoji/生僻字的代理对。
+  static String _initialOf(String? name) {
+    if (name == null || name.isEmpty) return '?';
+    return name.characters.first.toUpperCase();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +52,7 @@ class PlayerSlot extends StatelessWidget {
                     ? Colors.amber.shade700
                     : Colors.teal.shade700,
                 child: Text(
-                  (player?.name ?? '?')[0].toUpperCase(),
+                  _initialOf(player?.name),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,

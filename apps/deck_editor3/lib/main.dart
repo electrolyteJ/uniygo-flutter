@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:deck_editor3/service_loader.registrations.g.dart';
-import 'pages/card_list_page.dart';
+import 'card_list_page.dart';
 
 void main() {
   Animate.restartOnHotReload = true;

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer' as console;
 import 'dart:ui';
 
 import 'package:biz/service_providers.dart';
@@ -22,6 +21,7 @@ import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:duel_room1/field/duel_flame_game.dart';
+import 'package:duel_room1/field/models/duel_field_layout.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:duel_room1/field/flame_playmat_field.dart';
 import 'package:duel_room1/field/widgets/hud/hand_cards_bar.dart';
@@ -34,6 +34,7 @@ import 'package:duel_room1/field/widgets/menus/field_action_popover.dart';
 import 'package:duel_room1/field/widgets/menus/hand_action_popover.dart';
 import 'package:duel_room1/field/widgets/menus/phase_action_menu.dart';
 import 'package:duel_room1/field/widgets/overlay/announce_card_dialog.dart';
+import 'package:duel_room1/field/widgets/overlay/announce_choice_dialog.dart';
 import 'package:duel_room1/field/widgets/overlay/card_selector.dart';
 import 'package:duel_room1/field/widgets/overlay/chain_stack_overlay.dart';
 import 'package:duel_room1/field/widgets/overlay/confirm_cards_dialog.dart';
@@ -109,10 +110,10 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   void initState() {
     super.initState();
     _scheduleTurnOrderHint();
-    _boardSub = ref.listenManual(duelFieldProvider, (_, __) => _pushSnapshot());
+    _boardSub = ref.listenManual(duelFieldProvider, (_, _) => _pushSnapshot());
     _selectSub = ref.listenManual(
       selectWindowProvider,
-      (_, __) => _pushSnapshot(),
+      (_, _) => _pushSnapshot(),
     );
   }
 
@@ -231,10 +232,8 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   Widget _buildBattlefield() {
     // 快照推送已移至 listenManual 订阅（见 initState）；
     // build 只负责挂载 GameWidget，不在此推状态。
-    return FlamePlaymatField(
-      game: _ensureFlameGame(),
-      onAnchorsChanged: _handleAnchorsChanged,
-    );
+    // onAnchorsChanged 在 _ensureFlameGame 构造游戏时注入，组件不重复传。
+    return FlamePlaymatField(game: _ensureFlameGame());
   }
 
   Rect _phaseLampRect(Size viewport) {
@@ -244,8 +243,16 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     }
     // anchors 未就绪时的兜底：与 DuelFieldLayout.phaseLampFallbackRatio 对齐。
     // x=0.88 对应 self_grave（我方墓地，棋盘右区 colX[6] Monster 行）；y=0.53 对应 Monster 行上沿附近。
-    final fallback = Offset(viewport.width * 0.88, viewport.height * 0.53);
-    return Rect.fromLTWH(fallback.dx, fallback.dy, 132, 44);
+    final fallback = Offset(
+      viewport.width * DuelFieldLayout.phaseLampFallbackRatio.dx,
+      viewport.height * DuelFieldLayout.phaseLampFallbackRatio.dy,
+    );
+    return Rect.fromLTWH(
+      fallback.dx,
+      fallback.dy,
+      DuelFieldLayout.phaseLampSize.width,
+      DuelFieldLayout.phaseLampSize.height,
+    );
   }
 
   Rect? _fieldCardRect(Size viewport, FieldCard fieldCard) {
@@ -254,24 +261,24 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       return anchoredRect;
     }
     final fallback = fieldCardAnchor(viewport, fieldCard, _board.myController);
-    return Rect.fromCenter(center: fallback, width: 68, height: 96);
+    return Rect.fromCenter(
+      center: fallback,
+      width: DuelFieldLayout.slotWidth,
+      height: DuelFieldLayout.slotHeight,
+    );
   }
 
-  Widget _buildTopHud(DuelHudSlice hud) {
+  Widget _buildTopHud(DuelHudSlice hud, List<PlayerInfo> players) {
     final mc = hud.myController;
     final isMyTurn = hud.currentPlayer == mc;
-    final selfName =
-        widget.players
-            .where((p) => p.pos == mc)
-            .map((p) => p.name)
-            .firstOrNull ??
-        '我方';
-    final oppName =
-        widget.players
-            .where((p) => p.pos == 1 - mc)
-            .map((p) => p.name)
-            .firstOrNull ??
-        '对方';
+    // 引擎玩家编号 → 队伍 → 座位名字：tag（双打）模式座位 0-3、
+    // 队伍为 pos % 2，引擎消息里的玩家编号是队伍号，同队队友名字
+    // 以 " / " 连接展示；1v1 每队恰一座位，与旧的 pos 精确匹配一致。
+    // 见 biz 的 teamOfSeat / teamDisplayName。
+    // players 取 DuelFieldState.players（局中最新），未下发时退回 widget.players。
+    final effectivePlayers = players.isNotEmpty ? players : widget.players;
+    final selfName = teamDisplayName(mc, effectivePlayers, fallback: '我方');
+    final oppName = teamDisplayName(1 - mc, effectivePlayers, fallback: '对方');
     // 当前回合玩家的剩余时间
     final turnTimeLeft = hud.currentPlayer == mc
         ? hud.selfTimeLeft
@@ -508,6 +515,27 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
           onSelect: (code) =>
               _selectN.respondAnnounceCard(code, generation: generation),
           onInspectCard: onInspectCard,
+        );
+      case SelectType.announceNumber:
+        return AnnounceChoiceDialog(
+          title: '宣言数值',
+          options: select.options,
+          onSelect: (index) =>
+              _selectN.respondAnnounceNumber(index, generation: generation),
+        );
+      case SelectType.announceAttrib:
+        return AnnounceChoiceDialog(
+          title: '宣言属性',
+          options: select.options,
+          onSelect: (index) =>
+              _selectN.respondAnnounceAttrib(index, generation: generation),
+        );
+      case SelectType.announceRace:
+        return AnnounceChoiceDialog(
+          title: '宣言种族',
+          options: select.options,
+          onSelect: (index) =>
+              _selectN.respondAnnounceRace(index, generation: generation),
         );
       case SelectType.sum:
         return CardSelector(
@@ -754,8 +782,10 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
           ),
         ),
         Consumer(
-          builder: (context, ref, _) =>
-              _buildTopHud(ref.watch(duelFieldProvider.select(selectHudSlice))),
+          builder: (context, ref, _) => _buildTopHud(
+            ref.watch(duelFieldProvider.select(selectHudSlice)),
+            ref.watch(duelFieldProvider.select((s) => s.players)),
+          ),
         ),
         Consumer(
           builder: (context, ref, _) {
@@ -836,6 +866,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
                   owner: s.floatPreviewOwner,
                   isExtra: s.floatPreviewIsExtra,
                   codes: s.floatPreviewCodes,
+                  index: s.floatPreviewIndex,
                 ),
               ),
             );
@@ -922,8 +953,13 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   }
 
   Widget _buildFloatPreview(
-    ({bool isFloat, int? owner, bool isExtra, List<int> codes}) preview,
+    ({bool isFloat, int? owner, bool isExtra, List<int> codes, int index})
+    preview,
   ) {
+    // 下标越界（codes 变短等瞬态）时不渲染，避免 RangeError。
+    if (preview.index >= preview.codes.length) {
+      return const SizedBox.shrink();
+    }
     final isSelf = preview.owner == _board.myController;
     final zoneKey = preview.isExtra
         ? (isSelf ? 'self_extra' : 'opp_extra')
@@ -951,11 +987,13 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       right: right,
       child: ConfirmFloatingCard(
         codes: preview.codes,
+        // 当前展示下标由 notifier 计时推进（每卡 750ms + 500ms 收尾），
+        // 组件自身不再持有逐张计时与自动关闭逻辑。
+        currentIndex: preview.index,
         title: preview.isExtra ? '额外卡组顶部' : '卡组顶部',
         cardNameBuilder: (code) =>
             _boardN.getCardInfo(code)?.name ?? 'Card #$code',
         onDismiss: () => _confirmN.dismissConfirmPanel(),
-        autoCloseSeconds: 0.75,
       ),
     );
   }
@@ -1057,11 +1095,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     final actions = fieldCard == null
         ? const <PlaymatResolvedAction>[]
         : resolveFieldActions(fieldCard, _select, _board);
-    console.log(
-      'handleFieldCardTap: card='
-      '${fieldCard == null ? 'null' : 'code=${fieldCard.code} c=${fieldCard.controller} z=${fieldCard.zone} s=${fieldCard.sequence} pos=${fieldCard.position}'} '
-      'actions=[${actions.map((action) => '${action.kind.name}:${action.response}:c=${action.controller}:z=${action.location}:s=${action.sequence}:code=${action.code}').join(', ')}]',
-    );
     _overlayN.applyFieldCardSelection(
       fieldCard == null || actions.isEmpty ? null : fieldCard,
     );

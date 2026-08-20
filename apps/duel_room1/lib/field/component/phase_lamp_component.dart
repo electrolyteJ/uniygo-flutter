@@ -5,10 +5,13 @@ import 'package:flame/text.dart';
 import 'package:flutter/material.dart';
 import 'package:duel_room1/field/duel_field_world.dart';
 
-/// Flame 版阶段指示灯：渲染在 [DuelFieldWorld] 中，紧贴 self_removed（Banish / 除外）
+/// Flame 版阶段指示灯：渲染在 [DuelFieldWorld] 中，紧贴 self_grave（墓地）
 /// 卡槽的右上角。
 ///
-/// 宽高不写死，根据阶段名文本实际测量值自适应。
+/// 尺寸固定为 [DuelFieldLayout.phaseLampSize]：duel_flame_game 的锚点上报
+/// 按该尺寸计算，随文本自适应会让 Flame 组件与 Flutter 侧锚点错位。
+/// 阶段名超出可用宽度时按比例缩小字号（onLoad 对全部阶段名测量一次，
+/// 各阶段字号一致）；不超宽时保持原字号，视觉不变。
 /// 视觉与 Flutter 侧 [PhaseLamp] widget 保持一致（深色玻璃底、青色指示点、
 /// 阶段名 + CURRENT PHASE 副标题）。点击触发 [onTap]（通常为切换阶段菜单）。
 class PhaseLampComponent extends PositionComponent
@@ -26,10 +29,9 @@ class PhaseLampComponent extends PositionComponent
       DuelFieldLayout.phaseLampRefBoardY; // 100 (monsterY)
 
   // ── 内边距与布局常量 ──
+  // （垂直方向无 padding 常量：固定高度下文本块在 render 中垂直居中）
   static const _padLeft = 14.0;
   static const _padRight = 14.0;
-  static const _padTop = 8.0;
-  static const _padBottom = 8.0;
   static const _dotRadius = 7.0; // 外发光半径
   static const _dotSolidRadius = 5.0; // 实心点半径
   static const _dotTextGap = 6.0; // 圆点右沿到文本起始的间距
@@ -59,24 +61,55 @@ class PhaseLampComponent extends PositionComponent
     ),
   );
 
+  /// 固定尺寸下文本的可用宽度（扣除左边距/圆点/间距与右边距）。
+  static double get _textMaxWidth =>
+      DuelFieldLayout.phaseLampWidth - _textStartX - _padRight;
+
+  // 固定尺寸下相对锚点卡槽中心的偏移（几何推导见 DuelFieldLayout.phaseLampOffset）。
+  static final _offsetVector = Vector2(
+    DuelFieldLayout.phaseLampOffset.dx,
+    DuelFieldLayout.phaseLampOffset.dy,
+  );
+
+  /// 超宽时使用的缩放画笔（null = 原字号即可放下，保持逐像素一致）。
+  TextPaint? _scaledNamePaint;
+  TextPaint? _scaledSubtitlePaint;
+
+  TextPaint get _namePaint => _scaledNamePaint ?? _phaseNamePaint;
+  TextPaint get _subPaint => _scaledSubtitlePaint ?? _subtitlePaint;
+
   bool _enabled = false;
 
+  /// 上次投影锚点标量：update 中先比标量，未变则不分配/赋值
+  /// （原实现每帧 _projectedPosition 分配 3-4 个 Vector2 只为发现位置没变；
+  /// 位置只依赖固定 size 与投影锚点）。
+  double _lastAnchorX = double.nan;
+  double _lastAnchorY = double.nan;
+
   PhaseLampComponent({this.onTap, this.enabledGetter})
-    : super(anchor: Anchor.center);
+    : super(
+        anchor: Anchor.center,
+        size: Vector2(
+          DuelFieldLayout.phaseLampWidth,
+          DuelFieldLayout.phaseLampHeight,
+        ),
+      );
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    _updateSize();
-    position = _projectedPosition();
+    _fitTextScale();
+    _syncPosition();
     _refreshEnabled();
   }
 
   /// 快照变更后由 [DuelFieldWorld.refreshPhaseLamp] 调用：
-  /// 重测阶段名尺寸并刷新可点击态（替代旧实现的 store addListener）。
+  /// 重测字号缩放（覆盖字体晚解析的场景，等同旧实现的重测时机）
+  /// 并刷新可点击态（替代旧实现的 store addListener）。
+  /// 尺寸固定且字号缩放对所有阶段名预算过，阶段切换无需重排。
   void notifyStateChanged() {
     if (!isLoaded) return;
-    _updateSize();
+    _fitTextScale();
     _refreshEnabled();
   }
 
@@ -84,42 +117,48 @@ class PhaseLampComponent extends PositionComponent
     _enabled = enabledGetter?.call() ?? false;
   }
 
-  /// 根据当前阶段名文本的实际测量值更新组件尺寸。
-  void _updateSize() {
-    final name = _phaseName(_phase);
-    final nameMetrics = _phaseNamePaint.getLineMetrics(name);
-    final subMetrics = _subtitlePaint.getLineMetrics('CURRENT PHASE');
-
-    final textWidth = nameMetrics.width > subMetrics.width
-        ? nameMetrics.width
-        : subMetrics.width;
-    final textHeight = nameMetrics.height + subMetrics.height;
-
-    size = Vector2(
-      _textStartX + textWidth + _padRight,
-      _padTop + textHeight + _padBottom,
+  /// 固定 132pt 宽内放下最长的阶段名：对全部阶段名与副标题测量一次，
+  /// 超宽则按同一因子缩小字号（各阶段字号一致，不跳动）。
+  void _fitTextScale() {
+    var textWidth = _subtitlePaint.getLineMetrics('CURRENT PHASE').width;
+    for (final phase in DuelPhase.values) {
+      final w = _phaseNamePaint.getLineMetrics(_phaseName(phase)).width;
+      if (w > textWidth) textWidth = w;
+    }
+    if (textWidth <= _textMaxWidth) return;
+    final scale = _textMaxWidth / textWidth;
+    _scaledNamePaint = TextPaint(
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: 11 * scale,
+        fontWeight: FontWeight.w900,
+        fontFamily: 'Orbitron',
+        letterSpacing: 0.6 * scale,
+      ),
+    );
+    _scaledSubtitlePaint = TextPaint(
+      style: TextStyle(
+        color: const Color(0xFF8B9BB4),
+        fontSize: 10 * scale,
+        fontWeight: FontWeight.w800,
+        fontFamily: 'Orbitron',
+      ),
     );
   }
 
-  /// 根据实际尺寸动态计算偏移，使灯的左下角始终落在锚点卡槽右上角
-  /// 外侧 [DuelFieldLayout.phaseLampGap] 像素处。
-  Vector2 _projectedPosition() {
-    final w = size.x;
-    final h = size.y;
-    final dx =
-        (DuelFieldLayout.slotWidth + w) / 2 + DuelFieldLayout.phaseLampGap;
-    final dy =
-        -((DuelFieldLayout.slotHeight + h) / 2 + DuelFieldLayout.phaseLampGap);
-    return world.project3D(_refBoardX, _refBoardY) + Vector2(dx, dy);
+  /// 投影锚点 + 固定偏移得到灯中心位置；锚点标量未变时不分配/赋值。
+  void _syncPosition() {
+    final anchor = world.project3D(_refBoardX, _refBoardY);
+    if (anchor.x == _lastAnchorX && anchor.y == _lastAnchorY) return;
+    _lastAnchorX = anchor.x;
+    _lastAnchorY = anchor.y;
+    position = anchor + _offsetVector;
   }
 
   @override
   void update(double dt) {
     super.update(dt);
-    final newPos = _projectedPosition();
-    if ((position - newPos).length > 0.01) {
-      position = newPos;
-    }
+    _syncPosition();
   }
 
   @override
@@ -173,18 +212,18 @@ class PhaseLampComponent extends PositionComponent
 
     // 阶段名 + 副标题（文本块垂直居中）
     final name = _phaseName(_phase);
-    final nameMetrics = _phaseNamePaint.getLineMetrics(name);
-    final subMetrics = _subtitlePaint.getLineMetrics('CURRENT PHASE');
+    final nameMetrics = _namePaint.getLineMetrics(name);
+    final subMetrics = _subPaint.getLineMetrics('CURRENT PHASE');
     final blockHeight = nameMetrics.height + subMetrics.height;
     final textTop = -blockHeight / 2;
 
-    _phaseNamePaint.render(
+    _namePaint.render(
       canvas,
       name,
       Vector2(-w / 2 + _textStartX, textTop),
       anchor: Anchor.topLeft,
     );
-    _subtitlePaint.render(
+    _subPaint.render(
       canvas,
       'CURRENT PHASE',
       Vector2(-w / 2 + _textStartX, textTop + nameMetrics.height),

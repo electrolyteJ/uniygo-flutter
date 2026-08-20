@@ -11,7 +11,6 @@ import 'package:biz/duel/field/field_overlay_state.dart';
 import 'package:biz/duel/field/select_window_state.dart';
 import 'package:biz/duel/models/select_state.dart';
 import 'package:duelink/duelink.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -200,6 +199,11 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     // 弹窗浮在场地上（弹窗之外全透明），非对局阶段场地页隐藏 HUD
     // （hudVisible）。不再做“等待页 ↔ 场地页”整页切换，
     // 开局/局间等待的闪跳也随之消除。
+    // 日志抽屉与聊天面板共用的高度公式：窗口 40% 高，夹在 200~380。
+    final panelHeight = (MediaQuery.sizeOf(context).height * 0.4).clamp(
+      200.0,
+      380.0,
+    );
     final content = Stack(
       fit: StackFit.expand,
       children: [
@@ -230,17 +234,18 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
           bottom: kChatDockBottom,
           child: SizedBox(
             width: kChatDockWidth,
-            height:(MediaQuery.sizeOf(context).height * 0.4).clamp(200.0, 380.0),
+            height: panelHeight,
             child: ChatPanel(),
           ),
         ),
+        // 日志抽屉底边锚在聊天面板顶边之上：原来固定 top:126 + 高至 380
+        // 在窗口高 <~900px 时会与右下聊天面板（bottom:16）重叠，
+        // 改为反向定位后任意窗口高度下两者都不相交。
         Positioned(
-          top: kChatDockTop,
           right: kChatDockRight,
+          bottom: kChatDockBottom + panelHeight + kChatDockGap,
           child: SizedBox(
-            height: (MediaQuery
-                .sizeOf(context)
-                .height * 0.4).clamp(200.0, 380.0),
+            height: panelHeight,
             child: DuelLogDrawer(
               logs: ref.watch(duelFieldProvider.select(selectLogSlice)),
             ),

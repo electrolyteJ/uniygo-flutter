@@ -35,7 +35,7 @@ class _ChainStackOverlayState extends State<ChainStackOverlay>
     with SingleTickerProviderStateMixin {
   static const _displayDuration = Duration(seconds: 1);
 
-  /// 快照：外部 chains 为空时或淡出后仍保留最后一帧用于淡出动画。
+  /// 快照：外部 chains 清空后仍保留最后一帧用于淡出动画，淡出完成后置空。
   List<ChainLink>? _snapshot;
 
   late AnimationController _fadeController;
@@ -52,13 +52,23 @@ class _ChainStackOverlayState extends State<ChainStackOverlay>
     );
     _fadeAnim = CurveTween(curve: Curves.easeOut).animate(_fadeController);
     _fadeController.value = 1.0;
+    _fadeController.addStatusListener(_onFadeStatusChanged);
   }
 
   @override
   void dispose() {
     _dismissTimer?.cancel();
+    _fadeController.removeStatusListener(_onFadeStatusChanged);
     _fadeController.dispose();
     super.dispose();
+  }
+
+  /// 淡出完成后清空快照：徽章子树随之卸载，各徽标的脉冲动画控制器
+  /// 得以 dispose，避免透明度 0 的徽标常驻并空跑 vsync。
+  void _onFadeStatusChanged(AnimationStatus status) {
+    if (status == AnimationStatus.dismissed && _snapshot != null) {
+      setState(() => _snapshot = null);
+    }
   }
 
   @override
@@ -83,10 +93,6 @@ class _ChainStackOverlayState extends State<ChainStackOverlay>
 
   void _startFadeOut() {
     if (!mounted) return;
-    if (_snapshot == null && _fadeController.isCompleted) {
-      // 当前无快照且在完全显示状态：外部 chains 在此期间已被清空
-      // 取最后已知内容做快照（build 里已更新 _snapshot）
-    }
     _fadeController.reverse();
   }
 

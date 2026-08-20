@@ -39,8 +39,8 @@ class ControlBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isPlayer =
-        selfType == PlayerType.player1 || selfType == PlayerType.player2;
+    // tag 模式 2/3 号位（player3/player4）同样是决斗者。
+    final isPlayer = selfType.isDuelist;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(

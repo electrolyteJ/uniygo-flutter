@@ -1,6 +1,5 @@
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widget_previews.dart';
 
 import 'overlay_panel.dart';
 import 'select_hand.dart';
@@ -195,24 +194,3 @@ class _HandSelectPanelState extends State<HandSelectPanel> {
     );
   }
 }
-
-@Preview(
-  name: 'HandSelectPanel-selecting',
-  size: Size(420, 260),
-  brightness: Brightness.dark,
-)
-Widget _previewHandSelectPanel() =>
-    HandSelectPanel(isResult: false, enabled: true, onSendHand: (_) {});
-
-@Preview(
-  name: 'HandSelectPanel-result',
-  size: Size(420, 260),
-  brightness: Brightness.dark,
-)
-Widget _previewHandSelectPanelResult() => HandSelectPanel(
-  isResult: true,
-  myHand: 2,
-  opponentHand: 1,
-  enabled: false,
-  onSendHand: (_) {},
-);

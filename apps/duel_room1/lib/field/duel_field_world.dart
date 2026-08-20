@@ -3,7 +3,6 @@ import 'dart:ui' as ui;
 import 'package:biz/card_image_loader.dart';
 import 'package:flame/components.dart';
 import 'package:biz/duel/models/field_zone_key.dart';
-import 'package:biz/duel/models/summon_effect_event.dart';
 import 'package:cardlive/cardlive.dart';
 import 'component/battle_presentation_component.dart';
 import 'package:duel_room1/field/component/summon_effect_adapter.dart';
@@ -83,6 +82,10 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
     //   yRot * 0.85,
     // );
   }
+
+  /// 3D 投影是否启用。当前临时关闭（[project3D] 为恒等变换），
+  /// 供调用方在关闭期间跳过重投影同步等纯浪费工作；恢复投影时同步改为 true。
+  bool get isProjectionEnabled => false;
 
   /// lift（Z 轴提升）换算成世界坐标 y 方向位移。
   /// 临时关闭 3D 后直接返回原值，hover 仍可垂直抬起。

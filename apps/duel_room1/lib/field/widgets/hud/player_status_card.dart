@@ -45,7 +45,8 @@ class PlayerStatusCard extends StatefulWidget {
 }
 
 class _PlayerStatusCardState extends State<PlayerStatusCard> {
-  int _displayLp = 0;
+  /// 当前动画帧实际展示的 LP：动画中途 LP 再变化时，作为下一次 tween 的起点。
+  double _displayLp = 0;
   int _lpTweenBegin = 0;
   int _lpTweenEnd = 0;
   int? _floatingDelta;
@@ -54,7 +55,7 @@ class _PlayerStatusCardState extends State<PlayerStatusCard> {
   @override
   void initState() {
     super.initState();
-    _displayLp = widget.lp;
+    _displayLp = widget.lp.toDouble();
     _lpTweenBegin = widget.lp;
     _lpTweenEnd = widget.lp;
   }
@@ -63,7 +64,7 @@ class _PlayerStatusCardState extends State<PlayerStatusCard> {
   void didUpdateWidget(covariant PlayerStatusCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.lp != widget.lp) {
-      _lpTweenBegin = _displayLp;
+      _lpTweenBegin = _displayLp.round();
       _lpTweenEnd = widget.lp;
     }
     if (oldWidget.lpEventId != widget.lpEventId && widget.lpDelta != 0) {
@@ -163,9 +164,11 @@ class _PlayerStatusCardState extends State<PlayerStatusCard> {
                   end: _lpTweenEnd.toDouble(),
                 ),
                 onEnd: () {
-                  _displayLp = widget.lp;
+                  _displayLp = widget.lp.toDouble();
                 },
                 builder: (context, value, child) {
+                  // 逐帧记录动画值，避免 520ms 内连续变化时从旧值重启 tween 造成回跳
+                  _displayLp = value;
                   final color = widget.isSelf ? cyanGlow : oppPink;
                   return Stack(
                     clipBehavior: Clip.none,
@@ -197,7 +200,7 @@ class _PlayerStatusCardState extends State<PlayerStatusCard> {
                                 child: Transform.translate(
                                   offset: Offset(0, y),
                                   child: Text(
-                                    '${isLoss ? '' : '+'}${delta.abs()}',
+                                    '${isLoss ? '-' : '+'}${delta.abs()}',
                                     style: TextStyle(
                                       color: isLoss
                                           ? const Color(0xFFFF6B8D)

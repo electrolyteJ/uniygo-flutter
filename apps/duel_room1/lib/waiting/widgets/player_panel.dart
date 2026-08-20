@@ -16,9 +16,16 @@ class PlayerPanel extends StatelessWidget {
   final bool isHost;
   final ValueChanged<int> onKick;
 
+  /// 自身玩家类型（决定卡组选择器是否展示：非观战即决斗者，
+  /// tag 模式座位 2/3 为 player3/player4，同样算决斗者）。
+  final PlayerType selfType;
+
   /// 卡组选择。
   final bool deckSelectionEnabled;
   final List<DeckInfo> decks;
+
+  /// 卡组列表首载是否仍在进行（区分「加载中」与「真空」）。
+  final bool deckListLoading;
   final String? selectedDeckName;
   final ValueChanged<String?> onSelectDeck;
 
@@ -34,8 +41,10 @@ class PlayerPanel extends StatelessWidget {
     required this.players,
     required this.isHost,
     required this.onKick,
+    required this.selfType,
     required this.deckSelectionEnabled,
     required this.decks,
+    required this.deckListLoading,
     required this.selectedDeckName,
     required this.onSelectDeck,
     required this.onEditDeck,
@@ -61,13 +70,12 @@ class PlayerPanel extends StatelessWidget {
               child: PlayerSlot(
                 player: item,
                 placeholder: '玩家 ${item.pos + 1}',
-                isHostSlot: item.pos == mySlot
-                    ? isHost
-                    : (isHost ? false : true),
+                // 房主徽章以 PlayerInfo.host 为准（按座位 0 惯例填充），
+                // 不能由「我的视角」反推，否则非房主视角下人人都像房主。
+                isHostSlot: item.host,
                 isMe: item.pos == mySlot,
-                canKick:
-                    !(item.pos == mySlot ? isHost : (isHost ? false : true)) &&
-                    item.pos != mySlot,
+                // 仅房主可踢人：不能踢自己，也不能踢房主。
+                canKick: isHost && item.pos != mySlot && !item.host,
                 onKick: () => onKick(item.pos),
               ),
             ),
@@ -76,8 +84,9 @@ class PlayerPanel extends StatelessWidget {
           DeckSelector(
             enabled: deckSelectionEnabled,
             decks: decks,
+            deckListLoading: deckListLoading,
             selectedDeckName: selectedDeckName,
-            mySlot: mySlot,
+            selfType: selfType,
             onSelectDeck: onSelectDeck,
             onEditDeck: onEditDeck,
             invalidationResult: deckInvalidationResult,

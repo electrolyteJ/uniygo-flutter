@@ -3,15 +3,32 @@ import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
 import 'package:ygo_data/ygo_data.dart' show CardInfo, LfTable;
 
+/// 房间「卡片允许规则」取值（RoomOptions.rule 的协议值；
+/// duelink 暂无对应枚举，先就地命名，避免裸整数 switch）。
+const _ruleOcg = 0; // OCG
+const _ruleTcg = 1; // TCG
+const _ruleOcgTcgMixed = 2; // OT 混
+const _ruleCustomCards = 3; // 自制卡
+const _ruleNoExclusive = 4; // 专有卡禁止
+const _ruleAllCards = 5; // 所有卡片
+
 class RoomInfoPanel extends StatelessWidget {
   final RoomOptions opts;
   final LfTable? lfTable;
+
+  /// 禁限表是否仍在加载中（与 [lfTableFailed] 互斥）。
+  final bool lfTableLoading;
+
+  /// 禁限表加载是否失败（如禁限表服务未就绪）。
+  final bool lfTableFailed;
   final Future<CardInfo?> Function(int code) cardLoader;
 
   const RoomInfoPanel({
     super.key,
     required this.opts,
     this.lfTable,
+    this.lfTableLoading = false,
+    this.lfTableFailed = false,
     required this.cardLoader,
   });
 
@@ -23,12 +40,12 @@ class RoomInfoPanel extends StatelessWidget {
       RoomMode.tag => '双打模式',
     };
     final ruleStr = switch (opts.rule) {
-      0 => 'OCG',
-      1 => 'TCG',
-      2 => 'OT 混',
-      3 => '自制卡',
-      4 => '专有卡禁止',
-      5 => '所有卡片',
+      _ruleOcg => 'OCG',
+      _ruleTcg => 'TCG',
+      _ruleOcgTcgMixed => 'OT 混',
+      _ruleCustomCards => '自制卡',
+      _ruleNoExclusive => '专有卡禁止',
+      _ruleAllCards => '所有卡片',
       _ => '未知',
     };
     final duelRuleStr = switch (opts.duelRule) {
@@ -65,7 +82,9 @@ class RoomInfoPanel extends StatelessWidget {
 
           _InkInfoRow(
             icon: Icons.list_alt,
-            text: '禁限卡表: ${lfTable?.name ?? "不限制"}',
+            // 三态文案：加载中 / 加载失败 / 有数据
+            // （数据为 null 即未设禁限表，才是「不限制」）。
+            text: '禁限卡表: ${_banlistText()}',
             enabled: lfTable != null,
             onTap: lfTable != null
                 ? () => BanlistDetailDialog.show(
@@ -80,6 +99,14 @@ class RoomInfoPanel extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// 禁限表行文案：加载中/失败不再伪装成「不限制」。
+  String _banlistText() {
+    if (lfTable != null) return lfTable!.name;
+    if (lfTableFailed) return '未知（加载失败）';
+    if (lfTableLoading) return '加载中…';
+    return '不限制';
   }
 }
 

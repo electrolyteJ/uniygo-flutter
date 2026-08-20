@@ -1455,14 +1455,24 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   // 战报与玩家
   // ──────────────────────────────────────────
 
+  /// 对局日志上限：与聊天（_maxMessages=500）对齐，超出丢弃最旧条目，
+  /// 避免长对局（尤其是 match 多局）日志列表无界增长拖垮内存与渲染。
+  static const int maxDuelLogs = 500;
+
   /// 记录对局日志并触发刷新。
   ///
   /// [player] 非空时该条战报加《玩家名》前缀（标注动作归属方）；
   /// 系统/阶段类消息不传 player，保持无前缀。
   void addLog(String log, {int? player}) {
     final text = player == null ? log : '《${state.playerNameOf(player)}》 $log';
-    console.log('Duel log: $text');
-    state = state.copyWith(duelLogs: [...state.duelLogs, text]);
+    if (kDebugMode) {
+      console.log('Duel log: $text');
+    }
+    var logs = state.duelLogs;
+    if (logs.length >= maxDuelLogs) {
+      logs = logs.sublist(logs.length - maxDuelLogs + 1);
+    }
+    state = state.copyWith(duelLogs: [...logs, text]);
   }
 
   /// 同步房间玩家列表，供日志文案解析玩家名。
