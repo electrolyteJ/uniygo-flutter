@@ -9,3 +9,7 @@ coding agent完成一个需求需要如下要素
 
 git submodule update --init --recursive
 git clone --recursive git@github.com:ProjectIgnis/CardScripts.git
+
+https://spacecraft-67664.web.app/
+
+https://electrolytej.github.io/uniygo-flutter/

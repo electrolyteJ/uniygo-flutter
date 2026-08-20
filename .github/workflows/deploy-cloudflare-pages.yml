@@ -1,4 +1,4 @@
-name: Deploy Web to Cloudflare Pages
+name: Deploy Web to Cloudflare Workers (Static Assets)
 
 on:
   push:
@@ -13,11 +13,10 @@ concurrency:
 env:
   FLUTTER_VERSION: '3.47.0'
   APP_DIR: 'apps/uniygopro'
-  CF_PROJECT: 'uniygopro'
 
 jobs:
   deploy:
-    name: Build & Deploy to Cloudflare Pages
+    name: Build & Deploy to Cloudflare
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -40,22 +39,28 @@ jobs:
       - name: Build Web (Release)
         run: |
           cd ${{ env.APP_DIR }}
-          # Cloudflare Pages 部署在根路径（*.pages.dev 或自定义域名），无需 base-href
+          # Cloudflare Workers 部署在根路径（<name>.<account>.workers.dev 或自定义域名），无需 base-href
           flutter build web --release
 
-      - name: Create Cloudflare Pages project (if not exists)
+      - name: Remove oversized GLB from web build
+        run: |
+          # Web 端 cardlive 不渲染 3D（kIsWeb 分支），GLB 不会被请求；
+          # 且 Workers 资产单文件上限 25 MiB，超限文件会导致部署失败。
+          find ${{ env.APP_DIR }}/build/web -name "*.glb" -size +25M -delete
+          echo "web build 中剩余 GLB:"
+          find ${{ env.APP_DIR }}/build/web -name "*.glb" -exec du -h {} \;
+
+      - name: Deploy to Cloudflare Workers (Static Assets)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          # run step 走 shell，|| 才生效；wrangler 自动读取上面的环境变量
-          npx wrangler pages project create ${{ env.CF_PROJECT }} --production-branch main \
-            || echo "project already exists, skip"
-
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3.14.1
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ${{ env.APP_DIR }}/build/web --project-name=${{ env.CF_PROJECT }} --branch main --commit-dirty=true
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "::error::缺少 secrets: CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID"
+            exit 1
+          fi
+          cd ${{ env.APP_DIR }}
+          # wrangler.jsonc 配置 assets 指向 build/web + SPA 回退；
+          # wrangler deploy 首次自动创建 Worker，无需预先建 Pages 项目
+          npx wrangler@4.124.0 deploy

@@ -46,6 +46,13 @@ jobs:
           cd $APP_DIR
           flutter build web --release --base-href "/${{ github.event.repository.name }}/"
 
+      - name: Remove oversized GLB from web build
+        run: |
+          # Web 端 cardlive 不渲染 3D（kIsWeb 分支），GLB 不会被请求，剔除可减小包体积
+          find $APP_DIR/build/web -name "*.glb" -size +25M -delete
+          echo "web build 中剩余 GLB:"
+          find $APP_DIR/build/web -name "*.glb" -exec du -h {} \;
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

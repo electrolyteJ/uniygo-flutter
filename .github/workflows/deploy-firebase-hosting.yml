@@ -42,6 +42,13 @@ jobs:
           # Firebase Hosting 部署在根路径（<project>.web.app 或自定义域名），无需 base-href
           flutter build web --release
 
+      - name: Remove oversized GLB from web build
+        run: |
+          # Web 端 cardlive 不渲染 3D（kIsWeb 分支），GLB 不会被请求，剔除可减小包体积
+          find ${{ env.APP_DIR }}/build/web -name "*.glb" -size +25M -delete
+          echo "web build 中剩余 GLB:"
+          find ${{ env.APP_DIR }}/build/web -name "*.glb" -exec du -h {} \;
+
       - name: Deploy to Firebase Hosting
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}

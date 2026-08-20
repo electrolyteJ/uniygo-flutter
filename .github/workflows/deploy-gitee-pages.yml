@@ -44,6 +44,13 @@ jobs:
           # 若 Gitee 仓库名与 GitHub 仓库名不同，或绑定了自定义域名（根路径部署），请调整此参数。
           flutter build web --release --base-href "/${{ github.event.repository.name }}/"
 
+      - name: Remove oversized GLB from web build
+        run: |
+          # Web 端 cardlive 不渲染 3D（kIsWeb 分支），GLB 不会被请求，剔除可减小包体积
+          find ${{ env.APP_DIR }}/build/web -name "*.glb" -size +25M -delete
+          echo "web build 中剩余 GLB:"
+          find ${{ env.APP_DIR }}/build/web -name "*.glb" -exec du -h {} \;
+
       - name: Deploy to Gitee Pages branch
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
