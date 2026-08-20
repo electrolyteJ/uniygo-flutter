@@ -34,8 +34,13 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
   /// 构建 [_specs] 时使用的 myController（朝向一致性校验）。
   int? _specsController;
   Vector2? _lastParallaxMouse;
-  int _lastShuffleTick = 0;
-  int _lastExtraShuffleTick = 0;
+
+  // 洗牌动效按侧各自跟踪（快照里是每侧独立 tick）：双方洗牌消息
+  // 同帧到达时两侧的动效都要播放，不能互相吞掉。
+  int _lastSelfDeckShuffleTick = 0;
+  int _lastOppDeckShuffleTick = 0;
+  int _lastSelfExtraShuffleTick = 0;
+  int _lastOppExtraShuffleTick = 0;
 
   /// 当前状态快照（widget 层经游戏推入）。
   FlameFieldSnapshot get _snapshot => world.game.snapshot;
@@ -46,32 +51,37 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
   void update(double dt) {
     super.update(dt);
     _syncParallax();
-    _spawnShuffleEffect();
-    _spawnExtraShuffleEffect();
+    _spawnShuffleEffects();
   }
 
-  /// 监听卡组洗切信号，在对应卡组槽位上播放洗牌动效。
-  void _spawnShuffleEffect() {
-    final tick = _snapshot.deckShuffleTick;
-    if (tick == 0 || tick == _lastShuffleTick) return;
-    _lastShuffleTick = tick;
-    final isSelf = _snapshot.deckShufflePlayer == _snapshot.myController;
-    final x = isSelf ? DuelFieldLayout.colX[6] : DuelFieldLayout.colX[0];
-    final y = isSelf ? DuelFieldLayout.stY : -DuelFieldLayout.stY;
-    world.add(DeckShuffleEffect(position: world.project3D(x, y)));
+  /// 监听主卡组/额外卡组洗切信号（每侧独立 tick），在对应槽位播放动效。
+  ///
+  /// 落点取自 [DuelFieldLayout.deckSlotPos]/[DuelFieldLayout.extraSlotPos]，
+  /// 与 buildZoneSlotSpecs 的 DECK/EXTRA 槽位一致（shuffle_slot_test 锁定）。
+  void _spawnShuffleEffects() {
+    final snapshot = _snapshot;
+    if (snapshot.selfDeckShuffleTick != _lastSelfDeckShuffleTick) {
+      _lastSelfDeckShuffleTick = snapshot.selfDeckShuffleTick;
+      _spawnShuffleAt(DuelFieldLayout.deckSlotPos(isSelf: true));
+    }
+    if (snapshot.oppDeckShuffleTick != _lastOppDeckShuffleTick) {
+      _lastOppDeckShuffleTick = snapshot.oppDeckShuffleTick;
+      _spawnShuffleAt(DuelFieldLayout.deckSlotPos(isSelf: false));
+    }
+    if (snapshot.selfExtraShuffleTick != _lastSelfExtraShuffleTick) {
+      _lastSelfExtraShuffleTick = snapshot.selfExtraShuffleTick;
+      _spawnShuffleAt(DuelFieldLayout.extraSlotPos(isSelf: true));
+    }
+    if (snapshot.oppExtraShuffleTick != _lastOppExtraShuffleTick) {
+      _lastOppExtraShuffleTick = snapshot.oppExtraShuffleTick;
+      _spawnShuffleAt(DuelFieldLayout.extraSlotPos(isSelf: false));
+    }
   }
 
-  /// 监听额外卡组洗切信号，在对应额外卡组槽位上播放洗牌动效
-  /// （与主卡组同一套 DeckShuffleEffect，位置换到 EXTRA 槽：
-  /// 己方 colX[0]/stY，对方 colX[6]/-stY，与 anchors 布局一致）。
-  void _spawnExtraShuffleEffect() {
-    final tick = _snapshot.extraShuffleTick;
-    if (tick == 0 || tick == _lastExtraShuffleTick) return;
-    _lastExtraShuffleTick = tick;
-    final isSelf = _snapshot.extraShufflePlayer == _snapshot.myController;
-    final x = isSelf ? DuelFieldLayout.colX[0] : DuelFieldLayout.colX[6];
-    final y = isSelf ? DuelFieldLayout.stY : -DuelFieldLayout.stY;
-    world.add(DeckShuffleEffect(position: world.project3D(x, y)));
+  void _spawnShuffleAt(Offset boardPos) {
+    world.add(
+      DeckShuffleEffect(position: world.project3D(boardPos.dx, boardPos.dy)),
+    );
   }
 
   /// 鼠标移动时重新投影卡槽位置（BoardMesh / PhaseLamp 每帧自行投影，无需同步）。
@@ -151,6 +161,9 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
       card: spec.resolveCard(snapshot),
       highlight: interaction.highlight,
       onTap: onTap,
+      activatable: spec.inspectZoneKey != null &&
+          snapshot.activatableZoneKeys.contains(spec.inspectZoneKey),
+      chainOrder: spec.chainOrderOf(snapshot.chainOrderBySlotKey),
     );
   }
 }
@@ -301,6 +314,33 @@ class CardSlotComponent extends PositionComponent
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1.0;
 
+  // 可召唤/可发动提醒角标（墓地/额外/除外区域右上角小红点）：
+  // 深色底圈 + 红色圆点，保证叠在卡背/卡面上也醒目。
+  static final _activatableDotBorderPaint = Paint()
+    ..color = const Color(0xE6080D12);
+  static final _activatableDotPaint = Paint()
+    ..color = const Color(0xFFFF5252);
+
+  // 连锁序号徽章：卡片左上角压边的金色圆徽（与手牌栏 ChainOrderBadge
+  // 同一视觉语言）；停留/淡出的透明度经 saveLayer 整体作用。
+  static final _chainBadgeFillPaint = Paint()..color = const Color(0xD90A101A);
+  static final _chainBadgeBorderPaint = Paint()
+    ..color = const Color(0xFFFFD700)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.6;
+  static final _chainBadgeGlowPaint = Paint()
+    ..color = const Color(0x59FFD700)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+  static final _chainBadgeTextPaint = TextPaint(
+    style: const TextStyle(
+      color: Color(0xFFFFD700),
+      fontSize: 12,
+      fontWeight: FontWeight.w900,
+      fontFamily: 'Orbitron',
+      height: 1,
+    ),
+  );
+
   // 实例级复用 Paint：颜色/线宽随 hover、accent(isEMZ)、高亮态动态设置。
   final Paint _slotFillPaint = Paint();
   final Paint _slotStrokePaint = Paint()..style = PaintingStyle.stroke;
@@ -322,6 +362,25 @@ class CardSlotComponent extends PositionComponent
   CardSlotHighlight highlight;
   VoidCallback? onTap;
 
+  /// 该槽位所属区域当前「有可召唤/可发动卡」（墓地/额外/除外提醒角标）。
+  bool activatable;
+
+  // ── 连锁序号徽章 ──
+  /// 正在展示的连锁序号（含连锁结束后的停留期）；null = 无徽章。
+  int? _chainBadgeOrder;
+
+  /// 连锁结束（快照序号变 null）的时刻，用于停留 1s + 淡出计时。
+  double? _chainBadgeClearAt;
+
+  /// 组件本地时钟（秒），驱动徽章停留/淡出（render 每帧读取）。
+  double _time = 0;
+
+  /// 连锁结束后停留时长（秒），与手牌栏 ChainOrderBadge 一致。
+  static const _chainLingerSeconds = 1.0;
+
+  /// 停留结束后的淡出时长（秒）。
+  static const _chainFadeSeconds = 0.3;
+
   bool _hovered = false;
   double _liftZ = 0; // Z轴提升高度 (模拟 translateZ)
   Effect? _scaleFx;
@@ -341,6 +400,7 @@ class CardSlotComponent extends PositionComponent
     this.isEMZ = false,
     this.highlight = CardSlotHighlight.none,
     this.onTap,
+    this.activatable = false,
   }) : super(
          size: Vector2(DuelFieldLayout.slotWidth, DuelFieldLayout.slotHeight),
          anchor: Anchor.center,
@@ -349,6 +409,13 @@ class CardSlotComponent extends PositionComponent
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+  }
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    // 仅徽章存活期推进时钟：清除计时以徽章首次出现的时刻为基准。
+    if (_chainBadgeOrder != null) _time += dt;
   }
 
   @override
@@ -371,6 +438,8 @@ class CardSlotComponent extends PositionComponent
     required FieldCard? card,
     required CardSlotHighlight highlight,
     required VoidCallback? onTap,
+    required bool activatable,
+    required int? chainOrder,
   }) {
     final prevCode = this.card?.code;
     if (card == null || card.code != prevCode) {
@@ -380,7 +449,23 @@ class CardSlotComponent extends PositionComponent
     this.card = card;
     this.highlight = highlight;
     this.onTap = onTap;
+    this.activatable = activatable;
+    _syncChainBadge(chainOrder);
     _requestCardImage();
+  }
+
+  /// 连锁序号徽章状态迁移：新序号立即展示/更新；变 null（连锁结束）
+  /// 时记录清除时刻，由 render 停留 1s 后淡出；停留/淡出期间来了
+  /// 新序号则取消清除立即恢复。
+  void _syncChainBadge(int? chainOrder) {
+    if (chainOrder != null) {
+      // 徽章首次出现时从零开始计时（update 只在徽章存活期推进时钟）。
+      if (_chainBadgeOrder == null) _time = 0;
+      _chainBadgeOrder = chainOrder;
+      _chainBadgeClearAt = null;
+    } else if (_chainBadgeOrder != null && _chainBadgeClearAt == null) {
+      _chainBadgeClearAt = _time;
+    }
   }
 
   /// 表侧卡牌请求加载卡图：先查缓存，命中则同步赋值，否则异步加载。
@@ -483,7 +568,69 @@ class CardSlotComponent extends PositionComponent
       _renderHighlight(canvas);
     }
 
+    // 5. 可召唤/可发动提醒角标（墓地/额外/除外区域）。
+    if (activatable) {
+      _renderActivatableBadge(canvas);
+    }
+
+    // 6. 连锁序号徽章：卡片左上角压边金徽（最高层级，盖在卡面/高亮之上）。
+    _renderChainBadge(canvas);
+
     canvas.restore();
+  }
+
+  /// 连锁序号徽章：卡片左上角的金色圆形序号（1/2/3/4…）。
+  ///
+  /// 连锁结束（快照序号变 null）后停留 [_chainLingerSeconds] 再按
+  /// [_chainFadeSeconds] 淡出，淡出整体经 saveLayer 施加透明度。
+  void _renderChainBadge(Canvas canvas) {
+    final order = _chainBadgeOrder;
+    if (order == null) return;
+
+    var alpha = 1.0;
+    final clearAt = _chainBadgeClearAt;
+    if (clearAt != null) {
+      final t = _time - clearAt;
+      const total = _chainLingerSeconds + _chainFadeSeconds;
+      if (t >= total) {
+        _chainBadgeOrder = null;
+        _chainBadgeClearAt = null;
+        return;
+      }
+      if (t > _chainLingerSeconds) {
+        alpha = 1.0 - (t - _chainLingerSeconds) / _chainFadeSeconds;
+      }
+    }
+
+    // 卡片左上角压边：圆心落在槽位左上角点。
+    final center = Offset(
+      -DuelFieldLayout.slotWidth / 2,
+      -DuelFieldLayout.slotHeight / 2,
+    );
+    const radius = 11.0;
+
+    canvas.saveLayer(
+      Rect.fromCircle(center: center, radius: radius + 6),
+      Paint()..color = Colors.white.withValues(alpha: alpha),
+    );
+    canvas.drawCircle(center, radius + 2, _chainBadgeGlowPaint);
+    canvas.drawCircle(center, radius, _chainBadgeFillPaint);
+    canvas.drawCircle(center, radius, _chainBadgeBorderPaint);
+    _chainBadgeTextPaint.render(
+      canvas,
+      '$order',
+      Vector2(center.dx, center.dy),
+      anchor: Anchor.center,
+    );
+    canvas.restore();
+  }
+
+  /// 可召唤/可发动提醒角标：槽位右上角小红点（深色底圈 + 红色圆点）。
+  /// 墓地/额外/除外槽位非怪兽区（不画 ATK/DEF 徽标），右上角无冲突。
+  void _renderActivatableBadge(Canvas canvas) {
+    final center = Offset(_cardRect.right - 6, _cardRect.top + 6);
+    canvas.drawCircle(center, 5.5, _activatableDotBorderPaint);
+    canvas.drawCircle(center, 4.0, _activatableDotPaint);
   }
 
   void _renderHighlight(Canvas canvas) {

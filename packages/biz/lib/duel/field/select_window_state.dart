@@ -25,6 +25,26 @@ const Object _undefined = Object();
 const int _opcodeIsCode = 0x40000100;
 const int _opcodeOr = 0x40000005;
 
+/// 判断选择窗口是否为「恰好一个必选项且不可取消」的无脑单选，命中时可
+/// 直接代为应答、无需弹窗（见 SelectWindowNotifier._tryAutoAnswer）。
+///
+/// 条件：card / tribute 两类「选卡」窗口（发动效果后「只有一个必选对象/
+/// 解放」最常见，且应答格式统一为 selectMulti 下标）、唯一选项、必选
+/// （min>=1）、不可取消、且指向本机玩家。其余窗口（yes/no、position、
+/// option、chain 等）涉及真实取舍，不自动代答。
+bool isForcedSingleSelect(SelectState window, int myController) {
+  final isCardLike =
+      window.type == SelectType.card || window.type == SelectType.tribute;
+  if (!isCardLike) return false;
+  if (window.options.length != 1) return false;
+  if (window.min < 1) return false;
+  if (window.cancelable) return false;
+  // 只代答本机玩家的窗口（正常对局下客户端也只收到自己的选择窗口，
+  // 此为防御性校验，避免误答对方请求）。
+  if (window.player != myController) return false;
+  return true;
+}
+
 /// 解析 MSG_ANNOUNCE_CARD 的 RPN 条件表达式，提取「只能宣言这些卡码」集合。
 ///
 /// 返回 null 表示自由宣言（任意卡名）；否则为可宣言卡码集合。
@@ -264,17 +284,41 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   /// 所有 apply* 一律经此入口（或 [_nextWindow]）开窗，
   /// 保证 generation 语义统一。
   /// （unselect 窗口的初始勾选由 applySelectUnselectCard 在开窗后补写。）
+  ///
+  /// 开窗前先过 [_tryAutoAnswer]：若该窗口是「恰好一个必选项且不可取消」
+  /// 的无脑选择，直接代为应答、不弹窗，减少无意义点击。
   void _openWindow(SelectState select) {
     final pending = _pendingSelectHint;
     _pendingSelectHint = null;
-    final window = _nextWindow(
-      pending == null ? select : select.copyWith(hint: pending),
-    );
+    final withHint = pending == null ? select : select.copyWith(hint: pending);
+    if (_tryAutoAnswer(withHint)) {
+      // 已自动应答：清掉可能残留的窗口，不占用 generation。
+      state = state.copyWith(
+        currentSelect: null,
+        inlineSelectedOptionIndices: const {},
+      );
+      return;
+    }
+    final window = _nextWindow(withHint);
     state = state.copyWith(
       currentSelect: window,
       inlineSelectedOptionIndices: const {},
     );
     _preloadSelectImages(window);
+  }
+
+  /// 单一必选项自动应答：命中 [isForcedSingleSelect] 时直接代为选择
+  /// （下标 0）并返回 true；否则返回 false 走正常弹窗。
+  bool _tryAutoAnswer(SelectState window) {
+    if (_duelService == null) return false;
+    if (!isForcedSingleSelect(window, _board.myController)) return false;
+    final only = window.options.single;
+    console.log(
+      '_tryAutoAnswer: auto-select single forced ${window.type} '
+      '(code=${only.code} c=${only.controller} z=${only.zone} s=${only.sequence})',
+    );
+    _sendResponse(CtosGameMsgResponse.selectMulti([0]));
+    return true;
   }
 
   /// 记录当前等待玩家处理的选择请求，同时预热所有选项的卡图缓存。

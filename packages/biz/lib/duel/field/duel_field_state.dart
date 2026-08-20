@@ -128,6 +128,10 @@ class DuelFieldState {
     this.deckShufflePlayer = 0,
     this.extraShuffleTick = 0,
     this.extraShufflePlayer = 0,
+    this.selfDeckShuffleTick = 0,
+    this.oppDeckShuffleTick = 0,
+    this.selfExtraShuffleTick = 0,
+    this.oppExtraShuffleTick = 0,
     this.handShuffleTick = 0,
     this.handShufflePlayer = 0,
     this.drawAnimationEvent,
@@ -207,6 +211,18 @@ class DuelFieldState {
   final int extraShuffleTick;
   final int extraShufflePlayer;
 
+  /// 按侧拆分的卡组洗切 tick（每侧单调递增）。
+  ///
+  /// 全局 [deckShuffleTick] + [deckShufflePlayer] 只能表达"最后一次洗牌"，
+  /// 双方洗牌消息同帧到达时先洗牌一方会被表现层（每帧采样）吞掉；
+  /// 每侧独立 tick 保证双方各自的洗牌动效都能触发。
+  final int selfDeckShuffleTick;
+  final int oppDeckShuffleTick;
+
+  /// 按侧拆分的额外卡组洗切 tick，语义同 [selfDeckShuffleTick]。
+  final int selfExtraShuffleTick;
+  final int oppExtraShuffleTick;
+
   /// 手牌洗切信号：每次 MSG_SHUFFLE_HAND 自增。
   final int handShuffleTick;
   final int handShufflePlayer;
@@ -285,6 +301,10 @@ class DuelFieldState {
     int? deckShufflePlayer,
     int? extraShuffleTick,
     int? extraShufflePlayer,
+    int? selfDeckShuffleTick,
+    int? oppDeckShuffleTick,
+    int? selfExtraShuffleTick,
+    int? oppExtraShuffleTick,
     int? handShuffleTick,
     int? handShufflePlayer,
     Object? drawAnimationEvent = _undefined,
@@ -349,6 +369,10 @@ class DuelFieldState {
       deckShufflePlayer: deckShufflePlayer ?? this.deckShufflePlayer,
       extraShuffleTick: extraShuffleTick ?? this.extraShuffleTick,
       extraShufflePlayer: extraShufflePlayer ?? this.extraShufflePlayer,
+      selfDeckShuffleTick: selfDeckShuffleTick ?? this.selfDeckShuffleTick,
+      oppDeckShuffleTick: oppDeckShuffleTick ?? this.oppDeckShuffleTick,
+      selfExtraShuffleTick: selfExtraShuffleTick ?? this.selfExtraShuffleTick,
+      oppExtraShuffleTick: oppExtraShuffleTick ?? this.oppExtraShuffleTick,
       handShuffleTick: handShuffleTick ?? this.handShuffleTick,
       handShufflePlayer: handShufflePlayer ?? this.handShufflePlayer,
       drawAnimationEvent: identical(drawAnimationEvent, _undefined)
@@ -372,6 +396,32 @@ class DuelFieldState {
   // ──────────────────────────────────────────
   // 纯派生读取（不依赖外部服务，留在 state 上）
   // ──────────────────────────────────────────
+
+  /// 主卡组洗切后的状态迁移：全局 tick/player 与按侧 tick 一起更新。
+  DuelFieldState withDeckShuffle(int player) {
+    final isSelf = player == myController;
+    return copyWith(
+      deckShufflePlayer: player,
+      deckShuffleTick: deckShuffleTick + 1,
+      selfDeckShuffleTick: isSelf ? selfDeckShuffleTick + 1 : selfDeckShuffleTick,
+      oppDeckShuffleTick: isSelf ? oppDeckShuffleTick : oppDeckShuffleTick + 1,
+    );
+  }
+
+  /// 额外卡组洗切后的状态迁移，语义同 [withDeckShuffle]。
+  DuelFieldState withExtraShuffle(int player) {
+    final isSelf = player == myController;
+    return copyWith(
+      extraShufflePlayer: player,
+      extraShuffleTick: extraShuffleTick + 1,
+      selfExtraShuffleTick: isSelf
+          ? selfExtraShuffleTick + 1
+          : selfExtraShuffleTick,
+      oppExtraShuffleTick: isSelf
+          ? oppExtraShuffleTick
+          : oppExtraShuffleTick + 1,
+    );
+  }
 
   bool isOnFieldLocation(int location) {
     return (location & CARD_ZONE_ONFIELD) != 0 ||
@@ -1037,10 +1087,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   /// 处理洗额外卡组消息（MSG_SHUFFLE_EXTRA）。
   void handleShuffleExtra(MsgShuffleExtra msg) {
     addLog('洗切了额外卡组。', player: msg.player);
-    state = state.copyWith(
-      extraShufflePlayer: msg.player,
-      extraShuffleTick: state.extraShuffleTick + 1,
-    );
+    state = state.withExtraShuffle(msg.player);
   }
 
   /// 按消息内容把卡片更新写回到对应区域。
@@ -1896,10 +1943,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
   void handleShuffleDeck(dynamic data) {
     final msg = data as MsgShuffleDeck;
     addLog('洗切了卡组。', player: msg.player);
-    state = state.copyWith(
-      deckShufflePlayer: msg.player,
-      deckShuffleTick: state.deckShuffleTick + 1,
-    );
+    state = state.withDeckShuffle(msg.player);
   }
 
   void handleDamageStepStart() {

@@ -20,10 +20,10 @@ class FlameFieldSnapshot {
     required this.phase,
     required this.inDamageStep,
     required this.battlePresentation,
-    required this.deckShuffleTick,
-    required this.deckShufflePlayer,
-    required this.extraShuffleTick,
-    required this.extraShufflePlayer,
+    required this.selfDeckShuffleTick,
+    required this.oppDeckShuffleTick,
+    required this.selfExtraShuffleTick,
+    required this.oppExtraShuffleTick,
     required this.summonEffectTick,
     required this.summonEffectEvent,
     required this.selfDeck,
@@ -32,6 +32,8 @@ class FlameFieldSnapshot {
     required this.inlineSelectedFieldKeys,
     required this.inlineSelectableFieldKeys,
     required this.placeTargetFieldKeys,
+    required this.activatableZoneKeys,
+    required this.chainOrderBySlotKey,
   });
 
   /// 首次推送前的空快照（场地状态尚未到达）。
@@ -42,10 +44,10 @@ class FlameFieldSnapshot {
         phase: DuelPhase.idle,
         inDamageStep: false,
         battlePresentation: null,
-        deckShuffleTick: 0,
-        deckShufflePlayer: 0,
-        extraShuffleTick: 0,
-        extraShufflePlayer: 0,
+        selfDeckShuffleTick: 0,
+        oppDeckShuffleTick: 0,
+        selfExtraShuffleTick: 0,
+        oppExtraShuffleTick: 0,
         summonEffectTick: 0,
         summonEffectEvent: null,
         selfDeck: 0,
@@ -54,6 +56,8 @@ class FlameFieldSnapshot {
         inlineSelectedFieldKeys: const {},
         inlineSelectableFieldKeys: const {},
         placeTargetFieldKeys: const {},
+        activatableZoneKeys: const {},
+        chainOrderBySlotKey: const {},
       );
 
   /// 场上卡（key 为 `controller_zone_sequence`）。
@@ -71,13 +75,16 @@ class FlameFieldSnapshot {
   /// 攻击宣言/战斗数值呈现（波束 + 信息牌）。
   final BattlePresentation? battlePresentation;
 
-  /// 卡组洗切信号（tick 自增触发一次洗牌动效）。
-  final int deckShuffleTick;
-  final int deckShufflePlayer;
+  /// 卡组洗切信号（每侧独立单调 tick，自增触发一次该侧洗牌动效）。
+  ///
+  /// 按侧拆分的原因：全局 tick+player 只能表达"最后一次洗牌"，双方
+  /// 洗牌消息同帧到达时（开局必现）先洗牌一方的动效会被吞掉。
+  final int selfDeckShuffleTick;
+  final int oppDeckShuffleTick;
 
-  /// 额外卡组洗切信号（tick 自增触发一次洗牌动效）。
-  final int extraShuffleTick;
-  final int extraShufflePlayer;
+  /// 额外卡组洗切信号（每侧独立单调 tick）。
+  final int selfExtraShuffleTick;
+  final int oppExtraShuffleTick;
 
   /// 召唤特效信号（tick 自增触发一条几何召唤阵演出）。
   final int summonEffectTick;
@@ -101,6 +108,16 @@ class FlameFieldSnapshot {
   /// 放置选择（MSG_SELECT_PLACE）的可放置空槽位 key。
   final Set<String> placeTargetFieldKeys;
 
+  /// 当前 idle 窗口下「有可召唤/可发动卡」的区域 key（self_extra /
+  /// self_grave / self_removed 等），驱动对应区域槽位的提醒角标。
+  final Set<String> activatableZoneKeys;
+
+  /// 连锁序号映射：槽位 key（场上卡 `controller_zone_sequence` 或
+  /// `self_grave` 等区域堆命名 key）→ 连锁序号（1 起）。
+  /// 卡槽组件据此把连锁序号直接画在卡片上（替代原居中连锁弹窗）；
+  /// 连锁结束清空后由组件自行停留 1s 淡出。
+  final Map<String, int> chainOrderBySlotKey;
+
   List<int> zoneCodesOf(String zoneKey) => zoneCodes[zoneKey] ?? const [];
 
   /// 内容判等：驱动 [DuelFlameGame.applySnapshot] 的重建短路——
@@ -120,10 +137,10 @@ class FlameFieldSnapshot {
         other.phase == phase &&
         other.inDamageStep == inDamageStep &&
         other.battlePresentation == battlePresentation &&
-        other.deckShuffleTick == deckShuffleTick &&
-        other.deckShufflePlayer == deckShufflePlayer &&
-        other.extraShuffleTick == extraShuffleTick &&
-        other.extraShufflePlayer == extraShufflePlayer &&
+        other.selfDeckShuffleTick == selfDeckShuffleTick &&
+        other.oppDeckShuffleTick == oppDeckShuffleTick &&
+        other.selfExtraShuffleTick == selfExtraShuffleTick &&
+        other.oppExtraShuffleTick == oppExtraShuffleTick &&
         other.summonEffectTick == summonEffectTick &&
         identical(other.summonEffectEvent, summonEffectEvent) &&
         other.selfDeck == selfDeck &&
@@ -135,7 +152,9 @@ class FlameFieldSnapshot {
           other.inlineSelectableFieldKeys,
           inlineSelectableFieldKeys,
         ) &&
-        _deep.equals(other.placeTargetFieldKeys, placeTargetFieldKeys);
+        _deep.equals(other.placeTargetFieldKeys, placeTargetFieldKeys) &&
+        _deep.equals(other.activatableZoneKeys, activatableZoneKeys) &&
+        _deep.equals(other.chainOrderBySlotKey, chainOrderBySlotKey);
   }
 
   @override
@@ -144,10 +163,10 @@ class FlameFieldSnapshot {
     phase,
     inDamageStep,
     battlePresentation,
-    deckShuffleTick,
-    deckShufflePlayer,
-    extraShuffleTick,
-    extraShufflePlayer,
+    selfDeckShuffleTick,
+    oppDeckShuffleTick,
+    selfExtraShuffleTick,
+    oppExtraShuffleTick,
     summonEffectTick,
     summonEffectEvent,
     selfDeck,
@@ -157,5 +176,7 @@ class FlameFieldSnapshot {
     _deep.hash(inlineSelectedFieldKeys),
     _deep.hash(inlineSelectableFieldKeys),
     _deep.hash(placeTargetFieldKeys),
+    _deep.hash(activatableZoneKeys),
+    _deep.hash(chainOrderBySlotKey),
   );
 }

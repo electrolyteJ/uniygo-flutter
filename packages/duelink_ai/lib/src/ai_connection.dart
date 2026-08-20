@@ -157,39 +157,38 @@ class AiConnection implements DuelConnection {
     //   }
     // } else if (_roomOptions.agent == 1) {
     // 远端 predict 服务（http 包工厂装配，固定默认公共服务地址）。
-    _agentAnswerer = createYgoAgentHttp(
-      field: DuelEngineFieldQuery(_engine),
-      cardData: cardLoader.dataOf,
-      startLp: _roomOptions.startLp,
-    );
+    // _agentAnswerer = createYgoAgentHttp(
+    //   field: DuelEngineFieldQuery(_engine),
+    //   cardData: cardLoader.dataOf,
+    //   startLp: _roomOptions.startLp,
+    //     console.log('AiConnection: agent runtime unavailable, rule AI');
     // 模型优先、规则兜底：远端模型出错（HTTP 失败/不支持的消息形状）时
     // 回退规则 AI（ai_strategy.dart），避免整局卡死（"no auto-answer" stall）。
-    final agent = _agentAnswerer;
-    _engine.setAutoAnswer((func, payload) async {
-      if (agent != null) {
-        try {
-          console.log('AiConnection: agent auto-answering func=$func...');
-          final agentResp = await agent.answer(func, payload);
-          console.log('AiConnection: agent auto-answer func=$func resp=${agentResp?.length}');
-          if (agentResp != null) return agentResp;
-        } catch (e) {
-          console.log('AiConnection: agent 应答异常 func=$func: $e');
-        }
-      }
-      console.log('AiConnection: rule AI auto-answering func=$func...');
-      try {
-        return ruleAnswer(func, payload);
-      } catch (e) {
-        // 规则 AI 解码/编码异常不应逃逸出引擎 pump 循环（会把对局冻结在
-        // 不一致状态）；返回 null 由引擎按"无法应答"停住并保留 pending。
-        console.log('AiConnection: rule AI 应答异常 func=$func: $e');
-        return null;
-      }
-    });
-    console.log('AiConnection: remote agent auto-answer enabled (规则兜底)');
+    // final agent = _agentAnswerer;
+    // _engine.setAutoAnswer((func, payload) async {
+    //   if (agent != null) {
+    //     try {
+    //       console.log('AiConnection: agent auto-answering func=$func...');
+    //       final agentResp = await agent.answer(func, payload);
+    //       console.log('AiConnection: agent auto-answer func=$func resp=${agentResp?.length}');
+    //       if (agentResp != null) return agentResp;
+    //     } catch (e) {
+    //       console.log('AiConnection: agent 应答异常 func=$func: $e');
+    //     }
+    //   }
+    //   console.log('AiConnection: rule AI auto-answering func=$func...');
+    //   try {
+    //     return ruleAnswer(func, payload);
+    //   } catch (e) {
+    //     // 规则 AI 解码/编码异常不应逃逸出引擎 pump 循环（会把对局冻结在
+    //     // 不一致状态）；返回 null 由引擎按"无法应答"停住并保留 pending。
+    //     console.log('AiConnection: rule AI 应答异常 func=$func: $e');
+    //     return null;
+    //   }
+    // });
     // } else {
-    //   _agentAnswerer = null;
-    //   _engine.setAutoAnswer(ruleAnswer);
+      _engine.setAutoAnswer(ruleAnswer);
+    console.log('AiConnection: remote agent auto-answer enabled (规则兜底)');
     // }
     final ok = await _engine.init(lib);
     _state = ok ? ConnectionState.connected : ConnectionState.error;

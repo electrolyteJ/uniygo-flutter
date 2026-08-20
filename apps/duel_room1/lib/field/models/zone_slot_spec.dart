@@ -54,6 +54,7 @@ class ZoneSlotSpec {
     this.slotKeys = const [],
     this.tapBehavior = ZoneSlotTapBehavior.select,
     this.inspectZoneKey,
+    this.chainSlotKey,
   });
 
   final String label;
@@ -69,8 +70,26 @@ class ZoneSlotSpec {
   /// [tapBehavior] 为 [ZoneSlotTapBehavior.inspect] 时的区域 key。
   final String? inspectZoneKey;
 
+  /// 连锁序号查找 key（仅卡组槽位等 slotKeys/inspectZoneKey 都覆盖不到
+  /// 的槽位需要显式指定，如 `self_deck`/`opp_deck`）。
+  final String? chainSlotKey;
+
   /// 从给定快照解析该槽位应显示的卡（null = 空槽）。
   final FieldCard? Function(FlameFieldSnapshot snapshot) resolveCard;
+
+  /// 该槽位对应的连锁序号（1 起；不在连锁链上为 null）。
+  ///
+  /// 查找顺序：场上卡槽 key（slotKeys，EMZ 携带双方 key）→
+  /// 区域堆命名 key（inspectZoneKey / chainSlotKey）。
+  int? chainOrderOf(Map<String, int> orders) {
+    if (orders.isEmpty) return null;
+    for (final key in slotKeys) {
+      final order = orders[key];
+      if (order != null) return order;
+    }
+    final namedKey = chainSlotKey ?? inspectZoneKey;
+    return namedKey == null ? null : orders[namedKey];
+  }
 }
 
 /// 解析槽位的交互态（高亮 + 放置目标 key）。
@@ -181,6 +200,7 @@ List<ZoneSlotSpec> buildZoneSlotSpecs(FlameFieldSnapshot snapshot) {
       boardY: -stY,
       resolveCard: deckPreview(opp),
       tapBehavior: ZoneSlotTapBehavior.none,
+      chainSlotKey: 'opp_deck',
     ),
     for (int i = 0; i < 5; i++)
       ZoneSlotSpec(
@@ -334,6 +354,7 @@ List<ZoneSlotSpec> buildZoneSlotSpecs(FlameFieldSnapshot snapshot) {
       boardY: stY,
       resolveCard: deckPreview(self),
       tapBehavior: ZoneSlotTapBehavior.none,
+      chainSlotKey: 'self_deck',
     ),
   ];
 }

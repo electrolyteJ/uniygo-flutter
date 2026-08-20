@@ -270,7 +270,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
         // 改为反向定位后任意窗口高度下两者都不相交。
         Positioned(
           right: kChatDockRight,
-          bottom: kChatDockBottom + panelHeight + kChatDockGap,
+          top: kChatDockBottom,
           child: SizedBox(
             height: panelHeight,
             child: DuelLogDrawer(

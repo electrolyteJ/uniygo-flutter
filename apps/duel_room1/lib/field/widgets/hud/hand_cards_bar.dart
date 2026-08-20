@@ -5,6 +5,8 @@ import 'package:flutter_portal/flutter_portal.dart';
 
 import 'package:biz/widgets/card_image.dart';
 
+import 'chain_order_badge.dart';
+
 class HandCardsBar extends StatefulWidget {
   final List<int> handCodes;
   final int? selectedCardSequence;
@@ -37,6 +39,11 @@ class HandCardsBar extends StatefulWidget {
   /// 「来回换位」洗牌动画。
   final int shuffleTick;
 
+  /// 连锁序号映射：手牌下标 → 连锁序号（1 起）。
+  /// 在连锁链上的手牌（如手坑发动）直接在卡片左上角标注序号；
+  /// 连锁结束后由徽章自行停留 1s 淡出。
+  final Map<int, int> chainOrderByIndex;
+
   /// 每张手牌矩形变化时上报（下标 → 矩形），供抽卡动画定位终点。
   final ValueChanged<Map<int, Rect>>? onCardRectsChanged;
 
@@ -55,6 +62,7 @@ class HandCardsBar extends StatefulWidget {
     this.highlightedSequences = const {},
     this.checkedSequences = const {},
     this.shuffleTick = 0,
+    this.chainOrderByIndex = const {},
     this.onCardRectsChanged,
     this.cardRectsAncestor,
   });
@@ -236,11 +244,14 @@ class _HandCardsBarState extends State<HandCardsBar>
                           1.0,
                           1.0,
                         ),
-                      child: Container(
-                        // v10 .hand-card: width 68px, height 94px（按轨道高度微缩）
-                        width: 64,
-                        height: 90,
-                        decoration: BoxDecoration(
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            // v10 .hand-card: width 68px, height 94px（按轨道高度微缩）
+                            width: 64,
+                            height: 90,
+                            decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(5),
                           border: Border.all(
                             // isActive/选中态使用 --cyan-glow (#00f0ff)，默认使用 --gold-glow (#ffd700)
@@ -275,21 +286,39 @@ class _HandCardsBarState extends State<HandCardsBar>
                             ),
                           ],
                         ),
-                        clipBehavior: Clip.antiAlias,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            widget.cardsVisible
-                                ? CardImage(code: code, width: 64, height: 90)
-                                : const _CardBack(width: 64, height: 90),
-                            if (isDimmed)
-                              IgnorePointer(
-                                child: ColoredBox(
-                                  color: Colors.black.withValues(alpha: 0.55),
-                                ),
+                            clipBehavior: Clip.antiAlias,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                widget.cardsVisible
+                                    ? CardImage(
+                                        code: code,
+                                        width: 64,
+                                        height: 90,
+                                      )
+                                    : const _CardBack(width: 64, height: 90),
+                                if (isDimmed)
+                                  IgnorePointer(
+                                    child: ColoredBox(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.55,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          // 连锁序号徽章：压卡片左上角（不裁剪、不挡点击）。
+                          Positioned(
+                            left: -7,
+                            top: -7,
+                            child: IgnorePointer(
+                              child: ChainOrderBadge(
+                                number: widget.chainOrderByIndex[index],
                               ),
-                          ],
-                        ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

@@ -23,6 +23,7 @@ import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:duel_room1/field/duel_flame_game.dart';
+import 'package:duel_room1/field/models/chain_order_map.dart';
 import 'package:duel_room1/field/models/duel_field_layout.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:duel_room1/field/flame_playmat_field.dart';
@@ -39,7 +40,6 @@ import 'package:duel_room1/field/widgets/menus/phase_action_menu.dart';
 import 'package:duel_room1/field/widgets/overlay/announce_card_dialog.dart';
 import 'package:duel_room1/field/widgets/overlay/announce_choice_dialog.dart';
 import 'package:duel_room1/field/widgets/overlay/card_selector.dart';
-import 'package:duel_room1/field/widgets/overlay/chain_stack_overlay.dart';
 import 'package:duel_room1/field/widgets/overlay/confirm_cards_dialog.dart';
 import 'package:duel_room1/field/widgets/overlay/confirm_floating_card.dart';
 import 'package:duel_room1/field/widgets/overlay/position_selector.dart';
@@ -257,10 +257,10 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
       phase: _board.phase,
       inDamageStep: _board.inDamageStep,
       battlePresentation: _board.battlePresentation,
-      deckShuffleTick: _board.deckShuffleTick,
-      deckShufflePlayer: _board.deckShufflePlayer,
-      extraShuffleTick: _board.extraShuffleTick,
-      extraShufflePlayer: _board.extraShufflePlayer,
+      selfDeckShuffleTick: _board.selfDeckShuffleTick,
+      oppDeckShuffleTick: _board.oppDeckShuffleTick,
+      selfExtraShuffleTick: _board.selfExtraShuffleTick,
+      oppExtraShuffleTick: _board.oppExtraShuffleTick,
       summonEffectTick: _board.summonEffectTick,
       summonEffectEvent: _board.summonEffectEvent,
       selfDeck: _board.selfDeck,
@@ -279,6 +279,11 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
       inlineSelectedFieldKeys: _selectN.inlineSelectedFieldKeys,
       inlineSelectableFieldKeys: _selectN.inlineSelectableFieldKeys,
       placeTargetFieldKeys: _select.placeTargetFieldKeys,
+      activatableZoneKeys: ref.read(activatableZoneKeysProvider),
+      chainOrderBySlotKey: buildChainOrderMaps(
+        _board.chains,
+        _board.myController,
+      ).field,
     );
   }
 
@@ -789,9 +794,16 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
               final confirmedSeqs = ref.watch(
                 cardConfirmProvider.select((s) => s.confirmedHandSequences),
               );
+              final chains = ref.watch(
+                duelFieldProvider.select((s) => s.chains),
+              );
               return HandCardsBar(
                 cardsVisible: false,
                 handCodes: opp.opponentHand,
+                chainOrderByIndex: buildChainOrderMaps(
+                  chains,
+                  opp.myController,
+                ).oppHand,
                 highlightedSequences:
                     confirmedOwner != opp.myController &&
                         confirmedSeqs.isNotEmpty
@@ -873,8 +885,15 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
               final selectN = ref.read(selectWindowProvider.notifier);
               final inlineActive = mode == SelectPromptMode.inline;
               final entries = ref.watch(handActionMenuProvider);
+              final chains = ref.watch(
+                duelFieldProvider.select((s) => s.chains),
+              );
               return HandCardsBar(
                 handCodes: hand.selfHand,
+                chainOrderByIndex: buildChainOrderMaps(
+                  chains,
+                  hand.myController,
+                ).selfHand,
                 selectedCardSequence: selectedSeq,
                 onCardTap: handleHandCardTap,
                 overlayContent: entries.isEmpty
@@ -989,29 +1008,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
             );
             if (!preview.isFloat) return const SizedBox.shrink();
             return _buildFloatPreview(preview);
-          },
-        ),
-        Consumer(
-          builder: (context, ref, _) {
-            final mode = ref.watch(selectPromptModeProvider);
-            final hasPanel = ref.watch(
-              cardConfirmProvider.select((s) => s.confirmPanel != null),
-            );
-            if (mode == SelectPromptMode.modal || hasPanel) {
-              return const SizedBox.shrink();
-            }
-            final chain = ref.watch(duelFieldProvider.select(selectChainSlice));
-            ref.watch(duelFieldProvider.select((s) => s.cardInfoVersion));
-            return Positioned.fill(
-              child: IgnorePointer(
-                child: ChainStackOverlay(
-                  chains: chain.chains,
-                  chainSealed: chain.chainSealed,
-                  cardNameBuilder: (code) =>
-                      _boardN.getCardInfo(code)?.name ?? 'Card #$code',
-                ),
-              ),
-            );
           },
         ),
         Consumer(
