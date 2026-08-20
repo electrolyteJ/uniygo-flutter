@@ -27,8 +27,14 @@ class WebSocketConnection implements DuelConnection {
       _channel!.stream.listen(
         (data) {
           final bytes = data is List<int> ? Uint8List.fromList(data) : data as Uint8List;
-          for (final s in decodeStocs(bytes)) {
-            _msgCtrl.add(s);
+          // 单批解码失败不应吞掉整批消息：逐包解码并记录失败，
+          // 避免一条坏消息导致后续消息（如第二局 MSG_START）被静默丢弃。
+          try {
+            for (final s in decodeStocs(bytes)) {
+              _msgCtrl.add(s);
+            }
+          } catch (e) {
+            console.log('decodeStocs failed (${bytes.length} bytes): $e');
           }
         },
         onError: (e) {

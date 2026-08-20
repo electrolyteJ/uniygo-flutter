@@ -107,7 +107,14 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
 
   /// 换备确认：提交换备后的卡组并 ready，失败原因走 SnackBar。
   Future<void> _onConfirmSiding(BuildContext context, WidgetRef ref) async {
-    final error = await ref.read(duelRoomProvider.notifier).confirmSiding();
+    // 兜住一切异常：确认是 match 局间唯一推进通道，未处理异常会让
+    // 换备永远卡住（第二局不开局）且无任何提示。
+    String? error;
+    try {
+      error = await ref.read(duelRoomProvider.notifier).confirmSiding();
+    } catch (e) {
+      error = '换备提交失败: $e';
+    }
     if (error != null && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

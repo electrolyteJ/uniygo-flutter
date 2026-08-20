@@ -71,6 +71,10 @@ class _DuelRoomView extends ConsumerStatefulWidget {
 }
 
 class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
+  /// 已手动关闭的局间结果横幅（按结果对象身份去重：
+  /// 新一局的 MSG_WIN 会产生新 map，横幅届时重新出现）。
+  Object? _dismissedResult;
+
   @override
   void initState() {
     super.initState();
@@ -183,6 +187,10 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     });
     final room = ref.watch(duelRoomProvider);
     final roomCtl = ref.read(duelRoomProvider.notifier);
+    // 本局结果（MSG_WIN 设置；下一局 MSG_START 时 handleStart 清空）。
+    final roundResult = ref.watch(
+      duelFieldProvider.select((s) => s.duelResult),
+    );
 
     final stage = room.stage;
     final isInDuel = stage is RoomInDuel;
@@ -227,6 +235,25 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
             child: TurnSelectPanel(
               enabled: !room.autoTurnOrderEnabled,
               onSendTp: roomCtl.sendTp,
+            ),
+          ),
+        // 局间胜败横幅：srvpro 系服务器 match 局间不下发 STOC_DUEL_END，
+        // 阶段直接从 RoomInDuel 跳到 RoomSideDecking，没有任何结果显示。
+        // 横幅只在「结果已出且不在对局中」的窗口期显示（新局开始
+        // duelResult 清空即自动消失），置顶层但不遮挡中央面板操作。
+        if (roundResult != null &&
+            !isInDuel &&
+            !identical(_dismissedResult, roundResult))
+          Positioned(
+            top: MediaQuery.paddingOf(context).top + 64,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _RoundResultBanner(
+                result: roundResult,
+                onClose: () =>
+                    setState(() => _dismissedResult = roundResult),
+              ),
             ),
           ),
         Positioned(
@@ -304,6 +331,88 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
       backgroundColor: Colors.transparent,
       elevation: 0,
       foregroundColor: Colors.white,
+    );
+  }
+}
+
+/// 局间胜败横幅（match 模式每一局结束时展示）。
+///
+/// 视觉对齐结算页（duel_result_page）的 accent 配色，但做成轻量横幅：
+/// 顶部居中、不遮罩背景（换备面板/聊天仍可操作），点 ✕ 关闭；
+/// 下一局开始（duelResult 清空）时由页面条件自然移除。
+class _RoundResultBanner extends StatelessWidget {
+  const _RoundResultBanner({required this.result, required this.onClose});
+
+  /// 与 DuelResultPage 相同的结果 map（didWin/selfName/opponentName/
+  /// selfLp/opponentLp）。防御性解析，缺字段回退默认值。
+  final Map<String, Object?> result;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final didWin = result['didWin'] as bool? ?? false;
+    final selfName = result['selfName'] as String? ?? '自己';
+    final opponentName = result['opponentName'] as String? ?? '对手';
+    final selfLp = result['selfLp'] as int? ?? 0;
+    final opponentLp = result['opponentLp'] as int? ?? 0;
+    final accent = didWin
+        ? const Color(0xFFD7B65A)
+        : const Color(0xFF7BA7D9);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xF210141C),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.75)),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.18),
+            blurRadius: 20,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            didWin ? Icons.emoji_events : Icons.close,
+            color: accent,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                didWin ? '本局胜利' : '本局落败',
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '$selfName $selfLp : $opponentLp $opponentName',
+                style: const TextStyle(
+                  color: Color(0xFF8CA6C4),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 14),
+          GestureDetector(
+            onTap: onClose,
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.close, color: Color(0xFF8B9BB4), size: 16),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

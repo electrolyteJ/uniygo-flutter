@@ -78,6 +78,14 @@ abstract class BaseDuelService implements IDuelService {
         console.log('Chat: ${stoc.chat?.player} ${stoc.chat?.message}');
         _chatMessageController.add(stoc);
         break;
+      case STOC_TIME_LIMIT:
+        // srvpro 系服务器（233/koishi 等）在关键节点下发 TIME_LIMIT 并等待
+        // CTOS_TIME_CONFIRM，未确认则静默挂起（match 局间换备后不发
+        // DUEL_START 即由此导致）。收到即确认；对不校验该包的服务器无害。
+        if (connectionState == ConnectionState.connected) {
+          confirmTime();
+        }
+        break;
       case STOC_GAME_MSG:
         final gameMsg = stoc.gameMsg;
         if (gameMsg?.func == MSG_NEW_PHASE) {
