@@ -42,13 +42,17 @@ jobs:
           # Cloudflare Workers 部署在根路径（<name>.<account>.workers.dev 或自定义域名），无需 base-href
           flutter build web --release
 
-      - name: Remove oversized GLB from web build
+      - name: Trim web build for Cloudflare free tier
         run: |
-          # Web 端 cardlive 不渲染 3D（kIsWeb 分支），GLB 不会被请求；
-          # 且 Workers 资产单文件上限 25 MiB，超限文件会导致部署失败。
+          # 1) Web 端 cardlive 不渲染 3D（kIsWeb 分支），GLB 不会被请求；且 Workers 资产单文件上限 25 MiB
           find ${{ env.APP_DIR }}/build/web -name "*.glb" -size +25M -delete
-          echo "web build 中剩余 GLB:"
-          find ${{ env.APP_DIR }}/build/web -name "*.glb" -exec du -h {} \;
+          # 2) Web 端不支持残局 Puzzle（duelink_ai_edo / ocgcore_edo），剔除其资产：
+          #    Workers 免费版每版本限 20,000 静态文件，ocgcore_edo 的 CardScripts 有 22,590 个 lua
+          rm -rf ${{ env.APP_DIR }}/build/web/assets/packages/ocgcore_edo
+          echo "=== 清理后统计 ==="
+          echo "lua 文件数: $(find ${{ env.APP_DIR }}/build/web -name '*.lua' | wc -l)"
+          echo "总文件数: $(find ${{ env.APP_DIR }}/build/web -type f | wc -l)"
+          echo "GLB: $(find ${{ env.APP_DIR }}/build/web -name '*.glb' -exec du -h {} \;)"
 
       - name: Deploy to Cloudflare Workers (Static Assets)
         env:

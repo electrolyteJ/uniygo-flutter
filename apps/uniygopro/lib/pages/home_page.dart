@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../config/servers.dart';
@@ -9,6 +10,11 @@ import 'create_room/ai_room_sheet.dart';
 import 'create_room/free_room_sheet.dart';
 import 'create_room/match_join_sheet.dart';
 import 'create_room/puzzle_room_sheet.dart';
+
+/// Web 端展示的服务器列表：不支持残局（duelink_ai_edo / ocgcore_edo，
+/// web 构建已剔除其资产），过滤掉残局房避免点击后加载失败。
+List<GameServer> get _webGameServers =>
+    gameServers.where((s) => s.type != ServerType.puzzleRoom).toList(growable: false);
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -52,11 +58,12 @@ class HomePage extends StatelessWidget {
                   horizontal: 16,
                   vertical: 8,
                 ),
-                itemCount: gameServers.length,
+                itemCount: kIsWeb ? _webGameServers.length : gameServers.length,
                 itemBuilder: (context, index) {
+                  final server = kIsWeb ? _webGameServers[index] : gameServers[index];
                   return _ServerCard(
-                    server: gameServers[index],
-                    onTap: () => _onServerTap(context, gameServers[index]),
+                    server: server,
+                    onTap: () => _onServerTap(context, server),
                   );
                 },
               ),
