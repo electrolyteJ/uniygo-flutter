@@ -43,10 +43,18 @@ jobs:
           # Cloudflare Pages 部署在根路径（*.pages.dev 或自定义域名），无需 base-href
           flutter build web --release
 
+      - name: Create Cloudflare Pages project (if not exists)
+        uses: cloudflare/wrangler-action@v3.14.1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # 项目已存在时该命令报错，用 || true 幂等忽略
+          command: pages project create ${{ env.CF_PROJECT }} --production-branch main || true
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3.14.1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ${{ env.APP_DIR }}/build/web --project-name=${{ env.CF_PROJECT }} --branch main
+          command: pages deploy ${{ env.APP_DIR }}/build/web --project-name=${{ env.CF_PROJECT }} --branch main --commit-dirty=true
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
