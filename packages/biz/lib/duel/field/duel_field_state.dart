@@ -112,6 +112,7 @@ class DuelFieldState {
     this.selfTimeLeft = 0,
     this.opponentTimeLeft = 0,
     this.myController = 0,
+    this.mySeat = -1,
     this.chains = const [],
     this.chainSealed = false,
     this.lastSummonKey,
@@ -173,6 +174,16 @@ class DuelFieldState {
   /// （低 nibble 0 = 引擎 0 号玩家 = 惯例先攻方）。房间座位号 ≠ 引擎编号，
   /// 不能从 selfPlayer.pos 推断。
   final int myController;
+
+  /// 我方房间座位号（0-3），由 [DuelFieldNotifier] 从房间状态
+  /// （STOC_TYPE_CHANGE → DuelRoomState.selfType）同步；-1 = 未知
+  /// （观战位/尚未同步）。
+  ///
+  /// 与 [myController] 组成「引擎编号 ↔ 座位」锚点：服务端在猜拳后按
+  /// 胜者的先/后攻选择交换 players[]（single_duel.cpp TPResult），
+  /// 交换后引擎编号 ≠ 座位号。名字解析经 [teamOfEnginePlayer] 走锚点
+  /// 映射，避免玩家名与 LP/场面错位（观感即"双方生命值对调"）。
+  final int mySeat;
 
   final List<ChainLink> chains;
 
@@ -258,6 +269,7 @@ class DuelFieldState {
     int? selfTimeLeft,
     int? opponentTimeLeft,
     int? myController,
+    int? mySeat,
     List<ChainLink>? chains,
     bool? chainSealed,
     Object? lastSummonKey = _undefined,
@@ -313,6 +325,7 @@ class DuelFieldState {
       selfTimeLeft: selfTimeLeft ?? this.selfTimeLeft,
       opponentTimeLeft: opponentTimeLeft ?? this.opponentTimeLeft,
       myController: myController ?? this.myController,
+      mySeat: mySeat ?? this.mySeat,
       chains: chains ?? this.chains,
       chainSealed: chainSealed ?? this.chainSealed,
       lastSummonKey: identical(lastSummonKey, _undefined)
@@ -427,31 +440,46 @@ class DuelFieldState {
     return players.where((p) => p.pos >= 0 && p.pos <= 3).length >= 4;
   }
 
+  /// 引擎玩家编号 → 展示侧队伍/座位号，以「我方引擎编号 [myController]
+  /// ↔ 我方座位 [mySeat]」为锚点。
+  ///
+  /// 服务端在猜拳后会按胜者的先/后攻选择交换 players[]（single_duel.cpp
+  /// TPResult：(tp && type==1) || (!tp && type==0) 时 swap），交换后
+  /// 引擎编号 ≠ 房间座位号——四种猜拳结果里有两种会触发。旧的
+  /// 「座位号 == 引擎编号」假设此时会把玩家名与 LP/场面错位，
+  /// 观感即"我方生命值和对方生命值对调"。锚点事实（我坐在 [mySeat]、
+  /// 我的引擎编号是 [myController]）恒真，对方侧由此推出。
+  /// [mySeat] 未知（观战位/尚未同步）时退回旧假设（引擎编号 == 座位号）。
+  int teamOfEnginePlayer(int player) {
+    if (mySeat < 0 || mySeat > 3) return player;
+    if (!isTagMode) {
+      // 1v1 座位只会是 0/1；异常值退回旧假设兜底。
+      if (mySeat > 1) return player;
+      return player == myController ? mySeat : 1 - mySeat;
+    }
+    final myTeam = teamOfSeat(mySeat);
+    return player == myController ? myTeam : 1 - myTeam;
+  }
+
   /// 把引擎玩家编号解析为展示用玩家名。
   ///
-  /// 1v1：引擎编号 == 座位号，直接精确匹配。
-  /// tag 模式：引擎只有两个「玩家」（两支队伍），编号即队伍编号
-  /// （座位 0,2 = 队伍 0；座位 1,3 = 队伍 1，见 [teamOfSeat]），
-  /// 无法与 4 个座位一一对应。此处尝试用回合数推导当前行动的队友：
-  /// ocgcore 中回合 1..4 依次对应座位 0..3 轮转，handleStart 把 turnCount
-  /// 置 1 且每条 MSG_NEW_TURN（含第 1 回合）自增一次，故第 T 回合时
+  /// 先经 [teamOfEnginePlayer] 做「引擎编号 → 座位/队伍」锚点映射
+  /// （抵御服务端 TPResult 交换 players[] 造成的编号≠座位），
+  /// 再按座位列表解析名字。
+  /// tag 模式：引擎只有两个「玩家」（两支队伍），无法与 4 个座位
+  /// 一一对应，尝试用回合数推导当前行动的队友：ocgcore 中回合 1..4
+  /// 依次对应座位轮转，handleStart 把 turnCount 置 1 且每条
+  /// MSG_NEW_TURN（含第 1 回合）自增一次，故第 T 回合时
   /// turnCount == T+1，当前座位 = (turnCount - 2) % 4。
   String playerNameOf(int player) {
-    if (!isTagMode) {
-      return players
-          .firstWhere(
-            (p) => p.pos == player,
-            orElse: () => PlayerInfo(name: '玩家$player', pos: player),
-          )
-          .name;
-    }
-    final seats = seatsOfTeam(player, players);
+    final team = teamOfEnginePlayer(player);
+    final seats = seatsOfTeam(team, players);
     if (seats.isEmpty) return '玩家$player';
     if (seats.length == 1) return seats.first.name;
     // 推导当前行动座位；turnCount 尚未走过首个 MSG_NEW_TURN 时无法推导。
     if (turnCount >= 2) {
       final expectedSeat = (turnCount - 2) % 4;
-      if (teamOfSeat(expectedSeat) == player) {
+      if (teamOfSeat(expectedSeat) == team) {
         for (final seat in seats) {
           if (seat.pos == expectedSeat) return seat.name;
         }
@@ -487,8 +515,20 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
         state = state.copyWith(roomMode: next);
       }
     });
+    // 同步我方座位号（引擎编号 ↔ 座位映射的锚点，见 teamOfEnginePlayer）。
+    // selfType 由大厅阶段的 STOC_TYPE_CHANGE 给出，整场对局期间不再变化。
+    final selfType = ref.read(duelRoomProvider.select((s) => s.selfType));
+    ref.listen(duelRoomProvider.select((s) => s.selfType), (prev, next) {
+      final seat = next.isDuelist ? next.slot : -1;
+      if (seat != state.mySeat) {
+        state = state.copyWith(mySeat: seat);
+      }
+    });
     ref.onDispose(_dispose);
-    return DuelFieldState(roomMode: roomMode);
+    return DuelFieldState(
+      roomMode: roomMode,
+      mySeat: selfType.isDuelist ? selfType.slot : -1,
+    );
   }
 
   void _dispose() {

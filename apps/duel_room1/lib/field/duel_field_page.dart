@@ -330,8 +330,19 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     // 见 biz 的 teamOfSeat / teamDisplayName。
     // players 取 DuelFieldState.players（局中最新），未下发时退回 widget.players。
     final effectivePlayers = players.isNotEmpty ? players : widget.players;
-    final selfName = teamDisplayName(mc, effectivePlayers, fallback: '我方');
-    final oppName = teamDisplayName(1 - mc, effectivePlayers, fallback: '对方');
+    // 引擎编号 → 队伍/座位经 teamOfEnginePlayer 的「myController ↔ mySeat」
+    // 锚点映射：服务端猜拳 TPResult 可能交换 players[]（引擎编号 ≠ 座位号），
+    // 直接拿引擎编号当座位会把名字与 LP 错位（观感即"生命值对调"）。
+    final selfName = teamDisplayName(
+      _board.teamOfEnginePlayer(mc),
+      effectivePlayers,
+      fallback: '我方',
+    );
+    final oppName = teamDisplayName(
+      _board.teamOfEnginePlayer(1 - mc),
+      effectivePlayers,
+      fallback: '对方',
+    );
     // 当前回合玩家的剩余时间
     final turnTimeLeft = hud.currentPlayer == mc
         ? hud.selfTimeLeft

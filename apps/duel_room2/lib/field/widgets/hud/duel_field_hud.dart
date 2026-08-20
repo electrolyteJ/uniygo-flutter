@@ -35,8 +35,19 @@ class DuelFieldHud extends ConsumerWidget {
     // 「玩家」（队伍 0/1），同队两名队友的名字以 " / " 连接展示；
     // 1v1 时每队恰好一个座位，输出与旧的 pos 精确匹配一致。
     // 见 teamOfSeat / seatsOfTeam / teamDisplayName。
-    final selfName = teamDisplayName(mc, players, fallback: '我方');
-    final oppName = teamDisplayName(1 - mc, players, fallback: '对方');
+    // 引擎编号 → 队伍/座位经 teamOfEnginePlayer 的「myController ↔ mySeat」
+    // 锚点映射：服务端猜拳 TPResult 可能交换 players[]（引擎编号 ≠ 座位号），
+    // 直接拿引擎编号当座位会把名字与 LP 错位（观感即"生命值对调"）。
+    final selfName = teamDisplayName(
+      board.teamOfEnginePlayer(mc),
+      players,
+      fallback: '我方',
+    );
+    final oppName = teamDisplayName(
+      board.teamOfEnginePlayer(1 - mc),
+      players,
+      fallback: '对方',
+    );
     final turnTimeLeft = board.currentPlayer == mc
         ? board.selfTimeLeft
         : board.opponentTimeLeft;
