@@ -11,6 +11,8 @@ workspace:
   - packages/ygo_deck_mdpro3
   - packages/ygo_card_mycard
   - packages/ygo_card_baige
+  - packages/ygo_card_ygoprodeck
+  - packages/ygo_card_yugipedia
   - packages/ygo_banlist_mycard
   - packages/duelink
   - packages/duelink_websocket
