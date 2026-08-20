@@ -4,11 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'deck_editor_store.dart';
 import 'package:biz/service_singleton.dart';
-import '../../widgets/deck_editor/deck_list_panel.dart';
-import '../../widgets/deck_editor/deck_edit_panel.dart';
-import '../../widgets/deck_editor/card_search_bar.dart';
-import '../../widgets/deck_editor/card_grid_view.dart';
-import '../../widgets/deck_editor/card_list_view.dart';
+import '../widgets/deck_list_panel.dart';
+import '../widgets/deck_edit_panel.dart';
+import '../widgets/card_search_bar.dart';
+import '../widgets/card_grid_view.dart';
+import '../widgets/card_list_view.dart';
 
 class DeckEditorPage extends StatefulWidget {
   const DeckEditorPage({super.key, this.args});

@@ -5,18 +5,11 @@
 /// dataService，但本文件只测不触网的方法）。
 library;
 
+import 'package:deck_editor1/deck_editor1.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:uniygopro/models/deck_model.dart';
-import 'package:uniygopro/pages/deck_editor/deck_editor_store.dart';
 import 'package:uniygopro/service_loader.registrations.g.dart';
-import 'package:uniygopro/widgets/deck_editor/banlist_status_badge.dart';
-import 'package:uniygopro/widgets/deck_editor/card_grid_view.dart';
-import 'package:uniygopro/widgets/deck_editor/card_list_view.dart';
-import 'package:uniygopro/widgets/deck_editor/deck_edit_panel.dart';
-import 'package:uniygopro/widgets/deck_editor/deck_list_panel.dart';
-import 'package:uniygopro/widgets/deck_editor/deck_zone_widget.dart';
 import 'package:ygo_data/card_info.dart' as pkg;
 import 'package:ygo_data/deck_info.dart';
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ygo_data/card_info.dart';
-import '../../models/deck_model.dart';
+import '../models/deck_model.dart';
 import 'deck_zone_widget.dart';
 
 class DeckEditPanel extends StatefulWidget {

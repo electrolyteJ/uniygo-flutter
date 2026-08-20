@@ -13,3 +13,5 @@ git clone --recursive git@github.com:ProjectIgnis/CardScripts.git
 https://spacecraft-67664.web.app/
 
 https://electrolytej.github.io/uniygo-flutter/
+
+https://uniygopro.electrolytej.workers.dev/

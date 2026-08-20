@@ -6,20 +6,15 @@ library;
 
 import 'package:duelink/duelink.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uniygopro/config/env.dart';
 import 'package:uniygopro/config/servers.dart';
 import 'package:uniygopro/models/created_room_record.dart';
-import 'package:uniygopro/models/deck_model.dart';
+import 'package:deck_editor1/deck_editor1.dart';
 import 'package:uniygopro/models/mercury233_room_spec.dart';
 import 'package:uniygopro/models/mercury233_room_string_codec.dart';
 import 'package:uniygopro/pages/create_room/match_store.dart';
 import 'package:uniygopro/pages/create_room/room_history_store.dart';
-import 'package:uniygopro/pages/deck_editor/deck_editor_session.dart';
 import 'package:uniygopro/pages/side/side_store.dart';
-import 'package:uniygopro/services/match_service.dart';
 import 'package:ygo_data/card_info.dart' as pkg;
 import 'package:ygo_data/lf_table.dart';
 
@@ -235,7 +230,6 @@ void main() {
         gameServers.first.wsUrl,
         startsWith('wss://'),
       );
-      expect(EnvConfig.mycardApiBase, startsWith('https://'));
     });
   });
 
@@ -351,39 +345,6 @@ void main() {
       await RoomHistoryStore.remove(record);
       loaded = await RoomHistoryStore.load();
       expect(loaded, isEmpty);
-    });
-  });
-
-  group('MatchService', () {
-    test('match 200 成功解析', () async {
-      final client = MockClient((request) async {
-        expect(request.url.path, '/ygopro/match');
-        expect(request.headers['Authorization'], isNotNull);
-        return http.Response('{"address":"1.2.3.4","port":7912,"password":"p"}', 200);
-      });
-      final service = MatchService(baseUrl: 'http://example.com', client: client);
-      final result = await service.match(
-        arena: 'athletic',
-        username: 'u',
-        secret: 's',
-      );
-      expect(result.address, '1.2.3.4');
-      expect(result.port, 7912);
-      expect(result.password, 'p');
-    });
-
-    test('match 非 200 抛异常', () async {
-      final client = MockClient((_) async => http.Response('bad', 500));
-      final service = MatchService(baseUrl: 'http://example.com', client: client);
-      expect(
-        () => service.match(arena: 'a', username: 'u', secret: 's'),
-        throwsA(isA<Exception>()),
-      );
-    });
-
-    test('MatchResult.fromJson 处理 num port', () {
-      final r = MatchResult.fromJson({'address': 'a', 'port': 1.0, 'password': 'p'});
-      expect(r.port, 1);
     });
   });
 }

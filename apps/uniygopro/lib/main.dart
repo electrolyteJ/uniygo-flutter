@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uniygopro/pages/create_room/match_store.dart';
 import 'package:uniygopro/service_loader.registrations.g.dart';
-import 'package:uniygopro/pages/deck_editor/deck_editor_store.dart';
+import 'package:deck_editor1/deck_editor1.dart' show DeckEditorStore;
 import 'package:biz/card_image_loader.dart';
 import 'package:biz/service_providers.dart';
 import 'package:biz/service_singleton.dart';

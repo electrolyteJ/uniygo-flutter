@@ -37,3 +37,4 @@ workspace:
   - apps/duel_room2
   - apps/duel_settings
   - apps/cardlive
+  - apps/deck_editor1

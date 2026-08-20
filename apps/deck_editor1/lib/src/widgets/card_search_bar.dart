@@ -1,7 +1,7 @@
 import 'package:biz/widgets/banlist_detail_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:ygo_data/ygo_data.dart';
-import '../../models/deck_model.dart';
+import '../models/deck_model.dart';
 
 class CardSearchBar extends StatefulWidget {
   final void Function(String query) onSearch;

@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../config/env.dart';
 
 class MatchResult {
   final String address;
@@ -23,12 +22,8 @@ class MatchResult {
 }
 
 class MatchService {
-  final String _baseUrl;
-  final http.Client _client;
-
-  MatchService({String? baseUrl, http.Client? client})
-      : _baseUrl = baseUrl ?? EnvConfig.mycardApiBase,
-        _client = client ?? http.Client();
+  final String _baseUrl = "'https://sapi.moecube.com:444'";
+  final http.Client _client = http.Client();
 
   Future<MatchResult> match({
     required String arena,
@@ -42,7 +37,9 @@ class MatchService {
       headers: {'Authorization': 'Basic $auth'},
     );
     if (response.statusCode == 200) {
-      return MatchResult.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      return MatchResult.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
     }
     throw Exception('Match failed: ${response.statusCode} ${response.body}');
   }

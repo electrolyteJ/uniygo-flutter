@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'pages/home_page.dart';
 import 'pages/create_room/match_page.dart';
 import 'pages/side/side_page.dart';
-import 'pages/deck_editor/deck_editor_page.dart';
+import 'package:deck_editor1/deck_editor1.dart' show DeckEditorPage;
 
 abstract final class Routes {
   static const home = '/';

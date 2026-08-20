@@ -9,7 +9,7 @@ import 'package:ygo_card_mycard/ygo_card_mycard.dart';
 import 'package:ygo_data/ygo_data.dart';
 import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
 import 'package:ygo_data/deck_info.dart';
-import '../../models/deck_model.dart';
+import '../models/deck_model.dart';
 import 'deck_editor_session.dart';
 
 /// 卡组编辑器状态仓库。
