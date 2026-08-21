@@ -54,6 +54,10 @@ class AiConnection implements DuelConnection {
 
   /// 模型自动应答器（本地/远端统一接口；agent == -1 时为 null 走规则 AI）。
   AgentAutoAnswerer? _agentAnswerer;
+
+  /// 诊断/测试钩子：当前生效的模型应答器（规则 AI 时为 null）。
+  AgentAutoAnswerer? get agentAnswerer => _agentAnswerer;
+
   late final DuelEngine _engine;
   AiConnection({this.lib, ScriptLoader? scriptLoader}) {
     _engine = DuelEngine(
@@ -153,13 +157,18 @@ class AiConnection implements DuelConnection {
             : 'AiConnection: 端侧模型不可用，回退规则 AI',
       );
     } else if (_roomOptions.agent == 1) {
-      // 远端 predict 服务（http 包工厂装配，固定默认公共服务地址）。
+      // 远端 predict 服务（http 包工厂装配；agentServer 查询参数可指定
+      // 自托管服务地址，缺省公共服务）。
       _agentAnswerer = createYgoAgentHttp(
         field: DuelEngineFieldQuery(_engine),
         cardData: cardLoader.dataOf,
         startLp: _roomOptions.startLp,
+        server: _roomOptions.agentServer.isNotEmpty
+            ? _roomOptions.agentServer
+            : null,
       );
-      console.log('AiConnection: 远端 ygo-agent predict 服务已启用');
+      console.log('AiConnection: 远端 ygo-agent predict 服务已启用'
+          '（${_roomOptions.agentServer.isNotEmpty ? _roomOptions.agentServer : '默认公共服务'}）');
     }
     // 模型优先、规则兜底：模型应答出错（HTTP 失败/不支持的消息形状）或
     // 返回 null 时回退规则 AI（ai_strategy.dart），避免整局卡死。

@@ -82,6 +82,12 @@ class RoomOptions {
   /// 1=远端 predict 服务（neos-ai-agent 协议）。
   final int agent;
 
+  /// 远端 predict 服务地址（仅 agent==1 生效）。空串 = 包内默认
+  /// 公共服务（duelink_ai_ygo_agent_http 的 kDefaultAgentServer）；
+  /// 自托管 neos-ai-agent 时填写自定义地址（对齐 neos-ts 的
+  /// settingStore.ai.server）。
+  final String agentServer;
+
   const RoomOptions({
     this.lfTableHash = 0,
     this.rule = 0,
@@ -95,6 +101,7 @@ class RoomOptions {
     this.timeLimit = 180,
     this.autoDeath = false,
     this.agent = -1,
+    this.agentServer = '',
   });
 
   /// 编码为 AI 连接 URI 的查询参数（本地引擎无需网络，参数经 URI 传递）。
@@ -109,6 +116,7 @@ class RoomOptions {
         'ns': noShuffleDeck ? '1' : '0',
         'tl': '$timeLimit',
         'agent': '$agent',
+        if (agentServer.isNotEmpty) 'agentServer': agentServer,
       };
 
   /// 从 AI 连接 URI 的查询参数解析房间选项。缺省值与本地人机对战
@@ -130,6 +138,7 @@ class RoomOptions {
       drawCount: num('draw') ?? 1,
       timeLimit: num('tl') ?? 180,
       agent: num('agent') ?? -1,
+      agentServer: q['agentServer'] ?? '',
     );
   }
 
@@ -187,6 +196,7 @@ class RoomOptions {
     int? timeLimit,
     bool? autoDeath,
     int? agent,
+    String? agentServer,
   }) {
     return RoomOptions(
       lfTableHash: lflist ?? this.lfTableHash,
@@ -201,6 +211,7 @@ class RoomOptions {
       timeLimit: timeLimit ?? this.timeLimit,
       autoDeath: autoDeath ?? this.autoDeath,
       agent: agent ?? this.agent,
+      agentServer: agentServer ?? this.agentServer,
     );
   }
 

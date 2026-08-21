@@ -6,6 +6,8 @@ export 'src/card_data_loader.dart';
 import 'dart:developer' as console;
 
 import 'package:duelink/duelink.dart' hide CardInfo;
+import 'package:duelink_ai_ygo_agent/duelink_ai_ygo_agent.dart'
+    show AgentAutoAnswerer;
 import 'package:ocgcore/ocgcore.dart' show ScriptLoader;
 import 'package:service_loader/service_loader.dart';
 import 'duelink_ai.dart';
@@ -24,6 +26,11 @@ class AiDuelService extends BaseDuelService {
   void setCardConverter(CardConverter converter) {
     (connection as AiConnection).setCardConverter(converter);
   }
+
+  /// 诊断/测试钩子：当前生效的模型应答器（规则 AI 时为 null）。
+  /// 远端应答器（RemoteAgentAutoAnswer）可读取 broken/successCount。
+  AgentAutoAnswerer? get agentAnswerer =>
+      (connection as AiConnection).agentAnswerer;
 
   /// 测试钩子：固定 AI 猜拳出拳（1=剪刀 2=石头 3=布），null 恢复随机。
   ///

@@ -62,6 +62,15 @@ class RemoteAgentAutoAnswer implements AgentAutoAnswerer {
 
   bool get broken => _broken;
 
+  /// 诊断计数：成功产生模型应答的次数（仅统计经远端 predict 成功的应答；
+  /// 本地确定性短路如 sort_card/counter 不计入）。
+  int _successCount = 0;
+  int get successCount => _successCount;
+
+  /// 诊断计数：远端 predict 请求总次数（含多选驱动的每步子请求）。
+  int get predictCount => _sessionPredictCount;
+  int _sessionPredictCount = 0;
+
   /// 场态簿记入口：引擎下发的每条对局消息（payload 不含 func 头）。
   @override
   void observe(int func, Uint8List payload) => _tracker.observe(func, payload);
@@ -77,6 +86,8 @@ class RemoteAgentAutoAnswer implements AgentAutoAnswerer {
       cardData: _cardData,
     );
     _broken = false;
+    _successCount = 0;
+    _sessionPredictCount = 0;
     await _session.start();
   }
 
@@ -105,7 +116,9 @@ class RemoteAgentAutoAnswer implements AgentAutoAnswerer {
     }
 
     try {
-      return await _modelAnswer(func, payload);
+      final bytes = await _modelAnswer(func, payload);
+      _successCount++;
+      return bytes;
     } on NotSupportedException catch (e) {
       console.log('RemoteAgentAutoAnswer: func $func unsupported by model '
           '($e), stall for the rest of this duel');
@@ -121,6 +134,12 @@ class RemoteAgentAutoAnswer implements AgentAutoAnswerer {
 
   // ── 远端推理路径 ─────────────────────────────────────────────────────
 
+  /// 会话 predict 包装：计数 + 委托（诊断用，不改变语义）。
+  Future<MsgResponse> _predict(Input input) {
+    _sessionPredictCount++;
+    return _session.predict(input);
+  }
+
   Future<Uint8List> _modelAnswer(int func, Uint8List payload) async {
     final msg = decodeAgentActionMsg(func, payload);
     final input =
@@ -135,7 +154,7 @@ class RemoteAgentAutoAnswer implements AgentAutoAnswerer {
     }
 
     // 单步消息：一次 predict 直接出结果。
-    final resp = await _session.predict(input);
+    final resp = await _predict(input);
     final chosen = argmaxPreds(resp.actionPreds);
     _session.recordChoice(chosen);
     return _serializeSingle(msg.player, input, resp.actionPreds[chosen],
@@ -161,7 +180,7 @@ class RemoteAgentAutoAnswer implements AgentAutoAnswerer {
         cards: base.cards,
         actionMsg: ActionMsg(data: data),
       );
-      final resp = await _session.predict(input);
+      final resp = await _predict(input);
       final chosen = argmaxPreds(resp.actionPreds);
       _session.recordChoice(chosen);
       final pred = resp.actionPreds[chosen];
@@ -204,7 +223,7 @@ class RemoteAgentAutoAnswer implements AgentAutoAnswerer {
         cards: base.cards,
         actionMsg: ActionMsg(data: data),
       );
-      final resp = await _session.predict(input);
+      final resp = await _predict(input);
       final chosen = argmaxPreds(resp.actionPreds);
       _session.recordChoice(chosen);
       final pred = resp.actionPreds[chosen];

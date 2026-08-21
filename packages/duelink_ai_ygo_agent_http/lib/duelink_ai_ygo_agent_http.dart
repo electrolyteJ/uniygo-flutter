@@ -21,10 +21,12 @@ RemoteAgentAutoAnswer createYgoAgentHttp({
   required AgentFieldQuery field,
   CardData? Function(int code)? cardData,
   int startLp = 8000,
+  /// 自托管 predict 服务地址；null = [kDefaultAgentServer]（公共服务）。
+  String? server,
 }) {
   return RemoteAgentAutoAnswer(
     session: RemotePredictSession(
-      client: YgoAgentClient(server: kDefaultAgentServer),
+      client: YgoAgentClient(server: server ?? kDefaultAgentServer),
     ),
     field: field,
     cardData: cardData,

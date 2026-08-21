@@ -47,6 +47,9 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
   /// 1=远端 predict 服务。仅 [_AiType.local] 时生效。
   int _agentMode = 0;
 
+  /// 远端 predict 服务地址（仅 agent==1 生效）；留空 = 默认公共服务。
+  String _agentServer = '';
+
   /// 房间参数（单局、无房间名）。AI 对战默认不检查卡组。
   Mercury233RoomSpec _spec = const Mercury233RoomSpec(noCheckDeck: true);
   bool _connecting = false;
@@ -90,6 +93,7 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
       timeLimit: _spec.timeLimit,
       // 仅本地 AI 使用端侧/远端模型；233 服 AI 由服务端托管。
       agent: _aiType == _AiType.local ? _agentMode : -1,
+      agentServer: _agentMode == 1 ? _agentServer.trim() : '',
     );
     setState(() => _connecting = true);
 
@@ -320,6 +324,34 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
           modes.firstWhere((m) => m.$1 == _agentMode).$3,
           style: TextStyle(color: Colors.blueGrey.shade500, fontSize: 11),
         ),
+        // 远端模型：自托管服务地址（留空 = 默认公共服务）
+        if (_agentMode == 1) ...[
+          const SizedBox(height: 8),
+          TextField(
+            key: const ValueKey('ai-agent-server-field'),
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'https://sapi.moecube.com:444/neos-ai-agent',
+              hintStyle: TextStyle(
+                color: Colors.blueGrey.shade600,
+                fontSize: 12,
+              ),
+              labelText: 'predict 服务地址（留空 = 默认公共服务）',
+              labelStyle: TextStyle(
+                color: Colors.blueGrey.shade400,
+                fontSize: 12,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: Colors.blueGrey.shade700),
+              ),
+              focusedBorder: const OutlineInputBorder(
+                borderSide: BorderSide(color: Colors.amber),
+              ),
+            ),
+            onChanged: (v) => _agentServer = v,
+          ),
+        ],
       ],
     );
   }
