@@ -6,8 +6,7 @@ import 'package:duelink/duelink.dart';
 import 'package:duelink_ai_ygo_agent/duelink_ai_ygo_agent.dart'
     show AgentAutoAnswerer, DuelEngineFieldQuery;
 import 'package:duelink_ai_ygo_agent_http/duelink_ai_ygo_agent_http.dart';
-import 'package:duelink_ai_ygo_agent_tflite/duelink_ai_ygo_agent_tflite.dart'
-    hide createYgoAgentHttp;
+import 'package:duelink_ai_ygo_agent_tflite/duelink_ai_ygo_agent_tflite.dart';
 import 'package:ocgcore/ocgcore.dart' show DuelEngine, ScriptLoader;
 import 'package:ygo_data/ygo_data.dart';
 
@@ -141,55 +140,50 @@ class AiConnection implements DuelConnection {
     final cardLoader = CardDataLoader(cardConverter: _cardConverter!);
     _engine.setCardReader(cardLoader.load);
     final ruleAnswer = aiAutoAnswer(cardLoader.levelOf);
-    // if (_roomOptions.agent == 0) {
-    //   // 端侧模型（tflite 包工厂装配）：模型不可用时回退规则 AI。
-    //   _agentAnswerer = await createYgoAgentLocal(
-    //     field: DuelEngineFieldQuery(_engine),
-    //     cardData: cardLoader.dataOf,
-    //     startLp: _roomOptions.startLp,
-    //   );
-    //   if (_agentAnswerer != null) {
-    //     _engine.setAutoAnswer(_agentAnswerer!.answer);
-    //     console.log('AiConnection: agent auto-answer enabled');
-    //   } else {
-    //     _engine.setAutoAnswer(ruleAnswer);
-    //     console.log('AiConnection: agent runtime unavailable, rule AI');
-    //   }
-    // } else if (_roomOptions.agent == 1) {
-    // 远端 predict 服务（http 包工厂装配，固定默认公共服务地址）。
-    // _agentAnswerer = createYgoAgentHttp(
-    //   field: DuelEngineFieldQuery(_engine),
-    //   cardData: cardLoader.dataOf,
-    //   startLp: _roomOptions.startLp,
-    //     console.log('AiConnection: agent runtime unavailable, rule AI');
-    // 模型优先、规则兜底：远端模型出错（HTTP 失败/不支持的消息形状）时
-    // 回退规则 AI（ai_strategy.dart），避免整局卡死（"no auto-answer" stall）。
-    // final agent = _agentAnswerer;
-    // _engine.setAutoAnswer((func, payload) async {
-    //   if (agent != null) {
-    //     try {
-    //       console.log('AiConnection: agent auto-answering func=$func...');
-    //       final agentResp = await agent.answer(func, payload);
-    //       console.log('AiConnection: agent auto-answer func=$func resp=${agentResp?.length}');
-    //       if (agentResp != null) return agentResp;
-    //     } catch (e) {
-    //       console.log('AiConnection: agent 应答异常 func=$func: $e');
-    //     }
-    //   }
-    //   console.log('AiConnection: rule AI auto-answering func=$func...');
-    //   try {
-    //     return ruleAnswer(func, payload);
-    //   } catch (e) {
-    //     // 规则 AI 解码/编码异常不应逃逸出引擎 pump 循环（会把对局冻结在
-    //     // 不一致状态）；返回 null 由引擎按"无法应答"停住并保留 pending。
-    //     console.log('AiConnection: rule AI 应答异常 func=$func: $e');
-    //     return null;
-    //   }
-    // });
-    // } else {
+    if (_roomOptions.agent == 0) {
+      // 端侧模型（tflite 包工厂装配）：模型不可用时回退规则 AI。
+      _agentAnswerer = await createYgoAgentLocal(
+        field: DuelEngineFieldQuery(_engine),
+        cardData: cardLoader.dataOf,
+        startLp: _roomOptions.startLp,
+      );
+      console.log(
+        _agentAnswerer != null
+            ? 'AiConnection: 端侧 ygo-agent 模型已启用'
+            : 'AiConnection: 端侧模型不可用，回退规则 AI',
+      );
+    } else if (_roomOptions.agent == 1) {
+      // 远端 predict 服务（http 包工厂装配，固定默认公共服务地址）。
+      _agentAnswerer = createYgoAgentHttp(
+        field: DuelEngineFieldQuery(_engine),
+        cardData: cardLoader.dataOf,
+        startLp: _roomOptions.startLp,
+      );
+      console.log('AiConnection: 远端 ygo-agent predict 服务已启用');
+    }
+    // 模型优先、规则兜底：模型应答出错（HTTP 失败/不支持的消息形状）或
+    // 返回 null 时回退规则 AI（ai_strategy.dart），避免整局卡死。
+    final agent = _agentAnswerer;
+    if (agent != null) {
+      _engine.setAutoAnswer((func, payload) async {
+        try {
+          final agentResp = await agent.answer(func, payload);
+          if (agentResp != null) return agentResp;
+        } catch (e) {
+          console.log('AiConnection: agent 应答异常 func=$func: $e');
+        }
+        try {
+          return ruleAnswer(func, payload);
+        } catch (e) {
+          // 规则 AI 解码/编码异常不应逃逸出引擎 pump 循环（会把对局冻结在
+          // 不一致状态）；返回 null 由引擎按"无法应答"停住并保留 pending。
+          console.log('AiConnection: rule AI 应答异常 func=$func: $e');
+          return null;
+        }
+      });
+    } else {
       _engine.setAutoAnswer(ruleAnswer);
-    console.log('AiConnection: remote agent auto-answer enabled (规则兜底)');
-    // }
+    }
     final ok = await _engine.init(lib);
     _state = ok ? ConnectionState.connected : ConnectionState.error;
     _stateController.add(_state);

@@ -809,6 +809,52 @@ void main() {
       expect(selectHand, isNotNull, reason: 'startDuel 后应进入猜拳');
     },
   );
+
+  // ----------------------------------------------------------
+  // 接线回归：agent=0（端侧模型）在模型资产不可用的测试环境下
+  // 应安全回退规则 AI，房间/开局流程不受影响。
+  // ----------------------------------------------------------
+  test(
+    'agent=0 端侧模型不可用时回退规则 AI 并可开局',
+    timeout: const Timeout(Duration(minutes: 1)),
+    () async {
+      final service = AiDuelService(
+        lib: _loadCoreLib(),
+        scriptLoader: _FileScriptLoader(),
+      );
+      _injectTestCards(service);
+      service.fixedAiHandChoice = 1;
+      final allMsgs = <YgoStocMsg>[];
+      final allStages = <RoomStage>[];
+      final cursor = _MsgCursor(allMsgs);
+
+      final msgSub = service.onServerMessage.listen(allMsgs.add);
+      final stageSub = service.onRoomStageChange.listen(allStages.add);
+
+      addTearDown(() async {
+        await msgSub.cancel();
+        await stageSub.cancel();
+        await service.disconnect();
+      });
+
+      // agent=0：flutter test 的 rootBundle 无模型资产 → 回退规则 AI。
+      await service.connect(Uri.parse('ai://localhost:8080?agent=0'));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(service.connectionState, ConnectionState.connected);
+
+      service.setPlayerName('AgentFallbackTest');
+      service.enterRoom(RoomPassword.encodeJoin());
+      service.submitDeck(_encodeDeck(_buildTestDeck()), Uint8List(0));
+      service.ready();
+      service.startDuel();
+
+      final selectHand = await cursor.waitFor(
+        (m) => m.protoId == STOC_SELECT_HAND,
+        timeout: const Duration(seconds: 5),
+      );
+      expect(selectHand, isNotNull, reason: 'agent=0 回退规则 AI 后应可开局');
+    },
+  );
 }
 
 // ============================================================

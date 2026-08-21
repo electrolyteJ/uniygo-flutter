@@ -43,6 +43,10 @@ class AiRoomSheet extends StatefulWidget {
 class _AiRoomSheetState extends State<AiRoomSheet> {
   _AiType _aiType = _AiType.local;
 
+  /// 本地 AI 的对手模式：-1=规则 AI，0=端侧 ygo-agent 模型（默认），
+  /// 1=远端 predict 服务。仅 [_AiType.local] 时生效。
+  int _agentMode = 0;
+
   /// 房间参数（单局、无房间名）。AI 对战默认不检查卡组。
   Mercury233RoomSpec _spec = const Mercury233RoomSpec(noCheckDeck: true);
   bool _connecting = false;
@@ -84,6 +88,8 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
       startHand: _spec.startHand,
       drawCount: _spec.drawCount,
       timeLimit: _spec.timeLimit,
+      // 仅本地 AI 使用端侧/远端模型；233 服 AI 由服务端托管。
+      agent: _aiType == _AiType.local ? _agentMode : -1,
     );
     setState(() => _connecting = true);
 
@@ -166,6 +172,11 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
                           ),
                         ),
                         const SizedBox(height: 8),
+                        // ── 本地 AI 对手模式选择 ──
+                        if (_aiType == _AiType.local) ...[
+                          _agentModeSelector(),
+                          const SizedBox(height: 8),
+                        ],
                         // ── 与 233 建房表单共用的参数控件 ──
                         Mercury233RoomParamsForm(
                           spec: _spec,
@@ -256,6 +267,60 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
           return BorderSide(color: Colors.blueGrey.shade700);
         }),
       ),
+    );
+  }
+
+  /// 本地 AI 对手模式选择器：端侧模型 / 规则 AI / 远端模型。
+  Widget _agentModeSelector() {
+    const modes = [
+      (0, '端侧模型', '本地 ygo-agent 神经网络（首次加载约 17MB 模型）'),
+      (-1, '规则 AI', '简单规则策略（快速、无模型加载）'),
+      (1, '远端模型', '远端 ygo-agent predict 服务（需联网）'),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SegmentedButton<int>(
+          segments: modes.map((m) {
+            final (value, label, _) = m;
+            return ButtonSegment<int>(
+              value: value,
+              label: Text(
+                label,
+                style: TextStyle(
+                  color: _agentMode == value
+                      ? Colors.blueGrey.shade900
+                      : Colors.blueGrey.shade300,
+                  fontSize: 12,
+                ),
+              ),
+            );
+          }).toList(),
+          selected: {_agentMode},
+          onSelectionChanged: (selection) {
+            setState(() => _agentMode = selection.first);
+          },
+          style: ButtonStyle(
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return Colors.amber;
+              }
+              return Colors.blueGrey.shade800;
+            }),
+            side: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return const BorderSide(color: Colors.amber);
+              }
+              return BorderSide(color: Colors.blueGrey.shade700);
+            }),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          modes.firstWhere((m) => m.$1 == _agentMode).$3,
+          style: TextStyle(color: Colors.blueGrey.shade500, fontSize: 11),
+        ),
+      ],
     );
   }
 
