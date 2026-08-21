@@ -1,0 +1,19 @@
+name: account_mycard
+description: "MyCard（萌卡/moecube）账号服务：SSO 登录、u16Secret 密钥与用户信息，供全仓库 MyCard 系对决服务做认证。"
+version: 0.0.1
+publish_to: 'none'
+
+environment:
+  sdk: ^3.12.2
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

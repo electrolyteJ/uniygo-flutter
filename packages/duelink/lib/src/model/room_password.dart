@@ -18,12 +18,21 @@ enum _RoomAction {
 /// 对齐 neos-ts room.ts，将房间参数编码为 6 字节 buffer，
 /// XOR 加密后 Base64 编码，供 CTOS_JOIN_GAME 使用。
 class RoomPassword {
+  /// MyCard 私密房间 ID 派生：external_id ^ 0x54321。
+  ///
+  /// 对齐 neos-ts getPrivateRoomID（src/api/mycard/room.ts）：MyCard 私密房
+  /// 的房间 ID 固定由房主 external_id 派生，同一用户恒定；朋友输入这个数字
+  /// ID 即可加入（配合 joinPrivate 编码密码）。
+  static int privateRoomId(int externalId) => externalId ^ 0x54321;
+
   /// 编码创建房间密码。
   ///
   /// [options] 房间规则参数
-  /// [roomId] 房间 ID 字符串
-  /// [secret] 加密密钥（通常来自 u16Secret）
-  /// [isPrivate] 是否为私密房间
+  /// [roomId] 房间 ID 字符串（MyCard 私密房为 [privateRoomId] 派生的数字 ID）
+  /// [secret] 加密密钥：优先使用 u16Secret（时间轮换密钥，**每次操作前需
+  ///   重新获取**，见 account_mycard），没有则使用 external_id
+  ///   （neos-ts room.ts:22 的 secret 语义注释）
+  /// [isPrivate] 是否为私密房间（MyCard 建房固定为 true）
   static String encodeCreate({
     required RoomOptions options,
     String roomId = '',
@@ -49,6 +58,10 @@ class RoomPassword {
   }
 
   /// 编码加入房间密码。
+  ///
+  /// [roomId] 朋友告知的私密房间 ID（数字字符串，由房主 external_id 派生）
+  /// [secret] 加密密钥，语义同 [encodeCreate]（优先 u16Secret）
+  /// [isPrivate] MyCard 私密房固定为 true（joinPrivate=5）
   static String encodeJoin({
     String roomId = '',
     int secret = 0,

@@ -4,10 +4,16 @@
 /// 因此可直接挂到 MaterialApp 下逐项驱动，确定性好、覆盖率高。
 library;
 
+import 'dart:convert';
+
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:provider/provider.dart';
+import 'package:account_mycard/account_mycard.dart';
 import 'package:uniygopro/config/servers.dart';
 import 'package:uniygopro/models/created_room_record.dart';
 import 'package:uniygopro/models/mercury233_room_spec.dart';
@@ -125,7 +131,7 @@ void main() {
     await tester.pumpWidget(
       _wrap(
         CreateRoomForm(
-          env: DuelEnvironment.mycard,
+          env: DuelEnvironment.koishi,
           historyLoader: () async => const [],
           onSaveRecord: (_) async {},
           onDeleteRecord: (_) async {},
@@ -157,6 +163,158 @@ void main() {
     expect(capturedOptions, isNotNull);
     expect(capturedRoomName, '');
     expect(capturedPassword, isNotNull);
+  });
+
+  /// 已登录的 MyCardAccountApi（MockClient：signin + authUser）。
+  /// 登录响应 user 只有 id/username（真实形态），external_id 缺失 → 0。
+  MyCardAccountApi loggedInApi({int u16Secret = 12345}) {
+    final mock = MockClient((req) async {
+      if (req.url.path == '/accounts/signin') {
+        return http.Response.bytes(
+          utf8.encode(
+            jsonEncode({
+              'token': 'tok123',
+              'success': true,
+              'user': {'id': 42, 'username': 'kai'},
+            }),
+          ),
+          200,
+        );
+      }
+      if (req.url.path == '/accounts/authUser') {
+        expect(req.headers['Authorization'], 'Bearer tok123');
+        return http.Response.bytes(
+          utf8.encode(jsonEncode({'u16Secret': u16Secret})),
+          200,
+        );
+      }
+      return http.Response('x', 404);
+    });
+    return MyCardAccountApi(
+      authService: MyCardAuthService(httpClient: mock),
+    );
+  }
+
+  Widget wrapWithApi(Widget child, MyCardAccountApi api) => MaterialApp(
+    home: ChangeNotifierProvider.value(
+      value: api,
+      child: Scaffold(body: SingleChildScrollView(child: child)),
+    ),
+  );
+  testWidgets('CreateRoomForm MyCard 私密房：无密码框，编码含派生房间 ID', (
+    tester,
+  ) async {
+    final api = loggedInApi();
+    addTearDown(api.dispose);
+    await api.signIn('kai', 'pw123'); // 预先登录，跳过登录对话框
+    // external_id 缺失（0）→ 回退 id=42 派生私密房 ID
+    final expectedRoomId = RoomPassword.privateRoomId(42).toString();
+
+    RoomOptions? capturedOptions;
+    String? capturedRoomName;
+    String? capturedPassword;
+    CreatedRoomRecord? savedRecord;
+    await tester.pumpWidget(
+      wrapWithApi(
+        CreateRoomForm(
+          env: DuelEnvironment.mycard,
+          historyLoader: () async => const [],
+          onSaveRecord: (r) async => savedRecord = r,
+          onDeleteRecord: (_) async {},
+          onEnterRoom: ({
+            required options,
+            required roomName,
+            required password,
+          }) {
+            capturedOptions = options;
+            capturedRoomName = roomName;
+            capturedPassword = password;
+          },
+        ),
+        api,
+      ),
+    );
+
+    // 私密房：无房间密码输入框，展示派生说明
+    expect(find.text('房间密码'), findsNothing);
+    expect(find.textContaining('房间 ID 由账号自动派生'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('创建房间'));
+    await tester.tap(find.text('创建房间'));
+    await tester.pumpAndSettle();
+
+    expect(capturedOptions, isNotNull);
+    expect(capturedPassword, isNotNull);
+    // 编码密码 = base64(6 字节) + 私密房 ID 后缀
+    expect(capturedPassword, endsWith(expectedRoomId));
+    // 历史记录 password 字段语义 = 私密房 ID
+    expect(savedRecord?.password, expectedRoomId);
+    // 未命名 → 默认房名含私密房 ID
+    expect(capturedRoomName, contains(expectedRoomId));
+  });
+
+  testWidgets('JoinRoomForm MyCard 私密房：输入朋友房间 ID，joinPrivate 编码', (
+    tester,
+  ) async {
+    final api = loggedInApi();
+    addTearDown(api.dispose);
+    await api.signIn('kai', 'pw123');
+
+    String? joined;
+    await tester.pumpWidget(
+      wrapWithApi(
+        JoinRoomForm(env: DuelEnvironment.mycard, onJoin: (p) => joined = p),
+        api,
+      ),
+    );
+
+    // 输入框语义：朋友私密房间 ID
+    expect(find.text('朋友私密房间 ID'), findsOneWidget);
+
+    // 空 ID 报错
+    await tester.tap(find.text('加入房间'));
+    await tester.pump();
+    expect(find.text('请输入朋友私密房间 ID'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), '344865');
+    await tester.tap(find.text('加入房间'));
+    await tester.pumpAndSettle();
+
+    expect(joined, isNotNull);
+    expect(joined, endsWith('344865'));
+    // 与直接编码结果一致（secret=12345, joinPrivate）
+    expect(
+      joined,
+      RoomPassword.encodeJoin(roomId: '344865', secret: 12345, isPrivate: true),
+    );
+  });
+
+  testWidgets('JoinRoomForm MyCard 未登录：弹登录对话框，取消则中止', (
+    tester,
+  ) async {
+    final api = MyCardAccountApi(
+      authService: MyCardAuthService(
+        httpClient: MockClient((req) async => http.Response('x', 401)),
+      ),
+    );
+    addTearDown(api.dispose);
+    String? joined;
+    await tester.pumpWidget(
+      wrapWithApi(
+        JoinRoomForm(env: DuelEnvironment.mycard, onJoin: (p) => joined = p),
+        api,
+      ),
+    );
+    await tester.enterText(find.byType(TextField), '344865');
+    await tester.tap(find.text('加入房间'));
+    await tester.pumpAndSettle();
+
+    // 登录门禁：弹出登录对话框
+    expect(find.text('登录 MyCard 账号'), findsOneWidget);
+    // 取消 → 中止加入
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(joined, isNull);
   });
 
   testWidgets('CreateRoomForm DSL 环境：渲染 233 表单并可切换', (tester) async {

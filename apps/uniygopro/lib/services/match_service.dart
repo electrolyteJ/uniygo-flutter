@@ -22,9 +22,12 @@ class MatchResult {
 }
 
 class MatchService {
-  final String _baseUrl = "'https://sapi.moecube.com:444'";
+  final String _baseUrl = 'https://sapi.moecube.com:444';
   final http.Client _client = http.Client();
 
+  /// [secret] 为 MyCard 认证密钥：登录态下传 u16Secret（时间轮换密钥，
+  /// 见 account_mycard），其值即 [MyCardAccountApi.fetchU16Secret] 的
+  /// 返回值字符串化。
   Future<MatchResult> match({
     required String arena,
     required String username,

@@ -49,11 +49,13 @@ Widget darkTextField({
   TextInputType? keyboardType,
   bool obscureText = false,
   ValueChanged<String>? onSubmitted,
+  bool readOnly = false,
 }) {
   return TextField(
     controller: controller,
     obscureText: obscureText,
     keyboardType: keyboardType,
+    readOnly: readOnly,
     style: const TextStyle(color: Colors.white),
     decoration: InputDecoration(
       labelText: label,

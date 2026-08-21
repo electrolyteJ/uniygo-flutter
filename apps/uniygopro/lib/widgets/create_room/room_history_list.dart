@@ -32,7 +32,7 @@ class RoomHistoryList extends StatelessWidget {
             style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 13)),
         const SizedBox(height: 6),
         SizedBox(
-          height: 78,
+          height: 80,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: records.length,
@@ -105,14 +105,15 @@ class _HistoryCard extends StatelessWidget {
                   ),
                 ],
               ),
-              Text(
-                record.summary,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style:
-                    TextStyle(color: Colors.blueGrey.shade400, fontSize: 11),
+              Expanded(
+                child: Text(
+                  record.summary,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      color: Colors.blueGrey.shade400, fontSize: 11),
+                ),
               ),
-              const Spacer(),
               Row(
                 children: [
                   Icon(Icons.edit_outlined,

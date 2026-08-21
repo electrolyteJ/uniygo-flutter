@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:account_mycard/account_mycard.dart';
 import '../../services/match_service.dart';
+import '../../services/mycard_gate.dart';
 import 'package:biz/service_singleton.dart';
 
 import 'match_store.dart';
@@ -16,15 +18,24 @@ class _MatchPageState extends State<MatchPage> {
   final _matchService = MatchService();
 
   Future<void> _startMatch(String arena) async {
+    // MyCard 匹配服务需要登录（u16Secret 时间轮换密钥作 Basic 密钥）。
+    final accountApi = context.read<MyCardAccountApi>();
+    final account = await requireMyCardAccount(
+      context,
+      reason: '自动撮合匹配（天梯/休闲）',
+    );
+    if (account == null || !mounted) return;
+
     final store = context.read<MatchStore>();
     store.startSearching(arena);
     ServiceSingleton.instance.ygoSoundService.playMatchStart();
 
     try {
+      final secret = await accountApi.fetchU16Secret();
       final result = await _matchService.match(
         arena: arena,
-        username: 'guest',
-        secret: 'guest',
+        username: account.username,
+        secret: '$secret',
       );
       store.setMatchResult(result.address, result.port, result.password);
       ServiceSingleton.instance.ygoSoundService.playMatchFound();

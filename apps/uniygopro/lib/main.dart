@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:account_mycard/account_mycard.dart';
 import 'package:uniygopro/pages/create_room/match_store.dart';
 import 'package:uniygopro/service_loader.registrations.g.dart';
 import 'package:deck_editor1/deck_editor1.dart' show DeckEditorStore;
@@ -22,12 +24,28 @@ void main() async {
   CardImageLoader.I.urlResolver = (int code) =>
       ServiceSingleton.instance.dataService.getCardImageUrl(code);
 
+  // MyCard 账号体系（统一接口）：启动时读持久化，登录态变化时回写。
+  final prefs = await SharedPreferences.getInstance();
+  const accountKey = 'mycard_account';
+  final accountApi = MyCardAccountApi(
+    persistedJson: prefs.getString(accountKey),
+  );
+  accountApi.addListener(() {
+    final json = accountApi.toPersistedJson();
+    if (json == null) {
+      prefs.remove(accountKey);
+    } else {
+      prefs.setString(accountKey, json);
+    }
+  });
+
   runApp(
     MultiProvider(
       // duel_room1 的房间/对局/聊天状态已迁移到 biz/duel 的 Riverpod
       // Provider：DuelRoomPage 每次进房自建 ProviderScope（parent 为
       // duelRoomServiceContainer），宿主无需装配任何房间级 Provider。
       providers: [
+        ChangeNotifierProvider.value(value: accountApi),
         ChangeNotifierProvider(create: (_) => MatchStore()),
         ChangeNotifierProvider(create: (_) => SideStore()),
         ChangeNotifierProvider(create: (_) => DeckEditorStore()),

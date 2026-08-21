@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:account_mycard/account_mycard.dart';
+import '../widgets/mycard_account_button.dart';
 import '../config/servers.dart';
 import 'package:biz/service_singleton.dart';
 import '../widgets/create_room/room_dialog.dart';
@@ -13,8 +15,9 @@ import 'create_room/puzzle_room_sheet.dart';
 
 /// Web 端展示的服务器列表：不支持残局（duelink_ai_edo / ocgcore_edo，
 /// web 构建已剔除其资产），过滤掉残局房避免点击后加载失败。
-List<GameServer> get _webGameServers =>
-    gameServers.where((s) => s.type != ServerType.puzzleRoom).toList(growable: false);
+List<GameServer> get _webGameServers => gameServers
+    .where((s) => s.type != ServerType.puzzleRoom)
+    .toList(growable: false);
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -39,6 +42,8 @@ class HomePage extends StatelessWidget {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // MyCard 账号入口：未登录显示登录图标，已登录显示用户名首字。
+          MyCardAccountButton(),
           IconButton(
             icon: const Icon(Icons.card_membership),
             tooltip: '卡组',
@@ -60,7 +65,9 @@ class HomePage extends StatelessWidget {
                 ),
                 itemCount: kIsWeb ? _webGameServers.length : gameServers.length,
                 itemBuilder: (context, index) {
-                  final server = kIsWeb ? _webGameServers[index] : gameServers[index];
+                  final server = kIsWeb
+                      ? _webGameServers[index]
+                      : gameServers[index];
                   return _ServerCard(
                     server: server,
                     onTap: () => _onServerTap(context, server),

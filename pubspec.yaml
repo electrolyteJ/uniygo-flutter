@@ -1,4 +1,4 @@
-name: uniygopro_workspace
+name: uniygo
 publish_to: none
 
 environment:
@@ -14,6 +14,7 @@ workspace:
   - packages/ygo_card_ygoprodeck
   - packages/ygo_card_yugipedia
   - packages/ygo_banlist_mycard
+  - packages/account_mycard
   - packages/duelink
   - packages/duelink_websocket
   - packages/duelink_socket
@@ -29,6 +30,7 @@ workspace:
   - packages/duelink_ai_ygo_agent_http
   - packages/biz
   - apps/uniygopro
+  - apps/deck_editor1
   - apps/deck_editor3
   - apps/duelarena
   - apps/holoduel
@@ -37,4 +39,3 @@ workspace:
   - apps/duel_room2
   - apps/duel_settings
   - apps/cardlive
-  - apps/deck_editor1

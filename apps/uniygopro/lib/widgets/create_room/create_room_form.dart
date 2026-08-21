@@ -2,9 +2,12 @@
 
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:account_mycard/account_mycard.dart';
 
 import '../../config/servers.dart';
 import '../../models/created_room_record.dart';
+import '../../services/mycard_gate.dart';
 import '../../models/mercury233_room_spec.dart';
 import '../../models/mercury233_room_string_codec.dart';
 import 'password_field.dart';
@@ -103,7 +106,8 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
         _mercury233Spec = spec;
       } else if (options != null) {
         _nameCtrl.text = record.roomName;
-        _pwCtrl.text = record.password;
+        // MyCard 记录的 password 是私密房 ID（自动派生，不回填密码框）。
+        _pwCtrl.text = widget.env.useEncodedPassword ? '' : record.password;
         _startLp = options.startLp;
         _startHand = options.startHand;
         _drawCount = options.drawCount;
@@ -138,6 +142,46 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
     }
     final options = record.options;
     if (options == null) return;
+    // MyCard 私密房：u16Secret 时间轮换，历史回填必须重新获取密钥编码；
+    // 记录的 password（私密房 ID）不参与编码，房间 ID 由账号派生。
+    if (widget.env.useEncodedPassword) {
+      setState(() {
+        _connecting = true;
+        _error = null;
+      });
+      try {
+        final encoded = await _encodeMyCardCreate(context, options);
+        if (encoded == null) {
+          if (mounted) setState(() => _connecting = false);
+          return;
+        }
+        final (password, roomId) = encoded;
+        await _saveRecord(record.touch());
+        if (!mounted) return;
+        _enterRoom(
+          options: options,
+          roomName: record.roomName.isEmpty
+              ? 'MyCard 私密房 $roomId'
+              : record.roomName,
+          password: password,
+        );
+      } on MyCardAuthException catch (e) {
+        if (mounted) {
+          setState(() {
+            _connecting = false;
+            _error = e.message;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _connecting = false;
+            _error = '创建房间失败：$e';
+          });
+        }
+      }
+      return;
+    }
     final password = _encodePassword(options, record.password);
     await _saveRecord(record.touch());
     if (!mounted) return;
@@ -193,6 +237,12 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
       return;
     }
 
+    // MyCard 环境：私密房流程（登录门禁 + u16Secret + 派生房间 ID），
+    // 不需要用户输入房间密码。
+    if (widget.env.useEncodedPassword) {
+      return _createMyCard(context);
+    }
+
     final pw = _pwCtrl.text.trim();
     if (pw.isEmpty) {
       setState(() => _error = '请设置房间密码');
@@ -229,16 +279,101 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
     _enterRoom(options: options, roomName: roomName, password: password);
   }
 
-  /// 按环境编码创建房间密码（mycard 需要 RoomPassword 编码）。
-  String _encodePassword(RoomOptions options, String pw) {
-    if (widget.env.useEncodedPassword) {
-      // 每次操作前都要重新获取 u16Secret
-      // const u16Secret = await getUserU16Secret(user.token);
-      //todo: 这里的 u16Secret 需要从服务器获取，暂时使用 0 作为占位符
-      return RoomPassword.encodeCreate(options: options, roomId: pw, secret: 0);
+  /// MyCard 私密房创建流程：登录门禁 → 重新获取 u16Secret → 派生房间 ID
+  /// → 编码（createPrivate）。
+  ///
+  /// 对齐 neos-ts Match/index.tsx onCreateMCRoom：MyCard 建房是私密房
+  /// （isPrivate=true），房间 ID 固定由房主 external_id 派生
+  /// （external_id ^ 0x54321），朋友输入该数字 ID 即可加入。
+  Future<void> _createMyCard(BuildContext context) async {
+    setState(() {
+      _connecting = true;
+      _error = null;
+    });
+    try {
+      final options = RoomOptions(
+        rule: _rule,
+        startLp: _startLp,
+        startHand: _startHand,
+        drawCount: _drawCount,
+        duelRule: _duelRule,
+        mode: _mode,
+        noCheckDeck: _noCheckDeck,
+        noShuffleDeck: _noShuffleDeck,
+        timeLimit: _timeLimit,
+      );
+      final encoded = await _encodeMyCardCreate(context, options);
+      if (encoded == null) {
+        // 用户取消登录（门禁返回 null）
+        if (mounted) setState(() => _connecting = false);
+        return;
+      }
+      final (password, roomId) = encoded;
+      final roomName = _nameCtrl.text.trim();
+      // 历史记录的 password 字段语义 = 私密房 ID（派生自房主 external_id，
+      // 同一用户恒定），展示/分享给朋友用；房间名称仅作本地标记。
+      await _saveRecord(
+        CreatedRoomRecord(
+          env: widget.env,
+          roomName: roomName,
+          password: roomId,
+          options: options,
+        ),
+      );
+      if (!context.mounted) return;
+      _enterRoom(
+        options: options,
+        roomName: roomName.isEmpty ? 'MyCard 私密房 $roomId' : roomName,
+        password: password,
+      );
+    } on MyCardAuthException catch (e) {
+      // u16Secret 获取失败（如登录过期），消息可直接展示
+      if (mounted) {
+        setState(() {
+          _connecting = false;
+          _error = e.message;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _connecting = false;
+          _error = '创建房间失败：$e';
+        });
+      }
     }
-    return pw;
   }
+
+  /// MyCard 私密房编码：登录门禁 → 每次操作前重新获取 u16Secret →
+  /// encodeCreate(isPrivate: true)。返回 (编码密码, 私密房 ID)；
+  /// 用户取消登录返回 null；失败抛异常由调用方处理。
+  Future<(String, String)?> _encodeMyCardCreate(
+    BuildContext context,
+    RoomOptions options,
+  ) async {
+    final account = await requireMyCardAccount(
+      context,
+      reason: '创建 MyCard 私密房间',
+    );
+    if (account == null || !context.mounted) return null;
+    // u16Secret 是时间轮换密钥，必须每次操作前重新获取。
+    final u16Secret = await context.read<MyCardAccountApi>().fetchU16Secret();
+    // 私密房 ID 派生自房主 external_id。注意：API 直登响应只有
+    // id/username，external_id 可能缺失（为 0），此时回退 id 派生——
+    // 待真实网络验证 external_id 可得性。
+    final externalId = account.externalId != 0 ? account.externalId : account.id;
+    final roomId = '${RoomPassword.privateRoomId(externalId)}';
+    final password = RoomPassword.encodeCreate(
+      options: options,
+      roomId: roomId,
+      secret: u16Secret,
+      isPrivate: true,
+    );
+    return (password, roomId);
+  }
+
+  /// 非编码环境的密码直通（koishi 等）。
+  String _encodePassword(RoomOptions options, String pw) => pw;
 
   /// 通知业务侧进入房间（写 MatchStore + 导航由调用方负责）。
   void _enterRoom({
@@ -280,11 +415,41 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
           else ...[
             darkTextField(
               controller: _nameCtrl,
-              label: '房间名称',
+              label: widget.env.useEncodedPassword ? '房间名称（本地标记）' : '房间名称',
               icon: Icons.edit,
             ),
             const SizedBox(height: 10),
-            PasswordField(controller: _pwCtrl, label: '房间密码', icon: Icons.lock),
+            // MyCard 私密房：房间 ID 由账号自动派生，无需设置房间密码。
+            if (widget.env.useEncodedPassword)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.lock_outline,
+                      size: 16,
+                      color: Colors.blueGrey.shade400,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'MyCard 私密房间：房间 ID 由账号自动派生，创建后分享给朋友即可',
+                        style: TextStyle(
+                          color: Colors.blueGrey.shade400,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              PasswordField(
+                controller: _pwCtrl,
+                label: '房间密码',
+                icon: Icons.lock,
+              ),
             const SizedBox(height: 14),
             numberRow(
               '初始 LP',

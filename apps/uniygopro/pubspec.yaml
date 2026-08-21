@@ -58,6 +58,8 @@ dependencies:
     path: ../../packages/ygo_deck_mdpro3
   ygo_deck_mycard:
     path: ../../packages/ygo_deck_mycard
+  account_mycard:
+    path: ../../packages/account_mycard
   go_router: ^14.0.0
   http: ^1.2.1
   flutter_portal: ^1.1.4

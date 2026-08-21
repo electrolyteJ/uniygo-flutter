@@ -8,7 +8,9 @@ import 'package:provider/provider.dart';
 import 'package:uniygopro/widgets/create_room/password_field.dart';
 import 'package:uniygopro/config/servers.dart';
 import 'package:biz/service_singleton.dart';
+import 'package:account_mycard/account_mycard.dart';
 import '../../services/match_service.dart';
+import '../../services/mycard_gate.dart';
 import '../../widgets/create_room/room_dialog.dart';
 import 'match_store.dart';
 
@@ -21,19 +23,25 @@ class MatchJoinSheet extends StatefulWidget {
 }
 
 class _MatchJoinSheetState extends State<MatchJoinSheet> {
-  final _usernameCtrl = TextEditingController(text: 'Guest');
-  final _passwordCtrl = TextEditingController();
+  final _usernameCtrl = TextEditingController();
   bool _connecting = false;
   String? _error;
 
   @override
   void dispose() {
     _usernameCtrl.dispose();
-    _passwordCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _join(BuildContext context) async {
+    // MyCard 匹配服务需要登录（u16Secret 时间轮换密钥作 Basic 密钥）。
+    final accountApi = context.read<MyCardAccountApi>();
+    final account = await requireMyCardAccount(
+      context,
+      reason: widget.server.displayName,
+    );
+    if (account == null || !context.mounted) return;
+
     setState(() {
       _connecting = true;
       _error = null;
@@ -46,13 +54,14 @@ class _MatchJoinSheetState extends State<MatchJoinSheet> {
     Navigator.of(context).pop();
 
     try {
+      final secret = await accountApi.fetchU16Secret();
       final result = await MatchService().match(
         arena: arena,
-        username: _usernameCtrl.text.trim(),
-        secret: _passwordCtrl.text.trim(),
+        username: account.username,
+        secret: '$secret',
       );
       matchStore.setMatchResult(result.address, result.port, result.password);
-      matchStore.setUsername(_usernameCtrl.text.trim());
+      matchStore.setUsername(account.username);
       if (context.mounted) {
         context.go('/duel-room', extra: matchStore.toDuelRoomParams());
       }
@@ -93,18 +102,18 @@ class _MatchJoinSheetState extends State<MatchJoinSheet> {
               style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 13),
             ),
             const SizedBox(height: 20),
-            darkTextField(
-              controller: _usernameCtrl,
-              label: '用户名',
-              icon: Icons.person,
-            ),
-            const SizedBox(height: 12),
-            PasswordField(
-              controller: _passwordCtrl,
-              label: '密码 (选填)',
-              hintText: '留空使用默认密码',
-              icon: Icons.lock,
-              onSubmitted: (_) => _join(context),
+            // 凭证来自 MyCard 登录态（u16Secret 密钥），无需手输密码。
+            Builder(
+              builder: (context) {
+                final account = context.watch<MyCardAccountApi>().account;
+                return darkTextField(
+                  controller: _usernameCtrl
+                    ..text = account?.username ?? _usernameCtrl.text,
+                  label: account == null ? '用户名（登录后自动填充）' : '用户名',
+                  icon: Icons.person,
+                  readOnly: account != null,
+                );
+              },
             ),
             if (_error != null)
               Padding(

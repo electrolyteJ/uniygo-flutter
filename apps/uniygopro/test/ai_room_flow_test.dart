@@ -161,6 +161,9 @@ void main() {
     service.enterRoom(RoomPassword.encodeJoin());
     service.submitDeck(_encodeDeck(_buildTestDeck()), Uint8List(0));
     service.ready();
+    // ready 只是就绪标记（对齐线上服务器与 duelink_ai 的房间流程语义），
+    // 房主需显式 HS_START 开局。
+    service.startDuel();
 
     // ── 3. 猜拳：收到 STOC_SELECT_HAND → 出石头 ──
     final selectHand = await _waitFor(

@@ -7,8 +7,12 @@ import 'mercury233_room_spec.dart';
 
 /// 创建房间历史记录。
 ///
-/// 标准环境（mycard / ygopro）记录 [password] + [options]；
-/// mercury233 房间串 DSL 环境记录 [mercurySpec]（密码为空）。
+/// 标准环境记录 [password] + [options]；mercury233 房间串 DSL 环境记录
+/// [mercurySpec]（密码为空）。
+///
+/// 注意：mycard 私密房的 [password] 字段语义为**私密房 ID**（由房主
+/// external_id 派生，同一用户恒定），用于展示/分享给朋友；历史回填时
+/// 不参与编码（u16Secret 时间轮换，须重新获取），房间名称仅作本地标记。
 class CreatedRoomRecord {
   final DuelEnvironment env;
   final String roomName;

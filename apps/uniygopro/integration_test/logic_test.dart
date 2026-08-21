@@ -219,7 +219,7 @@ void main() {
 
   group('servers 配置', () {
     test('gameServers 与 DuelEnvironment getters', () {
-      expect(gameServers.length, 5);
+      expect(gameServers.length, 6);
       expect(DuelEnvironment.mycard.canCreate, isTrue);
       expect(DuelEnvironment.koishi.canCreate, isFalse);
       expect(DuelEnvironment.ai.isAi, isTrue);

@@ -1,4 +1,26 @@
 /// 对战服务器列表配置。
+///
+/// 地址来源与验证（2026-08-21 实测）：
+/// - neos-ts `neos.config.json` 公共服逐一对照：koishi 7211 /
+///   tiramisu 8912(竞技)·7912(娱乐·自定义) / koishi 889(先行卡) /
+///   koishi 1408(408 环境) —— WSS 握手全部 101 ✓
+/// - 233 服（s1.ygo233.com 233/23333）—— ygopro TCP 协议握手有响应 ✓
+/// - MDPro3 超先行卡（mygo.superpre.pro:888 / mygo2.superpre.pro:888）
+///   —— ygopro TCP 协议握手有响应 ✓（注意：**裸 TCP，不支持 WSS**）
+/// - 观战端口（tiramisu.moecube.com:8923 竞技 / :7923 娱乐）
+///   —— WSS 101 ✓，供将来观战功能接入
+///
+/// 已排除（端口开放但协议握手无响应，疑似停止服务或协议不兼容）：
+/// - server.evolutionygo.com:7711/7911（Evolution Server，
+///   见 diangogav/EDOpro-server-ts；MDPro3 手册记载）
+/// - duels.link:2333（MDPro3 手册记载）
+/// - koishi.momobako.com:7210/1311（MDPro3 手册称 OCG/TCG 口，
+///   实测 TLS/裸TCP/裸WS 均无响应）
+/// - MDPro3 的 zgai.tech:38443 是 HTTP API（非 ygopro 房间协议），
+///   不在此列表。
+///
+/// MyCard 系服务（竞技/娱乐匹配、mycard 自由房间环境）需要 MyCard
+/// 账号登录（account_mycard；匹配用 u16Secret 时间轮换密钥）。
 library;
 
 /// 服务器类型
@@ -47,18 +69,29 @@ class GameServer {
 
 /// 自由房间可选环境
 enum DuelEnvironment {
-  /// 默认 Koishi 通用环境
+  /// 默认 Koishi 通用环境（neos「koishi」公共服）
   koishi("wss", 'Koishi', 'koishi.momobako.com', 7211),
 
-  /// 默认 mycard 自定义房间
+  /// 默认 mycard 自定义房间（neos「mycard-custom」；需 MyCard 登录）
   mycard("wss", 'mycard', 'tiramisu.moenext.com', 7912),
+
+  /// 233 服（mercury233 协议，房间字符串 DSL）
   mercury233("tcp", 'mercury233', 's1.ygo233.com', 233),
-  /// 先行卡测试环境
+
+  /// 先行卡测试环境（neos「pre-release」）
   koishi_preRelease("wss", 'koishi先行卡测试', 'koishi.momobako.com', 889),
-  mycard_preRelease("wss", 'mycard先行卡测试', 'mygo.superpre.pro', 888),
+
+  /// mycard 先行卡测试（mygo.superpre.pro，裸 TCP 协议验证通过；
+  /// 实测不支持 WSS，schema 必须为 tcp）
+  mycard_preRelease("tcp", 'mycard先行卡测试', 'mygo.superpre.pro', 888),
+
+  /// mycard 先行卡测试 2 服（mygo2.superpre.pro，裸 TCP 协议验证通过）
+  mycard_preRelease2("tcp", 'mycard先行卡测试 2 服', 'mygo2.superpre.pro', 888),
+
+  /// 233 服先行卡测试
   mercury233_preRelease("tcp", 'mercury233先行卡测试', 's1.ygo233.com', 23333),
 
-  /// 408 特殊规则环境
+  /// 408 特殊规则环境（neos「408」）
   env408("wss", '408 环境', 'koishi.momobako.com', 1408),
 
   /// AI 本地人机对战（本地 ocgcore 引擎模拟服务端，无需联网）
@@ -75,9 +108,7 @@ enum DuelEnvironment {
   const DuelEnvironment(this.schema, this.displayName, this.host, this.port);
 
   /// 是否允许创建房间（Koishi/先行卡/408 只允许加入）
-  bool get canCreate =>
-      this == mycard ||
-      this == mercury233;
+  bool get canCreate => this == mycard || this == mercury233;
 
   /// 是否为 AI 本地人机对战环境
   bool get isAi => this == ai;
@@ -89,12 +120,12 @@ enum DuelEnvironment {
   bool get useEncodedPassword => this == mycard;
 
   bool get usesRoomStringDsl =>
-      this == mercury233 ||
-      this == mercury233_preRelease;
+      this == mercury233 || this == mercury233_preRelease;
 }
 
 /// 所有可用对战服务器列表。
 const List<GameServer> gameServers = [
+  // neos「mycard-athletic」（需 MyCard 登录 + u16Secret）
   GameServer(
     id: 'match-athletic',
     displayName: '竞技匹配',
@@ -104,6 +135,7 @@ const List<GameServer> gameServers = [
     type: ServerType.matchAthletic,
     requiresMatchApi: true,
   ),
+  // neos「mycard-custom」同端口兼作娱乐匹配入口（需 MyCard 登录）
   GameServer(
     id: 'match-entertain',
     displayName: '娱乐匹配',
