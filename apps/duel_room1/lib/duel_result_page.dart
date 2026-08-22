@@ -1,14 +1,21 @@
 import 'dart:async';
 
+import 'package:biz/duel/room/duel_room_state.dart';
+import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'duel_room_exit.dart';
 
-/// 决斗结果卡片（全屏居中半弹窗的内容）。
+/// 全屏居中模态半弹窗：决斗结果展示。
 ///
-/// 仅当服务端下发 MSG_WIN（duelResult 非空）时，由决斗页以「全屏遮罩 +
-/// 居中半弹窗」形式展示；[onBackHome] 为「返回首页」按钮回调。
+/// 仅当服务端下发 MSG_WIN（duelResult 非空）时由决斗页挂载；组件内部
+/// 自持「全屏遮罩（ModalBarrier，点击不关闭）」与「已关闭」状态：
+/// - 换备阶段（match 局间）按钮为「进入换备阶段」，点击关闭弹窗（同一
+///   结果 map 不再弹出）；
+/// - 其他情况按钮为「返回首页」离房。
+/// 新一局 MSG_WIN 产生新结果 map 时，由父页重建本组件（旧 State 销毁），
+/// 弹窗自动重新弹出。
 /// 结果 [Map] 键：didWin / winPlayer / reason / selfName / opponentName /
 /// selfLp / opponentLp，防御性解析缺字段回退默认值。
 class DuelResultPage extends ConsumerStatefulWidget {
@@ -21,9 +28,18 @@ class DuelResultPage extends ConsumerStatefulWidget {
 }
 
 class _DuelResultPageState extends ConsumerState<DuelResultPage> {
+  /// 已关闭的结果 map（换备阶段点击「进入换备阶段」后记录；同一局结果
+  /// 不再重复弹出，新一局 MSG_WIN 的新 map 由重建组件重新弹出）。
+  Object? _dismissed;
+
   @override
   Widget build(BuildContext context) {
-    // 防御性解析路由 extra：深链/热重载/生产端数据漂移可能缺字段，
+    if (identical(_dismissed, widget.result)) {
+      // 该局结果已被关闭（进入换备）：不渲染，父页 Positioned.fill 内
+      // 透明占位、不拦截点击。
+      return const SizedBox.shrink();
+    }
+    // 防御性解析结果字段：深链/热重载/生产端数据漂移可能缺字段，
     // 裸 as 强转会直接 TypeError 崩溃，缺失时回退合理默认值。
     final didWin = widget.result['didWin'] as bool? ?? false;
     final selfName = widget.result['selfName'] as String? ?? '自己';
@@ -34,68 +50,98 @@ class _DuelResultPageState extends ConsumerState<DuelResultPage> {
     final accent = didWin ? const Color(0xFFD7B65A) : const Color(0xFF7BA7D9);
     final title = didWin ? '胜利' : '失败';
     final subtitle = didWin ? '你赢下了这场决斗' : '这场决斗落败';
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 520),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
-        decoration: BoxDecoration(
-          color: const Color(0xEE10141C),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: accent.withValues(alpha: 0.75)),
-          boxShadow: [
-            BoxShadow(
-              color: accent.withValues(alpha: 0.16),
-              blurRadius: 32,
-              spreadRadius: 2,
-            ),
-          ],
+    // match 局间换备阶段（RoomSideDecking）：按钮改「进入换备阶段」关闭
+    // 弹窗进入换备（自持 _dismissed）；否则「返回首页」离房。
+    final isSideDecking = ref.watch(
+      duelRoomProvider.select((s) => s.stage is RoomSideDecking),
+    );
+    final actionLabel = isSideDecking ? '进入换备阶段' : '返回首页';
+    final VoidCallback onAction = isSideDecking
+        ? () => setState(() => _dismissed = widget.result)
+        : () => unawaited(leaveRoomAfterNotJoined(context, ref));
+    return Stack(
+      children: [
+        // 模态遮罩：拦截点击，不关闭。
+        ModalBarrier(
+          dismissible: false,
+          color: Colors.black.withValues(alpha: 0.55),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                color: accent,
-                fontSize: 34,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
-            ),
-            const SizedBox(height: 28),
-            _ResultRow(label: selfName, value: selfLp, highlight: didWin),
-            const SizedBox(height: 12),
-            _ResultRow(label: opponentName, value: opponentLp),
-            const SizedBox(height: 24),
-            Text(
-              '结束原因：${reason == null ? '未知' : _reasonText(reason)}',
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => unawaited(leaveRoomAfterNotJoined(context, ref)),
-                style: FilledButton.styleFrom(
-                  backgroundColor: accent,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  textStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
+              decoration: BoxDecoration(
+                color: const Color(0xEE10141C),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: accent.withValues(alpha: 0.75)),
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.16),
+                    blurRadius: 32,
+                    spreadRadius: 2,
                   ),
-                ),
-                child: const Text('返回首页'),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 34,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  _ResultRow(
+                    label: selfName,
+                    value: selfLp,
+                    highlight: didWin,
+                  ),
+                  const SizedBox(height: 12),
+                  _ResultRow(label: opponentName, value: opponentLp),
+                  const SizedBox(height: 24),
+                  Text(
+                    '结束原因：${reason == null ? '未知' : _reasonText(reason)}',
+                    style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: onAction,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: accent,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      child: Text(actionLabel),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

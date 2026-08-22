@@ -97,13 +97,14 @@ Future<void> leaveRoomAfterNotJoined(BuildContext context,
   if (!context.mounted) {
     return;
   }
-  final leaving = ref
-      .read(duelRoomProvider.notifier)
-      .isLeaving;
-  console.log('leaveRoomAfterNotJoined: context.mounted=${context
-      .mounted} leaving=$leaving');
-  if (!leaving) {
-    ref.read(duelRoomProvider.notifier).markLeaving();
+  final notifier = ref.read(duelRoomProvider.notifier);
+  if (!notifier.isLeaving) {
+    // 原子抢离房权：弹窗按钮与 stage 监听可能并发进入，markLeaving 只有
+    // 第一个调用返回 true；失败的调用方直接返回，避免双导航触发
+    // Navigator._debugLocked 断言。
+    if (!notifier.markLeaving()) {
+      return;
+    }
     ref.read(ygoSoundServiceProvider).playBackNavigation();
     await ref.read(duelServiceProvider).disconnect();
     if (!context.mounted) {

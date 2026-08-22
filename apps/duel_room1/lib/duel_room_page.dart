@@ -72,10 +72,6 @@ class _DuelRoomView extends ConsumerStatefulWidget {
 }
 
 class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
-  /// 已手动关闭的局间结果横幅（按结果对象身份去重：
-  /// 新一局的 MSG_WIN 会产生新 map，横幅届时重新出现）。
-  Object? _dismissedResult;
-
   @override
   void initState() {
     super.initState();
@@ -189,11 +185,6 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     final isSelectingHand = stage is RoomSelectingHand;
     final isHandResult = stage is RoomHandResult;
     final isSelectingTurn = stage is RoomSelectingTurn;
-    // 大厅等待弹窗与猜拳/选先攻面板互斥（对齐 godot RoomOverlay 的
-    // show_lobby/show_hand_select/show_tp_select 切换）：猜拳与选先攻
-    // 阶段大厅弹窗让位给对应的阶段面板。
-    final showLobby =
-        !isInDuel && !isSelectingHand && !isHandResult && !isSelectingTurn;
     // 场地页自进房起常驻挂载作为全屏背景（对齐 godot：3D 场地始终在
     // 场景中，RoomOverlay 只是盖在上面的半透明层）；等待室改为半透明
     // 弹窗浮在场地上（弹窗之外全透明），非对局阶段场地页隐藏 HUD
@@ -208,7 +199,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
       fit: StackFit.expand,
       children: [
         DuelFieldPage(room.players, hudVisible: isInDuel),
-        if (stage is  RoomInLobby) const WaitingRoomPage(),
+        if (stage is  RoomInLobby || stage is RoomSideDecking) const WaitingRoomPage(),
         // 猜拳（含结果展示）：直接挂在页面层，不经等待室弹窗。
         // 面板包容内容、屏幕居中，不为右侧聊天浮窗让位。
         if (isSelectingHand || isHandResult)
@@ -229,23 +220,12 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
               onSendTp: roomCtl.sendTp,
             ),
           ),
-        // 全屏居中半弹窗：仅服务端下发 MSG_WIN（duelResult 非空）时展示。
-        // 点遮罩关闭（局间换备可继续下一局），「返回首页」离房；
-        // 新一局的 MSG_WIN 产生新结果 map，届时重新弹出。
-        if (roundResult != null && !identical(_dismissedResult, roundResult))
+        // 全屏居中模态半弹窗：仅服务端下发 MSG_WIN（duelResult 非空）时
+        // 挂载；遮罩（ModalBarrier，点遮罩不关闭）与「已关闭」状态收敛在
+        // DuelResultPage 内部，父页只管按结果是否存在挂载。
+        if (roundResult != null)
           Positioned.fill(
-            child: GestureDetector(
-              onTap: () => setState(() => _dismissedResult = roundResult),
-              child: ColoredBox(
-                color: Colors.black.withValues(alpha: 0.55),
-                child: Center(
-                  child: GestureDetector(
-                    onTap: () {},
-                    child: DuelResultPage(result: roundResult,),
-                  ),
-                ),
-              ),
-            ),
+            child: DuelResultPage(result: roundResult),
           ),
         Positioned(
           right: kChatDockRight,
