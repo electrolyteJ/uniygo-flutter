@@ -63,7 +63,7 @@ dependencies:
   go_router: ^14.0.0
   http: ^1.2.1
   flutter_portal: ^1.1.4
-
+  web_socket_channel: ^3.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

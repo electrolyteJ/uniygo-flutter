@@ -65,7 +65,7 @@ void main() {
       );
       await service.connect(uri);
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      expect(service.connectionState, ConnectionState.connected);
+      expect(service.connectionState, isA<ConnectionConnected>());
 
       final answerer = service.agentAnswerer;
       expect(

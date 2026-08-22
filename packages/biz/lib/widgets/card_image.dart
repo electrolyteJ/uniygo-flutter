@@ -63,10 +63,15 @@ class _CardImageState extends State<CardImage> {
   }
 
   /// 后台预热 L1（磁盘命中时近乎零成本），供 Flame 侧复用。
+  /// 按展示尺寸降采样解码（与 memCacheWidth 同一目标），避免全尺寸
+  /// 400px 图占内存。
   void _warmUnifiedCache() {
     if (_warmed) return;
     _warmed = true;
-    CardImageLoader.I.load(widget.code).then((img) {
+    CardImageLoader.I.load(
+      widget.code,
+      targetWidth: _decodeWidth(widget.width),
+    ).then((img) {
       if (!mounted || img == null) return;
       setState(() => _cachedImage = img);
     });

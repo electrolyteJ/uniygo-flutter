@@ -4,6 +4,7 @@ export 'src/base_duel_service.dart' show BaseDuelService;
 export 'src/model/player.dart';
 export 'src/model/room_options.dart';
 export 'src/model/room_password.dart';
+export 'src/model/room_tokens.dart';
 export 'src/model/room_stage.dart';
 export 'src/constants.dart';
 export 'src/protocol/packet.dart';
@@ -121,6 +122,7 @@ export 'src/messages/game_msg/msg_unimplemented.dart';
 export 'src/model/duel_phase.dart';
 export 'src/model/hand_type.dart';
 export 'src/model/card.dart';
+export 'src/model/connection_state.dart';
 import 'dart:typed_data';
 
 import 'package:service_loader/service_loader.dart';
@@ -234,9 +236,6 @@ abstract class IDuelService implements IService {
   Stream<RoomStage> get onRoomStageChange;
   Stream<DuelPhase> get onDuelPhaseMessage;
 }
-
-/// 网络连接状态。
-enum ConnectionState { disconnected, connecting, connected, error }
 
 /// 传输层抽象 — 网络数据包的发送与接收。
 ///

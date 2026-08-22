@@ -1,11 +1,11 @@
 import 'dart:async';
+import 'dart:developer' as console;
 
 import 'package:biz/service_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:biz/duel/field/duel_field_state.dart';
 import 'package:biz/duel/room/duel_room_state.dart';
 
 /// 退出决斗前的确认弹窗。
@@ -78,13 +78,8 @@ Future<void> backHome(
   // 若本函数持有的页面已销毁（对局页随卸载失效），ref 不可再用，
   // 这里直接返回，由 leaveRoomAfterNotJoined 用房间页自身的 ref 完成导航。
   if (!context.mounted) return;
-  final duelResult = ref.read(duelFieldProvider).duelResult;
-  // 单次导航直达目标：有结算去结算页，否则回首页。
-  if (duelResult != null) {
-    context.go('/duel-result', extra: duelResult);
-  } else {
-    context.go('/');
-  }
+  // 结算由决斗页的全屏居中半弹窗展示（MSG_WIN 触发），退出一律回首页。
+  context.go('/');
 }
 
 /// RoomNotJoined 到达时的统一离房处理（房间页 stage 监听调用）。
@@ -97,33 +92,24 @@ Future<void> backHome(
 ///
 /// 双重导航由 `context.mounted` 守卫消除：先完成导航的一方销毁房间页，
 /// 后到的一方检查到未挂载直接返回，最终恰好导航一次。
-Future<void> leaveRoomAfterNotJoined(
-  BuildContext context,
-  WidgetRef ref,
-) async {
-  if (!context.mounted) return;
-  final leaving = ref.read(duelRoomProvider.notifier).isLeaving;
+Future<void> leaveRoomAfterNotJoined(BuildContext context,
+    WidgetRef ref,) async {
+  if (!context.mounted) {
+    return;
+  }
+  final leaving = ref
+      .read(duelRoomProvider.notifier)
+      .isLeaving;
+  console.log('leaveRoomAfterNotJoined: context.mounted=${context
+      .mounted} leaving=$leaving');
   if (!leaving) {
     ref.read(duelRoomProvider.notifier).markLeaving();
     ref.read(ygoSoundServiceProvider).playBackNavigation();
     await ref.read(duelServiceProvider).disconnect();
-    if (!context.mounted) return;
-  }
-  final duelResult = ref.read(duelFieldProvider).duelResult;
-  if (duelResult != null) {
-    context.go('/duel-result', extra: duelResult);
-  } else {
+    if (!context.mounted) {
+      return;
+    }
+    // 结算由决斗页的半弹窗展示（MSG_WIN 触发），离房一律回首页。
     context.go('/');
   }
-}
-
-/// 结算页「返回首页」入口。
-///
-/// 结算页展示时房间页的 ProviderScope 已销毁，无法再用 ref 取服务；
-/// 这里直接读应用级服务容器（service_providers.dart 中的同一批单例）：
-/// 播放返回音效、兜底断开连接（房间页退出时已断，幂等），再回首页。
-void backHomeAfterDuel(BuildContext context) {
-  duelRoomServiceContainer.read(ygoSoundServiceProvider).playBackNavigation();
-  unawaited(duelRoomServiceContainer.read(duelServiceProvider).disconnect());
-  context.go('/');
 }

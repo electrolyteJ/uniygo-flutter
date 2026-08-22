@@ -1,120 +1,99 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'duel_room_exit.dart';
-/// 决斗结算页：由房间页退出时经 `/duel-result` 路由展示。
+
+/// 决斗结果卡片（全屏居中半弹窗的内容）。
 ///
-/// 此时房间页的 ProviderScope 已销毁，页面不读写任何房间 provider，
-/// 只展示经路由 extra 传入的结果 [Map]（键：didWin / winPlayer / reason /
-/// selfName / opponentName / selfLp / opponentLp）。
-class DuelResultPage extends StatelessWidget {
+/// 仅当服务端下发 MSG_WIN（duelResult 非空）时，由决斗页以「全屏遮罩 +
+/// 居中半弹窗」形式展示；[onBackHome] 为「返回首页」按钮回调。
+/// 结果 [Map] 键：didWin / winPlayer / reason / selfName / opponentName /
+/// selfLp / opponentLp，防御性解析缺字段回退默认值。
+class DuelResultPage extends ConsumerStatefulWidget {
   final Map<String, Object?> result;
 
   const DuelResultPage({super.key, required this.result});
 
   @override
+  ConsumerState<DuelResultPage> createState() => _DuelResultPageState();
+}
+
+class _DuelResultPageState extends ConsumerState<DuelResultPage> {
+  @override
   Widget build(BuildContext context) {
     // 防御性解析路由 extra：深链/热重载/生产端数据漂移可能缺字段，
     // 裸 as 强转会直接 TypeError 崩溃，缺失时回退合理默认值。
-    final didWin = result['didWin'] as bool? ?? false;
-    final selfName = result['selfName'] as String? ?? '自己';
-    final opponentName = result['opponentName'] as String? ?? '对手';
-    final selfLp = result['selfLp'] as int? ?? 0;
-    final opponentLp = result['opponentLp'] as int? ?? 0;
-    final reason = result['reason'] as int?;
-    final accent = didWin
-        ? const Color(0xFFD7B65A)
-        : const Color(0xFF7BA7D9);
+    final didWin = widget.result['didWin'] as bool? ?? false;
+    final selfName = widget.result['selfName'] as String? ?? '自己';
+    final opponentName = widget.result['opponentName'] as String? ?? '对手';
+    final selfLp = widget.result['selfLp'] as int? ?? 0;
+    final opponentLp = widget.result['opponentLp'] as int? ?? 0;
+    final reason = widget.result['reason'] as int?;
+    final accent = didWin ? const Color(0xFFD7B65A) : const Color(0xFF7BA7D9);
     final title = didWin ? '胜利' : '失败';
     final subtitle = didWin ? '你赢下了这场决斗' : '这场决斗落败';
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF151821), Color(0xFF090B10)],
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 520),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
+        decoration: BoxDecoration(
+          color: const Color(0xEE10141C),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: accent.withValues(alpha: 0.75)),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: 0.16),
+              blurRadius: 32,
+              spreadRadius: 2,
+            ),
+          ],
         ),
-      ),
-      child: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
-                decoration: BoxDecoration(
-                  color: const Color(0xEE10141C),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: accent.withValues(alpha: 0.75)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: accent.withValues(alpha: 0.16),
-                      blurRadius: 32,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: accent,
-                        fontSize: 34,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-                    _ResultRow(
-                      label: selfName,
-                      value: selfLp,
-                      highlight: didWin,
-                    ),
-                    const SizedBox(height: 12),
-                    _ResultRow(
-                      label: opponentName,
-                      value: opponentLp,
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      '结束原因：${reason == null ? '未知' : _reasonText(reason)}',
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: () => backHomeAfterDuel(context),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: accent,
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          textStyle: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        child: const Text('返回首页'),
-                      ),
-                    ),
-                  ],
-                ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                color: accent,
+                fontSize: 34,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2,
               ),
             ),
-          ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+            const SizedBox(height: 28),
+            _ResultRow(label: selfName, value: selfLp, highlight: didWin),
+            const SizedBox(height: 12),
+            _ResultRow(label: opponentName, value: opponentLp),
+            const SizedBox(height: 24),
+            Text(
+              '结束原因：${reason == null ? '未知' : _reasonText(reason)}',
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => unawaited(leaveRoomAfterNotJoined(context, ref)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: accent,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                child: const Text('返回首页'),
+              ),
+            ),
+          ],
         ),
       ),
     );

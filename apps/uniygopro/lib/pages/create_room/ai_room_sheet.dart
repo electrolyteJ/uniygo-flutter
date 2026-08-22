@@ -11,8 +11,8 @@ import 'package:provider/provider.dart';
 import '../../config/servers.dart';
 import 'package:biz/service_singleton.dart';
 import '../../models/mercury233_room_spec.dart';
-import '../../models/mercury233_room_string_codec.dart';
-import '../../widgets/create_room/mercury233_room_params_form.dart';
+import '../../widgets/create_room/duel_room_params_fields.dart';
+import '../../widgets/create_room/room_params_form.dart';
 import '../../widgets/create_room/room_dialog.dart';
 import 'match_store.dart';
 
@@ -29,9 +29,9 @@ enum _AiType {
 /// AI 对决面板 — 选择房间参数后进入人机对战。
 ///
 /// 房间参数（大师规则/卡片允许/禁限卡表/LP/手牌/抽卡/时间/
-/// 卡组检查开关）与 233 建房表单共用 [Mercury233RoomParamsForm]，
+/// 卡组检查开关）与 233 建房表单共用 [RoomParamsForm]，
 /// 状态统一为 [Mercury233RoomSpec]；233 服 AI 主机密码由同一份 spec
-/// 经 [Mercury233RoomStringCodec.buildTokens] 生成。
+/// 经 [RoomTokens.encodeAiPassword] 生成。
 class AiRoomSheet extends StatefulWidget {
   final GameServer server;
   const AiRoomSheet({super.key, required this.server});
@@ -51,16 +51,10 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
   String _agentServer = '';
 
   /// 房间参数（单局、无房间名）。AI 对战默认不检查卡组。
-  Mercury233RoomSpec _spec = const Mercury233RoomSpec(noCheckDeck: true);
+  Mercury233RoomSpec _spec = const Mercury233RoomSpec(
+    options: RoomOptions(mode: RoomMode.single, noCheckDeck: true),
+  );
   bool _connecting = false;
-
-  /// 卡片允许（233 卡池枚举）→ 本地引擎 RoomOptions 的 rule int。
-  int get _engineRule => switch (_spec.cardPoolMode) {
-    Mercury233CardPoolMode.ocg => 0,
-    Mercury233CardPoolMode.tcgOnly => 1,
-    Mercury233CardPoolMode.tcgAndOcg => 2,
-    Mercury233CardPoolMode.noUnique => 4,
-  };
 
   /// 禁限卡表选项与自由房同源：dataService 的全部 lflist 表 +
   /// 末尾追加无禁限（NF）。
@@ -72,18 +66,19 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
 
   /// 为 233 服 AI 生成主机密码：AI 必须首位 + 协议 token。
   /// 参考 https://ygo233.com/lab：主机密码输入 AI 即可自动生成 AI 对手，
-  /// 不需要也不能使用 # 和房间名。token 拼装复用
-  /// [Mercury233RoomStringCodec.buildTokens]，与自由房房间串同源。
-  String _build233AiPassword() => <String>[
-    'AI',
-    ...Mercury233RoomStringCodec.buildTokens(_spec),
-  ].join(',');
+  /// 不需要也不能使用 # 和房间名。编码复用 [RoomTokens.encodeAiPassword]
+  /// （与自由房房间串共用同一套 token 定义）。
+  String _build233AiPassword() => RoomTokens.encodeAiPassword(
+    _spec.toRoomOptions(),
+    banlistToken: _spec.banlistToken,
+  );
 
   Future<void> _start() async {
     final matchStore = context.read<MatchStore>();
     final options = RoomOptions(
-      mode: RoomMode.single,
-      rule: _engineRule,
+      // 本地 AI 引擎是 1v1，固定单局；233 服 AI 由服务端按密码 token 决定模式。
+      mode: _aiType == _AiType.local ? RoomMode.single : _spec.mode,
+      rule: _spec.rule,
       duelRule: _spec.duelRule,
       noCheckDeck: _spec.noCheckDeck,
       noShuffleDeck: _spec.noShuffleDeck,
@@ -105,7 +100,7 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
       matchStore.selectServer(
         widget.server,
         DuelEnvironment.ai,
-        RoomPassword.encodeJoin(),
+        RoomTokens.encodeAiPassword(options),
       );
     } else {
       // 233 服 AI：主机密码输入 AI（+ 协议 token）即可自动生成 AI 对手，
@@ -182,12 +177,19 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
                           const SizedBox(height: 8),
                         ],
                         // ── 与 233 建房表单共用的参数控件 ──
-                        Mercury233RoomParamsForm(
-                          spec: _spec,
-                          onSpecChanged: (v) => setState(() => _spec = v),
-                          banlistOptionsLoader: _loadBanlistOptions,
+                        RoomParamsForm(
+                          options: _spec.toRoomOptions(),
+                          cardRuleItems: cardRuleItems233,
+                          // 本地 AI 固定单局，隐藏对战模式；233 服 AI 可切模式。
+                          showMode: _aiType != _AiType.local,
                           // 本地 AI 没有禁限概念，隐藏该选项。
                           showBanlist: _aiType != _AiType.local,
+                          banlistOptionsLoader: _loadBanlistOptions,
+                          banlist: _spec.banlist,
+                          onBanlistChanged: (v) =>
+                              setState(() => _spec = _spec.copyWith(banlist: v)),
+                          onChanged: (o) =>
+                              setState(() => _spec = _spec.applyRoomOptions(o)),
                         ),
                         // ── 233 服 AI 房间串预览 ──
                         if (_aiType != _AiType.local) ...[

@@ -127,7 +127,7 @@ class AiConnection implements DuelConnection {
   final _pending = <YgoStocMsg>[];
   Timer? _pendingTimer;
 
-  ConnectionState _state = ConnectionState.disconnected;
+  ConnectionState _state = ConnectionDisconnected();
 
   // ──────────── DuelConnection 接口 ────────────
   CardConverter? _cardConverter;
@@ -139,7 +139,7 @@ class AiConnection implements DuelConnection {
   Future<void> connect(Uri address) async {
     _resetRoomState();
     _roomOptions = RoomOptions.fromAiQuery(address.queryParameters);
-    _state = ConnectionState.connecting;
+    _state = ConnectionConnecting();
     _stateController.add(_state);
     final cardLoader = CardDataLoader(cardConverter: _cardConverter!);
     _engine.setCardReader(cardLoader.load);
@@ -194,7 +194,7 @@ class AiConnection implements DuelConnection {
       _engine.setAutoAnswer(ruleAnswer);
     }
     final ok = await _engine.init(lib);
-    _state = ok ? ConnectionState.connected : ConnectionState.error;
+    _state = ok ? ConnectionConnected() : ConnectionError(message: 'Failed to connect');
     _stateController.add(_state);
   }
 
@@ -205,6 +205,23 @@ class AiConnection implements DuelConnection {
         _name = msg.playerInfo?.name ?? _name;
         break;
       case CTOS_JOIN_GAME:
+        final parsed = RoomTokens.tryParseAiPassword(msg.joinGame?.passwd ?? '');
+        console.log('AiConnection: parsed room tokens: $parsed');
+        if (parsed != null) {
+          // 本地 AI 的规则经 AI,<tokens> 密码下发（与 233 服同源）；
+          // agent/agentServer 等模型装配参数仍沿用 connect() 的 URI 解析值。
+          _roomOptions = _roomOptions.copyWith(
+            rule: parsed.rule,
+            mode: parsed.mode,
+            duelRule: parsed.duelRule,
+            noCheckDeck: parsed.noCheckDeck,
+            noShuffleDeck: parsed.noShuffleDeck,
+            startLp: parsed.startLp,
+            startHand: parsed.startHand,
+            drawCount: parsed.drawCount,
+            timeLimit: parsed.timeLimit,
+          );
+        }
         _onJoinGame();
         break;
       case CTOS_UPDATE_DECK:
@@ -273,7 +290,7 @@ class AiConnection implements DuelConnection {
     _pending.clear();
     _engine.dispose();
     _resetRoomState();
-    _state = ConnectionState.disconnected;
+    _state = ConnectionDisconnected();
     _stateController.add(_state);
   }
 
@@ -470,6 +487,11 @@ class AiConnection implements DuelConnection {
           startHand: _roomOptions.startHand,
           drawCount: _roomOptions.drawCount,
           simpleAi: _agentAnswerer == null,
+          mode: _roomOptions.mode.value,
+          duelRule: _roomOptions.duelRule.value,
+          noShuffleDeck: _roomOptions.noShuffleDeck,
+          rule: _roomOptions.rule,
+          noCheckDeck: _roomOptions.noCheckDeck,
         );
         if (info == null) {
           console.log(

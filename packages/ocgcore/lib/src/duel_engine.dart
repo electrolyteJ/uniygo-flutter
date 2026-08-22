@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as console;
+import 'dart:math';
 import 'dart:typed_data';
 
 import '../ocgcore.dart';
@@ -166,6 +167,13 @@ class DuelEngine {
   /// 模型自动应答时应传 false：SIMPLE_AI 会替 AI 挡掉 select_effect_yes_no
   /// 等细粒度消息，模型永远看不到这些决策，历史动作序列会偏离训练分布。
   ///
+  /// [mode] 对战模式：0=single、1=match、2=tag（tag 会置 DUEL_TAG_MODE）。
+  /// [duelRule] 大师规则：3=MR3、4=MR4、5=MR2020（写入 options 高 16 位）。
+  /// [noShuffleDeck] 是否不洗切卡组：false 时装载前打乱牌库顺序（缺省
+  /// true，保持与旧行为一致——洗牌与否由上层服务按房间选项决定）。
+  /// [rule] 卡片允许（0=OCG…5=所有）与 [noCheckDeck]（跳过卡组合法性检查）
+  /// 仅透传记录：卡池/禁限合法性属于数据/服务端职责，引擎本身不校验。
+  ///
   /// 注意：本方法不推进 process 循环，调用方应在合成/下发 MSG_START
   /// 之后再调用 [pump] 推进第一轮。
   Future<DuelSetupInfo?> startDuel(
@@ -174,6 +182,11 @@ class DuelEngine {
     int startHand = 5,
     int drawCount = 1,
     bool simpleAi = true,
+    int mode = 0,
+    int duelRule = 5,
+    bool noShuffleDeck = true,
+    int rule = 0,
+    bool noCheckDeck = false,
   }) async {
     final core = _core;
     if (core == null) {
@@ -225,17 +238,28 @@ class DuelEngine {
     core.setPlayerInfo(_duel!, 0, startLp, startHand, drawCount);
     core.setPlayerInfo(_duel!, 1, startLp, startHand, drawCount);
 
+    // 洗牌决策：ocgcore 不在开局洗牌（洗牌是 ygopro 服务端职责），
+    // 本地 AI 由本层在装载前决定是否打乱牌库顺序。
+    final loadOrder = noShuffleDeck
+        ? deck
+        : (List<int>.of(deck)..shuffle(Random()));
     // 加载卡组到 ocgcore（双方使用同一副卡组）
-    for (int i = 0; i < deck.length; i++) {
-      core.newCard(_duel!, deck[i], 0, 0, LOCATION_DECK, i, 0);
-      core.newCard(_duel!, deck[i], 1, 1, LOCATION_DECK, i, 0);
+    for (int i = 0; i < loadOrder.length; i++) {
+      core.newCard(_duel!, loadOrder[i], 0, 0, LOCATION_DECK, i, 0);
+      core.newCard(_duel!, loadOrder[i], 1, 1, LOCATION_DECK, i, 0);
     }
     console.log('DuelEngine: cards loaded, starting duel '
-        '(simpleAi=$simpleAi)');
+        '(simpleAi=$simpleAi mode=$mode duelRule=$duelRule rule=$rule '
+        'noCheck=$noCheckDeck noShuffle=$noShuffleDeck)');
 
-    // SIMPLE_AI 为可选模式（ocgcore 内置，覆盖范围见上层 Connection 注释）
+    // 决斗选项：低 16 位为 DUEL_* 标志，高 16 位为大师规则版本
+    // （ocgcore ocgapi.cpp start_duel: duel_rule = options >> 16）。
+    var options = 0;
+    if (simpleAi) options |= DUEL_SIMPLE_AI;
+    if (mode == 2) options |= DUEL_TAG_MODE; // 2 = tag（双打）
+    options |= (duelRule << 16);
     try {
-      core.startDuel(_duel!, simpleAi ? DUEL_SIMPLE_AI : 0);
+      core.startDuel(_duel!, options);
     } catch (e) {
       console.log('DuelEngine: startDuel failed — core.startDuel threw: $e');
       core.endDuel(_duel!);

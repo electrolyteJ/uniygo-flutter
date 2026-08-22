@@ -498,11 +498,14 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     List<ActionMenuEntry> handActionEntries,
     SelectPromptMode selectPromptMode,
   ) {
+    // 观战者（非决斗位）没有「我方手牌」：双方手牌都应显示卡背。
+    final isDuelist = ref.read(duelRoomProvider).selfType.isDuelist;
     return Positioned(
       bottom: 0,
       left: 0,
       right: 0,
       child: HandCardsBar(
+        cardsVisible: isDuelist,
         handCodes: _board.selfHand,
         cardRectsAncestor: bodyStackAncestor,
         shuffleTick: _board.handShufflePlayer == _board.myController

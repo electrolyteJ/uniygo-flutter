@@ -10,6 +10,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as console;
 
 import 'package:http/http.dart' as http;
 
@@ -160,6 +161,7 @@ class MyCardAuthService {
 
   /// 获取用户的 u16Secret（匹配与房间认证的时间轮换密钥，按需重新获取）。
   Future<int> fetchU16Secret(String token) async {
+    console.log('MyCardAuthService.fetchU16Secret: token=$token');
     if (token.isEmpty) {
       throw MyCardAuthException('token 为空，请重新登录');
     }

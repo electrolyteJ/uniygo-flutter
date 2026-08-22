@@ -12,6 +12,7 @@ import 'create_room/ai_room_sheet.dart';
 import 'create_room/free_room_sheet.dart';
 import 'create_room/match_join_sheet.dart';
 import 'create_room/puzzle_room_sheet.dart';
+import 'create_room/spectate_room_sheet.dart';
 
 /// Web 端展示的服务器列表：不支持残局（duelink_ai_edo / ocgcore_edo，
 /// web 构建已剔除其资产），过滤掉残局房避免点击后加载失败。
@@ -114,6 +115,9 @@ class HomePage extends StatelessWidget {
       showRoomDialog(context, PuzzleRoomSheet(server: server));
     } else if (server.type == ServerType.aiRoom) {
       showRoomDialog(context, AiRoomSheet(server: server));
+    } else if (server.type == ServerType.spectateAthletic ||
+        server.type == ServerType.spectateEntertain) {
+      showRoomDialog(context, SpectateRoomSheet(server: server));
     } else if (server.requiresMatchApi) {
       showRoomDialog(context, MatchJoinSheet(server: server));
     } else {
@@ -146,6 +150,9 @@ class _ServerCard extends StatelessWidget {
         return Icons.extension;
       case ServerType.monsterLive:
         return Icons.movie_filter;
+      case ServerType.spectateAthletic:
+      case ServerType.spectateEntertain:
+        return Icons.visibility;
     }
   }
 
@@ -163,6 +170,10 @@ class _ServerCard extends StatelessWidget {
         return Colors.deepPurpleAccent;
       case ServerType.monsterLive:
         return Colors.tealAccent;
+      case ServerType.spectateAthletic:
+        return Colors.orangeAccent;
+      case ServerType.spectateEntertain:
+        return Colors.cyanAccent;
     }
   }
 

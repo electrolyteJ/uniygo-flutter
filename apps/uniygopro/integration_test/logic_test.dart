@@ -14,7 +14,6 @@ import 'package:uniygopro/models/mercury233_room_spec.dart';
 import 'package:uniygopro/models/mercury233_room_string_codec.dart';
 import 'package:uniygopro/pages/create_room/match_store.dart';
 import 'package:uniygopro/pages/create_room/room_history_store.dart';
-import 'package:uniygopro/pages/side/side_store.dart';
 import 'package:ygo_data/card_info.dart' as pkg;
 import 'package:ygo_data/lf_table.dart';
 
@@ -109,10 +108,13 @@ void main() {
       final custom = Mercury233RoomStringCodec.build(
         const Mercury233RoomSpec(
           roomName: '房',
-          duelRule: DuelRule.mr4,
-          cardPoolMode: Mercury233CardPoolMode.tcgAndOcg,
-          startLp: 4000,
-          noCheckDeck: true,
+          options: RoomOptions(
+            mode: RoomMode.single,
+            duelRule: DuelRule.mr4,
+            rule: 2,
+            startLp: 4000,
+            noCheckDeck: true,
+          ),
         ),
       );
       expect(custom.error, isNull);
@@ -139,11 +141,13 @@ void main() {
   });
 
   group('Mercury233RoomSpec', () {
-    test('toRoomOptions 映射 cardPoolMode', () {
+    test('toRoomOptions 映射 rule', () {
       const spec = Mercury233RoomSpec(
-        mode: RoomMode.match,
-        cardPoolMode: Mercury233CardPoolMode.noUnique,
-        noCheckDeck: true,
+        options: RoomOptions(
+          mode: RoomMode.match,
+          rule: 4,
+          noCheckDeck: true,
+        ),
       );
       final options = spec.toRoomOptions();
       expect(options.mode, RoomMode.match);
@@ -154,16 +158,19 @@ void main() {
     test('toJson/fromJson 往返', () {
       const spec = Mercury233RoomSpec(
         roomName: 'X',
-        duelRule: DuelRule.mr3,
-        cardPoolMode: Mercury233CardPoolMode.tcgOnly,
-        startLp: 1000,
-        startHand: 3,
-        timeLimit: 240,
+        options: RoomOptions(
+          mode: RoomMode.single,
+          duelRule: DuelRule.mr3,
+          rule: 1,
+          startLp: 1000,
+          startHand: 3,
+          timeLimit: 240,
+        ),
       );
       final restored = Mercury233RoomSpec.fromJson(spec.toJson());
       expect(restored.roomName, 'X');
       expect(restored.duelRule, DuelRule.mr3);
-      expect(restored.cardPoolMode, Mercury233CardPoolMode.tcgOnly);
+      expect(restored.rule, 1);
       expect(restored.startLp, 1000);
       expect(restored.startHand, 3);
       expect(restored.timeLimit, 240);
@@ -219,7 +226,7 @@ void main() {
 
   group('servers 配置', () {
     test('gameServers 与 DuelEnvironment getters', () {
-      expect(gameServers.length, 6);
+      expect(gameServers.length, 8);
       expect(DuelEnvironment.mycard.canCreate, isTrue);
       expect(DuelEnvironment.koishi.canCreate, isFalse);
       expect(DuelEnvironment.ai.isAi, isTrue);
@@ -288,21 +295,6 @@ void main() {
       expect(store.environment, DuelEnvironment.mercury233);
       store.stopSearching();
       expect(store.isSearching, isFalse);
-    });
-  });
-
-  group('SideStore', () {
-    test('stage 流转', () {
-      final store = SideStore();
-      expect(store.stage, SideStage.none);
-      store.enterSide();
-      expect(store.stage, SideStage.sideChanging);
-      store.waiting();
-      expect(store.stage, SideStage.waiting);
-      store.startDuel();
-      expect(store.stage, SideStage.duelStart);
-      store.reset();
-      expect(store.stage, SideStage.none);
     });
   });
 

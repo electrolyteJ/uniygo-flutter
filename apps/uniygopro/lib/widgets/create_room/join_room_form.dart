@@ -1,5 +1,7 @@
 // ── 加入房间 ──
 
+import 'dart:developer' as console;
+
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +9,7 @@ import 'package:account_mycard/account_mycard.dart';
 
 import '../../config/servers.dart';
 import '../../services/mycard_gate.dart';
+import '../../pages/create_room/match_store.dart';
 import 'password_field.dart';
 import '../create_room/room_dialog.dart';
 
@@ -102,7 +105,12 @@ class _JoinRoomFormState extends State<JoinRoomForm> {
         return;
       }
       if (!mounted) return;
+      // 对决服用 MyCard 用户名标识玩家：进房前写入 MatchStore，否则
+      // DuelRoomPage 会用默认 'Guest' 发 CTOS_PLAYER_INFO，MyCard 服
+      // 查无此用户 → 「读取用户信息失败」直接断连。
+      context.read<MatchStore>().setUsername(account.username);
       final u16Secret = await context.read<MyCardAccountApi>().fetchU16Secret();
+      console.log('MyCard u16Secret: $u16Secret for roomId=$roomId');
       widget.onJoin(
         RoomPassword.encodeJoin(
           roomId: roomId,
@@ -148,49 +156,50 @@ class _JoinRoomFormState extends State<JoinRoomForm> {
           ),
         ],
       );
-    }
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 8),
-          // MyCard 私密房：输入朋友分享的数字房间 ID（无需遮蔽）。
-          if (widget.env.useEncodedPassword)
-            darkTextField(
-              controller: _pwCtrl,
-              label: '朋友私密房间 ID',
-              hintText: '朋友建房后分享的数字房间 ID',
-              icon: Icons.tag,
-              keyboardType: TextInputType.number,
-              onSubmitted: (_) => _join(),
-            )
-          else
-            PasswordField(
-              controller: _pwCtrl,
-              label: widget.env.usesRoomStringDsl ? '房间串 / 房间密码' : '房间密码',
-              hintText: widget.env.usesRoomStringDsl
-                  ? '例如 M#房名 或 OT,MR5#房名'
-                  : null,
-              icon: Icons.lock,
-              onSubmitted: (_) => _join(),
-            ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                _error!,
-                style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+    } else {
+      return SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 8),
+            // MyCard 私密房：输入朋友分享的数字房间 ID（无需遮蔽）。
+            if (widget.env.useEncodedPassword)
+              darkTextField(
+                controller: _pwCtrl,
+                label: '朋友私密房间 ID',
+                hintText: '朋友建房后分享的数字房间 ID',
+                icon: Icons.tag,
+                keyboardType: TextInputType.number,
+                onSubmitted: (_) => _join(),
+              )
+            else
+              PasswordField(
+                controller: _pwCtrl,
+                label: widget.env.usesRoomStringDsl ? '房间串 / 房间密码' : '房间密码',
+                hintText: widget.env.usesRoomStringDsl
+                    ? '例如 M#房名 或 OT,MR5#房名'
+                    : null,
+                icon: Icons.lock,
+                onSubmitted: (_) => _join(),
               ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                ),
+              ),
+            const SizedBox(height: 16),
+            connectButton(
+              label: '加入房间',
+              connecting: _connecting,
+              onTapFeedback: widget.onTapFeedback,
+              onPressed: _join,
             ),
-          const SizedBox(height: 16),
-          connectButton(
-            label: '加入房间',
-            connecting: _connecting,
-            onTapFeedback: widget.onTapFeedback,
-            onPressed: _join,
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    }
   }
 }

@@ -128,6 +128,30 @@ class MatchStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 观战进场：以观战者身份加入一场进行中的对局。
+  ///
+  /// 连接地址取观战服务器条目上的 duelHost/duelPort（对应匹配服），
+  /// [password] 为观战房间 id 编码后的 joinPublic 密码（对齐 YGOMobile
+  /// getWatchDuelPassword），对局已开始，后进者由服务端置为观战者。
+  void selectSpectate(
+    GameServer server,
+    String password, {
+    String roomName = '',
+    String? username,
+  }) {
+    selectedServer = server;
+    // 观战列表与观看对局都是 wss；这里仅用 koishi 的 wss schema 生成 uri，
+    // 实际地址/端口由下两行覆盖为 server.duelHost / server.duelPort。
+    environment = DuelEnvironment.koishi;
+    serverAddress = server.duelHost;
+    serverPort = server.duelPort;
+    serverPassword = password;
+    this.roomName = roomName;
+    this.username = username ?? 'Guest';
+    isHost = false;
+    notifyListeners();
+  }
+
   void reset() {
     isSearching = false;
     arena = null;

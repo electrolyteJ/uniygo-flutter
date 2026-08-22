@@ -884,7 +884,13 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
               final chains = ref.watch(
                 duelFieldProvider.select((s) => s.chains),
               );
+              // 观战者（非决斗位）没有「我方手牌」：双方手牌都应显示卡背，
+              // 否则 selfHand 的 0 占位码会被 CardImage 渲染成占位「背景」。
+              final isDuelist = ref.watch(
+                duelRoomProvider.select((s) => s.selfType.isDuelist),
+              );
               return HandCardsBar(
+                cardsVisible: isDuelist,
                 handCodes: hand.selfHand,
                 chainOrderByIndex: buildChainOrderMaps(
                   chains,

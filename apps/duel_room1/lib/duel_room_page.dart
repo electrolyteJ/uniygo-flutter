@@ -19,6 +19,7 @@ import 'package:duel_room1/chat/chat_panel.dart';
 import 'package:duel_room1/constants.dart';
 import 'package:duel_room1/field/duel_field_page.dart';
 import 'duel_log_drawer.dart';
+import 'duel_result_page.dart';
 import 'duel_room_exit.dart';
 import 'package:duel_room1/waiting/waiting_room_page.dart';
 import 'package:duel_room1/waiting/widgets/hand_select_panel.dart';
@@ -176,15 +177,6 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
       );
       ref.read(duelRoomProvider.notifier).clearError();
     });
-    // 离开房间（RoomNotJoined）→ 回首页/结算页。
-    // 统一走 leaveRoomAfterNotJoined：主动退出（backHome）触发断连时
-    // 这里补做导航兜底（若主动退出方在断开期间被销毁，保证仍能离房）；
-    // 服务器踢人/断连（未走 backHome）时负责完整离房流程。
-    ref.listen(duelRoomProvider.select((s) => s.stage), (prev, next) {
-      if (prev is! RoomNotJoined && next is RoomNotJoined) {
-        unawaited(leaveRoomAfterNotJoined(context, ref));
-      }
-    });
     final room = ref.watch(duelRoomProvider);
     final roomCtl = ref.read(duelRoomProvider.notifier);
     // 本局结果（MSG_WIN 设置；下一局 MSG_START 时 handleStart 清空）。
@@ -216,7 +208,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
       fit: StackFit.expand,
       children: [
         DuelFieldPage(room.players, hudVisible: isInDuel),
-        if (showLobby) const WaitingRoomPage(),
+        if (stage is  RoomInLobby) const WaitingRoomPage(),
         // 猜拳（含结果展示）：直接挂在页面层，不经等待室弹窗。
         // 面板包容内容、屏幕居中，不为右侧聊天浮窗让位。
         if (isSelectingHand || isHandResult)
@@ -237,22 +229,21 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
               onSendTp: roomCtl.sendTp,
             ),
           ),
-        // 局间胜败横幅：srvpro 系服务器 match 局间不下发 STOC_DUEL_END，
-        // 阶段直接从 RoomInDuel 跳到 RoomSideDecking，没有任何结果显示。
-        // 横幅只在「结果已出且不在对局中」的窗口期显示（新局开始
-        // duelResult 清空即自动消失），置顶层但不遮挡中央面板操作。
-        if (roundResult != null &&
-            !isInDuel &&
-            !identical(_dismissedResult, roundResult))
-          Positioned(
-            top: MediaQuery.paddingOf(context).top + 64,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: _RoundResultBanner(
-                result: roundResult,
-                onClose: () =>
-                    setState(() => _dismissedResult = roundResult),
+        // 全屏居中半弹窗：仅服务端下发 MSG_WIN（duelResult 非空）时展示。
+        // 点遮罩关闭（局间换备可继续下一局），「返回首页」离房；
+        // 新一局的 MSG_WIN 产生新结果 map，届时重新弹出。
+        if (roundResult != null && !identical(_dismissedResult, roundResult))
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => setState(() => _dismissedResult = roundResult),
+              child: ColoredBox(
+                color: Colors.black.withValues(alpha: 0.55),
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () {},
+                    child: DuelResultPage(result: roundResult,),
+                  ),
+                ),
               ),
             ),
           ),
@@ -335,84 +326,4 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
   }
 }
 
-/// 局间胜败横幅（match 模式每一局结束时展示）。
-///
-/// 视觉对齐结算页（duel_result_page）的 accent 配色，但做成轻量横幅：
-/// 顶部居中、不遮罩背景（换备面板/聊天仍可操作），点 ✕ 关闭；
-/// 下一局开始（duelResult 清空）时由页面条件自然移除。
-class _RoundResultBanner extends StatelessWidget {
-  const _RoundResultBanner({required this.result, required this.onClose});
 
-  /// 与 DuelResultPage 相同的结果 map（didWin/selfName/opponentName/
-  /// selfLp/opponentLp）。防御性解析，缺字段回退默认值。
-  final Map<String, Object?> result;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    final didWin = result['didWin'] as bool? ?? false;
-    final selfName = result['selfName'] as String? ?? '自己';
-    final opponentName = result['opponentName'] as String? ?? '对手';
-    final selfLp = result['selfLp'] as int? ?? 0;
-    final opponentLp = result['opponentLp'] as int? ?? 0;
-    final accent = didWin
-        ? const Color(0xFFD7B65A)
-        : const Color(0xFF7BA7D9);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xF210141C),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.75)),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.18),
-            blurRadius: 20,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            didWin ? Icons.emoji_events : Icons.close,
-            color: accent,
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                didWin ? '本局胜利' : '本局落败',
-                style: TextStyle(
-                  color: accent,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '$selfName $selfLp : $opponentLp $opponentName',
-                style: const TextStyle(
-                  color: Color(0xFF8CA6C4),
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 14),
-          GestureDetector(
-            onTap: onClose,
-            child: const Padding(
-              padding: EdgeInsets.all(4),
-              child: Icon(Icons.close, color: Color(0xFF8B9BB4), size: 16),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

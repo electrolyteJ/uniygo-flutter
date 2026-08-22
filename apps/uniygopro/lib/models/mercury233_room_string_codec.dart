@@ -31,32 +31,14 @@ class Mercury233RoomStringCodec {
   /// 手拼 token。房间串在其后追加 `#房间名`；AI 密码在其前置 `AI`
   /// 标记且不带房间名。
   static List<String> buildTokens(Mercury233RoomSpec spec) {
-    final codes = <String>[
-      switch (spec.mode) {
-        RoomMode.single => '',
-        RoomMode.match => 'M',
-        RoomMode.tag => 'T',
-      },
-      switch (spec.duelRule) {
-        DuelRule.mr3 => 'MR3',
-        DuelRule.mr4 => 'MR4',
-        DuelRule.mr2020 => 'MR5',
-      },
-      switch (spec.cardPoolMode) {
-        Mercury233CardPoolMode.ocg => '',
-        Mercury233CardPoolMode.tcgAndOcg => 'OT',
-        Mercury233CardPoolMode.tcgOnly => 'TO',
-        Mercury233CardPoolMode.noUnique => 'NU',
-      },
-      if (spec.timeLimit != 180) 'TM${spec.timeLimit}',
-      if (spec.startLp != 8000) 'LP${spec.startLp}',
-      if (spec.startHand != 5) 'ST${spec.startHand}',
-      if (spec.drawCount != 1) 'DR${spec.drawCount}',
-      if (spec.banlist.token != 'LF1') spec.banlist.token,
-      if (spec.noCheckDeck) 'NC',
-      if (spec.noShuffleDeck) 'NS',
-    ]..removeWhere((code) => code.isEmpty);
-    return codes;
+    // 委托给协议层 RoomTokens（duelink），保证本地 AI 解析与 233 服
+    // 建房/AI 主机密码共用同一套 token 定义，避免两处手拼漂移。
+    // 禁限 token（LF<n>/NF）只存在于 app 层（RoomOptions 只有 hash），
+    // 经 banlistToken 参数在 DR 之后原位追加，顺序与旧实现一致。
+    return RoomTokens.build(
+      spec.toRoomOptions(),
+      banlistToken: spec.banlistToken,
+    );
   }
 
   static String _buildStructured(Mercury233RoomSpec spec) {

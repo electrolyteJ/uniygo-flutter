@@ -12,17 +12,17 @@ class WebSocketConnection implements DuelConnection {
   WebSocketChannel? _channel;
   final _msgCtrl = StreamController<YgoStocMsg>.broadcast();
   final _stateController = StreamController<ConnectionState>.broadcast();
-  ConnectionState _state = ConnectionState.disconnected;
+  ConnectionState _state = ConnectionDisconnected();
 
   @override
   Future<void> connect(Uri address) async {
-    _state = ConnectionState.connecting;
+    _state = ConnectionConnecting();
     _stateController.add(_state);
     try {
       console.log('Connecting to wss://${address.host}:${address.port}');;
       _channel = WebSocketChannel.connect(address);
       await _channel!.ready;
-      _state = ConnectionState.connected;
+      _state = ConnectionConnected();
       _stateController.add(_state);
       _channel!.stream.listen(
         (data) {
@@ -39,17 +39,17 @@ class WebSocketConnection implements DuelConnection {
         },
         onError: (e) {
           console.log('WebSocket error: $e');
-          _state = ConnectionState.error;
+          _state = ConnectionError(message: '$e');
           _stateController.add(_state);
         },
         onDone: () {
           console.log('WebSocket connection closed');
-          _state = ConnectionState.disconnected;
+          _state = ConnectionDisconnected();
           _stateController.add(_state);
         },
       );
     } catch (e) {
-      _state = ConnectionState.error;
+      _state = ConnectionError(message: '$e');
       _stateController.add(_state);
       rethrow;
     }
@@ -57,7 +57,7 @@ class WebSocketConnection implements DuelConnection {
 
   @override
   void send(YgoCtosMsg msg) {
-    if (_state != ConnectionState.connected || _channel == null) {
+    if (_state is! ConnectionConnected || _channel == null) {
       console.log(
         'Ignoring send while connection state is $_state: $msg',
       );
@@ -67,7 +67,7 @@ class WebSocketConnection implements DuelConnection {
       _channel!.sink.add(encodeCtos(msg));
     } on StateError catch (e) {
       console.log('Ignoring send on closed socket: $e');
-      _state = ConnectionState.disconnected;
+      _state = ConnectionDisconnected();
       _stateController.add(_state);
     }
   }
@@ -79,7 +79,7 @@ class WebSocketConnection implements DuelConnection {
   Future<void> disconnect() async {
     await _channel?.sink.close();
     _channel = null;
-    _state = ConnectionState.disconnected;
+    _state = ConnectionDisconnected();
     _stateController.add(_state);
   }
 

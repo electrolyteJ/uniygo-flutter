@@ -241,10 +241,10 @@ void main() {
         for (final s in subs) {
           await s.cancel();
         }
-        if (alice.connectionState == ConnectionState.connected) {
+        if (alice.connectionState is ConnectionConnected) {
           alice.surrender();
         }
-        if (bob.connectionState == ConnectionState.connected) {
+        if (bob.connectionState is ConnectionConnected) {
           bob.surrender();
         }
         await Future<void>.delayed(const Duration(seconds: 2));

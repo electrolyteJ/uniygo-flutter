@@ -37,17 +37,28 @@ abstract class BaseDuelService implements IDuelService {
   final _duelPhaseController = StreamController<DuelPhase>.broadcast();
   RoomStage _roomStage = const RoomNotJoined();
   StreamSubscription? _connectionSub;
-  ConnectionState _connState = ConnectionState.disconnected;
+  ConnectionState _connState = ConnectionDisconnected();
   RoomOptions? _pendingOptions;
 
   BaseDuelService(this.connection) {
     connection.state.listen((state) {
       _connState = state;
-      if (state == ConnectionState.disconnected) {
-        _connectionSub?.cancel();
-        console.log('RoomStage: Disconnected → RoomNotJoined');
-        _roomStage = const RoomNotJoined();
-        _roomStageController.add(_roomStage);
+      switch (state) {
+        case ConnectionDisconnected():
+          console.log('RoomStage: Disconnected → RoomNotJoined');
+          _roomStage = const RoomNotJoined();
+          _roomStageController.add(_roomStage);
+          break;
+        case ConnectionError():
+          console.log('RoomStage: Connection error → RoomError');
+          _roomStage = RoomError(message: state.message);
+          _roomStageController.add(_roomStage);
+          break;
+        default:
+          // console.log('RoomStage: Unknown connection state → RoomNotJoined');
+          // _roomStage = const RoomNotJoined();
+          // _roomStageController.add(_roomStage);
+          break;
       }
     });
   }
@@ -63,9 +74,10 @@ abstract class BaseDuelService implements IDuelService {
 
   @override
   Future<void> disconnect() async {
-    console.log('Disconnecting...');
     await _connectionSub?.cancel();
-    await connection.disconnect();
+    if (_connState is! ConnectionDisconnected) {
+      await connection.disconnect();
+    }
   }
 
   // ── 消息处理 ──
@@ -82,7 +94,7 @@ abstract class BaseDuelService implements IDuelService {
         // srvpro 系服务器（233/koishi 等）在关键节点下发 TIME_LIMIT 并等待
         // CTOS_TIME_CONFIRM，未确认则静默挂起（match 局间换备后不发
         // DUEL_START 即由此导致）。收到即确认；对不校验该包的服务器无害。
-        if (connectionState == ConnectionState.connected) {
+        if (connectionState is ConnectionConnected) {
           confirmTime();
         }
         break;
@@ -346,6 +358,7 @@ abstract class BaseDuelService implements IDuelService {
 
   RoomStage _withPlayers(List<PlayerInfo> players) {
     return switch (_roomStage) {
+      RoomError() => RoomError( players: players, observerCount: _obsOf(_roomStage),message: ""),
       RoomNotJoined() => RoomNotJoined(),
       RoomJoined() => RoomJoined(players: players),
       RoomInLobby(:final selfType, :final isHost, :final options) =>
@@ -392,6 +405,7 @@ abstract class BaseDuelService implements IDuelService {
 
   RoomStage _withObs(int count) {
     return switch (_roomStage) {
+      RoomError() => RoomError( players: _playersOf(_roomStage), observerCount: count,message: ""),
       RoomNotJoined() => RoomNotJoined(),
       RoomJoined() => RoomJoined(players: _playersOf(_roomStage)),
       RoomInLobby(:final selfType, :final isHost, :final options) =>
@@ -445,11 +459,13 @@ abstract class BaseDuelService implements IDuelService {
 
   @override
   void setPlayerName(String name) {
+    console.log('setPlayerName: $name');
     _send(YgoCtosMsg.playerInfo(CtosPlayerInfo(name: name)));
   }
 
   @override
   void enterRoom(String password) {
+    console.log('enterRoom: $password');
     _send(
       YgoCtosMsg.joinGame(
         CtosJoinGame(version: 4962, gameId: 0, passwd: password),

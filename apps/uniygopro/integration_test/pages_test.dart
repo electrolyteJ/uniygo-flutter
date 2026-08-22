@@ -7,7 +7,6 @@ import 'package:integration_test/integration_test.dart';
 import 'package:provider/provider.dart';
 import 'package:uniygopro/pages/create_room/match_page.dart';
 import 'package:uniygopro/pages/create_room/match_store.dart';
-import 'package:uniygopro/pages/side/side_page.dart';
 import 'package:uniygopro/util/snack_bar_util.dart';
 
 Widget _wrap(Widget child) => MaterialApp(home: child);
@@ -15,12 +14,6 @@ Widget _wrap(Widget child) => MaterialApp(home: child);
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('SidePage 渲染', (tester) async {
-    await tester.pumpWidget(_wrap(const SidePage()));
-    expect(find.text('副卡组交换'), findsOneWidget);
-    expect(find.text('Side Deck'), findsOneWidget);
-    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
-  });
 
   testWidgets('MatchPage 非搜索态渲染两个匹配按钮', (tester) async {
     await tester.pumpWidget(

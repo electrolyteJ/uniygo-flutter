@@ -61,12 +61,26 @@ class CardImageLoader {
     return img;
   }
 
-  /// 异步加载卡片图片：
-  /// - L1 命中 → 立即返回
+  /// 异步加载卡片图片（可选降采样解码）：
+  /// - L1 命中 → 立即返回（首个解码尺寸即该 code 的缓存尺寸）
   /// - 正在加载 → 等待同一 Future（去重）
   /// - 负面缓存内 → 直接返回 null
-  /// - 否则走 L2 磁盘（秒回）→ miss 时 L3 HTTP（带重试），解码后入 L1
-  Future<ui.Image?> load(int code) async {
+  /// - 否则走 L2 磁盘（秒回）→ miss 时 L3 HTTP（带重试），按目标尺寸
+  ///   解码后入 L1
+  ///
+  /// [targetWidth]/[targetHeight] 语义对齐 Image.memCacheWidth：
+  /// 解码结果不超过目标尺寸（保持宽高比，allowUpscaling=false 不放大），
+  /// 传 null 表示全尺寸。Flame 场地卡槽传小尺寸目标，避免全尺寸
+  /// 400px 解码的内存与耗时。
+  ///
+  /// 注意：L1 命中后**不按更大目标重新解码**——重新解码会经 [_putMemory]
+  /// dispose 旧 [ui.Image]，而 Flame 侧 [CardSlotComponent] 仍持有旧图
+  /// 引用，`drawImageRect` 对已释放图会断言崩溃。首个解码尺寸即缓存尺寸。
+  Future<ui.Image?> load(
+    int code, {
+    int? targetWidth,
+    int? targetHeight,
+  }) async {
     final cached = get(code);
     if (cached != null) return cached;
 
@@ -93,7 +107,12 @@ class CardImageLoader {
         completer.complete(null);
         return null;
       }
-      final codec = await ui.instantiateImageCodec(bytes);
+      final codec = await ui.instantiateImageCodec(
+        bytes,
+        targetWidth: targetWidth,
+        targetHeight: targetHeight,
+        allowUpscaling: false,
+      );
       final frame = await codec.getNextFrame();
       codec.dispose();
       final image = frame.image;

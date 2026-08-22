@@ -152,7 +152,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 100));
     expect(
       service.connectionState,
-      ConnectionState.connected,
+      ConnectionConnected,
       reason: 'ocgcore 引擎应初始化成功（Web 走 WASM，VM 走 dylib）',
     );
 

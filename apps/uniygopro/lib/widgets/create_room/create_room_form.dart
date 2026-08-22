@@ -8,8 +8,11 @@ import 'package:account_mycard/account_mycard.dart';
 import '../../config/servers.dart';
 import '../../models/created_room_record.dart';
 import '../../services/mycard_gate.dart';
+import '../../pages/create_room/match_store.dart';
 import '../../models/mercury233_room_spec.dart';
 import '../../models/mercury233_room_string_codec.dart';
+import 'duel_room_params_fields.dart';
+import 'room_params_form.dart';
 import 'password_field.dart';
 import 'mercury233_room_form_section.dart';
 import 'room_history_list.dart';
@@ -64,15 +67,8 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
   bool _connecting = false;
   String? _error;
 
-  int _startLp = 8000;
-  int _startHand = 5;
-  int _drawCount = 1;
-  int _rule = 0;
-  DuelRule _duelRule = DuelRule.mr2020;
-  RoomMode _mode = RoomMode.match;
-  bool _noCheckDeck = false;
-  bool _noShuffleDeck = false;
-  int _timeLimit = 180;
+  /// 创建房间参数（mycard/koishi 共用；由 RoomParamsForm 驱动）。
+  RoomOptions _options = const RoomOptions();
   Mercury233RoomSpec _mercury233Spec = const Mercury233RoomSpec();
 
   /// 全部创建记录（展示时按当前环境过滤）。
@@ -108,15 +104,7 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
         _nameCtrl.text = record.roomName;
         // MyCard 记录的 password 是私密房 ID（自动派生，不回填密码框）。
         _pwCtrl.text = widget.env.useEncodedPassword ? '' : record.password;
-        _startLp = options.startLp;
-        _startHand = options.startHand;
-        _drawCount = options.drawCount;
-        _rule = options.rule;
-        _duelRule = options.duelRule;
-        _mode = options.mode;
-        _noCheckDeck = options.noCheckDeck;
-        _noShuffleDeck = options.noShuffleDeck;
-        _timeLimit = options.timeLimit;
+        _options = options;
       }
       _error = null;
     });
@@ -253,17 +241,7 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
       _error = null;
     });
 
-    final options = RoomOptions(
-      rule: _rule,
-      startLp: _startLp,
-      startHand: _startHand,
-      drawCount: _drawCount,
-      duelRule: _duelRule,
-      mode: _mode,
-      noCheckDeck: _noCheckDeck,
-      noShuffleDeck: _noShuffleDeck,
-      timeLimit: _timeLimit,
-    );
+    final options = _options;
 
     final roomName = _nameCtrl.text.trim();
     final password = _encodePassword(options, pw);
@@ -291,17 +269,7 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
       _error = null;
     });
     try {
-      final options = RoomOptions(
-        rule: _rule,
-        startLp: _startLp,
-        startHand: _startHand,
-        drawCount: _drawCount,
-        duelRule: _duelRule,
-        mode: _mode,
-        noCheckDeck: _noCheckDeck,
-        noShuffleDeck: _noShuffleDeck,
-        timeLimit: _timeLimit,
-      );
+      final options = _options;
       final encoded = await _encodeMyCardCreate(context, options);
       if (encoded == null) {
         // 用户取消登录（门禁返回 null）
@@ -356,6 +324,9 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
       reason: '创建 MyCard 私密房间',
     );
     if (account == null || !context.mounted) return null;
+    // 对决服用 MyCard 用户名标识玩家：进房前写入 MatchStore，否则
+    // DuelRoomPage 会用默认 'Guest' 发 CTOS_PLAYER_INFO，服查无此用户。
+    context.read<MatchStore>().setUsername(account.username);
     // u16Secret 是时间轮换密钥，必须每次操作前重新获取。
     final u16Secret = await context.read<MyCardAccountApi>().fetchU16Secret();
     // 私密房 ID 派生自房主 external_id。注意：API 直登响应只有
@@ -451,97 +422,10 @@ class _CreateRoomFormState extends State<CreateRoomForm> {
                 icon: Icons.lock,
               ),
             const SizedBox(height: 14),
-            numberRow(
-              '初始 LP',
-              _startLp,
-              (v) => setState(() => _startLp = v),
-              max: 65535,
-            ),
-            numberRow(
-              '初始手牌',
-              _startHand,
-              (v) => setState(() => _startHand = v),
-              max: 15,
-            ),
-            numberRow(
-              '每回合抽卡',
-              _drawCount,
-              (v) => setState(() => _drawCount = v),
-              max: 15,
-            ),
-            const SizedBox(height: 6),
-            dropdownRow<int>(
-              label: '卡片允许',
-              value: _rule,
-              items: const [
-                DropdownMenuItem(value: 0, child: Text('OCG')),
-                DropdownMenuItem(value: 1, child: Text('TCG')),
-                DropdownMenuItem(value: 2, child: Text('OT 混')),
-                DropdownMenuItem(value: 3, child: Text('自制卡')),
-                DropdownMenuItem(value: 4, child: Text('专有卡禁止')),
-                DropdownMenuItem(value: 5, child: Text('所有卡片')),
-              ],
-              onChanged: (v) => setState(() => _rule = v!),
-            ),
-            dropdownRow<DuelRule>(
-              label: '决斗规则',
-              value: _duelRule,
-              items: const [
-                DropdownMenuItem(
-                  value: DuelRule.mr3,
-                  child: Text('大师规则 3 (2014)'),
-                ),
-                DropdownMenuItem(
-                  value: DuelRule.mr4,
-                  child: Text('新大师规则 (2017)'),
-                ),
-                DropdownMenuItem(
-                  value: DuelRule.mr2020,
-                  child: Text('大师规则 2020'),
-                ),
-              ],
-              onChanged: (v) => setState(() => _duelRule = v!),
-            ),
-            dropdownRow<RoomMode>(
-              label: '对战模式',
-              value: _mode,
-              items: const [
-                DropdownMenuItem(value: RoomMode.single, child: Text('单局')),
-                DropdownMenuItem(
-                  value: RoomMode.match,
-                  child: Text('三局两胜 (Match)'),
-                ),
-                DropdownMenuItem(value: RoomMode.tag, child: Text('双打 (Tag)')),
-              ],
-              onChanged: (v) => setState(() => _mode = v!),
-            ),
-            dropdownRow<int>(
-              label: '时间限制',
-              value: _timeLimit,
-              items: const [
-                DropdownMenuItem(value: 0, child: Text('无限制')),
-                DropdownMenuItem(value: 180, child: Text('3 分钟')),
-                DropdownMenuItem(value: 240, child: Text('4 分钟')),
-                DropdownMenuItem(value: 300, child: Text('5 分钟')),
-                DropdownMenuItem(value: 600, child: Text('10 分钟')),
-              ],
-              onChanged: (v) => setState(() => _timeLimit = v!),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                checkRow(
-                  '不检查卡组',
-                  _noCheckDeck,
-                  (v) => setState(() => _noCheckDeck = v ?? false),
-                ),
-                const SizedBox(width: 16),
-                checkRow(
-                  '不切洗卡组',
-                  _noShuffleDeck,
-                  (v) => setState(() => _noShuffleDeck = v ?? false),
-                ),
-              ],
+            RoomParamsForm(
+              options: _options,
+              cardRuleItems: cardRuleItems,
+              onChanged: (o) => setState(() => _options = o),
             ),
             if (_error != null)
               Padding(

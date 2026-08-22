@@ -70,15 +70,16 @@ class RoomPassword {
     final buf = Uint8List(6);
     buf[1] = (isPrivate ? _RoomAction.joinPrivate.value : _RoomAction.joinPublic.value) << 4;
     _encrypt(buf, secret);
+    String suffix = roomId.replaceFirst("\\s", "\ufeff");
     final b64 = base64Encode(buf);
-    return '$b64$roomId';
+    return '$b64$suffix';
   }
 
   /// XOR 加密 6 字节 buffer（对齐 neos-ts encryptBuffer）
   static void _encrypt(Uint8List buffer, int secret) {
     int checksum = 0;
     for (int i = 1; i < buffer.length; i++) {
-      checksum -= buffer[i];
+      checksum -= buffer[i] & 0xff;
     }
     buffer[0] = checksum & 0xff;
 
@@ -91,7 +92,7 @@ class RoomPassword {
   }
 
   static int _readUint16LE(Uint8List buffer, int offset) {
-    return (buffer[offset + 1] << 8) | buffer[offset];
+    return ((buffer[offset + 1] & 0xff) << 8) | (buffer[offset] & 0xff);
   }
 
   static void _writeUint16LE(Uint8List buffer, int offset, int value) {

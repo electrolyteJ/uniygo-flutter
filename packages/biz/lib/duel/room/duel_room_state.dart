@@ -675,6 +675,10 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
           // match 模式局间换备：初始化换备编辑状态（异步解析卡信息）。
           unawaited(_enterSideDecking());
           break;
+
+        case RoomError():
+          setErrorText('房间错误：${roomStage.message}');
+          break;
         default:
           break;
       }

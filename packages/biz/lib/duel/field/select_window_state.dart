@@ -327,9 +327,11 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   }
 
   /// 预热 CardSelector 中所有卡片图片到 [CardImageLoader] 全局缓存。
+  /// 选卡弹窗卡片约 92px 宽，按 256 目标宽度降采样解码，避免全尺寸
+  /// 400px 图占内存。
   void _preloadSelectImages(SelectState select) {
     for (final opt in [...select.mustOptions, ...select.options]) {
-      if (opt.code > 0) CardImageLoader.I.load(opt.code);
+      if (opt.code > 0) CardImageLoader.I.load(opt.code, targetWidth: 256);
     }
   }
 

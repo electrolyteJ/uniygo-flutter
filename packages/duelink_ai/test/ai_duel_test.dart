@@ -56,7 +56,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 100));
       expect(
         service.connectionState,
-        ConnectionState.connected,
+        ConnectionConnected(),
         reason: 'ocgcore 动态库应加载成功并进入 connected',
       );
 
@@ -239,7 +239,7 @@ void main() {
 
       await service.connect(Uri());
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      expect(service.connectionState, ConnectionState.connected);
+      expect(service.connectionState, isA<ConnectionConnected>());
 
       service.setPlayerName('QuickTest');
       service.enterRoom(RoomPassword.encodeJoin());
@@ -330,7 +330,7 @@ void main() {
 
       await service.connect(Uri());
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      expect(service.connectionState, ConnectionState.connected);
+      expect(service.connectionState, isA<ConnectionConnected>());
 
       service.setPlayerName('ObserverTest');
       service.enterRoom(RoomPassword.encodeJoin());
@@ -405,7 +405,7 @@ void main() {
       // agent=0：flutter test 的 rootBundle 无模型资产 → 回退规则 AI。
       await service.connect(Uri.parse('ai://localhost:8080?agent=0'));
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      expect(service.connectionState, ConnectionState.connected);
+      expect(service.connectionState, isA<ConnectionConnected>());
 
       service.setPlayerName('AgentFallbackTest');
       service.enterRoom(RoomPassword.encodeJoin());

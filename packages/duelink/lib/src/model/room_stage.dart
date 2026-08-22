@@ -150,3 +150,14 @@ class RoomSideDecking extends RoomStage {
 
   @override String toString() => 'RoomSideDecking';
 }
+
+class RoomError extends RoomStage {
+  /// 错误信息。
+  final String message;
+  const RoomError({
+    super.players = const [],
+    super.observerCount = 0,
+    required this.message,
+  });
+  @override String toString() => 'RoomError(message:$message)';
+}

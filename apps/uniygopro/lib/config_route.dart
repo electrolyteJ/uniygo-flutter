@@ -1,10 +1,8 @@
 import 'package:cardlive/cardlive.dart' show CardLivePage;
-import 'package:duel_room1/duel_result_page.dart';
 import 'package:duel_room1/duel_room_page.dart';
 import 'package:go_router/go_router.dart';
 import 'pages/home_page.dart';
 import 'pages/create_room/match_page.dart';
-import 'pages/side/side_page.dart';
 import 'package:deck_editor1/deck_editor1.dart' show DeckEditorPage;
 
 abstract final class Routes {
@@ -23,12 +21,6 @@ final router = GoRouter(
       builder: (_, state) =>
           DuelRoomPage(args: state.extra! as Map<String, Object?>),
     ),
-    GoRoute(
-      path: '/duel-result',
-      builder: (_, state) =>
-          DuelResultPage(result: state.extra! as Map<String, Object?>),
-    ),
-    GoRoute(path: '/side', builder: (_, _) => const SidePage()),
     GoRoute(path: '/card-live', builder: (_, _) => const CardLivePage()),
     GoRoute(
       path: '/deck-editor',

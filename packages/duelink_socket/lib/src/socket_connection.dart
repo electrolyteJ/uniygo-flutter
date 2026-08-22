@@ -17,7 +17,7 @@ class SocketConnection implements DuelConnection {
   Socket? _socket;
   final _msgCtrl = StreamController<YgoStocMsg>.broadcast();
   final _stateController = StreamController<ConnectionState>.broadcast();
-  ConnectionState _state = ConnectionState.disconnected;
+  ConnectionState _state = ConnectionDisconnected();
 
   /// 接收拼包缓冲（半包留存）。
   final BytesBuilder _recvBuf = BytesBuilder(copy: false);
@@ -25,28 +25,28 @@ class SocketConnection implements DuelConnection {
   @override
   Future<void> connect(Uri address) async {
     console.log('Connecting to ${address.host}:${address.port}...');
-    _state = ConnectionState.connecting;
+    _state = ConnectionConnecting();
     _stateController.add(_state);
     _recvBuf.clear();
 
     try {
       _socket = await Socket.connect(address.host, address.port);
-      _state = ConnectionState.connected;
+      _state = ConnectionConnected();
       _stateController.add(_state);
 
       _socket!.listen(
         _onData,
         onError: (error) {
           console.log('Socket error: $error');
-          _setState(ConnectionState.error);
+          _setState(ConnectionError(message: '$error'));
         },
         onDone: () {
           console.log('Socket connection closed');
-          _setState(ConnectionState.disconnected);
+          _setState(ConnectionDisconnected());
         },
       );
     } catch (e) {
-      _setState(ConnectionState.error);
+      _setState(ConnectionError(message: '$e'));
       rethrow;
     }
   }
@@ -80,7 +80,7 @@ class SocketConnection implements DuelConnection {
   @override
   void send(YgoCtosMsg msg) {
     final socket = _socket;
-    if (_state != ConnectionState.connected || socket == null) {
+    if (_state is! ConnectionConnected || socket == null) {
       console.log('Ignoring send while connection state is $_state: $msg');
       return;
     }
@@ -99,8 +99,12 @@ class SocketConnection implements DuelConnection {
     final socket = _socket;
     _socket = null;
     _recvBuf.clear();
-    await socket?.close();
-    _setState(ConnectionState.disconnected);
+    try {
+      await socket?.close();
+    } catch (e) {
+      console.log('Ignoring socket close error: $e');
+    }
+    _setState(ConnectionDisconnected());
   }
 
   @override

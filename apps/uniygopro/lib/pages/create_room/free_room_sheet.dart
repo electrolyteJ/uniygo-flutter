@@ -51,9 +51,9 @@ class _FreeRoomSheetState extends State<FreeRoomSheet>
 
   /// 加入/创建成功后：写 MatchStore、关闭弹层并进入决斗房间。
   void _enterRoom({
-    required RoomOptions? roomOptions,
-    String? roomName,
     required String password,
+    String? roomName,
+    RoomOptions? roomOptions,
   }) {
     final matchStore = context.read<MatchStore>();
     if (roomOptions != null) {
@@ -79,7 +79,7 @@ class _FreeRoomSheetState extends State<FreeRoomSheet>
     return JoinRoomForm(
       env: _env,
       onTapFeedback: ServiceSingleton.instance.ygoSoundService.playButtonTap,
-      onJoin: (password) => _enterRoom(roomOptions: null, password: password),
+      onJoin: (password) => _enterRoom(password: password),
     );
   }
 
@@ -93,9 +93,9 @@ class _FreeRoomSheetState extends State<FreeRoomSheet>
       onTapFeedback: ServiceSingleton.instance.ygoSoundService.playButtonTap,
       onEnterRoom: ({required options, required roomName, required password}) =>
           _enterRoom(
-        roomOptions: options,
-        roomName: roomName,
         password: password,
+        roomName: roomName,
+        roomOptions: options,
       ),
     );
   }

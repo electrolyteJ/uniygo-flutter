@@ -1,15 +1,14 @@
-import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/mercury233_room_spec.dart';
 import '../../models/mercury233_room_string_codec.dart';
-import 'mercury233_room_params_form.dart';
-import 'room_dialog.dart';
+import 'duel_room_params_fields.dart';
+import 'room_params_form.dart';
 
-/// 233 服建房表单：房间名 / 对战模式 / 手动房间串为建房专属，
-/// 其余参数（大师规则/卡片允许/禁限卡表/LP/手牌/抽卡/时间/
-/// 卡组检查开关）统一由 [Mercury233RoomParamsForm] 渲染（与 AI 房
-/// 面板共用同一套控件）。
+/// 233 服建房表单：房间名 / 手动房间串为建房专属，
+/// 其余参数（对战模式/大师规则/卡片允许/禁限卡表/LP/手牌/抽卡/
+/// 时间/卡组检查开关）统一由 [RoomParamsForm] 渲染（与 AI 房面板、
+/// mycard 建房表单共用同一套控件）。
 class Mercury233RoomFormSection extends StatefulWidget {
   final Mercury233RoomSpec spec;
   final String? errorText;
@@ -103,10 +102,15 @@ class _Mercury233RoomFormSectionState extends State<Mercury233RoomFormSection> {
           onChanged: (value) => _update(widget.spec.copyWith(roomName: value)),
         ),
         const SizedBox(height: 10),
-        Mercury233RoomParamsForm(
-          spec: widget.spec,
-          onSpecChanged: _update,
+        RoomParamsForm(
+          options: widget.spec.toRoomOptions(),
+          cardRuleItems: cardRuleItems233,
+          showBanlist: true,
           banlistOptionsLoader: widget.banlistOptionsLoader,
+          banlist: widget.spec.banlist,
+          onBanlistChanged: (value) =>
+              _update(widget.spec.copyWith(banlist: value)),
+          onChanged: (options) => _update(widget.spec.applyRoomOptions(options)),
         ),
         const SizedBox(height: 8),
         Material(

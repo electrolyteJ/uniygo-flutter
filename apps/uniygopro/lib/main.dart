@@ -10,7 +10,6 @@ import 'package:biz/service_providers.dart';
 import 'package:biz/service_singleton.dart';
 import 'package:duel_settings/duel_settings.dart';
 import 'app.dart';
-import 'pages/side/side_store.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,13 +40,9 @@ void main() async {
 
   runApp(
     MultiProvider(
-      // duel_room1 的房间/对局/聊天状态已迁移到 biz/duel 的 Riverpod
-      // Provider：DuelRoomPage 每次进房自建 ProviderScope（parent 为
-      // duelRoomServiceContainer），宿主无需装配任何房间级 Provider。
       providers: [
         ChangeNotifierProvider.value(value: accountApi),
         ChangeNotifierProvider(create: (_) => MatchStore()),
-        ChangeNotifierProvider(create: (_) => SideStore()),
         ChangeNotifierProvider(create: (_) => DeckEditorStore()),
       ],
       child: const UniygoproApp(),

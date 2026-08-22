@@ -141,7 +141,7 @@ void main() {
         for (final s in subs) {
           await s.cancel();
         }
-        if (svc.connectionState == ConnectionState.connected) {
+        if (svc.connectionState is ConnectionConnected) {
           svc.surrender();
           await Future<void>.delayed(const Duration(seconds: 1));
         }

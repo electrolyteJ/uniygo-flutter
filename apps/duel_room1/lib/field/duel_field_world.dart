@@ -152,7 +152,15 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
   ui.Image? getCachedCardImage(int code) => CardImageLoader.I.get(code);
 
   /// 异步加载卡图：委托给 [CardImageLoader]（统一缓存，跨 Flame / Flutter Widget 复用）。
-  Future<ui.Image?> loadCardImage(int code) => CardImageLoader.I.load(code);
+  ///
+  /// 降采样解码到场地卡槽所需尺寸：卡槽 68 世界单位，即使最大 zoom（2.6）
+  /// 也只显示约 177 逻辑 px，256 目标宽度（≈2x）已足够清晰，避免全尺寸
+  /// 400px 解码的内存与耗时。
+  Future<ui.Image?> loadCardImage(int code) =>
+      CardImageLoader.I.load(code, targetWidth: _fieldCardDecodeWidth);
+
+  /// Flame 场地卡槽的统一解码目标宽度（对齐 CardImage 的最小解码宽度）。
+  static const int _fieldCardDecodeWidth = 256;
 
   // _fetchNetworkImage 已移除——网络请求统一由 CardImageLoader 负责。
 }

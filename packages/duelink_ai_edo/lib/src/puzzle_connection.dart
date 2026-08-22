@@ -70,7 +70,7 @@ class PuzzleConnection implements DuelConnection {
   final _pending = <YgoStocMsg>[];
   Timer? _pendingTimer;
 
-  ConnectionState _state = ConnectionState.disconnected;
+  ConnectionState _state = ConnectionDisconnected();
 
   // ──────────── DuelConnection 接口 ────────────
 
@@ -78,11 +78,11 @@ class PuzzleConnection implements DuelConnection {
   Future<void> connect(Uri address) async {
     _resetRoomState();
     _puzzleScript = scriptNameOf(address);
-    _state = ConnectionState.connecting;
+    _state = ConnectionConnecting();
     _stateController.add(_state);
 
     final ok = await _engine.init(lib);
-    _state = ok ? ConnectionState.connected : ConnectionState.error;
+    _state = ok ? ConnectionConnected() : ConnectionError(message: 'Failed to connect');
     _stateController.add(_state);
   }
 
@@ -141,7 +141,7 @@ class PuzzleConnection implements DuelConnection {
     _pending.clear();
     _resetRoomState();
     _engine.dispose();
-    _state = ConnectionState.disconnected;
+    _state = ConnectionDisconnected();
     _stateController.add(_state);
   }
 
@@ -157,7 +157,7 @@ class PuzzleConnection implements DuelConnection {
   /// AI 在人类玩家进房之后加入（同 AiConnection 的时序约束）。
   void _scheduleAIJoin() {
     Future<void>.delayed(const Duration(milliseconds: 100), () {
-      if (_state != ConnectionState.connected || !_roomJoined) return;
+      if (_state is! ConnectionConnected || !_roomJoined) return;
       _emit(YgoStocMsg.hsPlayerEnter(
         StocHsPlayerEnter(name: _aiName, pos: 1),
       ));
