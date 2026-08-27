@@ -37,6 +37,12 @@ class CameraRig {
   double _shakeIntensity = 0;
   final math.Random _rng = math.Random();
 
+  /// 震屏偏移（撤销重放用）与 tween 合成 scratch（免每帧分配）。
+  final Vector3 _shakeOffset = Vector3.zero();
+  bool _shakeApplied = false;
+  final Vector3 _scratchPos = Vector3.zero();
+  final Vector3 _scratchTarget = Vector3.zero();
+
   bool get isAnimating => _active != null || _queue.isNotEmpty;
 
   /// 立即回到默认机位。
@@ -65,8 +71,13 @@ class CameraRig {
     ));
   }
 
-  /// 震屏。
+  /// 震屏（duration/intensity 非正直接忽略：除零防御）。
+  ///
+  /// 偏移不写回基准位：每帧先撤掉上一帧偏移，tween 合成后再加上本帧
+  /// 新偏移；shake 结束后相机精确停在基准位，不会漂移（旧实现把随机
+  /// 偏移累加进 position，空闲机位多次震屏后明显漂离默认位）。
   void shake({double intensity = 0.25, double duration = 0.35}) {
+    if (duration <= 0 || intensity <= 0) return;
     _shakeIntensity = intensity;
     _shakeDuration = duration;
     _shakeTime = duration;
@@ -74,6 +85,11 @@ class CameraRig {
 
   /// 每帧驱动。
   void tick(CameraComponent3D camera, double dt) {
+    // 撤掉上一帧震屏偏移（tween 分支的 setFrom 覆盖与撤销幂等）。
+    if (_shakeApplied) {
+      camera.position.sub(_shakeOffset);
+      _shakeApplied = false;
+    }
     if (_active == null && _queue.isNotEmpty) {
       _active = _queue.removeAt(0);
       _fromPos = camera.position.clone();
@@ -85,16 +101,38 @@ class CameraRig {
       _elapsed += dt;
       final t = shot.duration <= 0 ? 1.0 : (_elapsed / shot.duration).clamp(0, 1);
       final k = Curves.easeInOutCubic.transform(t.toDouble());
-      camera.position.setFrom(_fromPos + (shot.position - _fromPos) * k);
-      camera.target.setFrom(_fromTarget + (shot.target - _fromTarget) * k);
+      // scratch 复用，避免每帧 new 两个 Vector3。
+      camera.position.setFrom(
+        _scratchPos
+          ..setFrom(shot.position)
+          ..sub(_fromPos)
+          ..scale(k)
+          ..add(_fromPos),
+      );
+      camera.target.setFrom(
+        _scratchTarget
+          ..setFrom(shot.target)
+          ..sub(_fromTarget)
+          ..scale(k)
+          ..add(_fromTarget),
+      );
       if (t >= 1) _active = null;
     }
     if (_shakeTime > 0) {
       _shakeTime -= dt;
-      final decay = (_shakeTime / _shakeDuration).clamp(0.0, 1.0);
-      final amp = _shakeIntensity * decay;
-      camera.position.x += (_rng.nextDouble() - 0.5) * 2 * amp;
-      camera.position.y += (_rng.nextDouble() - 0.5) * 2 * amp;
+      if (_shakeTime > 0) {
+        final decay = (_shakeTime / _shakeDuration).clamp(0.0, 1.0);
+        final amp = _shakeIntensity * decay;
+        _shakeOffset.setValues(
+          (_rng.nextDouble() - 0.5) * 2 * amp,
+          (_rng.nextDouble() - 0.5) * 2 * amp,
+          0,
+        );
+        camera.position.add(_shakeOffset);
+        _shakeApplied = true;
+      } else {
+        _shakeTime = 0; // 结束：本帧起不加偏移，相机停在基准位
+      }
     }
   }
 }

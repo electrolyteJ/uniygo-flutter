@@ -106,6 +106,7 @@ class DuelFieldState {
     this.oppRemoved = 0,
     this.selfLp = 8000,
     this.opponentLp = 8000,
+    this.startLp = 8000,
     this.currentPlayer = 0,
     this.phase = DuelPhase.idle,
     this.turnCount = 0,
@@ -118,6 +119,7 @@ class DuelFieldState {
     this.lastSummonKey,
     this.lastAttackFrom,
     this.lastAttackTo,
+    this.attackEventId = 0,
     this.battlePresentation,
     this.inDamageStep = false,
     this.selfLpDelta = 0,
@@ -166,6 +168,10 @@ class DuelFieldState {
   final int oppRemoved;
   final int selfLp;
   final int opponentLp;
+
+  /// 本局初始 LP（MSG_START 的 life1/life2；match/tag 为 16000）。
+  /// LP 条按 lp/startLp 比例分档，不再硬编码 8000。默认 8000 兜底。
+  final int startLp;
   final int currentPlayer;
   final DuelPhase phase;
   final int turnCount;
@@ -196,6 +202,11 @@ class DuelFieldState {
   final String? lastSummonKey;
   final String? lastAttackFrom;
   final String? lastAttackTo;
+
+  /// 攻击宣言事件序号：每次 MSG_ATTACK 单调递增（与 lpEventId 同构）。
+  /// 表现层按它做 diff——lastAttackFrom/To 的字符串 diff 会吞掉
+  /// 「同攻击方+同目标」的连续攻击（900ms 清理窗口期内第二次无 diff）。
+  final int attackEventId;
   final BattlePresentation? battlePresentation;
   final bool inDamageStep;
   final int selfLpDelta;
@@ -279,6 +290,7 @@ class DuelFieldState {
     int? oppRemoved,
     int? selfLp,
     int? opponentLp,
+    int? startLp,
     int? currentPlayer,
     DuelPhase? phase,
     int? turnCount,
@@ -291,6 +303,7 @@ class DuelFieldState {
     Object? lastSummonKey = _undefined,
     Object? lastAttackFrom = _undefined,
     Object? lastAttackTo = _undefined,
+    int? attackEventId,
     Object? battlePresentation = _undefined,
     bool? inDamageStep,
     int? selfLpDelta,
@@ -339,6 +352,7 @@ class DuelFieldState {
       oppRemoved: oppRemoved ?? this.oppRemoved,
       selfLp: selfLp ?? this.selfLp,
       opponentLp: opponentLp ?? this.opponentLp,
+      startLp: startLp ?? this.startLp,
       currentPlayer: currentPlayer ?? this.currentPlayer,
       phase: phase ?? this.phase,
       turnCount: turnCount ?? this.turnCount,
@@ -357,6 +371,7 @@ class DuelFieldState {
       lastAttackTo: identical(lastAttackTo, _undefined)
           ? this.lastAttackTo
           : lastAttackTo as String?,
+      attackEventId: attackEventId ?? this.attackEventId,
       battlePresentation: identical(battlePresentation, _undefined)
           ? this.battlePresentation
           : battlePresentation as BattlePresentation?,
@@ -1580,6 +1595,8 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       myController: isPlayer0 ? 0 : 1,
       selfLp: isPlayer0 ? msg.life1 : msg.life2,
       opponentLp: isPlayer0 ? msg.life2 : msg.life1,
+      // 初始 LP 是 LP 条的满格基准：取双方最大值兜底（标准规则双方相等）。
+      startLp: msg.life1 > msg.life2 ? msg.life1 : msg.life2,
       selfDeck: isPlayer0 ? msg.deckSize1 : msg.deckSize2,
       selfExtra: isPlayer0 ? msg.extraSize1 : msg.extraSize2,
       oppDeck: isPlayer0 ? msg.deckSize2 : msg.deckSize1,
@@ -1598,6 +1615,10 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
       duelResult: null,
       chains: const [],
       battlePresentation: null,
+      // Match 局间清攻击残留：900ms 清理计时器可能还没触发，
+      // 残留 key 会让下一局首个同 key 攻击被字符串 diff 吞掉。
+      lastAttackFrom: null,
+      lastAttackTo: null,
       phase: DuelPhase.idle,
       currentPlayer: 0,
     );
@@ -1636,6 +1657,7 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     state = state.copyWith(
       lastAttackFrom: from,
       lastAttackTo: to,
+      attackEventId: state.attackEventId + 1,
       battlePresentation: BattlePresentation(
         attackerZoneKey: from,
         defenderZoneKey: to,

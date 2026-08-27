@@ -22,9 +22,11 @@ class LpBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ratio = maxLp <= 0 ? 0.0 : (lp / maxLp).clamp(0.0, 1.0);
-    final barColor = lp > 4000
+    // 按比例分档而非绝对阈值：match/tag 初始 LP 16000（MSG_START 下发），
+    // 绝对阈值会让半血 8000 仍显示满血色。
+    final barColor = ratio > 0.5
         ? HudTheme.cyan
-        : lp > 2000
+        : ratio > 0.25
             ? HudTheme.gold
             : HudTheme.danger;
     return Container(

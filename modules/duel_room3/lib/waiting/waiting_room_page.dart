@@ -98,7 +98,11 @@ class _PlayerSlots extends ConsumerWidget {
           _PlayerSeat(
             player: player,
             isSelf: player.pos == room.selfType.slot && room.selfType.isDuelist,
-            canKick: room.isHost && player.pos != 0,
+            // 房主可踢其他决斗者座位（对齐 room2：房主不在 0 号位时
+            // 也不能给自己挂踢人按钮；观战位 pos==7 不可踢）。
+            canKick: room.isHost &&
+                player.pos != room.selfType.slot &&
+                player.pos != PlayerType.observer.slot,
             onKick: () => notifier.kickPlayer(player.pos),
           ),
           const SizedBox(width: 24),

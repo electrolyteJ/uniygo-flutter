@@ -228,8 +228,14 @@ class EffectsManager extends Component3D {
         position: Vector3(startX + i * 0.28, at.y + 0.9, at.z),
         rotation: Quaternion.euler(0, 1.5707963, 0),
       );
-      _spawnTransient(digit, ttl: 1.0 + i * 0.05);
       _digitPool.add(digit);
+      // ttl 到期时连引用一起移除（否则 _digitPool 只进不出，
+      // update 每帧对全部历史数字做 billboard 计算）。
+      _spawnTransient(
+        digit,
+        ttl: 1.0 + i * 0.05,
+        onDone: () => _digitPool.remove(digit),
+      );
       final basePos = digit.position.clone();
       final delay = i * 0.05;
       tweens.addScalar(ScalarTween(
@@ -289,7 +295,11 @@ class EffectsManager extends Component3D {
 
   // ───────────────────────── 内部 ─────────────────────────
 
-  void _spawnTransient(Component3D component, {required double ttl}) {
+  void _spawnTransient(
+    Component3D component, {
+    required double ttl,
+    void Function()? onDone,
+  }) {
     _transient.add(component);
     add(component);
     tweens.addScalar(ScalarTween(
@@ -300,6 +310,7 @@ class EffectsManager extends Component3D {
       onComplete: () {
         component.removeFromParent();
         _transient.remove(component);
+        onDone?.call();
       },
     ));
   }

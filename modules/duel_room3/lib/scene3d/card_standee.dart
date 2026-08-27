@@ -17,7 +17,7 @@ enum StandeeEntrance { appear, summon, set, flip }
 /// - 根组件位于立牌中心（离地 [Field3DLayout.standeeBaseY] + cardH/2）
 /// - 卡面 PlaneMesh 绕 X 轴 +90° 立起（PlaneMesh 默认平躺 XZ、法线 +Y，
 ///   旋转后位于 XY 平面、法线 +Z 朝向己方相机，纹理 v=0 在顶部）
-/// - 守备表示：根组件绕 Y 轴 yaw 90°
+/// - 守备表示：根组件绕 Z 轴 roll（[Field3DLayout.standeeRoll]，见 [_rollAngle]）
 /// - 里侧表示：纹理换成卡背
 ///
 /// 注意 vector_math 的 Quaternion.euler(yaw, pitch, roll) 顺序为 Y/X/Z，
@@ -99,15 +99,23 @@ class CardStandee extends Component3D {
   }
 
   void _loadTexture() {
-    if (_facedown || code <= 0) {
+    // 竞态守卫：捕获发起时的 code/facedown 快照，回调到达时状态已变
+    // （翻里/换卡）则丢弃本次旧纹理，避免两次在途加载后者覆盖新纹理。
+    final requestCode = code;
+    final requestFacedown = _facedown;
+    bool stale() =>
+        dying ||
+        _facedown != requestFacedown ||
+        code != requestCode;
+    if (requestFacedown || requestCode <= 0) {
       CardTextureCache.instance.cardBack().then((t) {
-        if (dying) return;
+        if (stale()) return;
         _frontMaterial.albedoTexture = t;
         _frontMaterial.albedoColor = const ui.Color(0xFFFFFFFF);
       });
     } else {
-      CardTextureCache.instance.ensure(code, (texture) {
-        if (dying) return;
+      CardTextureCache.instance.ensure(requestCode, (texture) {
+        if (stale()) return;
         _frontMaterial.albedoTexture = texture;
         _frontMaterial.albedoColor = const ui.Color(0xFFFFFFFF);
       });
@@ -121,11 +129,17 @@ class CardStandee extends Component3D {
     required int overlayCount,
   }) {
     final prevFacedown = _facedown;
+    final prevCode = this.code;
     this.code = code;
     cardPosition = position;
     this.overlayCount = overlayCount;
     _facedown = Field3DLayout.isFacedown(position);
-    if (prevFacedown != _facedown) _loadTexture();
+    // 正反面变化或同为表侧但卡号变化（变身/替换类效果，同槽位原地补间）
+    // 都要换纹理；里侧恒为卡背，无需因 code 变化重载。
+    if (prevFacedown != _facedown ||
+        (!_facedown && prevCode != code)) {
+      _loadTexture();
+    }
     _syncOverlays();
     final targetRoll = _targetRoll;
     if ((targetRoll - _rollAngle).abs() > 1e-3) {

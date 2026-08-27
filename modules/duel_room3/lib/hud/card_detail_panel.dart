@@ -63,9 +63,14 @@ class CardDetailPanel extends StatelessWidget {
           ),
           if (info != null) ...[
             const SizedBox(height: 8),
-            if (info!.attack >= 0)
+            // 仅怪兽显示攻守（魔陷 attack 默认 0 必然命中旧判定，会错误
+            // 显示 ATK 0/DEF 0）；连接怪兽无守备力；负值（? 怪）显示 ?。
+            if (info!.isMonster)
               Text(
-                'ATK ${info!.attack} / DEF ${info!.defense}',
+                'ATK ${info!.attack < 0 ? '?' : info!.attack}' +
+                    (info!.isLink
+                        ? ''
+                        : ' / DEF ${info!.defense < 0 ? '?' : info!.defense}'),
                 style: HudTheme.body.copyWith(color: HudTheme.gold),
               ),
             const SizedBox(height: 6),

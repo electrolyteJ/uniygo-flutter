@@ -52,19 +52,34 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
   }
 
   bool _gpuReady = false;
+  Object? _gpuError;
+
+  /// 手势容器坐标基准（取它自己的 RenderBox，而非外层页面容器——
+  /// 树结构变化时后者会静默错位）。
+  final GlobalKey _gameAreaKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
-    // 先预载 shader（GpuBackend）再挂载 GameWidget，避免首帧
-    // 材质初始化竞态（Failed to initialize ShaderLibrary）。
-    Duel3DGame.ensureGpuBackend().then((_) {
-      if (mounted) setState(() => _gpuReady = true);
-    });
+    _initGpu();
+  }
+
+  /// 先预载 shader（GpuBackend）再挂载 GameWidget，避免首帧
+  /// 材质初始化竞态（Failed to initialize ShaderLibrary）。
+  /// 失败进错误态（可重试；ensureGpuBackend 失败后会复位缓存）。
+  void _initGpu() {
+    Duel3DGame.ensureGpuBackend()
+        .then((_) {
+          if (mounted) setState(() => _gpuReady = true);
+        })
+        .catchError((Object e) {
+          if (mounted) setState(() => _gpuError = e);
+        });
   }
 
   /// 等待 myController 就绪后创建 Game（场地页挂载时已 RoomInDuel，
-  /// controller 已由 selfType 锚定；防御性再等一帧）。
+  /// myController 已由 MSG_START 的 playerType 确定——selfType 锚定
+  /// 的是 mySeat 而非 controller；防御性再等一帧）。
   void _ensureGame() {
     if (_game != null) return;
     final board = _board;
@@ -194,17 +209,48 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // 3D 场景（含手势）；GPU 未就绪时显示加载
-          if (!_gpuReady)
+          // 3D 场景（含手势）；GPU 未就绪时显示加载，初始化失败给重试。
+          if (_gpuError != null)
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, color: HudTheme.danger, size: 40),
+                  const SizedBox(height: 10),
+                  Text(
+                    '3D 渲染初始化失败',
+                    style: HudTheme.body.copyWith(color: HudTheme.textPrimary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text('$_gpuError', style: HudTheme.caption),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: HudTheme.cyanDim,
+                    ),
+                    onPressed: () {
+                      setState(() => _gpuError = null);
+                      _initGpu();
+                    },
+                    child: const Text('重试'),
+                  ),
+                ],
+              ),
+            )
+          else if (!_gpuReady)
             const Center(
               child: CircularProgressIndicator(color: HudTheme.cyan),
             )
           else
             Positioned.fill(
               child: GestureDetector(
+                key: _gameAreaKey,
                 behavior: HitTestBehavior.opaque,
                 onTapUp: (details) {
-                  final box = context.findRenderObject()! as RenderBox;
+                  final box =
+                      _gameAreaKey.currentContext?.findRenderObject()
+                          as RenderBox?;
+                  if (box == null) return;
                   game.handleTap(details.localPosition, box.size);
                 },
                 child: GameWidget(game: game),
@@ -221,7 +267,7 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
             child: LpBar(
               playerName: selfName,
               lp: board.selfLp,
-              maxLp: 8000,
+              maxLp: board.startLp, // MSG_START 初始 LP（match/tag 16000）
               alignLeft: true,
               isSelf: true,
             ),
@@ -233,7 +279,7 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
             child: LpBar(
               playerName: oppName,
               lp: board.opponentLp,
-              maxLp: 8000,
+              maxLp: board.startLp,
               alignLeft: false,
             ),
           ),
@@ -581,6 +627,12 @@ class _LogDrawerState extends ConsumerState<_LogDrawer> {
 }
 
 /// 区域浏览器（墓地/额外/除外）底部弹层。
+///
+/// 数据与动作全部走 biz derived provider（对照 room2 zone_browser_modal
+/// 的接线）：zoneBrowserEntriesProvider 在选择窗口激活时会把可发动的
+/// 区域内卡合并进列表，zoneBrowserActionsProvider 把「发动/特殊召唤」
+/// 等动作译成选择窗口应答——旧实现纯检视，墓地诱发发动类操作在 3D 房
+/// 无法完成（死锁）。
 class _ZoneBrowser extends ConsumerWidget {
   const _ZoneBrowser({required this.zoneKey});
 
@@ -588,9 +640,11 @@ class _ZoneBrowser extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final board = ref.watch(duelFieldProvider);
-    final codes = board.getZoneCodes(zoneKey).where((c) => c > 0).toList();
+    final entries = ref.watch(zoneBrowserEntriesProvider(zoneKey));
+    final overlay = ref.watch(fieldOverlayProvider);
+    final actions = ref.watch(zoneBrowserActionsProvider(zoneKey));
     final overlayN = ref.read(fieldOverlayProvider.notifier);
+    final boardN = ref.read(duelFieldProvider.notifier);
     final title = switch (zoneKey) {
       'self_grave' => '己方墓地',
       'opp_grave' => '对方墓地',
@@ -619,7 +673,7 @@ class _ZoneBrowser extends ConsumerWidget {
                   Row(
                     children: [
                       Text(
-                        '$title（${codes.length}）',
+                        '$title（${entries.length}）',
                         style: HudTheme.title,
                       ),
                       const Spacer(),
@@ -635,7 +689,7 @@ class _ZoneBrowser extends ConsumerWidget {
                   ),
                   const Divider(color: HudTheme.panelBorder),
                   Expanded(
-                    child: codes.isEmpty
+                    child: entries.isEmpty
                         ? const Center(
                             child: Text('（空）', style: HudTheme.caption),
                           )
@@ -647,34 +701,65 @@ class _ZoneBrowser extends ConsumerWidget {
                               mainAxisSpacing: 8,
                               crossAxisSpacing: 8,
                             ),
-                            itemCount: codes.length,
-                            itemBuilder: (context, index) => GestureDetector(
-                              onTap: () {
-                                final code = codes[index];
-                                unawaited(
-                                  ref
-                                      .read(duelFieldProvider.notifier)
-                                      .ensureCardInfo(code),
-                                );
-                                overlayN.applyZoneBrowserCardInspect(
-                                  index,
-                                  code,
-                                  ref
-                                      .read(duelFieldProvider.notifier)
-                                      .getCardInfo(code),
-                                );
-                              },
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: CardImage(
-                                  code: codes[index],
-                                  width: 82,
-                                  height: 120,
+                            itemCount: entries.length,
+                            itemBuilder: (context, index) {
+                              final entry = entries[index];
+                              final selected =
+                                  overlay.selectedZoneBrowserSequence ==
+                                  entry.sequence;
+                              return GestureDetector(
+                                onTap: () {
+                                  final code = entry.code;
+                                  unawaited(boardN.ensureCardInfo(code));
+                                  // 点卡 = 选中（驱动动作菜单）+ 检视；
+                                  // 可执行动作经下方动作栏回包应答。
+                                  overlayN.applyZoneBrowserCardInspect(
+                                    entry.sequence,
+                                    code,
+                                    boardN.getCardInfo(code),
+                                  );
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: selected
+                                        ? Border.all(
+                                            color: HudTheme.cyan,
+                                            width: 2,
+                                          )
+                                        : null,
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: CardImage(
+                                      code: entry.code,
+                                      width: 82,
+                                      height: 120,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
+                              );
+                            },
                           ),
                   ),
+                  // 可执行动作（发动/特殊召唤等，biz 已译成选择窗口应答）
+                  if (actions.isNotEmpty) ...[
+                    const Divider(color: HudTheme.panelBorder),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        for (final action in actions)
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: HudTheme.cyanDim,
+                            ),
+                            onPressed: action.onTap,
+                            child: Text(action.label),
+                          ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

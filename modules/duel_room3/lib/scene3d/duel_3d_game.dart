@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flame_3d/camera.dart';
@@ -51,10 +52,31 @@ class Duel3DGame extends FlameGame3D<World3D, CameraComponent3D> {
   /// 场景是否完成装配（onLoad 完成前 update 不得触碰 late 字段）。
   bool _sceneReady = false;
 
+  /// onLoad 完成信号：桥接层（Duel3DBridge）与点击拾取经此过闸，
+  /// 避免 zoneGrid/standees/effects 等 late 字段在装配前被触碰
+  /// （进房瞬间服务器连发 MSG_START/MSG_UPDATE_DATA 时必现 LateError）。
+  final Completer<void> _readyCompleter = Completer<void>();
+
+  /// 场景装配完成（onLoad 结束）后完成。
+  ///（命名避开 FlameGame.ready 生命周期方法。）
+  Future<void> get sceneReady => _readyCompleter.future;
+
   /// 供页面层等待：GpuBackend 就绪后再挂载 GameWidget，
   /// 避免首帧渲染时 shader 尚未加载（Failed to initialize ShaderLibrary）。
-  static Future<void> ensureGpuBackend() =>
-      _gpuBackendReady ??= GpuBackend.initialize();
+  /// 失败后清空缓存允许重试（旧实现把失败 Future 缓存整个进程，
+  /// 重进房间也无法恢复）。
+  static Future<void> ensureGpuBackend() {
+    final cached = _gpuBackendReady;
+    if (cached != null) return cached;
+    final future = GpuBackend.initialize();
+    _gpuBackendReady = future;
+    // 失败时复位缓存（不吞错：原 Future 仍以错误完成，调用方照常 catch）。
+    future.catchError((_) {
+      _gpuBackendReady = null;
+      return null;
+    });
+    return future;
+  }
 
   @override
   Color backgroundColor() => const Color(0xFF05070F);
@@ -81,6 +103,7 @@ class Duel3DGame extends FlameGame3D<World3D, CameraComponent3D> {
       ),
     ]);
     _sceneReady = true;
+    if (!_readyCompleter.isCompleted) _readyCompleter.complete();
   }
 
   @override
@@ -92,7 +115,10 @@ class Duel3DGame extends FlameGame3D<World3D, CameraComponent3D> {
   }
 
   /// 屏幕点击（逻辑像素）→ 射线拾取：优先立牌（后续接入），其次地砖。
+  /// 场景未就绪（onLoad 未完成）时直接丢弃，避免触碰未初始化的
+  /// late 字段（standees 等）。
   void handleTap(Offset screenPoint, Size viewportSize) {
+    if (!_sceneReady) return;
     final ray = screenPointToRay(
       screenPoint: Vector2(screenPoint.dx, screenPoint.dy),
       viewportSize: Vector2(viewportSize.width, viewportSize.height),

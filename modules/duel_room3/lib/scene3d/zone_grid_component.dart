@@ -12,9 +12,18 @@ enum SlotHighlight { none, selectable, checked, placeTarget }
 
 /// 区域地砖网格：32 个微凸起地砖，支持按槽位 id 高亮脉冲。
 class ZoneGridComponent extends Component3D {
-  ZoneGridComponent({required this.slots});
+  ZoneGridComponent({required this.slots})
+    : _slotByKey = {
+        for (final slot in slots)
+          for (final key in slot.slotKeys) key: slot,
+      };
 
   final List<ZoneSlot3D> slots;
+
+  /// 区域 key（controller_zone_sequence）→ 槽位（与 StandeeController
+  /// 同构；EMZ 携带双方两个 key）。setSlotHighlight 先翻译成 slot.id，
+  /// 否则对方侧 EMZ key 的高亮静默不亮（update 只按 slot.id 查表）。
+  final Map<String, ZoneSlot3D> _slotByKey;
 
   final Map<String, MeshComponent> _tiles = {};
   final Map<String, SpatialMaterial> _materials = {};
@@ -64,13 +73,21 @@ class ZoneGridComponent extends Component3D {
     }
   }
 
-  /// 设置某槽位的高亮态（id 见 [ZoneSlot3D.id]；空槽位 key 用 label）。
-  void setSlotHighlight(String slotId, SlotHighlight highlight) {
+  /// 设置某槽位的高亮态。接受区域 key（controller_zone_sequence，
+  /// EMZ 双方 key 都可）或 slot.id/label；内部统一翻译为 slot.id。
+  void setSlotHighlight(String key, SlotHighlight highlight) {
+    final id = _slotByKey[key]?.id ?? key;
     if (highlight == SlotHighlight.none) {
-      _highlights.remove(slotId);
+      _highlights.remove(id);
     } else {
-      _highlights[slotId] = highlight;
+      _highlights[id] = highlight;
     }
+  }
+
+  /// 某槽位当前的高亮态（测试/调试用）。
+  SlotHighlight highlightOf(String key) {
+    final id = _slotByKey[key]?.id ?? key;
+    return _highlights[id] ?? SlotHighlight.none;
   }
 
   /// 清掉全部高亮。

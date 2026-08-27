@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:biz/duel/field/card_confirm_state.dart';
 import 'package:biz/duel/field/duel_field_state.dart';
 import 'package:biz/duel/field/select_window_state.dart';
+import 'package:biz/duel/models/summon_effect_event.dart';
 import 'package:duel_room3/scene3d/zone_grid_component.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vector_math/vector_math.dart';
@@ -12,6 +13,42 @@ import '../scene3d/camera_rig.dart';
 import '../scene3d/duel_3d_game.dart';
 import '../scene3d/field_3d_layout.dart';
 import 'field_3d_mapper.dart';
+
+/// 场景就绪闸（纯 Dart，可单测）：onLoad 完成前快照类指令缓存
+/// 最新一帧待就绪后重放；事件类 tick 特效（召唤/抽牌/LP/攻击/洗牌）
+/// 直接丢弃——瞬时表现补播没有意义。
+class SceneReadyGate<T> {
+  bool _ready = false;
+  T? _pending;
+
+  /// 场景是否已就绪。
+  bool get isReady => _ready;
+
+  /// 快照类指令入口：已就绪返回 true（调用方直接执行）；
+  /// 未就绪缓存最新一帧（覆盖旧帧）并返回 false。
+  bool offerSnapshot(T snapshot) {
+    if (_ready) return true;
+    _pending = snapshot;
+    return false;
+  }
+
+  /// 事件类指令入口：未就绪直接丢弃（返回 false）。
+  bool offerEvent() => _ready;
+
+  /// 标记就绪并取出待回放快照（可能为 null）。
+  T? markReadyAndTakePending() {
+    _ready = true;
+    final pending = _pending;
+    _pending = null;
+    return pending;
+  }
+
+  /// 复位（detach 时用）。
+  void reset() {
+    _ready = false;
+    _pending = null;
+  }
+}
 
 /// Riverpod 状态 → 3D 场景指令的桥接器。
 ///
@@ -35,7 +72,13 @@ class Duel3DBridge {
   static final Vector3 selfLpAnchor = Vector3(2.6, 1.2, 4.0);
   static final Vector3 oppLpAnchor = Vector3(-2.6, 1.2, -4.0);
 
+  /// 场景装配闸（B1）：onLoad 完成前 game 的 late 字段（standees/
+  /// zoneGrid/effects）不可触碰。
+  final _gate = SceneReadyGate<DuelFieldState>();
+  WidgetRef? _ref;
+
   void attach(WidgetRef ref) {
+    _ref = ref;
     _subs.addAll([
       ref.listenManual<DuelFieldState>(duelFieldProvider, _onFieldChanged),
       ref.listenManual(
@@ -47,6 +90,20 @@ class Duel3DBridge {
         (prev, next) => _syncHighlights(ref),
       ),
     ]);
+    // 场景就绪后：回放就绪前缓存的最新快照（含 B2 的初始快照）。
+    game.sceneReady.then((_) {
+      if (_gate.isReady) return; // detach 后迟到回调防御
+      final pending = _gate.markReadyAndTakePending();
+      if (pending != null) {
+        game.standees.applySnapshot(mapFieldCards(pending.fieldCards));
+      }
+      final r = _ref;
+      if (r != null) _syncHighlights(r);
+    });
+    // B2：listenManual 不推存量——主动回放初始快照与高亮，
+    // 观战者中途进房（MSG_RELOAD_FIELD 先于 attach）也能拿到场面。
+    _onFieldChanged(null, ref.read(duelFieldProvider));
+    _syncHighlights(ref);
   }
 
   void detach() {
@@ -54,11 +111,16 @@ class Duel3DBridge {
       sub.close();
     }
     _subs.clear();
+    _ref = null;
+    _gate.reset();
   }
 
   // ───────────────────────── 场地快照 ─────────────────────────
 
   void _onFieldChanged(DuelFieldState? prev, DuelFieldState next) {
+    // B1 闸：场景未就绪——快照缓存最新一帧（ready 后重放），
+    // tick 事件特效直接丢弃。
+    if (!_gate.offerSnapshot(next)) return;
     // 立牌摆放
     game.standees.applySnapshot(mapFieldCards(next.fieldCards));
 
@@ -95,15 +157,17 @@ class Duel3DBridge {
       game.cameraRig.shake(intensity: 0.12, duration: 0.3);
     }
 
-    // 攻击宣言
+    // 攻击宣言：按 attackEventId（单调递增）diff——字符串 key diff
+    // 会吞掉「同攻击方+同目标」的连续攻击（biz 900ms 清理窗口期内
+    // 第二次 MSG_ATTACK 无 diff）。
     if (prev != null &&
-        next.lastAttackFrom != null &&
-        (next.lastAttackFrom != prev.lastAttackFrom ||
-            next.lastAttackTo != prev.lastAttackTo)) {
+        next.attackEventId != prev.attackEventId &&
+        next.lastAttackFrom != null) {
       _playAttack(next);
     }
 
-    // 洗牌
+    // 洗牌（主卡组/额外/手牌，表现一致：对应侧卡组槽位粒子爆发；
+    // 3D 场地无手牌槽位，手牌洗牌锚到同侧卡组位）。
     if (prev != null &&
         next.selfDeckShuffleTick != prev.selfDeckShuffleTick) {
       _playShuffle('self_deck');
@@ -111,6 +175,18 @@ class Duel3DBridge {
     if (prev != null &&
         next.oppDeckShuffleTick != prev.oppDeckShuffleTick) {
       _playShuffle('opp_deck');
+    }
+    if (prev != null &&
+        next.selfExtraShuffleTick != prev.selfExtraShuffleTick) {
+      _playShuffle('self_deck');
+    }
+    if (prev != null &&
+        next.oppExtraShuffleTick != prev.oppExtraShuffleTick) {
+      _playShuffle('opp_deck');
+    }
+    if (prev != null && next.handShuffleTick != prev.handShuffleTick) {
+      final isSelf = next.handShufflePlayer == next.myController;
+      _playShuffle(isSelf ? 'self_deck' : 'opp_deck');
     }
   }
 
@@ -121,13 +197,22 @@ class Duel3DBridge {
     if (ground != null) {
       game.effects.playSummonFx(ground, fx);
     }
-    // 立牌登场动画（快照已插入该卡，升级为对应入场）
+    // 立牌登场动画（快照已插入该卡，升级为对应入场）。
+    // 穷举 enum switch（对照 mapSummonFx）：枚举重命名/新增值时
+    // 编译期报错，不再静默落到默认。
     final standee = game.standees.at(event.zoneKey);
     if (standee != null) {
-      final entrance = switch (event.type.name) {
-        'flip' => StandeeEntrance.flip,
-        'set' => StandeeEntrance.set,
-        _ => StandeeEntrance.summon,
+      final entrance = switch (event.type) {
+        SummonEffectType.flip => StandeeEntrance.flip,
+        SummonEffectType.set => StandeeEntrance.set,
+        SummonEffectType.normal ||
+        SummonEffectType.special ||
+        SummonEffectType.ritual ||
+        SummonEffectType.fusion ||
+        SummonEffectType.synchro ||
+        SummonEffectType.xyz ||
+        SummonEffectType.link =>
+          StandeeEntrance.summon,
       };
       standee.playEntrance(entrance);
     }
@@ -193,6 +278,9 @@ class Duel3DBridge {
   // ───────────────────────── 高亮同步 ─────────────────────────
 
   void _syncHighlights(WidgetRef ref) {
+    // B1 闸：zoneGrid/standees 未装配时丢弃高亮同步
+    // （就绪后的快照回放会补一次全量同步）。
+    if (!_gate.offerEvent()) return;
     final select = ref.read(selectWindowProvider);
     final selectN = ref.read(selectWindowProvider.notifier);
     final confirm = ref.read(cardConfirmProvider);

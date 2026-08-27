@@ -96,7 +96,11 @@ class ParticleSystem3D extends Component3D {
 
   _Particle? _obtain() {
     for (final p in _pool) {
-      if (!p.active) return p;
+      if (!p.active) {
+        // 死亡时已摘牌，复用需重新挂载。
+        if (p.component.parent == null) add(p.component);
+        return p;
+      }
     }
     if (_pool.length >= maxParticles) return null;
     final material = UnlitMaterial();
@@ -118,7 +122,9 @@ class ParticleSystem3D extends Component3D {
       p.life -= dt;
       if (p.life <= 0) {
         p.active = false;
-        p.component.scale.setFrom(Vector3.all(0.0001));
+        // 死亡即摘牌：scale≈0 的隐藏组件 AABB 仍在视锥内，
+        // flame_3d 照常 submitDraw（池满时每帧恒定 ~260 draw call）。
+        p.component.removeFromParent();
         continue;
       }
       // 积分

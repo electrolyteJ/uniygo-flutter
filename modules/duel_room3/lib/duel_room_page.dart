@@ -6,9 +6,11 @@ import 'package:biz/duel/field/duel_field_state.dart';
 import 'package:biz/duel/field/duel_message_router.dart';
 import 'package:biz/duel/field/field_overlay_state.dart';
 import 'package:biz/duel/field/select_window_state.dart';
+import 'package:biz/duel/models/select_state.dart';
 import 'package:biz/duel/room/duel_room_state.dart';
 import 'package:biz/service_providers.dart';
 import 'package:duelink/duelink.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -141,7 +143,9 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
             TextButton(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                Navigator.of(context).maybePop();
+                // 进房是 context.go 替换式导航，房间页即栈底，
+                // maybePop 无处可退（人会留在断连死房间）。
+                context.go('/');
               },
               child: const Text('返回'),
             ),
@@ -180,6 +184,12 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
+        // 对局中若正有模态选择窗口，返回键由模态自己处理（取消选择），
+        // 这里不再叠加房间退出确认（对齐 room2）。
+        final modalActive =
+            ref.read(selectWindowProvider.notifier).selectPromptMode ==
+            SelectPromptMode.modal;
+        if (modalActive) return;
         backHomeDialog(
           context: context,
           ref: ref,
