@@ -49,3 +49,6 @@ app.*.map.json
 tools/ygo_agent_golden/vendor/ygo-agent/
 # Widget Preview related
 .widget_preview/
+
+# Brainstorming visual companion
+.superpowers/

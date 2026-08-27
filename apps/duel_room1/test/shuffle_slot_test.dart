@@ -31,6 +31,8 @@ FlameFieldSnapshot _snapshotFor(int myController) => FlameFieldSnapshot(
   placeTargetFieldKeys: const {},
   activatableZoneKeys: const {},
   chainOrderBySlotKey: const {},
+  selfHand: const HandSnapshot.empty(),
+  oppHand: const HandSnapshot.empty(),
 );
 
 void main() {

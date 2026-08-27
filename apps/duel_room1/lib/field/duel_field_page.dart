@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:biz/service_providers.dart';
-import 'package:biz/widgets/card_image.dart';
 import 'package:biz/ygo_sound_service.dart';
 import 'package:biz/duel/models/draw_animation_event.dart';
 import 'package:biz/duel/models/playmat_anchor_data.dart';
@@ -28,8 +27,6 @@ import 'package:duel_room1/field/models/duel_field_layout.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:duel_room1/field/models/phase_rail_layout.dart';
 import 'package:duel_room1/field/flame_playmat_field.dart';
-import 'package:duel_room1/field/widgets/hud/hand_cards_bar.dart';
-import 'package:duel_room1/field/widgets/draw_card_animation.dart';
 import 'package:duel_room1/field/widgets/hud/phase_bar.dart';
 import 'package:duel_room1/field/widgets/hud/player_status_card.dart';
 import 'package:duel_room1/field/widgets/inspector/card_detail_drawer.dart';
@@ -82,8 +79,7 @@ class DuelFieldPage extends ConsumerStatefulWidget {
   ConsumerState<DuelFieldPage> createState() => _DuelFieldPageState();
 }
 
-class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
-    with SingleTickerProviderStateMixin {
+class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   static const double _topHudBodyHeight = 112.0;
   static const double _opponentHandGap = 10.0;
   static const double _inspectorTop = 124.0;
@@ -91,19 +87,27 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
   DuelFlameGame? _flameGame;
   PlaymatAnchorData? _fieldAnchors;
 
-  // 抽卡动画：FIFO 队列（biz 纯逻辑）+ 飞行控制器。
-  // 逐帧进度由 DrawCardAnimation 内部的 AnimatedBuilder 消费，
-  // 页面只在动画开始/结束时 setState。
-  final DrawAnimationQueue _drawQueue = DrawAnimationQueue();
-  late final AnimationController _drawController;
+  // 抽卡动画：双方各一条 FIFO 队列（biz 纯逻辑）+ Flame 飞行组件。
+  // 双方并行播放：开局发牌是我方/对方两条 MSG_DRAW，同时起飞才符合
+  // 真实发牌手感（ygopro/MD 均为双方同时）；同一方的连续抽卡
+  // （如天使的施舍）仍严格串行——同一手牌栏的隐藏/揭示下标不能交错。
+  final DrawAnimationQueue _drawQueueSelf = DrawAnimationQueue();
+  final DrawAnimationQueue _drawQueueOpp = DrawAnimationQueue();
 
-  /// 双方手牌各卡的屏幕矩形（手牌栏帧末上报），抽卡动画终点。
-  Map<int, Rect> _selfHandCardRects = const {};
-  Map<int, Rect> _oppHandCardRects = const {};
+  /// 各侧是否有抽卡飞行动画正在播放（防止同侧并行播放两段动画）。
+  bool _drawPlayingSelf = false;
+  bool _drawPlayingOpp = false;
 
-  /// 页面主 Stack 的 key：手牌矩形上报与抽卡动画的公共坐标空间
-  /// （与场地 anchors 的 localToGlobal 祖先等价的视口坐标系）。
-  final GlobalKey _bodyStackKey = GlobalKey();
+  /// 事件 id → 入队时预隐藏的手牌下标（见 game.concealDrawTargets）。
+  ///
+  /// 隐藏必须发生在入队时（含排队事件）：否则连续抽卡（开局双方各
+  /// 抽 5 张是两条 MSG_DRAW）时，排队事件的手牌会先亮出来，
+  /// 等播到它时动画再叠着飞一遍。
+  final Map<int, List<int>> _concealedDrawTargets = {};
+
+  /// 事件归属侧的队列（己方/对方）。
+  DrawAnimationQueue _drawQueueOf(DrawAnimationEvent event) =>
+      event.player == _board.myController ? _drawQueueSelf : _drawQueueOpp;
 
   /// 双方各自的洗牌 tick（单调递增）：handShuffleTick 是全局共享序号，
   /// 直接透传给两侧手牌栏会在"对方洗牌→己方洗牌"时把 0 值变化误判成
@@ -115,6 +119,8 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
   // 替代原先 build 路径上的 applySnapshot 副作用。
   ProviderSubscription<DuelFieldState>? _boardSub;
   ProviderSubscription<SelectWindowState>? _selectSub;
+  ProviderSubscription<CardConfirmState>? _confirmSub;
+  ProviderSubscription<FieldOverlayState>? _overlaySub;
 
   // 先后攻提示：进入场地页时居中短暂展示一次。
   bool _showTurnOrderHint = false;
@@ -125,6 +131,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
   DuelFieldState get _board => ref.read(duelFieldProvider);
   SelectWindowState get _select => ref.read(selectWindowProvider);
   FieldOverlayState get _overlay => ref.read(fieldOverlayProvider);
+  CardConfirmState get _confirm => ref.read(cardConfirmProvider);
   DuelFieldNotifier get _boardN => ref.read(duelFieldProvider.notifier);
   SelectWindowNotifier get _selectN => ref.read(selectWindowProvider.notifier);
   CardConfirmNotifier get _confirmN => ref.read(cardConfirmProvider.notifier);
@@ -134,46 +141,79 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
   @override
   void initState() {
     super.initState();
-    _drawController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    );
-    _drawController.addStatusListener(_handleDrawAnimationStatus);
     _scheduleTurnOrderHint();
     _boardSub = ref.listenManual(duelFieldProvider, (_, _) => _pushSnapshot());
     _selectSub = ref.listenManual(
       selectWindowProvider,
       (_, _) => _pushSnapshot(),
     );
+    // 手牌已 Flame 化：选中/高亮/确认等交互态也在快照里，
+    // 这两个 provider 的变化同样要推快照。
+    _confirmSub = ref.listenManual(cardConfirmProvider, (_, _) => _pushSnapshot());
+    _overlaySub = ref.listenManual(fieldOverlayProvider, (_, _) => _pushSnapshot());
   }
 
   @override
   void dispose() {
     // 显式清空队列：dispose 后状态监听不再触发，残留事件不应滞留。
-    _drawQueue.clear();
-    _drawController.dispose();
+    _drawQueueSelf.clear();
+    _drawQueueOpp.clear();
     _boardSub?.close();
     _selectSub?.close();
+    _confirmSub?.close();
+    _overlaySub?.close();
     super.dispose();
   }
 
-  void _handleDrawAnimationStatus(AnimationStatus status) {
-    if (status != AnimationStatus.completed) return;
-    if (!mounted) return;
-    // 当前动画播完：取出队列里的下一个事件继续播放；
-    // 队列为空则移除动画层（setState 仅发生在动画开始/结束两端）。
-    final next = _drawQueue.drain();
-    setState(() {});
-    if (next != null) {
-      _drawController.forward(from: 0);
+  /// 启动 [isSelf] 侧队列当前 active 事件的 Flame 飞行动画。
+  /// 双方队列互不阻塞（并行发牌）；同侧严格串行。
+  /// HUD 不可见时不播放：猜拳结果最短停留期间 MSG_DRAW 已按服务器
+  /// 速度到达，若此时开播动画会在手牌栏隐藏下白白播完（开局发牌
+  /// 玩家完全看不到）；事件留在队列里等 HUD 可见后由 didUpdateWidget 补播。
+  void _playActiveDrawFlight(bool isSelf) {
+    if (!mounted || !widget.hudVisible) return;
+    final queue = isSelf ? _drawQueueSelf : _drawQueueOpp;
+    if (isSelf ? _drawPlayingSelf : _drawPlayingOpp) return;
+    final active = queue.active;
+    if (active == null) return;
+    final game = _flameGame;
+    if (game == null) {
+      // 游戏尚未创建（理论上不会：场地页常驻挂载），丢弃本段动画防卡死。
+      queue.drain();
+      return;
     }
+    if (isSelf) {
+      _drawPlayingSelf = true;
+    } else {
+      _drawPlayingOpp = true;
+    }
+    final indices = _concealedDrawTargets.remove(active.id) ?? const [];
+    game.playDrawFlight(active, indices, () {
+      if (isSelf) {
+        _drawPlayingSelf = false;
+      } else {
+        _drawPlayingOpp = false;
+      }
+      if (!mounted) return;
+      // 当前动画播完：取出本侧队列里的下一个事件继续播放。
+      if (queue.drain() != null) {
+        _playActiveDrawFlight(isSelf);
+      }
+    });
   }
 
-  /// 启动队列当前 active 事件的飞行动画（active 已由队列在 submit 时设置）。
-  void _playActiveDrawAnimation() {
-    if (!mounted) return;
-    setState(() {});
-    _drawController.forward(from: 0);
+  @override
+  void didUpdateWidget(covariant DuelFieldPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.hudVisible == widget.hudVisible) return;
+    // 手牌栏可见性跟随 HUD（猜拳/等待阶段场地页仅作背景）。
+    _flameGame?.setHandBarsVisible(widget.hudVisible);
+    // HUD 由隐藏转为可见（如猜拳结果最短停留结束进入对局）时，
+    // 补播停留期间排队但未能播放的抽卡/发牌动画（双方各自补播）。
+    if (widget.hudVisible) {
+      _playActiveDrawFlight(true);
+      _playActiveDrawFlight(false);
+    }
   }
 
   /// 把最新快照推入 Flame 游戏（订阅回调与首帧初始化共用）。
@@ -225,9 +265,16 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
       onPhaseLampTap: togglePhaseMenu,
       isPhaseLampEnabled: _canTapPhaseLamp,
       onPlaceSlotTap: (key) => _selectN.respondSelectPlaceKey(key),
+      onHandCardTap: handleHandCardTap,
       onAnchorsChanged: _handleAnchorsChanged,
     );
     _flameGame = game;
+    // 手牌栏可见性与对方栏顶边距随页面状态初始化（后续变化分别由
+    // didUpdateWidget 与 build 推送）。
+    game.setHandBarsVisible(widget.hudVisible);
+    game.setOppHandTopY(
+      MediaQuery.of(context).padding.top + _topHudBodyHeight + _opponentHandGap,
+    );
     // 初始快照推迟到首帧后推入（此时 Provider 已可读；
     // 后续变化由 listenManual 订阅驱动，不走 build）。
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -285,6 +332,63 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
         _board.chains,
         _board.myController,
       ).field,
+      selfHand: _buildSelfHandSnapshot(),
+      oppHand: _buildOppHandSnapshot(),
+    );
+  }
+
+  /// 己方手牌快照（底部手牌栏）。
+  ///
+  /// 高亮/勾选集合的来源与原 Flutter 版 HandCardsBar 挂载处一致：
+  /// 手牌确认（MSG_CONFIRM_CARDS）优先，否则就地选择窗口的高亮/勾选。
+  HandSnapshot _buildSelfHandSnapshot() {
+    final confirm = _confirm;
+    final isDuelist = ref.read(duelRoomProvider).selfType.isDuelist;
+    final inlineActive =
+        _selectN.selectPromptMode == SelectPromptMode.inline;
+    final confirmedOnSelf =
+        confirm.confirmedHandOwner == _board.myController &&
+        confirm.confirmedHandSequences.isNotEmpty;
+    return HandSnapshot(
+      codes: _board.selfHand,
+      // 观战者（非决斗位）不显示卡面：selfHand 的 0 占位码会渲染成卡背。
+      faceUp: isDuelist,
+      selectedIndex: _overlay.selectedHandSequence,
+      highlightedIndices: confirmedOnSelf
+          ? confirm.confirmedHandSequences
+          : inlineActive
+          ? _selectN.inlineSelectableHandSequences
+          : const {},
+      checkedIndices: inlineActive
+          ? _selectN.inlineSelectedHandSequences
+          : const {},
+      chainOrderByIndex: buildChainOrderMaps(
+        _board.chains,
+        _board.myController,
+      ).selfHand,
+      shuffleTick: _selfHandShuffleTick,
+    );
+  }
+
+  /// 对方手牌快照（顶部手牌栏；卡面恒为卡背）。
+  HandSnapshot _buildOppHandSnapshot() {
+    final confirm = _confirm;
+    final confirmedOnOpp =
+        confirm.confirmedHandOwner != _board.myController &&
+        confirm.confirmedHandSequences.isNotEmpty;
+    return HandSnapshot(
+      codes: _board.opponentHand,
+      faceUp: false,
+      selectedIndex: null,
+      highlightedIndices: confirmedOnOpp
+          ? confirm.confirmedHandSequences
+          : const {},
+      checkedIndices: const {},
+      chainOrderByIndex: buildChainOrderMaps(
+        _board.chains,
+        _board.myController,
+      ).oppHand,
+      shuffleTick: _oppHandShuffleTick,
     );
   }
 
@@ -576,6 +680,10 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
         );
       case SelectType.announceCard:
         return AnnounceCardDialog(
+          // 受限宣言（抹杀之指名者等）：把引擎下发的可宣言卡集合
+          // 传给弹窗直接罗列候选；null 时退回自由宣言搜索。
+          declarableCodes: _select.announceCardDeclarableCodes,
+          onLoadDeclarable: _selectN.loadDeclarableCards,
           onSearch: _selectN.searchAnnounceCards,
           onSelect: (code) =>
               _selectN.respondAnnounceCard(code, generation: generation),
@@ -656,7 +764,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
         if (mounted) _overlayN.clearLocalUi();
       });
     }
-    // 抽卡事件（MSG_DRAW）：FIFO 队列播放飞行动画。
+    // 抽卡事件（MSG_DRAW）：FIFO 队列播放 Flame 飞行动画。
     ref.listen(duelFieldProvider.select((s) => s.drawAnimationEvent), (
       prev,
       next,
@@ -664,23 +772,33 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
       if (next == null) {
         // 新对局开始（handleStart 清空事件）：丢弃未播完的动画与排队事件，
         // 避免上一局残留的抽卡动画飞进新局。
-        if (_drawQueue.isNotEmpty) {
-          _drawQueue.clear();
-          _drawController.stop();
-          setState(() {});
-        }
+        _drawQueueSelf.clear();
+        _drawQueueOpp.clear();
+        _drawPlayingSelf = false;
+        _drawPlayingOpp = false;
+        _concealedDrawTargets.clear();
+        _flameGame?.cancelDrawFlights();
         return;
       }
-      switch (_drawQueue.submit(next)) {
+      final isSelf = next.player == _board.myController;
+      switch (_drawQueueOf(next).submit(next)) {
         case DrawQueueSubmitResult.started:
-          _playActiveDrawAnimation();
+          // 入队即隐藏目标卡位（含下一条排队分支），再开播。
+          _concealedDrawTargets[next.id] =
+              _flameGame?.concealDrawTargets(next) ?? const [];
+          _playActiveDrawFlight(isSelf);
+        case DrawQueueSubmitResult.enqueued:
+          // 排队中的事件同样立即隐藏：手牌不得先于动画出现。
+          _concealedDrawTargets[next.id] =
+              _flameGame?.concealDrawTargets(next) ?? const [];
+          break;
         case DrawQueueSubmitResult.patchedActive:
           // 同 id 更新命中播放中事件（MSG_CONFIRM_CARDS 后的 reveal 等）：
-          // 只刷新画面数据，不重启动画。
-          setState(() {});
+          // Flame 飞行卡的视觉在起飞时定型，中途不更新（与旧实现差异：
+          // 不再重绘飞行中的卡面，落地后的手牌卡仍按最新快照渲染）。
+          break;
         case DrawQueueSubmitResult.patchedQueued:
-        case DrawQueueSubmitResult.enqueued:
-          // 排队中：等当前动画播完由 status listener 依序取出。
+          // 排队中：等当前动画播完由 onDone 回调依序取出。
           break;
       }
     });
@@ -698,16 +816,23 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
           _oppHandShuffleTick = next;
         }
       });
+      // tick 随快照进 Flame：本监听（build 注册）晚于 initState 注册的
+      // 快照订阅，boardSub 推送的仍是旧 tick，这里更新后补推一次。
+      _pushSnapshot();
     });
     // 弹层几何（viewport/phaseRect/overlayAnchor 等）已随 HUD 层移至
     // _buildHudOverlay。
     // 页面自带 Portal：内部的 PortalTarget（阶段菜单/场上操作/手牌菜单）
     // 不再依赖宿主 App 提供全局 Portal；宿主已有 Portal 时嵌套安全。
+    // 对方手牌栏顶边距推入 Flame（状态栏/顶部 HUD 高度决定其位置）；
+    // 手牌栏可见性由 didUpdateWidget 与 _ensureFlameGame 推入。
+    _flameGame?.setOppHandTopY(
+      MediaQuery.of(context).padding.top + _topHudBodyHeight + _opponentHandGap,
+    );
     return Portal(
       child: Scaffold(
         backgroundColor: const Color(0xFF010308),
         body: Stack(
-          key: _bodyStackKey,
           fit: StackFit.expand,
           clipBehavior: Clip.none,
           children: [
@@ -724,8 +849,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
   /// 对局 HUD 叠层：顶栏/双方手牌/日志抽屉/选择弹层等全部覆盖件。
   /// 弹层几何与原 build 内联实现一致（统一经 Portal 的 Aligned 锚点避让）。
   Widget _buildHudOverlay() {
-    final topInset = MediaQuery.of(context).padding.top;
-    final opponentHandTop = topInset + _topHudBodyHeight + _opponentHandGap;
     // viewport 仅用于 anchors 缺失时的 fallback 比例估算；
     // 弹层定位与避让统一由 Portal 的 Aligned 锚点负责。
     final viewport = MediaQuery.sizeOf(context);
@@ -739,9 +862,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
       offset: Offset(0, -8),
       shiftToWithinBound: AxisFlag(x: true, y: true),
     );
-    // 手牌矩形上报/抽卡动画的公共坐标空间（body Stack）。
-    final bodyStackAncestor =
-        _bodyStackKey.currentContext?.findRenderObject() as RenderBox?;
     return Stack(
       fit: StackFit.expand,
       clipBehavior: Clip.none,
@@ -773,43 +893,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
                 );
               },
             ),
-          ),
-        ),
-        Positioned(
-          top: opponentHandTop,
-          left: 0,
-          right: 0,
-          child: Consumer(
-            builder: (context, ref, _) {
-              final opp = ref.watch(
-                duelFieldProvider.select(selectOppHandSlice),
-              );
-              final confirmedOwner = ref.watch(
-                cardConfirmProvider.select((s) => s.confirmedHandOwner),
-              );
-              final confirmedSeqs = ref.watch(
-                cardConfirmProvider.select((s) => s.confirmedHandSequences),
-              );
-              final chains = ref.watch(
-                duelFieldProvider.select((s) => s.chains),
-              );
-              return HandCardsBar(
-                cardsVisible: false,
-                handCodes: opp.opponentHand,
-                chainOrderByIndex: buildChainOrderMaps(
-                  chains,
-                  opp.myController,
-                ).oppHand,
-                highlightedSequences:
-                    confirmedOwner != opp.myController &&
-                        confirmedSeqs.isNotEmpty
-                    ? confirmedSeqs
-                    : const {},
-                shuffleTick: _oppHandShuffleTick,
-                onCardRectsChanged: (rects) => _oppHandCardRects = rects,
-                cardRectsAncestor: bodyStackAncestor,
-              );
-            },
           ),
         ),
 
@@ -852,72 +935,29 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
             );
           },
         ),
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: Consumer(
-            builder: (context, ref, _) {
-              final hand = ref.watch(
-                duelFieldProvider.select(selectSelfHandSlice),
-              );
-              final selectedSeq = ref.watch(
-                fieldOverlayProvider.select((s) => s.selectedHandSequence),
-              );
-              final confirmedOwner = ref.watch(
-                cardConfirmProvider.select((s) => s.confirmedHandOwner),
-              );
-              final confirmedSeqs = ref.watch(
-                cardConfirmProvider.select((s) => s.confirmedHandSequences),
-              );
-              final mode = ref.watch(selectPromptModeProvider);
-              // 就地选择高亮/勾选依赖窗口与勾选下标：订阅驱动重建，
-              // 序列集在 build 时经 notifier 派生读取。
-              ref.watch(
-                selectWindowProvider.select(
-                  (s) => (s.currentSelect, s.inlineSelectedOptionIndices),
-                ),
-              );
-              final selectN = ref.read(selectWindowProvider.notifier);
-              final inlineActive = mode == SelectPromptMode.inline;
-              final entries = ref.watch(handActionMenuProvider);
-              final chains = ref.watch(
-                duelFieldProvider.select((s) => s.chains),
-              );
-              // 观战者（非决斗位）没有「我方手牌」：双方手牌都应显示卡背，
-              // 否则 selfHand 的 0 占位码会被 CardImage 渲染成占位「背景」。
-              final isDuelist = ref.watch(
-                duelRoomProvider.select((s) => s.selfType.isDuelist),
-              );
-              return HandCardsBar(
-                cardsVisible: isDuelist,
-                handCodes: hand.selfHand,
-                chainOrderByIndex: buildChainOrderMaps(
-                  chains,
-                  hand.myController,
-                ).selfHand,
-                selectedCardSequence: selectedSeq,
-                onCardTap: handleHandCardTap,
-                overlayContent: entries.isEmpty
-                    ? null
-                    : HandActionPopover(actions: entries),
-                overlayVisible: selectedSeq != null && entries.isNotEmpty,
-                highlightedSequences:
-                    confirmedOwner == hand.myController &&
-                        confirmedSeqs.isNotEmpty
-                    ? confirmedSeqs
-                    : inlineActive
-                    ? selectN.inlineSelectableHandSequences
-                    : const {},
-                checkedSequences: inlineActive
-                    ? selectN.inlineSelectedHandSequences
-                    : const {},
-                shuffleTick: _selfHandShuffleTick,
-                onCardRectsChanged: (rects) => _selfHandCardRects = rects,
-                cardRectsAncestor: bodyStackAncestor,
-              );
-            },
-          ),
+        // 手牌操作菜单：手牌栏已 Flame 化，菜单仍是 Flutter Portal 弹层，
+        // 锚定矩形从游戏侧拉式查询（替代原来的帧末矩形上报）。
+        Consumer(
+          builder: (context, ref, _) {
+            final selectedSeq = ref.watch(
+              fieldOverlayProvider.select((s) => s.selectedHandSequence),
+            );
+            final entries = ref.watch(handActionMenuProvider);
+            if (selectedSeq == null || entries.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            final rect = _flameGame?.selectedHandCardRect();
+            if (rect == null) return const SizedBox.shrink();
+            return Positioned.fromRect(
+              rect: rect,
+              child: PortalTarget(
+                visible: true,
+                anchor: overlayAnchor,
+                portalFollower: HandActionPopover(actions: entries),
+                child: const SizedBox.shrink(),
+              ),
+            );
+          },
         ),
         Consumer(
           builder: (context, ref, _) => _buildTopHud(
@@ -1029,9 +1069,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
             return _buildInspector(inspector);
           },
         ),
-        // 抽卡飞行动画层（卡组 → 手牌栏；IgnorePointer 不挡操作）。
-        if (_drawQueue.active != null)
-          _buildDrawAnimationLayer(viewport, opponentHandTop, _drawQueue.active!),
         if (_showTurnOrderHint)
           Positioned.fill(
             child: IgnorePointer(
@@ -1048,94 +1085,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
             ),
           ),
       ],
-    );
-  }
-
-  // ---- 抽卡动画 ----
-
-  Widget _buildDrawAnimationLayer(
-    Size viewport,
-    double opponentHandTop,
-    DrawAnimationEvent event,
-  ) {
-    final source = _drawSourceRect(viewport, opponentHandTop, event);
-    final target = _drawTargetRect(viewport, opponentHandTop, event);
-    final isSelf = event.player == _board.myController;
-    final code = event.codes.isNotEmpty ? event.codes.first : 0;
-    // 进度驱动的布局收敛到子组件，内部经 AnimatedBuilder 只重建自己，
-    // 页面层不再随动画每帧 setState。
-    return DrawCardAnimation(
-      controller: _drawController,
-      source: source,
-      target: target,
-      cardVisual: _drawCardVisual(code, isSelf, revealCard: event.revealCard),
-    );
-  }
-
-  /// 抽卡动画起点：对应方的卡组槽位（Flame anchors 上报），
-  /// 缺失时按屏幕边缘估算兜底。
-  Rect _drawSourceRect(
-    Size viewport,
-    double opponentHandTop,
-    DrawAnimationEvent event,
-  ) {
-    final isSelf = event.player == _board.myController;
-    final deckKey = isSelf ? 'self_deck' : 'opp_deck';
-    return _fieldAnchors?.slotRects[deckKey] ??
-        Rect.fromLTWH(
-          viewport.width / 2 - 32,
-          isSelf ? viewport.height - 120 : opponentHandTop + 6,
-          64,
-          90,
-        );
-  }
-
-  /// 抽卡动画终点：对应方手牌栏中目标卡的矩形（手牌栏帧末上报），
-  /// 缺失时按手牌栏区域估算兜底。
-  Rect _drawTargetRect(
-    Size viewport,
-    double opponentHandTop,
-    DrawAnimationEvent event,
-  ) {
-    final isSelf = event.player == _board.myController;
-    final handRects = isSelf ? _selfHandCardRects : _oppHandCardRects;
-    final handCodes = isSelf ? _board.selfHand : _board.opponentHand;
-    if (handCodes.isNotEmpty) {
-      final targetIndex = isSelf ? handCodes.length - 1 : 0;
-      final targetRect = handRects[targetIndex];
-      if (targetRect != null) return targetRect;
-    }
-    if (isSelf) {
-      return Rect.fromLTWH(
-        viewport.width - 64 - 12,
-        viewport.height - 96,
-        64,
-        90,
-      );
-    }
-    return Rect.fromLTWH(12, opponentHandTop + 6, 64, 90);
-  }
-
-  /// 飞行中的卡面：己方抽卡与公开抽卡显示卡面，对方抽卡显示卡背。
-  Widget _drawCardVisual(int code, bool isSelf, {required bool revealCard}) {
-    if (isSelf || revealCard) {
-      return CardImage(code: code, width: 64, height: 90);
-    }
-    return Container(
-      width: 64,
-      height: 90,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(5),
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF1A1B3A), Color(0xFF0A0B1E)],
-        ),
-        border: Border.all(color: const Color(0xFFFFD700), width: 1.5),
-      ),
-      child: const Center(
-        child: Icon(Icons.style, color: Color(0xFF00F0FF), size: 28),
-      ),
     );
   }
 

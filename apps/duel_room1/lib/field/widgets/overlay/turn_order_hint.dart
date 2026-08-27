@@ -18,8 +18,8 @@ class TurnOrderHint extends StatefulWidget {
 }
 
 class _TurnOrderHintState extends State<TurnOrderHint> {
-  static const _fadeDuration = Duration(milliseconds: 300);
-  static const _holdDuration = Duration(milliseconds: 2500);
+  static const _fadeDuration = Duration(milliseconds: 500);
+  static const _holdDuration = Duration(milliseconds: 3200);
 
   double _opacity = 0.0;
 

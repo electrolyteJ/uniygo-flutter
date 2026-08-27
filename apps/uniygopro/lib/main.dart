@@ -8,11 +8,15 @@ import 'package:deck_editor1/deck_editor1.dart' show DeckEditorStore;
 import 'package:biz/card_image_loader.dart';
 import 'package:biz/service_providers.dart';
 import 'package:biz/service_singleton.dart';
+import 'package:biz/util/orientation_lock.dart';
 import 'package:duel_settings/duel_settings.dart';
 import 'app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 全应用横屏（仅 Android/iOS 生效；决斗房间同样横屏，无需单独锁）。
+  lockAppLandscape();
 
   registerAllServices();
   // 注入跨包设置实现（持久化 + 设置弹窗）到 biz 的 provider 契约；

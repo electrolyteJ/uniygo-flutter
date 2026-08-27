@@ -48,6 +48,15 @@ class HandCardsBar extends StatefulWidget {
   /// 洗手牌信号：变化时对手牌栏施加一次抖动。
   final int shuffleTick;
 
+  /// 抽卡/发牌动画期间逐卡判定是否隐藏：返回 true 的卡以透明占位渲染
+  /// （保留布局尺寸与矩形上报、屏蔽交互），等飞行卡落地后由页面翻回
+  /// false 再展示整张卡；为 null 表示当前无抽卡动画，全部正常显示。
+  final bool Function(int index)? isCardConcealed;
+
+  /// 抽卡动画进度 listenable（页面的抽卡 AnimationController）：
+  /// [isCardConcealed] 非 null 且需要逐帧刷新显现进度时传入。
+  final Listenable? concealListenable;
+
   const HandCardsBar({
     super.key,
     required this.handCodes,
@@ -61,6 +70,8 @@ class HandCardsBar extends StatefulWidget {
     this.onCardRectsChanged,
     this.cardRectsAncestor,
     this.shuffleTick = 0,
+    this.isCardConcealed,
+    this.concealListenable,
   });
 
   @override
@@ -152,8 +163,16 @@ class _HandCardsBarState extends State<HandCardsBar>
     if (widget.handCodes.isEmpty) return const SizedBox(height: 96);
     _scheduleRectReport();
 
+    // 抽卡动画期间订阅其进度：隐藏中的手牌随飞行卡落地显现。
+    final isConcealedAny = widget.isCardConcealed;
+    final listenable = isConcealedAny == null
+        ? _shuffleController
+        : Listenable.merge([
+            _shuffleController,
+            if (widget.concealListenable != null) widget.concealListenable!,
+          ]);
     return AnimatedBuilder(
-      animation: _shuffleController,
+      animation: listenable,
       builder: (context, child) {
         final t = _shuffleController.value;
         // 洗牌进度：0 → 1 → 0（先换位，再回位）。
@@ -184,6 +203,9 @@ class _HandCardsBarState extends State<HandCardsBar>
                       widget.highlightedSequences.contains(index);
                   final isChecked = widget.checkedSequences.contains(index);
                   final isDimmed = selectionMode && !isHighlighted;
+                  // 抽卡/发牌动画飞行途中的卡：先隐藏，落地后才展示整张卡。
+                  final isConcealed =
+                      widget.isCardConcealed?.call(index) ?? false;
 
                   // 100% 还原大师级弧形逻辑 (Convex Arc)
                   final centerIndex = (widget.handCodes.length - 1) / 2;
@@ -320,6 +342,11 @@ class _HandCardsBarState extends State<HandCardsBar>
                     ),
                   );
 
+                  // 隐藏中的卡以透明占位渲染：保留布局尺寸与矩形上报
+                  // （Opacity 不影响 size），同时屏蔽 hover/点击交互。
+                  final effectiveCard = isConcealed
+                      ? IgnorePointer(child: Opacity(opacity: 0, child: card))
+                      : card;
                   return isSelected && widget.overlayContent != null
                       ? PortalTarget(
                           visible: widget.overlayVisible,
@@ -330,9 +357,9 @@ class _HandCardsBarState extends State<HandCardsBar>
                             shiftToWithinBound: AxisFlag(x: true, y: true),
                           ),
                           portalFollower: widget.overlayContent!,
-                          child: card,
+                          child: effectiveCard,
                         )
-                      : card;
+                      : effectiveCard;
                 }).toList(),
               ),
             ),

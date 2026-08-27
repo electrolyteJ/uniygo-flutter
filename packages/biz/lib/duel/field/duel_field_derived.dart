@@ -638,12 +638,6 @@ typedef DuelHudSlice = ({
   int opponentTimeLeft,
 });
 
-/// 己方手牌栏切片（手牌列表实例 + 己方控制器编号）。
-typedef SelfHandSlice = ({List<int> selfHand, int myController});
-
-/// 对手手牌栏切片。
-typedef OppHandSlice = ({List<int> opponentHand, int myController});
-
 /// 连锁叠层切片。
 typedef ChainSlice = ({List<ChainLink> chains, bool chainSealed});
 
@@ -670,12 +664,6 @@ DuelHudSlice selectHudSlice(DuelFieldState s) => (
   selfTimeLeft: s.selfTimeLeft,
   opponentTimeLeft: s.opponentTimeLeft,
 );
-
-SelfHandSlice selectSelfHandSlice(DuelFieldState s) =>
-    (selfHand: s.selfHand, myController: s.myController);
-
-OppHandSlice selectOppHandSlice(DuelFieldState s) =>
-    (opponentHand: s.opponentHand, myController: s.myController);
 
 ChainSlice selectChainSlice(DuelFieldState s) =>
     (chains: s.chains, chainSealed: s.chainSealed);

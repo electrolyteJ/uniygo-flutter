@@ -4,13 +4,85 @@ import 'package:biz/duel/models/field_card.dart';
 import 'package:collection/collection.dart';
 import 'package:duelink/duelink.dart' show DuelPhase;
 
+/// 一侧手牌的不可变快照（己方底部 / 对方顶部手牌栏共用）。
+///
+/// 对手手牌隐私：[codes] 为 0 占位（长度即张数），配合 faceUp=false
+/// 只渲染卡背，与 biz 层的隐私纪律一致。
+class HandSnapshot {
+  const HandSnapshot({
+    required this.codes,
+    required this.faceUp,
+    required this.selectedIndex,
+    required this.highlightedIndices,
+    required this.checkedIndices,
+    required this.chainOrderByIndex,
+    required this.shuffleTick,
+  });
+
+  const HandSnapshot.empty()
+    : codes = const [],
+      faceUp = false,
+      selectedIndex = null,
+      highlightedIndices = const {},
+      checkedIndices = const {},
+      chainOrderByIndex = const {},
+      shuffleTick = 0;
+
+  /// 手牌卡码（对手为 0 占位，长度即张数）。
+  final List<int> codes;
+
+  /// 是否显示卡面（false 渲染卡背：对手手牌、观战视角）。
+  final bool faceUp;
+
+  /// 当前选中的手牌下标（操作菜单锚定），null = 无选中。
+  final int? selectedIndex;
+
+  /// 就地选择/确认模式中高亮的手牌下标。
+  final Set<int> highlightedIndices;
+
+  /// 就地选择多选中已勾选的手牌下标（比高亮更强的选中态）。
+  final Set<int> checkedIndices;
+
+  /// 连锁序号映射：手牌下标 → 连锁序号（1 起）。
+  final Map<int, int> chainOrderByIndex;
+
+  /// 手牌洗切信号（按侧独立单调 tick，变化时播放一次洗牌动画）。
+  final int shuffleTick;
+
+  static const _deep = DeepCollectionEquality();
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is HandSnapshot &&
+        other.faceUp == faceUp &&
+        other.selectedIndex == selectedIndex &&
+        other.shuffleTick == shuffleTick &&
+        _deep.equals(other.codes, codes) &&
+        _deep.equals(other.highlightedIndices, highlightedIndices) &&
+        _deep.equals(other.checkedIndices, checkedIndices) &&
+        _deep.equals(other.chainOrderByIndex, chainOrderByIndex);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    faceUp,
+    selectedIndex,
+    shuffleTick,
+    _deep.hash(codes),
+    _deep.hash(highlightedIndices),
+    _deep.hash(checkedIndices),
+    _deep.hash(chainOrderByIndex),
+  );
+}
+
 /// 推入 Flame 场地的不可变状态快照。
 ///
 /// widget 层（DuelFieldPage）每次 build 从 biz/duel 的 Riverpod Provider
 /// 组装本快照并经 [DuelFlameGame.applySnapshot] 推入游戏；Flame component
 /// 只读快照、不 watch 任何 Provider，渲染循环与 Riverpod 完全解耦。
 ///
-/// 快照只包含 Flame 渲染真正用到的字段子集（场上卡/阶段/伤害步骤/
+/// 快照只包含 Flame 渲染真正用到的字段子集（场上卡/手牌/阶段/伤害步骤/
 /// 攻击呈现/洗牌信号/区域卡码/就地选择高亮）；交互回调（点卡/检视/
 /// 放置）仍走构造时注入的闭包，不经过快照。
 class FlameFieldSnapshot {
@@ -34,6 +106,8 @@ class FlameFieldSnapshot {
     required this.placeTargetFieldKeys,
     required this.activatableZoneKeys,
     required this.chainOrderBySlotKey,
+    required this.selfHand,
+    required this.oppHand,
   });
 
   /// 首次推送前的空快照（场地状态尚未到达）。
@@ -58,6 +132,8 @@ class FlameFieldSnapshot {
         placeTargetFieldKeys: const {},
         activatableZoneKeys: const {},
         chainOrderBySlotKey: const {},
+        selfHand: const HandSnapshot.empty(),
+        oppHand: const HandSnapshot.empty(),
       );
 
   /// 场上卡（key 为 `controller_zone_sequence`）。
@@ -118,6 +194,12 @@ class FlameFieldSnapshot {
   /// 连锁结束清空后由组件自行停留 1s 淡出。
   final Map<String, int> chainOrderBySlotKey;
 
+  /// 己方手牌（底部手牌栏）。
+  final HandSnapshot selfHand;
+
+  /// 对方手牌（顶部手牌栏；codes 为 0 占位，faceUp=false）。
+  final HandSnapshot oppHand;
+
   List<int> zoneCodesOf(String zoneKey) => zoneCodes[zoneKey] ?? const [];
 
   /// 内容判等：驱动 [DuelFlameGame.applySnapshot] 的重建短路——
@@ -154,11 +236,13 @@ class FlameFieldSnapshot {
         ) &&
         _deep.equals(other.placeTargetFieldKeys, placeTargetFieldKeys) &&
         _deep.equals(other.activatableZoneKeys, activatableZoneKeys) &&
-        _deep.equals(other.chainOrderBySlotKey, chainOrderBySlotKey);
+        _deep.equals(other.chainOrderBySlotKey, chainOrderBySlotKey) &&
+        other.selfHand == selfHand &&
+        other.oppHand == oppHand;
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     myController,
     phase,
     inDamageStep,
@@ -178,5 +262,7 @@ class FlameFieldSnapshot {
     _deep.hash(placeTargetFieldKeys),
     _deep.hash(activatableZoneKeys),
     _deep.hash(chainOrderBySlotKey),
-  );
+    selfHand,
+    oppHand,
+  ]);
 }

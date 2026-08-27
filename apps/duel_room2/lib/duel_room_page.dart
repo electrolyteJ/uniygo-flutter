@@ -71,6 +71,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
   @override
   void initState() {
     super.initState();
+    // 全应用已横屏（main.dart lockAppLandscape），房间无需单独锁方向。
     _connect();
   }
 

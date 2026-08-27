@@ -112,7 +112,8 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     super.initState();
     _drawController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      // easeOutCubic 前段位移占比高，过短会看不清飞行过程。
+      duration: const Duration(milliseconds: 1400),
     );
     // 逐帧进度由 DrawCardAnimation 内部的 AnimatedBuilder 消费，
     // 页面只在动画开始（_playActiveDrawAnimation）与结束（status listener）时
@@ -124,6 +125,18 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     );
     _attackController.addStatusListener(_handleAttackAnimationStatus);
     _scheduleTurnOrderHint();
+    // 场地页在 RoomInDuel 才挂载：猜拳结果最短停留期间（biz 层兜底）
+    // 开局 MSG_DRAW 已按服务器速度处理完毕，早于 build 里的 ref.listen
+    // 注册，这里补播挂载前已到达的抽卡事件。状态只保留最新一条事件
+    // （更早的已被覆盖），与 listener 的重复由队列同 id patch 去重。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final pending = ref.read(duelFieldProvider).drawAnimationEvent;
+      if (pending == null) return;
+      if (_drawQueue.submit(pending) == DrawQueueSubmitResult.started) {
+        _playActiveDrawAnimation();
+      }
+    });
   }
 
   @override
@@ -174,6 +187,39 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
     if (!mounted) return;
     setState(() {});
     _drawController.forward(from: 0);
+  }
+
+  /// 抽卡/发牌动画期间，手牌下标 [index] 是否应隐藏。
+  ///
+  /// MSG_DRAW 把新卡追加到手牌末尾的同时触发飞行动画，若不隐藏，
+  /// 手牌栏会先渲染出整张卡、动画再叠着飞一遍。这里在动画播放期间
+  /// 隐藏末尾对应卡位：active 事件的卡等动画播完才显现，排队事件的
+  /// 卡整段隐藏直到轮到它播放。
+  bool _isDrawConcealed(int index, bool isSelf) {
+    var activeCount = 0;
+    var totalCount = 0;
+    final current = _drawQueue.active;
+    if (current != null && (current.player == _board.myController) == isSelf) {
+      activeCount = current.codes.length;
+      totalCount += activeCount;
+    }
+    for (final e in _drawQueue.pending) {
+      if ((e.player == _board.myController) == isSelf) {
+        totalCount += e.codes.length;
+      }
+    }
+    if (totalCount == 0) return false;
+    final handLength = isSelf
+        ? _board.selfHand.length
+        : _board.opponentHand.length;
+    final start = (handLength - totalCount).clamp(0, 1 << 30);
+    final rel = index - start;
+    if (rel < 0 || rel >= totalCount) return false;
+    // 排队事件的卡：整段隐藏，轮到它播放时才按 active 处理。
+    if (rel >= activeCount) return true;
+    // 动画播完（controller 到 1，status listener 随即 drain+setState）
+    // 才展示整张卡。
+    return _drawController.value < 1.0;
   }
 
   void _handleAttackAnimationStatus(AnimationStatus status) {
@@ -445,6 +491,10 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
             ? _board.handShuffleTick
             : 0,
         onCardRectsChanged: (rects) => _oppHandCardRects = rects,
+        isCardConcealed: _drawQueue.isNotEmpty
+            ? (index) => _isDrawConcealed(index, false)
+            : null,
+        concealListenable: _drawController,
         highlightedSequences:
             _confirm.confirmedHandOwner != _board.myController &&
                 _confirm.confirmedHandSequences.isNotEmpty
@@ -512,6 +562,10 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
             ? _board.handShuffleTick
             : 0,
         onCardRectsChanged: (rects) => _selfHandCardRects = rects,
+        isCardConcealed: _drawQueue.isNotEmpty
+            ? (index) => _isDrawConcealed(index, true)
+            : null,
+        concealListenable: _drawController,
         selectedCardSequence: _overlay.selectedHandSequence,
         onCardTap: handleHandCardTap,
         overlayContent: handActionEntries.isEmpty

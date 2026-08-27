@@ -270,6 +270,23 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
   Timer? _autoHandTimer;
   bool _disposed = false;
 
+  /// 猜拳结果（RoomHandResult）的最短展示时长。
+  ///
+  /// 结果面板完全由服务器下一条消息驱动退出：AI 房/低延迟网络下
+  /// HAND_RESULT → SELECT_TP/MSG_START 只有几毫秒，「我方 X vs 对方 Y」
+  /// 一闪而过。这里对紧随其后的启动流程阶段做最短停留兜底。
+  static const Duration handResultMinDisplay = Duration(milliseconds: 2000);
+
+  /// RoomHandResult 开始展示的时刻（最短停留的锚点）。
+  DateTime? _handResultShownAt;
+
+  /// 被最短停留拦下的后继阶段（只保留最新一个：
+  /// 如 RoomStartDuel 随后会被 RoomInDuel 取代）。
+  RoomStage? _heldAfterHandResult;
+
+  /// 最短停留到期定时器。
+  Timer? _handResultHoldTimer;
+
   /// 是否已进入离开房间流程（backHome 去重用）。
   bool _leaving = false;
 
@@ -294,6 +311,7 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
       _roomStageSub?.cancel();
       _msgSub?.cancel();
       _autoHandTimer?.cancel();
+      _handResultHoldTimer?.cancel();
     });
     loadDecks();
     unawaited(_loadPreferences());
@@ -601,89 +619,146 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
       }
     });
     _roomStageSub = _duelService.onRoomStageChange.listen((roomStage) {
-      // 导航（RoomNotJoined → 回首页）由页面 ref.listen(stage) 负责，
-      // 控制器只维护状态。
-      var next = state.copyWith(
-        players: roomStage.players,
-        observerCount: roomStage.observerCount,
-        stage: roomStage,
-      );
-      // 离开换备阶段时清理换备编辑状态（进入由下方 case 初始化）。
-      if (roomStage is! RoomSideDecking &&
-          (state.sidingDeck != null ||
-              state.sidingBaseline != null ||
-              state.sidingInitFailed)) {
-        next = next.copyWith(
-          sidingDeck: null,
-          sidingBaseline: null,
-          sidingInitFailed: false,
-        );
-      }
-      switch (roomStage) {
-        case RoomNotJoined():
-          break;
-        case RoomJoined():
-          break;
-        case RoomInLobby():
-          next = next.copyWith(
-            selfType: roomStage.selfType,
-            isHost: roomStage.isHost,
-            roomOptions: roomStage.options,
-          );
-          // 自动加入决斗：房主开启 autoDuelEnabled，双方准备后自动 startDuel
-          if (next.isHost && next.autoDuelEnabled && next.isAllReady) {
-            console.log('Auto duel enabled and all ready, starting duel...');
-            _duelService.startDuel();
-          }
-          break;
-        case RoomSelectingHand():
-          if (state.autoHandEnabled) {
-            // 定时器由 _autoHandTimer 持有：手动出拳（sendHand）与
-            // scope 销毁时都会取消，避免过期回调重复出拳。
-            _autoHandTimer?.cancel();
-            _autoHandTimer = Timer(const Duration(milliseconds: 700), () {
-              _autoHandTimer = null;
-              if (_disposed) return;
-              final hands = HandType.values
-                  .where((hand) => hand != HandType.unknown)
-                  .toList();
-              sendHand(hands[random.nextInt(hands.length)]);
-            });
-          }
-          break;
-        case RoomHandResult():
-          next = next.copyWith(
-            myHandResult: roomStage.myHand,
-            opponentHandResult: roomStage.opponentHand,
-          );
-          break;
-        case RoomSelectingTurn():
-          if (state.autoTurnOrderEnabled) {
-            sendTp(random.nextBool());
-          }
-          break;
-        case RoomInDuel():
-          next = next.copyWith(
-            myHandResult: 0,
-            opponentHandResult: 0,
-            isFirstTurn: roomStage.isFirstTurn,
-          );
-          break;
-        case RoomDuelEnded():
-          break;
-        case RoomSideDecking():
-          // match 模式局间换备：初始化换备编辑状态（异步解析卡信息）。
-          unawaited(_enterSideDecking());
-          break;
-
-        case RoomError():
-          setErrorText('房间错误：${roomStage.message}');
-          break;
-        default:
-          break;
-      }
-      state = next;
+      // 猜拳结果最短停留：不足 handResultMinDisplay 时拦下后继阶段。
+      if (_holdAfterHandResult(roomStage)) return;
+      _applyRoomStage(roomStage);
     });
+  }
+
+  /// 猜拳结果（RoomHandResult）的最短停留闸门。
+  ///
+  /// 当前处于 RoomHandResult 且展示不足 [handResultMinDisplay] 时，
+  /// 拦下紧随其后的启动流程阶段（平局重猜 RoomSelectingHand /
+  /// 选先后攻 RoomSelectingTurn / 对局开始 RoomStartDuel / RoomInDuel），
+  /// 到期后再应用，让玩家看清猜拳结果。返回 true 表示已拦下。
+  ///
+  /// 停留时长锚定结果开始展示的时刻，多条后继消息到达不重置定时器，
+  /// 只保留最新的后继阶段（RoomStartDuel 会被随后的 RoomInDuel 取代）。
+  bool _holdAfterHandResult(RoomStage next) {
+    final shownAt = _handResultShownAt;
+    if (state.stage is! RoomHandResult || shownAt == null) return false;
+    final isFollowUp =
+        next is RoomSelectingHand ||
+        next is RoomSelectingTurn ||
+        next is RoomStartDuel ||
+        next is RoomInDuel;
+    if (!isFollowUp) return false;
+    final remain =
+        handResultMinDisplay - DateTime.now().difference(shownAt);
+    if (remain <= Duration.zero) return false;
+    _heldAfterHandResult = next;
+    _handResultHoldTimer ??= Timer(remain, () {
+      _handResultHoldTimer = null;
+      final held = _heldAfterHandResult;
+      _heldAfterHandResult = null;
+      // 停留期间阶段已被其他消息打断（断线/离房等）时丢弃后继阶段。
+      if (_disposed || held == null || state.stage is! RoomHandResult) return;
+      _applyRoomStage(held);
+    });
+    return true;
+  }
+
+  /// 应用服务器下发的房间阶段（含各阶段的副作用）。
+  ///
+  /// 导航（RoomNotJoined → 回首页）由页面 ref.listen(stage) 负责，
+  /// 控制器只维护状态。
+  void _applyRoomStage(RoomStage roomStage) {
+    // 猜拳结果开始展示：记录锚点时刻。玩家列表刷新等原因导致的
+    // 同阶段重发不重置锚点，避免停留被无限延长。
+    if (roomStage is RoomHandResult && state.stage is! RoomHandResult) {
+      _handResultShownAt = DateTime.now();
+    }
+    // 阶段被非启动流程消息打断（断线/错误/离房等）：
+    // 丢弃被拦下的后继阶段，避免过期阶段在停留到期后复活。
+    if (roomStage is! RoomHandResult &&
+        roomStage is! RoomSelectingHand &&
+        roomStage is! RoomSelectingTurn &&
+        roomStage is! RoomStartDuel &&
+        roomStage is! RoomInDuel) {
+      _handResultHoldTimer?.cancel();
+      _handResultHoldTimer = null;
+      _heldAfterHandResult = null;
+    }
+    var next = state.copyWith(
+      players: roomStage.players,
+      observerCount: roomStage.observerCount,
+      stage: roomStage,
+    );
+    // 离开换备阶段时清理换备编辑状态（进入由下方 case 初始化）。
+    if (roomStage is! RoomSideDecking &&
+        (state.sidingDeck != null ||
+            state.sidingBaseline != null ||
+            state.sidingInitFailed)) {
+      next = next.copyWith(
+        sidingDeck: null,
+        sidingBaseline: null,
+        sidingInitFailed: false,
+      );
+    }
+    switch (roomStage) {
+      case RoomNotJoined():
+        break;
+      case RoomJoined():
+        break;
+      case RoomInLobby():
+        next = next.copyWith(
+          selfType: roomStage.selfType,
+          isHost: roomStage.isHost,
+          roomOptions: roomStage.options,
+        );
+        // 自动加入决斗：房主开启 autoDuelEnabled，双方准备后自动 startDuel
+        if (next.isHost && next.autoDuelEnabled && next.isAllReady) {
+          console.log('Auto duel enabled and all ready, starting duel...');
+          _duelService.startDuel();
+        }
+        break;
+      case RoomSelectingHand():
+        if (state.autoHandEnabled) {
+          // 定时器由 _autoHandTimer 持有：手动出拳（sendHand）与
+          // scope 销毁时都会取消，避免过期回调重复出拳。
+          _autoHandTimer?.cancel();
+          _autoHandTimer = Timer(const Duration(milliseconds: 700), () {
+            _autoHandTimer = null;
+            if (_disposed) return;
+            final hands = HandType.values
+                .where((hand) => hand != HandType.unknown)
+                .toList();
+            sendHand(hands[random.nextInt(hands.length)]);
+          });
+        }
+        break;
+      case RoomHandResult():
+        next = next.copyWith(
+          myHandResult: roomStage.myHand,
+          opponentHandResult: roomStage.opponentHand,
+        );
+        break;
+      case RoomSelectingTurn():
+        if (state.autoTurnOrderEnabled) {
+          sendTp(random.nextBool());
+        }
+        break;
+      case RoomInDuel():
+        next = next.copyWith(
+          myHandResult: 0,
+          opponentHandResult: 0,
+          isFirstTurn: roomStage.isFirstTurn,
+        );
+        break;
+      case RoomDuelEnded():
+        break;
+      case RoomSideDecking():
+        // match 模式局间换备：初始化换备编辑状态（异步解析卡信息）。
+        unawaited(_enterSideDecking());
+        break;
+
+      case RoomError():
+        setErrorText('房间错误：${roomStage.message}');
+        break;
+      default:
+        break;
+    }
+    state = next;
   }
 
   // ─── 换备（match 模式局间换 Side Deck）───────────────

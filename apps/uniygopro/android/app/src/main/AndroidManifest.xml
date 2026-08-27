@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 联机对战/卡组/账号接口必需：debug/profile manifest 仅覆盖开发构建，
+         release 构建必须在这里显式声明，否则发布版无法联网。 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="uniygopro"
         android:name="${applicationName}"
@@ -9,6 +12,7 @@
             android:launchMode="singleTop"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
+            android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">

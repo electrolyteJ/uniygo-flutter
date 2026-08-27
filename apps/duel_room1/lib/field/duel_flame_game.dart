@@ -3,8 +3,11 @@ import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
+import 'package:biz/duel/models/draw_animation_event.dart';
 import 'package:biz/duel/models/field_card.dart';
 
+import 'component/hand_bar_component.dart';
+import 'component/hand_flight_component.dart';
 import 'duel_field_world.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:duel_room1/field/models/phase_rail_layout.dart';
@@ -52,7 +55,21 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   /// 点击可放置槽位（MSG_SELECT_PLACE）的回调（槽位 key 为
   /// `controller_zone_sequence`）。
   final void Function(String slotKey)? onPlaceSlotTap;
+
+  /// 点击己方手牌的回调（下标, 卡码）。
+  final void Function(int index, int code)? onHandCardTap;
   ValueChanged<PlaymatAnchorData>? onAnchorsChanged;
+
+  /// 己方（底部）/对方（顶部）手牌栏：viewport 层组件，屏幕空间固定尺寸。
+  /// onLoad 时挂载；挂载前为空，读取方需判空。
+  HandBarComponent? selfHandBar;
+  HandBarComponent? oppHandBar;
+
+  /// 对方手牌栏顶部 y（页面按 HUD 高度推入）。
+  double _oppHandTopY = 0;
+
+  /// 播放中的抽卡/发牌飞行动画（新对局时统一清除）。
+  final Set<HandFlightComponent> _flights = {};
 
   String? _lastAnchorSignature;
 
@@ -65,6 +82,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     this.onPhaseLampTap,
     this.isPhaseLampEnabled,
     this.onPlaceSlotTap,
+    this.onHandCardTap,
     this.onAnchorsChanged,
   }) : super(world: DuelFieldWorld());
 
@@ -82,6 +100,15 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+    // 手牌栏挂 viewport（屏幕空间 HUD 层）：不随场地相机缩放。
+    // 双方在首帧即常驻挂载，可见性由 setHudVisible 控制。
+    oppHandBar = HandBarComponent(isSelfSide: false)
+      ..hudTopY = _oppHandTopY;
+    selfHandBar = HandBarComponent(
+      isSelfSide: true,
+      onCardTap: onHandCardTap,
+    );
+    camera.viewport.addAll([oppHandBar!, selfHandBar!]);
     _applyImmersiveCamera();
     _emitAnchors();
   }
@@ -104,7 +131,113 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
       // 快照内容往往不变，判等短路会漏掉刷新，使灯停在禁用态点了没反应。
       world.refreshPhaseRail();
     }
+    // 手牌栏独立差分更新：不依赖 world 加载态（viewport 子树自己维护），
+    // 组件未挂载时 applySnapshot 为空操作，挂载时按其 onLoad 读快照补齐。
+    selfHandBar?.applySnapshot(next.selfHand);
+    oppHandBar?.applySnapshot(next.oppHand);
     if (changed) _emitAnchors();
+  }
+
+  /// 手牌栏可见性（页面按对局阶段推入）：等待室/猜拳等阶段
+  /// 场地页仅作背景时隐藏。手牌栏挂载晚于首次推入时由其
+  /// onLoad 读取本值补齐。
+  bool _handBarsVisible = false;
+
+  /// 手牌栏当前是否应可见（HandBarComponent.onLoad 读取）。
+  bool get handBarsVisible => _handBarsVisible;
+
+  /// HUD（手牌栏）可见性：等待室/猜拳等阶段场地页仅作背景时隐藏。
+  void setHandBarsVisible(bool visible) {
+    _handBarsVisible = visible;
+    selfHandBar?.barVisible = visible;
+    oppHandBar?.barVisible = visible;
+  }
+
+  /// 页面推入对方手牌栏顶部 y（含状态栏/顶部 HUD 高度的视口坐标）。
+  void setOppHandTopY(double y) {
+    _oppHandTopY = y;
+    final bar = oppHandBar;
+    if (bar != null) {
+      bar.hudTopY = y;
+    }
+  }
+
+  /// 选中己方手牌的屏幕矩形（Flutter 操作菜单的锚定，拉式查询）。
+  Rect? selectedHandCardRect() => selfHandBar?.selectedCardRect();
+
+  /// 卡组槽位的屏幕矩形（抽卡/发牌飞行起点），与锚点上报同一几何。
+  Rect deckSlotWidgetRect(bool isSelf) {
+    final zoom = camera.viewfinder.zoom;
+    final boardPos = DuelFieldLayout.deckSlotPos(isSelf: isSelf);
+    final center = worldToWidget(world.project3D(boardPos.dx, boardPos.dy));
+    return Rect.fromCenter(
+      center: center,
+      width: DuelFieldLayout.slotWidth * zoom,
+      height: DuelFieldLayout.slotHeight * zoom,
+    );
+  }
+
+  /// 抽卡事件提交（含排队）时预隐藏目标卡位：新抽的卡追加在手牌末尾，
+  /// 隐藏末尾 N 张并返回其下标。
+  ///
+  /// 必须在事件「入队时」而非「开播时」隐藏：连续抽卡（开局发牌是
+  /// 我方/对方两条 MSG_DRAW，或天使的施舍抽多张）时，排队事件的手牌
+  /// 若等开播才隐藏，会先亮在手牌栏里、动画再叠着飞一遍。
+  List<int> concealDrawTargets(DrawAnimationEvent event) {
+    final bar = event.player == snapshot.myController
+        ? selfHandBar
+        : oppHandBar;
+    return bar?.concealTrailing(event.codes.length) ?? const [];
+  }
+
+  /// 播放一次抽卡/发牌飞行动画：卡组槽位 → 手牌栏卡位，
+  /// 逐张落地时揭示对应手牌；[onDone] 在整段播放完成后回调
+  /// （页面据此推进 DrawAnimationQueue）。
+  ///
+  /// [targetIndices] 为 [concealDrawTargets] 在事件入队时返回的下标
+  /// （隐藏与飞行的关联）；终点矩形在开播时按当前扇形排布现算。
+  void playDrawFlight(
+    DrawAnimationEvent event,
+    List<int> targetIndices,
+    VoidCallback onDone,
+  ) {
+    final isSelf = event.player == snapshot.myController;
+    final bar = isSelf ? selfHandBar : oppHandBar;
+    if (bar == null || targetIndices.isEmpty) {
+      onDone();
+      return;
+    }
+    final indices = targetIndices;
+    final targets = [for (final i in indices) bar.cardSlotRect(i)];
+    // late final：onAllDone 闭包在动画完成后才执行，届时已赋值。
+    late final HandFlightComponent flight;
+    flight = HandFlightComponent(
+      codes: event.codes,
+      // 己方抽卡显示卡面；对方抽卡显示卡背（revealCard 为公开抽卡例外）。
+      faceUp: isSelf || event.revealCard,
+      source: deckSlotWidgetRect(isSelf),
+      targets: targets,
+      onCardArrived: (i) {
+        if (i < indices.length) bar.reveal(indices[i]);
+      },
+      onAllDone: () {
+        _flights.remove(flight);
+        onDone();
+      },
+    );
+    _flights.add(flight);
+    camera.viewport.add(flight);
+  }
+
+  /// 新对局开始（MSG_START）：取消未播完的飞行并揭示全部手牌，
+  /// 避免上一局残留的动画飞进新局。
+  void cancelDrawFlights() {
+    for (final flight in _flights.toList()) {
+      flight.removeFromParent();
+    }
+    _flights.clear();
+    selfHandBar?.revealAll();
+    oppHandBar?.revealAll();
   }
 
   /// Hot reload 支持：重建 world 全部子组件并强制重新上报锚点。
