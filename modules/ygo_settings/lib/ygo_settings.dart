@@ -2,6 +2,8 @@ import 'package:biz/service_providers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// Riverpod 3.0：Override 类型不再从主库导出，需经 misc.dart 引入。
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'duel_room_renderer.dart';

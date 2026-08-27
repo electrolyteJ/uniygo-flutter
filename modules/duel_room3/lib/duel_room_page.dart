@@ -63,21 +63,24 @@ class DuelRoomPage3D extends StatelessWidget {
         ),
       );
     }
-    return ProviderScope(
-      // parent 作用域在 Riverpod 3.0 已移除；当前锁定 2.6.1，升级时需
-      // 改为单容器 + overrides 的方案重新实现「房间级隔离 + 服务级单例」。
-      // ignore: deprecated_member_use
-      parent: duelRoomServiceContainer,
-      overrides: [
-        duelRoomProvider.overrideWith(DuelRoomNotifier.new),
-        duelChatProvider.overrideWith(DuelChatNotifier.new),
-        duelFieldProvider.overrideWith(DuelFieldNotifier.new),
-        selectWindowProvider.overrideWith(SelectWindowNotifier.new),
-        cardConfirmProvider.overrideWith(CardConfirmNotifier.new),
-        fieldOverlayProvider.overrideWith(FieldOverlayNotifier.new),
-        duelMessageRouterProvider.overrideWith(DuelMessageRouter.new),
-      ],
-      child: _DuelRoomView(args: args),
+    // Riverpod 3.0：ProviderScope.parent 已移除。改用
+    // UncontrolledProviderScope 把应用级容器暴露到 widget 树，内层
+    // ProviderScope 自动沿树向上链接它作为 parent——服务 provider
+    // 保持应用级单例，房间/对局状态仍在房间 scope 内重建。
+    return UncontrolledProviderScope(
+      container: duelRoomServiceContainer,
+      child: ProviderScope(
+        overrides: [
+          duelRoomProvider.overrideWith(DuelRoomNotifier.new),
+          duelChatProvider.overrideWith(DuelChatNotifier.new),
+          duelFieldProvider.overrideWith(DuelFieldNotifier.new),
+          selectWindowProvider.overrideWith(SelectWindowNotifier.new),
+          cardConfirmProvider.overrideWith(CardConfirmNotifier.new),
+          fieldOverlayProvider.overrideWith(FieldOverlayNotifier.new),
+          duelMessageRouterProvider.overrideWith(DuelMessageRouter.new),
+        ],
+        child: _DuelRoomView(args: args),
+      ),
     );
   }
 }

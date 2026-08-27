@@ -18,6 +18,14 @@ analyzer:
     - linux/**
 include: package:flutter_lints/flutter.yaml
 
+# riverpod_lint 3.x 基于新 analyzer plugin 系统（analysis_server_plugin，
+# Dart 3.10+），在顶层 plugins 段声明即启用，不再需要 custom_lint。
+# pub workspace 下只能在根部声明一次，对全部成员包生效（analyzer
+# 会拒绝成员包内层 options 的 plugins 段）。
+# 修改本段后需重启 IDE 的 Dart Analysis Server 才会生效。
+plugins:
+  riverpod_lint: ^3.1.8
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`

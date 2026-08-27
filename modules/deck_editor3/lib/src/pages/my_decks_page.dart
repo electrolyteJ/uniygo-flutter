@@ -17,7 +17,7 @@ class MyDecksPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final decksAsync = ref.watch(myDecksProvider);
+    final decksAsync = ref.watch(myDecksControllerProvider);
     return Scaffold(
       backgroundColor: Colors.transparent,
       floatingActionButton: Column(
@@ -68,7 +68,7 @@ class MyDecksPage extends ConsumerWidget {
   Future<void> _newDeck(BuildContext context, WidgetRef ref) async {
     final name = await _askText(context, '新建卡组', '卡组名');
     if (name == null || name.trim().isEmpty) return;
-    final editor = ref.read(deckEditorProvider.notifier);
+    final editor = ref.read(editorControllerProvider.notifier);
     editor.newDeck();
     editor.rename(name.trim());
     if (context.mounted) _openEditor(context);
@@ -107,7 +107,7 @@ class MyDecksPage extends ConsumerWidget {
     final name = await _askText(context, '导入为', '卡组名');
     if (name == null || name.trim().isEmpty) return;
     final deck = await ref
-        .read(myDecksProvider.notifier)
+        .read(myDecksControllerProvider.notifier)
         .importYdk(content, name.trim());
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -210,7 +210,7 @@ class _DeckListTile extends ConsumerWidget {
           ],
         ),
         onTap: () {
-          ref.read(deckEditorProvider.notifier).loadDeck(deck);
+          ref.read(editorControllerProvider.notifier).loadDeck(deck);
           MyDecksPage._openEditor(context);
         },
       ),
@@ -222,7 +222,7 @@ class _DeckListTile extends ConsumerWidget {
     WidgetRef ref,
     String action,
   ) async {
-    final decks = ref.read(myDecksProvider.notifier);
+    final decks = ref.read(myDecksControllerProvider.notifier);
     switch (action) {
       case 'rename':
         final name = await MyDecksPage._askText(

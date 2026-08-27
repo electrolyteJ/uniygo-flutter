@@ -1,10 +1,13 @@
 import 'package:biz/service_singleton.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:ygo_data/deck_info.dart';
 import 'package:ygo_data/ygo_data.dart' show IDeckService;
 
+part 'my_decks_controller.g.dart';
+
 /// 我的卡组（本地，ygo_deck_mycard）控制器。
-class MyDecksController extends Notifier<AsyncValue<List<DeckInfo>>> {
+@Riverpod(keepAlive: true)
+class MyDecksController extends _$MyDecksController {
   @override
   AsyncValue<List<DeckInfo>> build() {
     Future.microtask(refresh);
@@ -43,9 +46,6 @@ class MyDecksController extends Notifier<AsyncValue<List<DeckInfo>>> {
     return deck;
   }
 }
-
-final myDecksProvider = NotifierProvider<MyDecksController,
-    AsyncValue<List<DeckInfo>>>(MyDecksController.new);
 
 /// DeckInfo 复制助手（改名的拷贝）。
 extension DeckInfoCopy on DeckInfo {

@@ -4,7 +4,6 @@ import 'dart:math';
 
 import 'package:biz/service_providers.dart';
 import 'package:biz/ygo_data_service.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ygo_data/ygo_data.dart';
 import 'package:ygo_banlist_mycard/ygo_banlist_mycard.dart';
@@ -13,7 +12,9 @@ import 'package:biz/util/ygo_data_util.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
 
 import '../field/duel_field_state.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+part 'duel_room_state.g.dart';
 
 /// 卡组解析结果：主卡/额外/副卡的卡信息列表。
 typedef ResolvedDeck = ({
@@ -75,6 +76,7 @@ class DuelRoomState {
   final bool autoDuelEnabled;
 
   final List<DeckInfo> availableDecks;
+
   /// 卡组校验结果（null=未校验/不校验，空列表=通过）。
   final List<String>? invalidationDeckResult;
 
@@ -230,10 +232,6 @@ class DuelRoomState {
   }
 }
 
-final duelRoomProvider = NotifierProvider<DuelRoomNotifier, DuelRoomState>(
-  DuelRoomNotifier.new,
-);
-
 /// 房间级连接生命周期钩子：房间 ProviderScope 销毁时兜底断开 socket。
 ///
 /// 应用级单例 duelService 的连接不随房间页面回收，若不主动断开，
@@ -241,11 +239,12 @@ final duelRoomProvider = NotifierProvider<DuelRoomNotifier, DuelRoomState>(
 /// `ref.watch` 本 provider 使其创建，scope 销毁即触发 onDispose。
 /// [IDuelService.disconnect] 幂等，与 duel_room_exit.dart 中显式的
 /// disconnect 重复调用是安全的。
-final roomConnectionLifetimeProvider = Provider<void>((ref) {
+@Riverpod(keepAlive: true)
+void roomConnectionLifetime(Ref ref) {
   ref.onDispose(() {
     unawaited(ref.read(duelServiceProvider).disconnect());
   });
-});
+}
 
 /// 决斗房间控制器（Riverpod 版 DuelRoomStore）。
 ///
@@ -254,7 +253,11 @@ final roomConnectionLifetimeProvider = Provider<void>((ref) {
 ///   准备失败的提示通过 [toggleReady] 的返回值交给页面弹 SnackBar。
 /// - 流订阅从 `bind(context)` 改为 [start]（由页面在 connect 完成后调用），
 ///   取消逻辑收敛在 `ref.onDispose`。
-class DuelRoomNotifier extends Notifier<DuelRoomState> {
+///
+/// keepAlive: true 保持手写 NotifierProvider 语义；房间隔离由房间
+/// ProviderScope 的 overrideWith 提供。
+@Riverpod(keepAlive: true)
+class DuelRoomNotifier extends _$DuelRoomNotifier {
   static const _autoHandPrefKey = 'duel.auto_hand_enabled';
   static const _autoTurnOrderPrefKey = 'duel.auto_turn_order_enabled';
   static const _autoDuelPrefKey = 'duel.auto_duel_enabled';
@@ -557,7 +560,10 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
     final mainBytes = deckToBytes(mainCodes);
     final extraBytes = deckToBytes(extraCodes);
     final sideBytes = deckToBytes(sideCodes);
-    ref
+    // 一次性命令式调用（非订阅）：经 container.read 避免登记依赖。
+    // 若用 ref.read，room→field 依赖会与 field build() watch room 构成环，
+    // Riverpod 3.0 的循环依赖检测会抛 CircularDependencyError。
+    ref.container
         .read(duelFieldProvider.notifier)
         .setKnownSelfExtraDeckCodes(extraCodes);
     // match 模式下副卡组随首次提交一并上送，作为局间换备的卡池。
@@ -643,8 +649,7 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
         next is RoomStartDuel ||
         next is RoomInDuel;
     if (!isFollowUp) return false;
-    final remain =
-        handResultMinDisplay - DateTime.now().difference(shownAt);
+    final remain = handResultMinDisplay - DateTime.now().difference(shownAt);
     if (remain <= Duration.zero) return false;
     _heldAfterHandResult = next;
     _handResultHoldTimer ??= Timer(remain, () {
@@ -786,10 +791,7 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
     // 仅在仍处于换备阶段时写入。
     if (state.stage is! RoomSideDecking) return;
     if (comp == null) {
-      state = state.copyWith(
-        errorMessage: '换备数据初始化失败',
-        sidingInitFailed: true,
-      );
+      state = state.copyWith(errorMessage: '换备数据初始化失败', sidingInitFailed: true);
       return;
     }
     final baseline = (
@@ -939,7 +941,10 @@ class DuelRoomNotifier extends Notifier<DuelRoomState> {
     final mainCodes = siding.main.map((c) => c.code).toList();
     final extraCodes = siding.extra.map((c) => c.code).toList();
     final sideCodes = siding.side.map((c) => c.code).toList();
-    ref
+    // 一次性命令式调用（非订阅）：经 container.read 避免登记依赖。
+    // 若用 ref.read，room→field 依赖会与 field build() watch room 构成环，
+    // Riverpod 3.0 的循环依赖检测会抛 CircularDependencyError。
+    ref.container
         .read(duelFieldProvider.notifier)
         .setKnownSelfExtraDeckCodes(extraCodes);
     _duelService.submitDeck(

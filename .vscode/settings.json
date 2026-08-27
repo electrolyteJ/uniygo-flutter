@@ -1,0 +1,13 @@
+{
+  // 把代码生成文件嵌套折叠到源文件下，资源管理器不再被 .g.dart 刷屏
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    "*.dart": "${capture}.g.dart, ${capture}.freezed.dart"
+  },
+  // 生成文件已 gitignore，编辑器内无需特殊处理；
+  // 分析器照常读取磁盘上的 .g.dart（嵌套只影响显示，不影响编译）
+  "search.exclude": {
+    "**/*.g.dart": false
+  }
+}

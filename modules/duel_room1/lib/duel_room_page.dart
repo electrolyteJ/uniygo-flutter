@@ -41,23 +41,26 @@ class DuelRoomPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ProviderScope(
-      // parent 作用域在 Riverpod 3.0 已移除；当前锁定 2.6.1，升级时需要
-      // 改为单容器 + overrides 的方案重新实现「房间级隔离 + 服务级单例」。
-      // ignore: deprecated_member_use
-      parent: duelRoomServiceContainer,
-      overrides: [
-        duelRoomProvider.overrideWith(DuelRoomNotifier.new),
-        duelChatProvider.overrideWith(DuelChatNotifier.new),
-        // 四个子状态在房间 scope 内重建（不 override 会解析到 parent
-        // 容器变成跨房间单例）；协调器读取子状态并负责流订阅回收。
-        duelFieldProvider.overrideWith(DuelFieldNotifier.new),
-        selectWindowProvider.overrideWith(SelectWindowNotifier.new),
-        cardConfirmProvider.overrideWith(CardConfirmNotifier.new),
-        fieldOverlayProvider.overrideWith(FieldOverlayNotifier.new),
-        duelMessageRouterProvider.overrideWith(DuelMessageRouter.new),
-      ],
-      child: _DuelRoomView(args: args),
+    // Riverpod 3.0：ProviderScope.parent 已移除。改用
+    // UncontrolledProviderScope 把应用级容器暴露到 widget 树，内层
+    // ProviderScope 自动沿树向上链接它作为 parent——服务 provider
+    // 保持应用级单例，房间/对局状态仍在房间 scope 内重建。
+    return UncontrolledProviderScope(
+      container: duelRoomServiceContainer,
+      child: ProviderScope(
+        overrides: [
+          duelRoomProvider.overrideWith(DuelRoomNotifier.new),
+          duelChatProvider.overrideWith(DuelChatNotifier.new),
+          // 四个子状态在房间 scope 内重建（不 override 会解析到 parent
+          // 容器变成跨房间单例）；协调器读取子状态并负责流订阅回收。
+          duelFieldProvider.overrideWith(DuelFieldNotifier.new),
+          selectWindowProvider.overrideWith(SelectWindowNotifier.new),
+          cardConfirmProvider.overrideWith(CardConfirmNotifier.new),
+          fieldOverlayProvider.overrideWith(FieldOverlayNotifier.new),
+          duelMessageRouterProvider.overrideWith(DuelMessageRouter.new),
+        ],
+        child: _DuelRoomView(args: args),
+      ),
     );
   }
 }
@@ -200,7 +203,8 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
       fit: StackFit.expand,
       children: [
         DuelFieldPage(room.players, hudVisible: isInDuel),
-        if (stage is  RoomInLobby || stage is RoomSideDecking) const WaitingRoomPage(),
+        if (stage is RoomInLobby || stage is RoomSideDecking)
+          const WaitingRoomPage(),
         // 猜拳（含结果展示）：直接挂在页面层，不经等待室弹窗。
         // 面板包容内容、屏幕居中，不为右侧聊天浮窗让位。
         if (isSelectingHand || isHandResult)
@@ -225,9 +229,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
         // 挂载；遮罩（ModalBarrier，点遮罩不关闭）与「已关闭」状态收敛在
         // DuelResultPage 内部，父页只管按结果是否存在挂载。
         if (roundResult != null)
-          Positioned.fill(
-            child: DuelResultPage(result: roundResult),
-          ),
+          Positioned.fill(child: DuelResultPage(result: roundResult)),
         Positioned(
           right: kChatDockRight,
           bottom: kChatDockBottom,
@@ -306,5 +308,3 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     );
   }
 }
-
-

@@ -16,7 +16,10 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
-include: package:flutter_lints/flutter.yaml
+# 继承 workspace 根配置（flutter_lints + riverpod_lint 插件）。
+# plugins 段只能存在于 workspace 根部 options；成员包若不 include 根配置，
+# 根部的 plugins 不会对本包文件生效（就近 options 遮蔽）。
+include: ../../analysis_options.yaml
 
 linter:
   # The lint rules applied to this project can be customized in the

@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:biz/service_providers.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../room/duel_room_state.dart';
 import '../models/chat_message.dart';
+
+part 'duel_chat_state.g.dart';
 
 /// 聊天状态：消息列表（不可变替换）。
 @immutable
@@ -16,15 +18,15 @@ class DuelChatState {
   final List<ChatMessage> messages;
 }
 
-final duelChatProvider =
-    NotifierProvider<DuelChatNotifier, DuelChatState>(DuelChatNotifier.new);
-
 /// 对局/房间聊天控制器（Riverpod 版 DuelChatStore）。
 ///
 /// 发送者名字解析从页面闭包改为控制器内 `ref.read(duelRoomProvider)`，
 /// 不再依赖页面把 players 传进来。
-// @riverpod
-class DuelChatNotifier extends Notifier<DuelChatState> {
+///
+/// keepAlive: true 保持与手写 NotifierProvider 一致的常驻语义，
+/// 房间级隔离仍由房间 ProviderScope 的 overrideWith 提供。
+@Riverpod(keepAlive: true)
+class DuelChatNotifier extends _$DuelChatNotifier {
   StreamSubscription<YgoStocMsg>? _chatMsgSub;
 
   IDuelService get _duelService => ref.read(duelServiceProvider);

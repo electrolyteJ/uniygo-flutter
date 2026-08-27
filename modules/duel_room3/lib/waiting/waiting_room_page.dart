@@ -577,11 +577,18 @@ class _ControlBar extends ConsumerWidget {
   }
 
   void _showChat(BuildContext context) {
+    // showModalBottomSheet 把内容挂到根 Navigator 的 Overlay 上，
+    // 在房间级 ProviderScope（DuelRoomPage.build 内创建）之外，
+    // 弹层里的 Consumer 会找不到 ProviderScope。捕获房间容器并桥接。
+    final container = ProviderScope.containerOf(context);
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (ctx) => const _ChatSheet(),
+      builder: (ctx) => UncontrolledProviderScope(
+        container: container,
+        child: const _ChatSheet(),
+      ),
     );
   }
 }

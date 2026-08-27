@@ -4,12 +4,14 @@ import 'dart:developer' as console;
 import 'package:biz/service_providers.dart';
 import 'package:biz/ygo_sound_service.dart';
 import 'package:duelink/duelink.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'card_confirm_state.dart';
 import 'duel_field_state.dart';
 import 'field_overlay_state.dart';
 import 'select_window_state.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'duel_message_router.g.dart';
 
 /// 服务器消息路由器（按房间 ProviderScope 隔离）。
 ///
@@ -22,7 +24,11 @@ import 'select_window_state.dart';
 /// - 本 router 不持有任何 UI 状态，只做「流订阅 + 消息分发 + 音效」，
 ///   生命周期（取消订阅）交给 Riverpod 的 ref.onDispose；
 /// - 跨状态的本地交互与菜单派生逻辑已内联到 DuelFieldPage。
-class DuelMessageRouter extends Notifier<void> {
+///
+/// keepAlive: true 保持手写 NotifierProvider 语义；按房间 ProviderScope
+/// override 隔离。
+@Riverpod(keepAlive: true)
+class DuelMessageRouter extends _$DuelMessageRouter {
   StreamSubscription<YgoStocMsg>? _msgSub;
   StreamSubscription<DuelPhase>? _phaseSub;
   String? Function(DuelPhase phase)? _phaseLabel;
@@ -658,8 +664,3 @@ class DuelMessageRouter extends Notifier<void> {
     }
   }
 }
-
-/// 服务器消息路由器的 provider，按房间 ProviderScope override 隔离。
-final duelMessageRouterProvider = NotifierProvider<DuelMessageRouter, void>(
-  DuelMessageRouter.new,
-);

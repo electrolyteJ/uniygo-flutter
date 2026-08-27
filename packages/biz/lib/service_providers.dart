@@ -9,7 +9,7 @@ import 'package:duelink_ai_edo/duelink_puzzle.dart' show PuzzleDuelService;
 import 'package:duelink_socket/duelink_socket.dart' show SocketDuelService;
 import 'package:duelink_websocket/duelink_websocket.dart'
     show WebSocketDuelService;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:service_loader/service_loader.dart';
 import 'package:ygo_card_mycard/ygo_card_mycard.dart' show MyCardCardService;
 import 'package:ygo_data/ygo_data.dart' show IBanlistService;
@@ -17,6 +17,8 @@ import 'package:ygo_deck_mycard/ygo_deck_mycard.dart' show MycardDeckService;
 import 'package:ygo_strings_mycard/ygo_strings_mycard.dart';
 
 export 'ygo_settings.dart';
+
+part 'service_providers.g.dart';
 
 /// 应用级 provider override 注册表：宿主 app（uniygopro）在启动时调用
 /// [registerAppLevelOverrides] 注入跨包实现（如 duel_settings 的持久化设置
@@ -45,43 +47,45 @@ late final duelRoomServiceContainer = ProviderContainer(
   overrides: _appLevelOverrides,
 );
 
-final cardServiceProvider = Provider<MyCardCardService>(
-  (ref) => ServiceFactory.create<MyCardCardService>(),
-);
+// 全部 keepAlive: true：保持手写 Provider 的常驻语义，由
+// duelRoomServiceContainer 承担应用级单例生命周期。
+
+@Riverpod(keepAlive: true)
+MyCardCardService cardService(Ref ref) =>
+    ServiceFactory.create<MyCardCardService>();
 
 /// AI 对局服务：需要注入卡片查询函数才能解析服务器下发的卡码。
-final aiDuelServiceProvider = Provider<AiDuelService>((ref) {
+@Riverpod(keepAlive: true)
+AiDuelService aiDuelService(Ref ref) {
   final ai = ServiceFactory.create<AiDuelService>();
   ai.setCardConverter(ref.watch(cardServiceProvider).getCard);
   return ai;
-});
+}
 
 /// 按 URI scheme 路由到 ws/tcp/ai/puzzle 底层实现的对局服务门面。
-final duelServiceProvider = Provider<IDuelService>(
-  (ref) => DuelService(
-    wsDuelService: ServiceFactory.create<WebSocketDuelService>(),
-    socketDuelService: ServiceFactory.create<SocketDuelService>(),
-    aiDuelService: ref.watch(aiDuelServiceProvider),
-    puzzleDuelService: ServiceFactory.create<PuzzleDuelService>(),
-  ),
+@Riverpod(keepAlive: true)
+IDuelService duelService(Ref ref) => DuelService(
+  wsDuelService: ServiceFactory.create<WebSocketDuelService>(),
+  socketDuelService: ServiceFactory.create<SocketDuelService>(),
+  aiDuelService: ref.watch(aiDuelServiceProvider),
+  puzzleDuelService: ServiceFactory.create<PuzzleDuelService>(),
 );
 
-final dataServiceProvider = Provider<YgoDataService>(
-  (ref) => YgoDataService(
-    cardService: ref.watch(cardServiceProvider),
-    banlistService: ServiceFactory.create<IBanlistService>(),
-    deckService: ServiceFactory.create<MycardDeckService>(),
-  ),
+@Riverpod(keepAlive: true)
+YgoDataService dataService(Ref ref) => YgoDataService(
+  cardService: ref.watch(cardServiceProvider),
+  banlistService: ServiceFactory.create<IBanlistService>(),
+  deckService: ServiceFactory.create<MycardDeckService>(),
 );
 
-final ygoSoundServiceProvider = Provider<YgoSoundService>(
-  (ref) => YgoSoundService(),
-);
+@Riverpod(keepAlive: true)
+YgoSoundService ygoSoundService(Ref ref) => YgoSoundService();
 
 /// 引擎字符串表（strings.conf）：MSG_HINT 提示文案。应用级单例，
 /// 首次读取时后台抓取，未加载完成前 systemString 返回 null（降级为不显示文案）。
-final stringsServiceProvider = Provider<StringsService>((ref) {
+@Riverpod(keepAlive: true)
+StringsService stringsService(Ref ref) {
   final service = StringsService();
   unawaited(service.load());
   return service;
-});
+}

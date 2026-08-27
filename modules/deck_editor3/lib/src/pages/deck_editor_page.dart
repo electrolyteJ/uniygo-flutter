@@ -33,8 +33,8 @@ class _DeckEditor3PageState extends ConsumerState<DeckEditor3Page> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(deckEditorProvider);
-    final controller = ref.read(deckEditorProvider.notifier);
+    final state = ref.watch(editorControllerProvider);
+    final controller = ref.read(editorControllerProvider.notifier);
     return Scaffold(
       backgroundColor: const Color(0xFF0C1220),
       appBar: AppBar(

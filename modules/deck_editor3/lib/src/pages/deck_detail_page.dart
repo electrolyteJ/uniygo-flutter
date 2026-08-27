@@ -239,7 +239,7 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> {
         sideDeck: deck.sideDeck,
       );
       final ok = await ref
-          .read(myDecksProvider.notifier)
+          .read(myDecksControllerProvider.notifier)
           .copyToLocal(local, rename: deck.name);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

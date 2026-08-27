@@ -18,6 +18,7 @@ import 'package:biz/duel/field/duel_message_router.dart';
 import 'package:biz/duel/field/field_overlay_state.dart';
 import 'package:biz/duel/models/select_state.dart';
 import 'package:biz/duel/field/select_window_state.dart';
+
 // 条件导出分发器：Web 上解析到 ocgcore_web_debug_web.dart（真实探测），
 // 其他平台解析到 stub。此前直接 import stub，Web 上永远显示 'n/a'。
 
@@ -37,23 +38,26 @@ class DuelRoomPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ProviderScope(
-      // parent 作用域在 Riverpod 3.0 已移除；当前锁定 2.6.1，升级时需
-      // 改为单容器 + overrides 的方案重新实现「房间级隔离 + 服务级单例」。
-      // ignore: deprecated_member_use
-      parent: duelRoomServiceContainer,
-      overrides: [
-        duelRoomProvider.overrideWith(DuelRoomNotifier.new),
-        duelChatProvider.overrideWith(DuelChatNotifier.new),
-        // 四个子状态在房间 scope 内重建（不 override 会解析到 parent
-        // 容器变成跨房间单例）；协调器读取子状态并负责流订阅回收。
-        duelFieldProvider.overrideWith(DuelFieldNotifier.new),
-        selectWindowProvider.overrideWith(SelectWindowNotifier.new),
-        cardConfirmProvider.overrideWith(CardConfirmNotifier.new),
-        fieldOverlayProvider.overrideWith(FieldOverlayNotifier.new),
-        duelMessageRouterProvider.overrideWith(DuelMessageRouter.new),
-      ],
-      child: _DuelRoomView(args: args),
+    // Riverpod 3.0：ProviderScope.parent 已移除。改用
+    // UncontrolledProviderScope 把应用级容器暴露到 widget 树，内层
+    // ProviderScope 自动沿树向上链接它作为 parent——服务 provider
+    // 保持应用级单例，房间/对局状态仍在房间 scope 内重建。
+    return UncontrolledProviderScope(
+      container: duelRoomServiceContainer,
+      child: ProviderScope(
+        overrides: [
+          duelRoomProvider.overrideWith(DuelRoomNotifier.new),
+          duelChatProvider.overrideWith(DuelChatNotifier.new),
+          // 四个子状态在房间 scope 内重建（不 override 会解析到 parent
+          // 容器变成跨房间单例）；协调器读取子状态并负责流订阅回收。
+          duelFieldProvider.overrideWith(DuelFieldNotifier.new),
+          selectWindowProvider.overrideWith(SelectWindowNotifier.new),
+          cardConfirmProvider.overrideWith(CardConfirmNotifier.new),
+          fieldOverlayProvider.overrideWith(FieldOverlayNotifier.new),
+          duelMessageRouterProvider.overrideWith(DuelMessageRouter.new),
+        ],
+        child: _DuelRoomView(args: args),
+      ),
     );
   }
 }

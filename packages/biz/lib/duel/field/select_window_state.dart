@@ -5,7 +5,6 @@ import 'package:biz/card_image_loader.dart';
 import 'package:biz/service_providers.dart';
 import 'package:biz/ygo_data_service.dart';
 import 'package:duelink/duelink.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ygo_data/card_info.dart' as pkg;
 
 import 'duel_field_state.dart';
@@ -16,6 +15,9 @@ import '../models/idle_action.dart';
 import '../models/playmat_resolved_action.dart';
 import '../models/select_state.dart';
 import '../models/sum_check.dart' as sum_check;
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'select_window_state.g.dart';
 
 const Object _undefined = Object();
 
@@ -247,7 +249,11 @@ class SelectWindowState {
 
 /// 选择窗口的 Notifier：持有全部 MSG_SELECT_* / MSG_SORT_CARD /
 /// MSG_ANNOUNCE_CARD 的消息应用逻辑，以及 respond* 回包编码。
-class SelectWindowNotifier extends Notifier<SelectWindowState> {
+///
+/// keepAlive: true 保持手写 NotifierProvider 语义；按房间 ProviderScope
+/// override 隔离。
+@Riverpod(keepAlive: true)
+class SelectWindowNotifier extends _$SelectWindowNotifier {
   late YgoDataService _dataService;
   IDuelService? _duelService;
 
@@ -1525,12 +1531,6 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
     }
   }
 }
-
-/// 选择窗口状态的 provider，按房间 ProviderScope override 隔离。
-final selectWindowProvider =
-    NotifierProvider<SelectWindowNotifier, SelectWindowState>(
-      SelectWindowNotifier.new,
-    );
 
 /// MSG_ANNOUNCE_ATTRIB 的属性位掩码 → 可读标签（按位值升序）。
 const Map<int, String> _attributeLabels = {

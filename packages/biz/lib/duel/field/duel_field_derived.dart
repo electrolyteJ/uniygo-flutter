@@ -2,7 +2,6 @@ import 'dart:developer' as console;
 
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ygo_data/card_info.dart' as pkg;
 
 import 'duel_field_state.dart';
@@ -15,6 +14,9 @@ import '../models/field_card.dart';
 import '../models/idle_action.dart';
 import '../models/playmat_resolved_action.dart';
 import 'select_window_state.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'duel_field_derived.g.dart';
 
 /// 场地派生读取：把「当前窗口 + 选中态」派生为动作/菜单条目，供页面
 /// 以 Provider 形式响应式消费（替代原 DuelFieldController 里的纯读取方法）。
@@ -26,13 +28,12 @@ import 'select_window_state.dart';
 /// DuelFieldPage 内作为薄方法。
 ///
 /// ⚠️ 维护约定（两处易碎的隐式约束，改动时务必遵守）：
-/// 1. 每个 Provider 的 `dependencies:` 必须列出它所有 `ref.watch` 的对象
-///    （含中间派生 Provider，如 phaseActionsProvider / zoneBrowserEntriesProvider）。
-///    漏列不会在编译期报错，只会在运行时触发 Riverpod 的 scoped-dependency
-///    断言——有 derived_provider_scoping_test.dart 兜底。
+/// 1. Provider 的依赖关系由 riverpod_generator 从 `ref.watch` 调用自动推导，
+///    无需再手写 `dependencies:`；derived_provider_scoping_test.dart 继续兜底。
 /// 2. onTap 闭包通过 `ref.read(xxxProvider.notifier)` 捕获 Notifier 实例；
 ///    依赖「四个子状态 Provider 在房间 scope 内实例稳定」这一前提。
-///    若将来改成 autoDispose / family，闭包可能持有 stale notifier。
+///    全部 provider 保持 @Riverpod(keepAlive: true)（手写时代语义），
+///    不要改成默认的 autoDispose，否则闭包可能持有 stale notifier。
 
 // ──────────────────────────────────────────
 // 纯函数（不依赖外部服务，只读传入状态）
@@ -313,11 +314,11 @@ List<PlaymatResolvedAction> resolveFieldActions(
     final candidateDebug = !kDebugMode
         ? ''
         : select.selectedIdleActions
-            .map(
-              (action) =>
-                  '${action.type}:${action.sequence}:code=${action.code}:c=${action.controller}:z=${action.location}:s=${action.locationSequence}',
-            )
-            .join(', ');
+              .map(
+                (action) =>
+                    '${action.type}:${action.sequence}:code=${action.code}:c=${action.controller}:z=${action.location}:s=${action.locationSequence}',
+              )
+              .join(', ');
     if (kDebugMode) {
       console.log(
         'fieldActionsForCard: no match for code=${fieldCard.code} c=${fieldCard.controller} z=${fieldCard.zone} s=${fieldCard.sequence}; '
@@ -349,46 +350,46 @@ void _dispatchResolvedAction(
 // ──────────────────────────────────────────
 
 /// 当前窗口的阶段动作（进入战斗/结束回合/进 M2）。
-final phaseActionsProvider = Provider<List<PlaymatResolvedAction>>((ref) {
+@Riverpod(keepAlive: true)
+List<PlaymatResolvedAction> phaseActions(Ref ref) {
   final board = ref.watch(duelFieldProvider);
   final select = ref.watch(selectWindowProvider);
   return _resolvePhaseActions(select, board);
-}, dependencies: [duelFieldProvider, selectWindowProvider]);
+}
 
 /// 手牌选中卡的操作菜单条目。
-final handActionMenuProvider = Provider<List<ActionMenuEntry>>(
-  (ref) {
-    final board = ref.watch(duelFieldProvider);
-    final select = ref.watch(selectWindowProvider);
-    final overlay = ref.watch(fieldOverlayProvider);
-    final boardN = ref.read(duelFieldProvider.notifier);
-    final selectN = ref.read(selectWindowProvider.notifier);
-    final overlayN = ref.read(fieldOverlayProvider.notifier);
+@Riverpod(keepAlive: true)
+List<ActionMenuEntry> handActionMenu(Ref ref) {
+  final board = ref.watch(duelFieldProvider);
+  final select = ref.watch(selectWindowProvider);
+  final overlay = ref.watch(fieldOverlayProvider);
+  final boardN = ref.read(duelFieldProvider.notifier);
+  final selectN = ref.read(selectWindowProvider.notifier);
+  final overlayN = ref.read(fieldOverlayProvider.notifier);
 
-    final selectedSequence = overlay.selectedHandSequence;
-    if (selectedSequence == null ||
-        selectedSequence < 0 ||
-        selectedSequence >= board.selfHand.length) {
-      return const [];
-    }
-    final cardInfo = _cardInfoForHandSequence(selectedSequence, board, boardN);
-    return _handActionsForSequence(selectedSequence, select, board)
-        .map(
-          (action) => ActionMenuEntry(
-            label: _resolvedActionLabel(action, cardInfo),
-            onTap: () {
-              overlayN.clearHandSelectionAndClosePhaseMenu();
-              selectN.respondCurrentCommand(action.response);
-            },
-          ),
-        )
-        .toList();
-  },
-  dependencies: [duelFieldProvider, selectWindowProvider, fieldOverlayProvider],
-);
+  final selectedSequence = overlay.selectedHandSequence;
+  if (selectedSequence == null ||
+      selectedSequence < 0 ||
+      selectedSequence >= board.selfHand.length) {
+    return const [];
+  }
+  final cardInfo = _cardInfoForHandSequence(selectedSequence, board, boardN);
+  return _handActionsForSequence(selectedSequence, select, board)
+      .map(
+        (action) => ActionMenuEntry(
+          label: _resolvedActionLabel(action, cardInfo),
+          onTap: () {
+            overlayN.clearHandSelectionAndClosePhaseMenu();
+            selectN.respondCurrentCommand(action.response);
+          },
+        ),
+      )
+      .toList();
+}
 
 /// 阶段菜单条目（阶段灯点击后的弹层内容）。
-final phaseActionMenuProvider = Provider<List<ActionMenuEntry>>((ref) {
+@Riverpod(keepAlive: true)
+List<ActionMenuEntry> phaseActionMenu(Ref ref) {
   final selectN = ref.read(selectWindowProvider.notifier);
   final overlayN = ref.read(fieldOverlayProvider.notifier);
   return ref
@@ -403,155 +404,143 @@ final phaseActionMenuProvider = Provider<List<ActionMenuEntry>>((ref) {
         ),
       )
       .toList(growable: false);
-}, dependencies: [phaseActionsProvider]);
+}
 
 /// 场上选中卡的操作菜单条目。
-final fieldActionMenuProvider = Provider<List<ActionMenuEntry>>(
-  (ref) {
-    final board = ref.watch(duelFieldProvider);
-    final select = ref.watch(selectWindowProvider);
-    final overlay = ref.watch(fieldOverlayProvider);
-    final boardN = ref.read(duelFieldProvider.notifier);
-    final selectN = ref.read(selectWindowProvider.notifier);
-    final overlayN = ref.read(fieldOverlayProvider.notifier);
+@Riverpod(keepAlive: true)
+List<ActionMenuEntry> fieldActionMenu(Ref ref) {
+  final board = ref.watch(duelFieldProvider);
+  final select = ref.watch(selectWindowProvider);
+  final overlay = ref.watch(fieldOverlayProvider);
+  final boardN = ref.read(duelFieldProvider.notifier);
+  final selectN = ref.read(selectWindowProvider.notifier);
+  final overlayN = ref.read(fieldOverlayProvider.notifier);
 
-    final fieldCard = overlay.selectedFieldCard;
-    if (fieldCard == null) {
-      return const [];
-    }
-    final cardInfo = boardN.getCardInfo(fieldCard.code);
-    if (kDebugMode) {
-      console.log(
-        'buildFieldActionEntries: code=${fieldCard.code} '
-        'cardInfo=${cardInfo?.name ?? cardInfo}',
-      );
-    }
-    return resolveFieldActions(fieldCard, select, board)
-        .map(
-          (action) => ActionMenuEntry(
-            label: _resolvedActionLabel(action, cardInfo),
-            onTap: () => _dispatchResolvedAction(
-              action,
-              selectN: selectN,
-              overlayN: overlayN,
-            ),
+  final fieldCard = overlay.selectedFieldCard;
+  if (fieldCard == null) {
+    return const [];
+  }
+  final cardInfo = boardN.getCardInfo(fieldCard.code);
+  if (kDebugMode) {
+    console.log(
+      'buildFieldActionEntries: code=${fieldCard.code} '
+      'cardInfo=${cardInfo?.name ?? cardInfo}',
+    );
+  }
+  return resolveFieldActions(fieldCard, select, board)
+      .map(
+        (action) => ActionMenuEntry(
+          label: _resolvedActionLabel(action, cardInfo),
+          onTap: () => _dispatchResolvedAction(
+            action,
+            selectN: selectN,
+            overlayN: overlayN,
           ),
-        )
-        .toList(growable: false);
-  },
-  dependencies: [duelFieldProvider, selectWindowProvider, fieldOverlayProvider],
-);
+        ),
+      )
+      .toList(growable: false);
+}
 
 /// 区域浏览器（墓地/除外/额外）内展示的卡列表。
-final zoneBrowserEntriesProvider =
-    Provider.family<List<ZoneBrowserCardEntry>, String>((ref, zoneKey) {
-      final board = ref.watch(duelFieldProvider);
-      final select = ref.watch(selectWindowProvider);
+@Riverpod(keepAlive: true)
+List<ZoneBrowserCardEntry> zoneBrowserEntries(Ref ref, String zoneKey) {
+  final board = ref.watch(duelFieldProvider);
+  final select = ref.watch(selectWindowProvider);
 
-      final sequenceToCode = <int, int>{};
-      final codes = board.getZoneCodes(zoneKey);
-      for (var sequence = 0; sequence < codes.length; sequence++) {
-        final code = codes[sequence];
-        if (code > 0) {
-          sequenceToCode[sequence] = code;
-        }
+  final sequenceToCode = <int, int>{};
+  final codes = board.getZoneCodes(zoneKey);
+  for (var sequence = 0; sequence < codes.length; sequence++) {
+    final code = codes[sequence];
+    if (code > 0) {
+      sequenceToCode[sequence] = code;
+    }
+  }
+
+  final controller = _controllerForZoneKey(zoneKey, board.myController);
+  final location = _locationForZoneKey(zoneKey);
+  // 仅在当前确实持有 idle 响应窗口时，才把可发动卡合并进列表；
+  // 否则 selectedIdleActions 是上一次窗口的残留，会注入已离开区域的幽灵卡。
+  if (controller != null &&
+      location != null &&
+      select.hasIdleCommandWindow &&
+      select.ownsCurrentWindow(board.myController)) {
+    for (final action in select.selectedIdleActions) {
+      if (action.controller != controller ||
+          action.location != location ||
+          action.code <= 0) {
+        continue;
       }
+      sequenceToCode[action.locationSequence] = action.code;
+    }
+  }
 
-      final controller = _controllerForZoneKey(zoneKey, board.myController);
-      final location = _locationForZoneKey(zoneKey);
-      // 仅在当前确实持有 idle 响应窗口时，才把可发动卡合并进列表；
-      // 否则 selectedIdleActions 是上一次窗口的残留，会注入已离开区域的幽灵卡。
-      if (controller != null &&
-          location != null &&
-          select.hasIdleCommandWindow &&
-          select.ownsCurrentWindow(board.myController)) {
-        for (final action in select.selectedIdleActions) {
-          if (action.controller != controller ||
-              action.location != location ||
-              action.code <= 0) {
-            continue;
-          }
-          sequenceToCode[action.locationSequence] = action.code;
-        }
-      }
-
-      final sequences = sequenceToCode.keys.toList()..sort();
-      return [
-        for (final sequence in sequences)
-          ZoneBrowserCardEntry(
-            sequence: sequence,
-            code: sequenceToCode[sequence]!,
-          ),
-      ];
-    }, dependencies: [duelFieldProvider, selectWindowProvider]);
+  final sequences = sequenceToCode.keys.toList()..sort();
+  return [
+    for (final sequence in sequences)
+      ZoneBrowserCardEntry(sequence: sequence, code: sequenceToCode[sequence]!),
+  ];
+}
 
 /// 区域浏览器内选中卡的操作菜单条目。
-final zoneBrowserActionsProvider =
-    Provider.family<List<ActionMenuEntry>, String>(
-      (ref, zoneKey) {
-        final board = ref.watch(duelFieldProvider);
-        final select = ref.watch(selectWindowProvider);
-        final overlay = ref.watch(fieldOverlayProvider);
-        final boardN = ref.read(duelFieldProvider.notifier);
-        final selectN = ref.read(selectWindowProvider.notifier);
-        final overlayN = ref.read(fieldOverlayProvider.notifier);
+@Riverpod(keepAlive: true)
+List<ActionMenuEntry> zoneBrowserActions(Ref ref, String zoneKey) {
+  final board = ref.watch(duelFieldProvider);
+  final select = ref.watch(selectWindowProvider);
+  final overlay = ref.watch(fieldOverlayProvider);
+  final boardN = ref.read(duelFieldProvider.notifier);
+  final selectN = ref.read(selectWindowProvider.notifier);
+  final overlayN = ref.read(fieldOverlayProvider.notifier);
 
-        final entries = ref.watch(zoneBrowserEntriesProvider(zoneKey));
-        final selectedSequence = overlay.selectedZoneBrowserSequence;
-        if (selectedSequence == null) {
-          return const [];
-        }
+  final entries = ref.watch(zoneBrowserEntriesProvider(zoneKey));
+  final selectedSequence = overlay.selectedZoneBrowserSequence;
+  if (selectedSequence == null) {
+    return const [];
+  }
 
-        ZoneBrowserCardEntry? selectedEntry;
-        for (final entry in entries) {
-          if (entry.sequence == selectedSequence) {
-            selectedEntry = entry;
-            break;
-          }
-        }
-        final entry = selectedEntry;
-        if (entry == null || entry.code <= 0) {
-          return const [];
-        }
+  ZoneBrowserCardEntry? selectedEntry;
+  for (final entry in entries) {
+    if (entry.sequence == selectedSequence) {
+      selectedEntry = entry;
+      break;
+    }
+  }
+  final entry = selectedEntry;
+  if (entry == null || entry.code <= 0) {
+    return const [];
+  }
 
-        final location = _locationForZoneKey(zoneKey);
-        final controller = _controllerForZoneKey(zoneKey, board.myController);
-        if (location == null || controller == null) {
-          return const [];
-        }
+  final location = _locationForZoneKey(zoneKey);
+  final controller = _controllerForZoneKey(zoneKey, board.myController);
+  if (location == null || controller == null) {
+    return const [];
+  }
 
-        return _resolveZoneActions(
-              controller,
-              location,
-              entry.code,
-              selectedSequence,
-              select,
-              board,
-            )
-            .map((action) {
-              final cardInfo = boardN.getCardInfo(entry.code);
-              return ActionMenuEntry(
-                label: _resolvedActionLabel(action, cardInfo),
-                onTap: () => _dispatchResolvedAction(
-                  action,
-                  selectN: selectN,
-                  overlayN: overlayN,
-                  closeZoneBrowser: true,
-                ),
-              );
-            })
-            .toList(growable: false);
-      },
-      dependencies: [
-        duelFieldProvider,
-        selectWindowProvider,
-        fieldOverlayProvider,
-        zoneBrowserEntriesProvider,
-      ],
-    );
+  return _resolveZoneActions(
+        controller,
+        location,
+        entry.code,
+        selectedSequence,
+        select,
+        board,
+      )
+      .map((action) {
+        final cardInfo = boardN.getCardInfo(entry.code);
+        return ActionMenuEntry(
+          label: _resolvedActionLabel(action, cardInfo),
+          onTap: () => _dispatchResolvedAction(
+            action,
+            selectN: selectN,
+            overlayN: overlayN,
+            closeZoneBrowser: true,
+          ),
+        );
+      })
+      .toList(growable: false);
+}
 
 /// 区域浏览器的「隐藏数量」展示值。
-final zoneHiddenCountProvider = Provider.family<int, String>((ref, zoneKey) {
+@Riverpod(keepAlive: true)
+int zoneHiddenCount(Ref ref, String zoneKey) {
   final board = ref.watch(duelFieldProvider);
   switch (zoneKey) {
     case 'self_grave':
@@ -569,10 +558,11 @@ final zoneHiddenCountProvider = Provider.family<int, String>((ref, zoneKey) {
     default:
       return 0;
   }
-}, dependencies: [duelFieldProvider]);
+}
 
 /// 出现更高优先级选择窗口（非阶段指令）时，本地弹层是否应当让位。
-final needsHigherPriorityDismissProvider = Provider<bool>((ref) {
+@Riverpod(keepAlive: true)
+bool needsHigherPriorityDismiss(Ref ref) {
   final select = ref.watch(selectWindowProvider);
   final overlay = ref.watch(fieldOverlayProvider);
   final hasHigherPriorityOverlay =
@@ -581,7 +571,7 @@ final needsHigherPriorityDismissProvider = Provider<bool>((ref) {
     return false;
   }
   return overlay.hasAnyOverlayOpen;
-}, dependencies: [selectWindowProvider, fieldOverlayProvider]);
+}
 
 /// 当前窗口下，墓地/除外/额外中「有可发动/可召唤卡」的区域 key 集合，
 /// 用于场地上的可发动区域高亮提醒（智能打牌反馈：墓效/额外召唤提示）。
@@ -589,7 +579,8 @@ final needsHigherPriorityDismissProvider = Provider<bool>((ref) {
 /// 仅覆盖主阶段 idle 指令窗口：战斗指令窗口（MSG_SELECT_BATTLE_CMD）的
 /// action 是攻击，attacker 均在场上，不涉及墓地/除外/额外发动；
 /// 战斗中的快速效果走 MSG_SELECT_CHAIN，属另一套交互，不在此处理。
-final activatableZoneKeysProvider = Provider<Set<String>>((ref) {
+@Riverpod(keepAlive: true)
+Set<String> activatableZoneKeys(Ref ref) {
   final board = ref.watch(duelFieldProvider);
   final select = ref.watch(selectWindowProvider);
   if (!select.hasIdleCommandWindow ||
@@ -604,7 +595,7 @@ final activatableZoneKeysProvider = Provider<Set<String>>((ref) {
     result.add('${owner}_$prefix');
   }
   return result;
-}, dependencies: [duelFieldProvider, selectWindowProvider]);
+}
 
 // ── 页面细粒度订阅切片（duel_room1 DuelFieldPage 用） ──────────────
 //
@@ -672,10 +663,8 @@ List<String> selectLogSlice(DuelFieldState s) => s.duelLogs;
 
 /// 选择提示呈现方式（跨 selectWindow+duelField 派生）。
 /// 页面按区域订阅本 provider，替代整页 watch 后的 notifier 读取。
-final selectPromptModeProvider = Provider<SelectPromptMode>(
-  (ref) => resolveSelectPromptMode(
-    ref.watch(selectWindowProvider),
-    ref.watch(duelFieldProvider),
-  ),
-  dependencies: [selectWindowProvider, duelFieldProvider],
+@Riverpod(keepAlive: true)
+SelectPromptMode selectPromptMode(Ref ref) => resolveSelectPromptMode(
+  ref.watch(selectWindowProvider),
+  ref.watch(duelFieldProvider),
 );

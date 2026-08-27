@@ -1,10 +1,12 @@
 import 'package:biz/service_singleton.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:biz/ygo_data_service.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:ygo_data/card_info.dart';
 import 'package:ygo_data/deck_info.dart';
 
 import 'editor_rules.dart';
+
+part 'editor_controller.g.dart';
 
 /// 编辑器状态：卡组内容 + 校验信息 + 卡池搜索结果。
 class EditorState {
@@ -51,7 +53,8 @@ class EditorState {
 }
 
 /// 组卡编辑器控制器。
-class EditorController extends Notifier<EditorState> {
+@Riverpod(keepAlive: true)
+class EditorController extends _$EditorController {
   @override
   EditorState build() => EditorState(deck: DeckEditState());
 
@@ -155,6 +158,3 @@ class EditorController extends Notifier<EditorState> {
     );
   }
 }
-
-final deckEditorProvider =
-    NotifierProvider<EditorController, EditorState>(EditorController.new);

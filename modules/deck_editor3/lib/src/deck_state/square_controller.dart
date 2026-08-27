@@ -1,6 +1,8 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:ygo_data/deck_info.dart' show DeckSummary;
 import 'package:ygo_deck_mdpro3/services/deck_api_client.dart';
+
+part 'square_controller.g.dart';
 
 /// 卡组市场排序方式。
 enum SquareSort { latest, like, rank }
@@ -51,7 +53,8 @@ class SquareState {
 }
 
 /// 卡组市场控制器：MDPro3 卡组广场（分页/搜索/排序）。
-class SquareController extends Notifier<SquareState> {
+@Riverpod(keepAlive: true)
+class SquareController extends _$SquareController {
   final DeckApiClient _api = DeckApiClient();
 
   @override
@@ -97,6 +100,3 @@ class SquareController extends Notifier<SquareState> {
     }
   }
 }
-
-final deckSquareProvider =
-    NotifierProvider<SquareController, SquareState>(SquareController.new);

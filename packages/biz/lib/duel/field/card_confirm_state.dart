@@ -1,8 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/confirm_panel.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'card_confirm_state.g.dart';
 
 const Object _undefined = Object();
 
@@ -86,7 +88,11 @@ class CardConfirmState {
 }
 
 /// 卡片确认的 Notifier：持有确认呈现逻辑与自动消退计时器。
-class CardConfirmNotifier extends Notifier<CardConfirmState> {
+///
+/// keepAlive: true 保持手写 NotifierProvider 语义；按房间 ProviderScope
+/// override 隔离。
+@Riverpod(keepAlive: true)
+class CardConfirmNotifier extends _$CardConfirmNotifier {
   Timer? _confirmTimer;
 
   @override
@@ -197,9 +203,3 @@ class CardConfirmNotifier extends Notifier<CardConfirmState> {
     );
   }
 }
-
-/// 卡片确认状态的 provider，按房间 ProviderScope override 隔离。
-final cardConfirmProvider =
-    NotifierProvider<CardConfirmNotifier, CardConfirmState>(
-      CardConfirmNotifier.new,
-    );

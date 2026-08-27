@@ -17,6 +17,9 @@ import '../models/field_zone_key.dart';
 // 注：与本文件存在双向 import（duel_room_state 也引用 duelFieldProvider）；
 // Dart 允许 import 环，且两侧都只在运行期惰性读取对方的 provider。
 import '../room/duel_room_state.dart' show duelRoomProvider;
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'duel_field_state.g.dart';
 
 const Object _undefined = Object();
 
@@ -418,7 +421,9 @@ class DuelFieldState {
     return copyWith(
       deckShufflePlayer: player,
       deckShuffleTick: deckShuffleTick + 1,
-      selfDeckShuffleTick: isSelf ? selfDeckShuffleTick + 1 : selfDeckShuffleTick,
+      selfDeckShuffleTick: isSelf
+          ? selfDeckShuffleTick + 1
+          : selfDeckShuffleTick,
       oppDeckShuffleTick: isSelf ? oppDeckShuffleTick : oppDeckShuffleTick + 1,
     );
   }
@@ -557,7 +562,11 @@ class DuelFieldState {
 }
 
 /// 对局事实（战场）的 Notifier：持有全部 MSG_* 战场消息应用逻辑。
-class DuelFieldNotifier extends Notifier<DuelFieldState> {
+///
+/// keepAlive: true 保持手写 NotifierProvider 语义；按房间 ProviderScope
+/// override 隔离。
+@Riverpod(keepAlive: true)
+class DuelFieldNotifier extends _$DuelFieldNotifier {
   late YgoDataService _dataService;
   Timer? _timeLimitTimer;
   Timer? _battlePresentationTimer;
@@ -2073,8 +2082,3 @@ class DuelFieldNotifier extends Notifier<DuelFieldState> {
     if (phaseName?.isNotEmpty == true) addLog('$phaseName 开始。');
   }
 }
-
-/// 对局事实状态（战场）的 provider，按房间 ProviderScope override 隔离。
-final duelFieldProvider = NotifierProvider<DuelFieldNotifier, DuelFieldState>(
-  DuelFieldNotifier.new,
-);

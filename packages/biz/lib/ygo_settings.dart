@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'ygo_settings.g.dart';
 
 /// 决斗相关的全局设置项（跨对局持久化）。
 ///
@@ -58,7 +60,10 @@ class YgoSettings {
 /// 设置状态的 Notifier 基类：默认纯内存、无持久化。
 /// 宿主 app 通过 [ygoSettingsProvider.overrideWith] 注入带
 /// SharedPreferences 持久化的实现（见 modules/ygo_settings）。
-class YgoSettingsNotifier extends Notifier<YgoSettings> {
+///
+/// keepAlive: true 保持手写 NotifierProvider 语义（全局设置常驻）。
+@Riverpod(keepAlive: true)
+class YgoSettingsNotifier extends _$YgoSettingsNotifier {
   @override
   YgoSettings build() => YgoSettings.defaults;
 
@@ -72,16 +77,10 @@ class YgoSettingsNotifier extends Notifier<YgoSettings> {
       state = state.copyWith(autoSpellTrapPosition: value);
 }
 
-/// 全局决斗设置。默认无持久化实现（内存默认值），宿主 app 可 override。
-final ygoSettingsProvider =
-    NotifierProvider<YgoSettingsNotifier, YgoSettings>(
-      YgoSettingsNotifier.new,
-    );
-
 /// 打开全局设置弹窗的函数指针。默认 null（对局包不感知设置 UI 的具体实现），
 /// 由宿主 app 注入 apps/duel_settings 的弹窗。
 typedef ShowYgoSettingsDialog = void Function(BuildContext context);
 
-final showYgoSettingsDialogProvider = Provider<ShowYgoSettingsDialog?>(
-  (ref) => null,
-);
+/// 打开全局设置弹窗的函数指针 provider。默认 null，由宿主 app override 注入。
+@Riverpod(keepAlive: true)
+ShowYgoSettingsDialog? showYgoSettingsDialog(Ref ref) => null;

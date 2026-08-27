@@ -14,7 +14,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   intl: any
-  flutter_riverpod: ^2.6.1
+  flutter_riverpod: ^3.4.2
   shared_preferences: ^2.5.3
   go_router: ^14.0.0
   flutter_portal: ^1.1.4
@@ -24,13 +24,14 @@ dependencies:
     path: ../../packages/duelink
   ygo_data:
     path: ../../packages/ygo_data
-  ygo_banlist_mycard:
-    path: ../../packages/ygo_banlist_mycard
+  riverpod_annotation: ^4.0.6
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  build_runner: ^2.15.1
+  riverpod_generator: ^4.0.8
 
 flutter:
   uses-material-design: true

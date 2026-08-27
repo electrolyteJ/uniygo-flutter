@@ -34,14 +34,18 @@ dependencies:
     path: ../ygo_strings_mycard
   ygo_deck_mycard:
     path: ../ygo_deck_mycard
-  flutter_riverpod: ^2.6.1
+  flutter_riverpod: ^3.4.2
   shared_preferences: ^2.5.3
   cached_network_image: ^3.4.1
   flutter_cache_manager: ^3.4.2
+  audioplayers: ^6.8.1
+  riverpod_annotation: ^4.0.6
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  build_runner: ^2.15.1
+  riverpod_generator: ^4.0.8
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

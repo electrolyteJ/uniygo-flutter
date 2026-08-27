@@ -1,7 +1,9 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ygo_data/card_info.dart' as pkg;
 
 import '../models/field_card.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'field_overlay_state.g.dart';
 
 const Object _undefined = Object();
 
@@ -89,7 +91,11 @@ class FieldOverlayState {
 }
 
 /// 场地浮层的 Notifier：持有全部本地交互（点选/检视/开关浮层）逻辑。
-class FieldOverlayNotifier extends Notifier<FieldOverlayState> {
+///
+/// keepAlive: true 保持手写 NotifierProvider 语义；按房间 ProviderScope
+/// override 隔离。
+@Riverpod(keepAlive: true)
+class FieldOverlayNotifier extends _$FieldOverlayNotifier {
   @override
   FieldOverlayState build() => const FieldOverlayState();
 
@@ -249,9 +255,3 @@ class FieldOverlayNotifier extends Notifier<FieldOverlayState> {
     );
   }
 }
-
-/// 场地浮层状态的 provider，按房间 ProviderScope override 隔离。
-final fieldOverlayProvider =
-    NotifierProvider<FieldOverlayNotifier, FieldOverlayState>(
-      FieldOverlayNotifier.new,
-    );

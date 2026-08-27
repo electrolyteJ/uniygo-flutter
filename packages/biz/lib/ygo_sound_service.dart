@@ -1,3 +1,5 @@
+import 'dart:developer' as console;
+
 import 'package:audioplayers/audioplayers.dart';
 
 class YgoSoundService {
@@ -7,35 +9,42 @@ class YgoSoundService {
   /// 全局静音开关（供集成/单元测试禁用音频）。
   ///
   /// 置 false 后所有 play* 方法直接返回，不再创建 [AudioPlayer]，
-  /// 从而避免 audioplayers 的 `FramePositionUpdater` 在测试 teardown
+  /// 从而避免 audioplayers 的 FramePositionUpdater 在测试 teardown
   /// 时留下 transient callbacks（「An animation is still running even
   /// after the widget tree was disposed」）。
   static bool enabled = true;
 
   final _pool = <String, AudioPlayer>{};
 
+  /// 每个音效固定复用同一个 [AudioPlayer]。
+  ///
+  /// 旧实现只在播放器处于 stopped 时复用，播放中触发同名音效就新建并
+  /// 覆盖池条目——被顶掉的旧播放器永不 dispose，原生 MediaPlayer
+  /// 实例持续泄漏；一局对局几十次音效后原生实例耗尽，新播放器创建
+  /// 失败/无声，表现为「音效时有时无」。
   AudioPlayer _acquire(String key) {
-    final existing = _pool[key];
-    if (existing != null && existing.state == PlayerState.stopped) {
-      return existing;
+    return _pool.putIfAbsent(
+      key,
+      () => AudioPlayer()..setReleaseMode(ReleaseMode.stop),
+    );
+  }
+
+  Future<void> _play(String assetName) => _playAt(_uiBasePath, assetName);
+
+  Future<void> _playDuel(String assetName) => _playAt(_duelBasePath, assetName);
+
+  Future<void> _playAt(String basePath, String assetName) async {
+    if (!enabled) return;
+    final player = _acquire(assetName);
+    try {
+      // 同一音效连续触发：停掉旧播放重新播放（重启语义，不叠加声道）。
+      await player.stop();
+      await player.play(AssetSource('$basePath$assetName'));
+    } catch (e) {
+      // 资源缺失/平台解码失败/音频焦点丢失：记录日志而不是静默无声
+      // （调用方全部 unawaited，异常会顶成未处理异步错误）。
+      console.log('Sound play failed: $assetName: $e');
     }
-    final player = AudioPlayer()..setReleaseMode(ReleaseMode.stop);
-    _pool[key] = player;
-    return player;
-  }
-
-  Future<void> _play(String assetName) async {
-    if (!enabled) return;
-    final player = _acquire(assetName);
-    await player.stop();
-    await player.play(AssetSource('$_uiBasePath$assetName'));
-  }
-
-  Future<void> _playDuel(String assetName) async {
-    if (!enabled) return;
-    final player = _acquire(assetName);
-    await player.stop();
-    await player.play(AssetSource('$_duelBasePath$assetName'));
   }
 
   Future<void> playButtonTap() => _play('button_tap.wav');

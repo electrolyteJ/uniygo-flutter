@@ -12,8 +12,8 @@ class DeckSquarePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(deckSquareProvider);
-    final controller = ref.read(deckSquareProvider.notifier);
+    final state = ref.watch(squareControllerProvider);
+    final controller = ref.read(squareControllerProvider.notifier);
     return Column(
       children: [
         // 搜索 + 排序工具条
@@ -89,7 +89,7 @@ class _DeckList extends ConsumerWidget {
                 style: const TextStyle(color: Colors.white70)),
             TextButton(
               onPressed: () =>
-                  ref.read(deckSquareProvider.notifier).refresh(),
+                  ref.read(squareControllerProvider.notifier).refresh(),
               child: const Text('重试'),
             ),
           ],
@@ -108,7 +108,7 @@ class _DeckList extends ConsumerWidget {
       onNotification: (notification) {
         if (notification.metrics.pixels >=
             notification.metrics.maxScrollExtent - 200) {
-          ref.read(deckSquareProvider.notifier).loadMore();
+          ref.read(squareControllerProvider.notifier).loadMore();
         }
         return false;
       },
