@@ -219,6 +219,14 @@ class SelectWindowState {
     switch (select.type) {
       case SelectType.chain:
         return '选择要发动连锁的卡';
+      case SelectType.place:
+        // 放置选择（MSG_SELECT_PLACE/DISFIELD）：可选槽位已高亮在场地。
+        // 注意：duel_room1/2 的 SelectPromptLayer 对 place 模式自带文案，
+        // 此分支主要服务 duel_room3 的通用横幅（DuelSelectOverlay 对所有
+        // 窗口类型都展示 inlineSelectHint）。
+        return select.options.length <= 1
+            ? '请选择放置区域'
+            : '请选择放置区域（可选 ${select.options.length} 处）';
       case SelectType.tribute:
         return select.max == 1 ? '请选择解放的怪兽' : '选择解放的怪兽 ($count/${select.max})';
       case SelectType.unselect:
