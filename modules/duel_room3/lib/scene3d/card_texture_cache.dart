@@ -12,19 +12,31 @@ class CardTextureCache {
   CardTextureCache._();
   static final CardTextureCache instance = CardTextureCache._();
 
+  /// 纹理上限（LRU）：跨场对局累积的 GPU 纹理不再单调增长。
+  /// LinkedHashMap 保持插入序；命中时重插到末尾，淘汰最久未用条目
+  /// （ImageTexture 无 dispose API，释放引用交给 GC/GPU 回收）。
+  static const int _maxEntries = 128;
+
   final Map<int, ImageTexture> _textures = {};
 
   /// 加载中的卡号 → 等待回调队列（同卡多立牌都要拿到纹理）。
   final Map<int, List<void Function(ImageTexture texture)>> _pending = {};
   ImageTexture? _cardBack;
 
-  /// 已缓存的纹理（未加载返回 null）。
-  ImageTexture? getCached(int code) => _textures[code];
+  /// 已缓存的纹理（未加载返回 null）。命中重插末尾（LRU）。
+  ImageTexture? getCached(int code) {
+    final texture = _textures.remove(code);
+    if (texture != null) _textures[code] = texture;
+    return texture;
+  }
+
+  /// 当前缓存条数（测试用）。
+  int get cachedCount => _textures.length;
 
   /// 确保纹理加载（已缓存则同步回调，否则异步加载后回调）。
   /// ImageTexture.create 本身是异步的（ui.Image → ByteData），统一走回调。
   void ensure(int code, void Function(ImageTexture texture) onReady) {
-    final cached = _textures[code];
+    final cached = getCached(code);
     if (cached != null) {
       onReady(cached);
       return;
@@ -43,6 +55,10 @@ class CardTextureCache {
       final callbacks = _pending.remove(code) ?? const [];
       if (image == null) return;
       final texture = _textures[code] ??= await ImageTexture.create(image);
+      // LRU 淘汰最久未用条目。
+      while (_textures.length > _maxEntries) {
+        _textures.remove(_textures.keys.first);
+      }
       for (final cb in callbacks) {
         cb(texture);
       }

@@ -110,6 +110,8 @@ class TweenEngine3D {
   bool get isIdle => _vectorTweens.isEmpty && _scalarTweens.isEmpty;
 
   void tick(double dt) {
+    // 双列表皆空时直接返回，避免每帧两份 List.of() 空快照分配。
+    if (isIdle) return;
     // onComplete 回调可能新增补间（如攻击前扑的返回段），先推进快照、
     // 再统一移除已完成的，避免遍历中修改列表。
     for (final tween in List<Vector3Tween>.of(_vectorTweens)) {

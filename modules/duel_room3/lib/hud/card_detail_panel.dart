@@ -67,10 +67,8 @@ class CardDetailPanel extends StatelessWidget {
             // 显示 ATK 0/DEF 0）；连接怪兽无守备力；负值（? 怪）显示 ?。
             if (info!.isMonster)
               Text(
-                'ATK ${info!.attack < 0 ? '?' : info!.attack}' +
-                    (info!.isLink
-                        ? ''
-                        : ' / DEF ${info!.defense < 0 ? '?' : info!.defense}'),
+                'ATK ${info!.attack < 0 ? '?' : info!.attack}'
+                    '${info!.isLink ? '' : ' / DEF ${info!.defense < 0 ? '?' : info!.defense}'}',
                 style: HudTheme.body.copyWith(color: HudTheme.gold),
               ),
             const SizedBox(height: 6),
