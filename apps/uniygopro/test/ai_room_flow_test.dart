@@ -152,7 +152,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 100));
     expect(
       service.connectionState,
-      ConnectionConnected,
+      isA<ConnectionConnected>(), // sealed 重构后需用 isA（原写法比较 Type 字面量恒失败）
       reason: 'ocgcore 引擎应初始化成功（Web 走 WASM，VM 走 dylib）',
     );
 

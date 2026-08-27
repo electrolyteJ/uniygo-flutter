@@ -70,6 +70,14 @@ class HomePage extends StatelessWidget {
           // MyCard 账号入口：未登录显示登录图标，已登录显示用户名首字。
           MyCardAccountButton(),
           IconButton(
+            icon: const Icon(Icons.storefront),
+            tooltip: '卡组中心（市场/我的卡组/组卡）',
+            onPressed: () {
+              ServiceSingleton.instance.ygoSoundService.playPageTransition();
+              context.go('/deck-square');
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.card_membership),
             tooltip: '卡组',
             onPressed: () {

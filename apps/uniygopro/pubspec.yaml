@@ -21,17 +21,19 @@ dependencies:
   path: ^1.9.1
   shared_preferences: ^2.5.3
   cardlive:
-    path: ../cardlive
+    path: ../../modules/cardlive
   deck_editor1:
-    path: ../deck_editor1
+    path: ../../modules/deck_editor1
+  deck_editor3:
+    path: ../../modules/deck_editor3
   duel_room1:
-    path: ../duel_room1
+    path: ../../modules/duel_room1
   duel_room2:
-    path: ../duel_room2
+    path: ../../modules/duel_room2
   duel_room3:
-    path: ../duel_room3
+    path: ../../modules/duel_room3
   ygo_settings:
-    path: ../ygo_settings
+    path: ../../modules/ygo_settings
   ygo_storage:
     path: ../../packages/ygo_storage
   service_loader:

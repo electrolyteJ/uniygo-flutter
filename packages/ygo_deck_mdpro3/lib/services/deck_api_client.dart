@@ -15,14 +15,22 @@ import 'package:ygo_data/ygo_card_deck_exception.dart';
 /// - Android 端: `YGOMobile`
 class DeckApiClient {
   final http.Client _client;
-  final String baseUrl = "https://deck.moecube.com";
+
+  /// API 根地址。默认 MDPro3 官方卡组广场；可通过构造参数指向自建
+  /// 服务（如 servers/ygo_deck_server 的 /api/mdpro3 兼容层）。
+  final String baseUrl;
   final String reqSource = "MDPro3";
   final Duration timeout;
 
   DeckApiClient({
     http.Client? client,
+    String? baseUrl,
     this.timeout = const Duration(seconds: 30),
-  }) : _client = client ?? http.Client();
+  })  : _client = client ?? http.Client(),
+        baseUrl = baseUrl ?? const String.fromEnvironment(
+          'DECK_SQUARE_URL',
+          defaultValue: 'https://deck.moecube.com',
+        );
 
   // ---------------------------------------------------------------------------
   // 请求头

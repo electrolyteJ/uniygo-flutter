@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../pages/home_page.dart';
 import '../pages/create_room/match_page.dart';
 import 'package:deck_editor1/deck_editor1.dart' show DeckEditorPage;
+import 'package:deck_editor3/deck_editor3.dart';
 import 'package:flutter/foundation.dart';
 import 'package:ygo_settings/ygo_settings.dart';
 
@@ -73,6 +74,11 @@ final router = GoRouter(
             ? state.extra as Map<String, Object?>
             : null,
       ),
+    ),
+    // 卡组中心：卡组市场（MDPro3 卡组广场）+ 我的卡组 + 组卡编辑器。
+    GoRoute(
+      path: '/deck-square',
+      builder: (_, _) => const DeckHubPage(),
     ),
   ],
 );
