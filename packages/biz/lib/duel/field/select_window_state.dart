@@ -852,7 +852,7 @@ class SelectWindowNotifier extends Notifier<SelectWindowState> {
   void _maybeAutoRespondPlace(List<SelectOption> options, int count) {
     if (count != 1 || options.isEmpty) return;
     if (state.currentSelect?.player != _board.myController) return;
-    final settings = ref.read(duelSettingsProvider);
+    final settings = ref.read(ygoSettingsProvider);
     final first = options.first;
     final auto = first.zone == CARD_ZONE_MZONE
         ? settings.autoMonsterPosition

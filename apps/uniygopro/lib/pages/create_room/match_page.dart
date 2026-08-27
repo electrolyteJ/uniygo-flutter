@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:account_mycard/account_mycard.dart';
+import '../../config/route.dart';
 import '../../services/match_service.dart';
 import '../../services/mycard_gate.dart';
 import 'package:biz/service_singleton.dart';
@@ -48,7 +49,7 @@ class _MatchPageState extends State<MatchPage> {
         store.setMatchResult(result.address, result.port, result.password);
         ServiceSingleton.instance.ygoSoundService.playMatchFound();
         if (mounted) {
-          context.go('/duel-room', extra: store.toDuelRoomParams());
+          context.go(DuelRoomRoute.current, extra: store.toDuelRoomParams());
           store.reset();
         }
       } catch (e) {

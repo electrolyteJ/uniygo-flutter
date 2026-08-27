@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:uniygopro/config/servers.dart';
+import '../../config/route.dart';
 import '../../models/mercury233_room_spec.dart';
 import 'package:biz/service_singleton.dart';
 import '../../widgets/create_room/room_dialog.dart';
@@ -66,7 +67,7 @@ class _FreeRoomSheetState extends State<FreeRoomSheet>
 
     final params = matchStore.toDuelRoomParams();
     Navigator.of(context).pop();
-    if (context.mounted) context.go('/duel-room', extra: params);
+    if (context.mounted) context.go(DuelRoomRoute.current, extra: params);
     matchStore.reset();
   }
 

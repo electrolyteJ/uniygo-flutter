@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:account_mycard/account_mycard.dart';
+import 'package:ygo_settings/ygo_settings.dart';
+import '../config/route.dart';
 import '../widgets/mycard_account_button.dart';
 import '../config/servers.dart';
 import 'package:biz/service_singleton.dart';
@@ -43,6 +45,28 @@ class HomePage extends StatelessWidget {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // 全局设置入口（决斗行为 + 2D/3D 决斗场地 + 3D 场景预览）。
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: '设置',
+            onPressed: () {
+              ServiceSingleton.instance.ygoSoundService.playPageTransition();
+              showGlobalSettingsDialog(
+                context,
+                extraActions: [
+                  if (!kIsWeb)
+                    SettingsExtraAction(
+                      label: '3D 场景预览（duel_room3）',
+                      icon: Icons.view_in_ar,
+                      onTap: (ctx) {
+                        Navigator.of(ctx).pop();
+                        context.push('/duel-room3-preview');
+                      },
+                    ),
+                ],
+              );
+            },
+          ),
           // MyCard 账号入口：未登录显示登录图标，已登录显示用户名首字。
           MyCardAccountButton(),
           IconButton(

@@ -30,12 +30,13 @@ workspace:
   - packages/duelink_ai_ygo_agent_http
   - packages/biz
   - apps/uniygopro
-  - apps/deck_editor1
-  - apps/deck_editor3
+  - modules/deck_editor1
+  - modules/deck_editor3
   - apps/duelarena
   - apps/holoduel
   - apps/mdduel
-  - apps/duel_room1
-  - apps/duel_room2
-  - apps/duel_settings
-  - apps/cardlive
+  - modules/duel_room1
+  - modules/duel_room2
+  - modules/duel_room3
+  - modules/ygo_settings
+  - modules/cardlive

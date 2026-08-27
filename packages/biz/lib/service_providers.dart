@@ -16,7 +16,7 @@ import 'package:ygo_data/ygo_data.dart' show IBanlistService;
 import 'package:ygo_deck_mycard/ygo_deck_mycard.dart' show MycardDeckService;
 import 'package:ygo_strings_mycard/ygo_strings_mycard.dart';
 
-export 'duel_settings.dart';
+export 'ygo_settings.dart';
 
 /// 应用级 provider override 注册表：宿主 app（uniygopro）在启动时调用
 /// [registerAppLevelOverrides] 注入跨包实现（如 duel_settings 的持久化设置

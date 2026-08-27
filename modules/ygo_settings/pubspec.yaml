@@ -1,0 +1,25 @@
+name: ygo_settings
+description: "全局设置：决斗设置 + 决斗房渲染（2D/3D）偏好，持久化 + 设置弹窗。"
+publish_to: 'none'
+version: 0.0.1
+
+environment:
+  sdk: ^3.12.2
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
+  shared_preferences: ^2.5.3
+  biz:
+    path: ../../packages/biz
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/route.dart';
 import '../../config/servers.dart';
 import 'package:biz/service_singleton.dart';
 import '../../models/mercury233_room_spec.dart';
@@ -118,7 +119,7 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
     }
     final params = matchStore.toDuelRoomParams();
     Navigator.of(context).pop();
-    if (context.mounted) context.go('/duel-room', extra: params);
+    if (context.mounted) context.go(DuelRoomRoute.current, extra: params);
     matchStore.reset();
   }
 

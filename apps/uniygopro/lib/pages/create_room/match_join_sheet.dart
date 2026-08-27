@@ -9,6 +9,7 @@ import 'package:uniygopro/widgets/create_room/password_field.dart';
 import 'package:uniygopro/config/servers.dart';
 import 'package:biz/service_singleton.dart';
 import 'package:account_mycard/account_mycard.dart';
+import '../../config/route.dart';
 import '../../services/match_service.dart';
 import '../../services/mycard_gate.dart';
 import '../../widgets/create_room/room_dialog.dart';
@@ -63,7 +64,7 @@ class _MatchJoinSheetState extends State<MatchJoinSheet> {
       matchStore.setMatchResult(result.address, result.port, result.password);
       matchStore.setUsername(account.username);
       if (context.mounted) {
-        context.go('/duel-room', extra: matchStore.toDuelRoomParams());
+        context.go(DuelRoomRoute.current, extra: matchStore.toDuelRoomParams());
       }
       matchStore.reset();
     } catch (e) {

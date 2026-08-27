@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 
-import 'package:uniygopro/config_route.dart';
+import 'package:uniygopro/config/route.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:duel_room1/l10n/app_localizations.dart';
 class UniygoproApp extends StatelessWidget {
