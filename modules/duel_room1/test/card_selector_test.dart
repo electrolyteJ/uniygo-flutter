@@ -1,5 +1,5 @@
 import 'package:biz/duel/models/select_state.dart';
-import 'package:duel_room1/field/widgets/overlay/card_selector.dart';
+import 'package:duel_room1/field/widgets/overlay/selector/card_selector.dart';
 import 'package:duelink/duelink.dart'
     show CARD_ZONE_DECK, CARD_ZONE_GRAVE, CARD_ZONE_MZONE;
 import 'package:flutter/material.dart';

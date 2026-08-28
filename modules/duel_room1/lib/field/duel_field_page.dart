@@ -35,15 +35,15 @@ import 'package:duel_room1/field/widgets/menus/duel_field_popover_layout.dart';
 import 'package:duel_room1/field/widgets/menus/field_action_popover.dart';
 import 'package:duel_room1/field/widgets/menus/hand_action_popover.dart';
 import 'package:duel_room1/field/widgets/menus/phase_action_menu.dart';
-import 'package:duel_room1/field/widgets/overlay/announce_card_dialog.dart';
-import 'package:duel_room1/field/widgets/overlay/announce_choice_dialog.dart';
-import 'package:duel_room1/field/widgets/overlay/card_selector.dart';
+import 'package:duel_room1/field/widgets/overlay/selector/announce_card_dialog.dart';
+import 'package:duel_room1/field/widgets/overlay/selector/announce_choice_dialog.dart';
+import 'package:duel_room1/field/widgets/overlay/selector/card_selector.dart';
 import 'package:duel_room1/field/widgets/overlay/confirm_cards_dialog.dart';
 import 'package:duel_room1/field/widgets/overlay/confirm_floating_card.dart';
-import 'package:duel_room1/field/widgets/overlay/position_selector.dart';
+import 'package:duel_room1/field/widgets/overlay/selector/position_selector.dart';
 import 'package:duel_room1/field/widgets/overlay/select_prompt_layer.dart';
 import 'package:duel_room1/field/widgets/overlay/turn_order_hint.dart';
-import 'package:duel_room1/field/widgets/overlay/yes_no_dialog.dart';
+import 'package:duel_room1/field/widgets/overlay/selector/yes_no_dialog.dart';
 import 'package:duel_room1/duel_room_exit.dart';
 
 /// 决斗场地页：负责 biz/duel Provider 接线、Flame 游戏生命周期与整体布局。
