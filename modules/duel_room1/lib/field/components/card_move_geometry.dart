@@ -12,7 +12,7 @@ import 'package:duelink/duelink.dart';
 
 import 'package:biz/duel/models/card_move_event.dart';
 
-import 'duel_field_layout.dart';
+import '../util/duel_field_layout.dart';
 
 /// 移动端点的矩形来源分类（CardMoveAnimator 的分发决策）。
 enum MoveEndpointSource {

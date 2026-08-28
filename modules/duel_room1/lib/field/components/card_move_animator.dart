@@ -6,8 +6,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 import '../duel_field_world.dart';
-import '../models/card_move_geometry.dart';
-import '../models/duel_field_layout.dart';
+import 'card_move_geometry.dart';
 import 'card_flight_component.dart';
 
 /// 卡片移动飞牌适配器（对照 SummonEffectAdapter 的 tick 范式）：

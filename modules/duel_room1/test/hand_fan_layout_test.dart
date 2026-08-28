@@ -4,7 +4,7 @@
 /// 自然间距铺开、超宽压缩（重叠排布）、凸弧升起、放射旋转。
 library;
 
-import 'package:duel_room1/field/models/hand_fan_layout.dart';
+import 'package:duel_room1/field/util/hand_fan_layout.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

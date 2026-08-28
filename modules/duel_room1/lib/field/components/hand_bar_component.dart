@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../duel_flame_game.dart';
 import '../models/flame_field_snapshot.dart';
-import '../models/hand_fan_layout.dart';
+import '../util/hand_fan_layout.dart';
 import 'hand_card_component.dart';
 
 /// 手牌栏组件（Flame 版 HandCardsBar）：己方底部 / 对方顶部各一个实例，

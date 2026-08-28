@@ -6,7 +6,7 @@ import 'package:flame/events.dart';
 import 'package:flame/text.dart';
 import 'package:flutter/material.dart';
 import 'package:duel_room1/field/duel_field_world.dart';
-import 'package:duel_room1/field/models/phase_rail_layout.dart';
+import 'package:duel_room1/field/util/phase_rail_layout.dart';
 
 /// 阶段轨道：棋盘右侧的垂直阶段按钮列（DP/SP/M1/BP/M2/EP）。
 ///

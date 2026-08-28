@@ -4,17 +4,17 @@ import 'package:biz/card_image_loader.dart';
 import 'package:flame/components.dart';
 import 'package:biz/duel/models/field_zone_key.dart';
 import 'package:cardlive/cardlive.dart';
-import 'component/battle_presentation_component.dart';
-import 'component/card_move_animator.dart';
-import 'package:duel_room1/field/component/summon_effect_adapter.dart';
-import 'component/board_mesh_component.dart';
-import 'component/zone_component.dart';
-import 'component/phase_rail_component.dart';
+import 'components/battle_presentation_component.dart';
+import 'components/card_move_animator.dart';
+import 'package:duel_room1/field/components/summon_effect_adapter.dart';
+import 'components/board_mesh_component.dart';
+import 'components/zone_component.dart';
+import 'components/phase_rail_component.dart';
 import 'duel_flame_game.dart';
-import 'package:duel_room1/field/models/duel_field_layout.dart';
+import 'package:duel_room1/field/util/duel_field_layout.dart';
 
 // 布局常量已抽离为独立文件；export 保持既有 import 链（page/component）不破。
-export 'package:duel_room1/field/models/duel_field_layout.dart';
+export 'package:duel_room1/field/util/duel_field_layout.dart';
 
 /// 决斗场地世界：持有棋盘网格与全部卡槽组件，并统一负责
 /// Stylized 3D 投影（世界坐标 = 投影后、以棋盘中心为原点的坐标，

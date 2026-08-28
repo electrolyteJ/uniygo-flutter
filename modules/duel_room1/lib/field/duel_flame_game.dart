@@ -6,11 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:biz/duel/models/draw_animation_event.dart';
 import 'package:biz/duel/models/field_card.dart';
 
-import 'component/card_flight_component.dart';
-import 'component/hand_bar_component.dart';
+import 'components/card_flight_component.dart';
+import 'components/hand_bar_component.dart';
 import 'duel_field_world.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
-import 'package:duel_room1/field/models/phase_rail_layout.dart';
+import 'package:duel_room1/field/util/phase_rail_layout.dart';
 
 /// 决斗场地 FlameGame：只持有 [DuelFieldWorld] 与观察它的
 /// [CameraComponent]，负责鼠标视差输入与 Flutter 侧锚点上报。

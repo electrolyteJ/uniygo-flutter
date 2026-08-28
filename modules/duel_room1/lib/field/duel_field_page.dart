@@ -22,10 +22,10 @@ import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:duel_room1/field/duel_flame_game.dart';
-import 'package:duel_room1/field/models/chain_order_map.dart';
-import 'package:duel_room1/field/models/duel_field_layout.dart';
+import 'package:duel_room1/field/util/chain_order_map.dart';
+import 'package:duel_room1/field/util/duel_field_layout.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
-import 'package:duel_room1/field/models/phase_rail_layout.dart';
+import 'package:duel_room1/field/util/phase_rail_layout.dart';
 import 'package:duel_room1/field/flame_playmat_field.dart';
 import 'package:duel_room1/field/widgets/hud/phase_bar.dart';
 import 'package:duel_room1/field/widgets/hud/player_status_card.dart';

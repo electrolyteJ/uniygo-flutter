@@ -50,7 +50,7 @@ dataService 的卡片缓存、ygoSoundService 的 AudioPlayer 池都是应用级
   （过早订阅会被路由到默认 WebSocket 服务）；取消收敛在 `ref.onDispose` /
   store 的 `dispose()`。
 - **Flame 不实现**：`duel_flame_game` / `flame_playmat_field` /
-  `field/component/*` / `render_mode_toggle` 均未移植，页面固定走
+  `field/components/*` / `render_mode_toggle` 均未移植，页面固定走
   `PrototypePlaymatField` 分支。
 
 ### 退出与结算

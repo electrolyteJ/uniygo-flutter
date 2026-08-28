@@ -1,8 +1,8 @@
 /// 阶段轨道布局的纯几何测试。
 library;
 
-import 'package:duel_room1/field/models/duel_field_layout.dart';
-import 'package:duel_room1/field/models/phase_rail_layout.dart';
+import 'package:duel_room1/field/util/duel_field_layout.dart';
+import 'package:duel_room1/field/util/phase_rail_layout.dart';
 import 'package:duelink/duelink.dart' show DuelPhase;
 import 'package:flutter_test/flutter_test.dart';
 

@@ -9,8 +9,8 @@ import 'package:duelink/duelink.dart'
         POS_FACEUP_ATTACK,
         POS_FACEDOWN;
 
-import 'duel_field_layout.dart';
-import 'flame_field_snapshot.dart';
+import '../util/duel_field_layout.dart';
+import '../models/flame_field_snapshot.dart';
 
 /// 卡槽高亮态：驱动选择/放置类交互的槽位描边与发光。
 enum CardSlotHighlight {

@@ -5,8 +5,8 @@
 library;
 
 import 'package:biz/duel/models/card_move_event.dart';
-import 'package:duel_room1/field/models/card_move_geometry.dart';
-import 'package:duel_room1/field/models/duel_field_layout.dart';
+import 'package:duel_room1/field/components/card_move_geometry.dart';
+import 'package:duel_room1/field/util/duel_field_layout.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flutter_test/flutter_test.dart';
 

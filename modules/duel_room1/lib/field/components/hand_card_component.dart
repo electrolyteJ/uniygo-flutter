@@ -6,7 +6,7 @@ import 'package:flame/events.dart';
 import 'package:flutter/material.dart';
 
 import '../duel_flame_game.dart';
-import '../models/hand_fan_layout.dart';
+import '../util/hand_fan_layout.dart';
 import 'card_paint.dart';
 
 /// 单张手牌组件（Flame 版 HandCardsBar 的卡件）。

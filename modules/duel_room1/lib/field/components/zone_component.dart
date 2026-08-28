@@ -8,7 +8,7 @@ import 'package:flame/text.dart';
 import 'package:flutter/material.dart';
 import 'package:biz/duel/models/field_card.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
-import 'package:duel_room1/field/models/zone_slot_spec.dart';
+import 'package:duel_room1/field/components/zone_slot_spec.dart';
 import 'package:duel_room1/field/duel_field_world.dart';
 import 'deck_shuffle_effect.dart';
 

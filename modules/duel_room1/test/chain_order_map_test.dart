@@ -2,7 +2,7 @@
 library;
 
 import 'package:biz/duel/models/chain_link.dart';
-import 'package:duel_room1/field/models/chain_order_map.dart';
+import 'package:duel_room1/field/util/chain_order_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -3,7 +3,7 @@ import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
 
 import '../duel_flame_game.dart';
-import '../models/hand_fan_layout.dart';
+import '../util/hand_fan_layout.dart';
 import 'card_paint.dart';
 
 /// 通用飞卡动画（Flame effects 版）：任意源矩形 → 目标矩形列表，
