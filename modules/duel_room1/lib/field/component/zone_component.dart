@@ -157,8 +157,12 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
             ? () => onPlaceSlotTap?.call(interaction.placeTargetKey!)
             : () => onCardSelect?.call(slot.card, slot.card?.code),
     };
+    // 移动飞牌期间目标槽位先不显示该卡（飞行落地后解除隐藏并重建）。
+    final concealed = world.game.concealedMoveTargetKeys;
     slot.updateContent(
-      card: spec.resolveCard(snapshot),
+      card: spec.slotKeys.any(concealed.contains)
+          ? null
+          : spec.resolveCard(snapshot),
       highlight: interaction.highlight,
       onTap: onTap,
       activatable: spec.inspectZoneKey != null &&

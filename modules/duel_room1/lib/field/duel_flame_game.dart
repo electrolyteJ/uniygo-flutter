@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:biz/duel/models/draw_animation_event.dart';
 import 'package:biz/duel/models/field_card.dart';
 
+import 'component/card_flight_component.dart';
 import 'component/hand_bar_component.dart';
 import 'component/hand_flight_component.dart';
 import 'duel_field_world.dart';
@@ -70,6 +71,13 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
 
   /// 播放中的抽卡/发牌飞行动画（新对局时统一清除）。
   final Set<HandFlightComponent> _flights = {};
+
+  /// 播放中的移动飞牌动画（CardMoveAnimator 注册；新对局统一清除）。
+  final Set<CardFlightComponent> moveFlights = {};
+
+  /// 移动飞牌期间隐藏的目标场上槽位 key（controller_zone_sequence）：
+  /// 飞行完成前目标槽位不显示该卡（ZonesComponent 重建时跳过）。
+  final Set<String> concealedMoveTargetKeys = {};
 
   String? _lastAnchorSignature;
 
@@ -236,6 +244,15 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
       flight.removeFromParent();
     }
     _flights.clear();
+    // 移动飞牌一并取消，隐藏的场上目标槽位解除隐藏并重建。
+    for (final flight in moveFlights.toList()) {
+      flight.removeFromParent();
+    }
+    moveFlights.clear();
+    if (concealedMoveTargetKeys.isNotEmpty) {
+      concealedMoveTargetKeys.clear();
+      world.rebuildField();
+    }
     selfHandBar?.revealAll();
     oppHandBar?.revealAll();
   }

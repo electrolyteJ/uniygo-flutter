@@ -10,6 +10,8 @@ import 'dart:ui' show Offset;
 
 import 'package:duelink/duelink.dart';
 
+import 'package:biz/duel/models/card_move_event.dart';
+
 import 'duel_field_layout.dart';
 
 /// 移动端点的矩形来源分类（CardMoveAnimator 的分发决策）。
@@ -26,6 +28,11 @@ enum MoveEndpointSource {
   /// 无法换算（未知区域），跳过动画。
   unresolvable,
 }
+
+/// 移动飞牌是否渲染卡面：对方卡移动一律卡背（隐私/视觉纪律），
+/// code=0 占位（涉及对方手牌等）恒卡背。
+bool cardMoveFaceUp(CardMoveEvent event, int myController) =>
+    event.code > 0 && event.fromController == myController;
 
 /// 端点 location → 矩形来源分类。
 MoveEndpointSource moveEndpointSource(int location) {

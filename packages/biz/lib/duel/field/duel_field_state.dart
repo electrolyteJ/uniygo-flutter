@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ygo_data/card_info.dart' as pkg;
 
 import '../models/battle_presentation.dart';
+import '../models/card_move_event.dart';
 import '../models/chain_link.dart';
 import '../models/draw_animation_event.dart';
 import '../models/field_card.dart';
@@ -123,6 +124,8 @@ class DuelFieldState {
     this.lastAttackFrom,
     this.lastAttackTo,
     this.attackEventId = 0,
+    this.cardMoveEvent,
+    this.cardMoveTick = 0,
     this.battlePresentation,
     this.inDamageStep = false,
     this.selfLpDelta = 0,
@@ -210,6 +213,11 @@ class DuelFieldState {
   /// 表现层按它做 diff——lastAttackFrom/To 的字符串 diff 会吞掉
   /// 「同攻击方+同目标」的连续攻击（900ms 清理窗口期内第二次无 diff）。
   final int attackEventId;
+
+  /// 最近一次卡片移动事件（MSG_MOVE，抽卡除外）与单调 tick。
+  /// 表现层按 tick diff 播放飞牌动画（与 summonEffectTick 同构）。
+  final CardMoveEvent? cardMoveEvent;
+  final int cardMoveTick;
   final BattlePresentation? battlePresentation;
   final bool inDamageStep;
   final int selfLpDelta;
@@ -307,6 +315,8 @@ class DuelFieldState {
     Object? lastAttackFrom = _undefined,
     Object? lastAttackTo = _undefined,
     int? attackEventId,
+    Object? cardMoveEvent = _undefined,
+    int? cardMoveTick,
     Object? battlePresentation = _undefined,
     bool? inDamageStep,
     int? selfLpDelta,
@@ -375,6 +385,10 @@ class DuelFieldState {
           ? this.lastAttackTo
           : lastAttackTo as String?,
       attackEventId: attackEventId ?? this.attackEventId,
+      cardMoveEvent: identical(cardMoveEvent, _undefined)
+          ? this.cardMoveEvent
+          : cardMoveEvent as CardMoveEvent?,
+      cardMoveTick: cardMoveTick ?? this.cardMoveTick,
       battlePresentation: identical(battlePresentation, _undefined)
           ? this.battlePresentation
           : battlePresentation as BattlePresentation?,
@@ -914,10 +928,30 @@ class DuelFieldNotifier extends _$DuelFieldNotifier {
   /// 不落地明文卡密；后续若服务端以 MSG_CONFIRM_CARDS 展示该卡，
   /// revealDeckToHandDraw / syncConfirmedCard 才会写入真实卡密。
   void applyMove(MsgMove msg) {
+    final fromDeck = (msg.from.location & CARD_ZONE_DECK) != 0;
+    final toHand = (msg.to.location & CARD_ZONE_HAND) != 0;
     final isOpponentDeckToHand =
-        (msg.from.location & CARD_ZONE_DECK) != 0 &&
-        (msg.to.location & CARD_ZONE_HAND) != 0 &&
-        msg.to.controller != state.myController;
+        fromDeck && toHand && msg.to.controller != state.myController;
+    // 飞牌事件数据必须在移除前捕获：from 位置的字段卡可补充卡码
+    // （MSG_MOVE code<=0 时），涉及对方手牌的移动恒置 0（隐私占位，
+    // 与 isOpponentDeckToHand 同纪律的推广）。
+    final involvesOpponentHand =
+        ((msg.from.location & CARD_ZONE_HAND) != 0 &&
+            msg.from.controller != state.myController) ||
+        (toHand && msg.to.controller != state.myController);
+    var eventCode = msg.code;
+    if (eventCode <= 0) {
+      eventCode =
+          state
+              .fieldCards[zoneKeyOf(
+                msg.from.controller,
+                msg.from.location,
+                msg.from.sequence,
+              )]
+              ?.code ??
+          0;
+    }
+    if (involvesOpponentHand) eventCode = 0;
     state = _removeCardFromLocation(
       state,
       msg.from.controller,
@@ -946,6 +980,21 @@ class DuelFieldNotifier extends _$DuelFieldNotifier {
         drawAnimationEvent: drawEvent,
         drawAnimationTick: drawEvent.id,
       );
+    }
+    // 飞牌事件：抽卡（卡组→手牌）保持走 drawAnimationEvent 管线，
+    // 不重复生成 CardMoveEvent。
+    if (!(fromDeck && toHand)) {
+      final event = CardMoveEvent(
+        id: state.cardMoveTick + 1,
+        code: eventCode,
+        fromController: msg.from.controller,
+        fromLocation: msg.from.location,
+        fromSequence: msg.from.sequence,
+        toController: msg.to.controller,
+        toLocation: msg.to.location,
+        toSequence: msg.to.sequence,
+      );
+      state = state.copyWith(cardMoveEvent: event, cardMoveTick: event.id);
     }
   }
 
@@ -1628,6 +1677,7 @@ class DuelFieldNotifier extends _$DuelFieldNotifier {
       // 残留 key 会让下一局首个同 key 攻击被字符串 diff 吞掉。
       lastAttackFrom: null,
       lastAttackTo: null,
+      cardMoveEvent: null,
       phase: DuelPhase.idle,
       currentPlayer: 0,
     );

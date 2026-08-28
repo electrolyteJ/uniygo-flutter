@@ -5,6 +5,7 @@ import 'package:flame/components.dart';
 import 'package:biz/duel/models/field_zone_key.dart';
 import 'package:cardlive/cardlive.dart';
 import 'component/battle_presentation_component.dart';
+import 'component/card_move_animator.dart';
 import 'package:duel_room1/field/component/summon_effect_adapter.dart';
 import 'component/board_mesh_component.dart';
 import 'component/zone_component.dart';
@@ -47,6 +48,7 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
     add(BattlePresentationComponent());
     add(_summonDriver);
     add(_summonAdapter);
+    add(CardMoveAnimator());
     _phaseRail = PhaseRailComponent(
       onTap: game.onPhaseLampTap,
       enabledGetter: game.isPhaseLampEnabled,

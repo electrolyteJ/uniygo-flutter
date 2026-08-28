@@ -311,6 +311,8 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       oppExtraShuffleTick: _board.oppExtraShuffleTick,
       summonEffectTick: _board.summonEffectTick,
       summonEffectEvent: _board.summonEffectEvent,
+      cardMoveTick: _board.cardMoveTick,
+      cardMoveEvent: _board.cardMoveEvent,
       selfDeck: _board.selfDeck,
       oppDeck: _board.oppDeck,
       zoneCodes: {

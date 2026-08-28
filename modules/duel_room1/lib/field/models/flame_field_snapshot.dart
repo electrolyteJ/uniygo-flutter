@@ -1,4 +1,5 @@
 import 'package:biz/duel/models/battle_presentation.dart';
+import 'package:biz/duel/models/card_move_event.dart';
 import 'package:biz/duel/models/summon_effect_event.dart';
 import 'package:biz/duel/models/field_card.dart';
 import 'package:collection/collection.dart';
@@ -98,6 +99,9 @@ class FlameFieldSnapshot {
     required this.oppExtraShuffleTick,
     required this.summonEffectTick,
     required this.summonEffectEvent,
+    // 移动飞牌信号给默认值：既有快照构造点（测试等）不受影响。
+    this.cardMoveTick = 0,
+    this.cardMoveEvent,
     required this.selfDeck,
     required this.oppDeck,
     required this.zoneCodes,
@@ -124,6 +128,8 @@ class FlameFieldSnapshot {
         oppExtraShuffleTick: 0,
         summonEffectTick: 0,
         summonEffectEvent: null,
+        cardMoveTick: 0,
+        cardMoveEvent: null,
         selfDeck: 0,
         oppDeck: 0,
         zoneCodes: const {},
@@ -165,6 +171,12 @@ class FlameFieldSnapshot {
   /// 召唤特效信号（tick 自增触发一条几何召唤阵演出）。
   final int summonEffectTick;
   final SummonEffectEvent? summonEffectEvent;
+
+  /// 卡片移动信号（tick 自增触发一次飞牌动画；抽卡不走此管线）。
+  /// CardMoveAnimator 按 tick diff 消费（同 summonEffectTick 语义：
+  /// 同帧多条移动只见最新一条）。
+  final int cardMoveTick;
+  final CardMoveEvent? cardMoveEvent;
 
   /// 双方卡组数量（卡组槽位预览卡）。
   final int selfDeck;
@@ -225,6 +237,8 @@ class FlameFieldSnapshot {
         other.oppExtraShuffleTick == oppExtraShuffleTick &&
         other.summonEffectTick == summonEffectTick &&
         identical(other.summonEffectEvent, summonEffectEvent) &&
+        other.cardMoveTick == cardMoveTick &&
+        identical(other.cardMoveEvent, cardMoveEvent) &&
         other.selfDeck == selfDeck &&
         other.oppDeck == oppDeck &&
         _deep.equals(other.fieldCards, fieldCards) &&
@@ -253,6 +267,8 @@ class FlameFieldSnapshot {
     oppExtraShuffleTick,
     summonEffectTick,
     summonEffectEvent,
+    cardMoveTick,
+    cardMoveEvent,
     selfDeck,
     oppDeck,
     _deep.hash(fieldCards),
