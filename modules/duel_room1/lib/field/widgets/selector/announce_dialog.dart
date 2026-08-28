@@ -3,7 +3,134 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ygo_data/ygo_data.dart' as pkg;
 
+import 'package:biz/duel/models/select_state.dart';
 import 'package:biz/widgets/card_image.dart';
+
+/// 宣言类弹窗共享外壳：统一容器样式（深色底 + 青色描边 + 圆角阴影）
+/// + 标题 + 滚动内容区。
+class AnnounceDialogShell extends StatelessWidget {
+  const AnnounceDialogShell({
+    super.key,
+    required this.title,
+    this.subtitle,
+    required this.child,
+    this.maxWidth = 520,
+    this.maxHeight = 560,
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget child;
+  final double maxWidth;
+  final double maxHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+        child: Container(
+          margin: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF09111A),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0x5500F0FF)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0xAA000000),
+                blurRadius: 28,
+                offset: Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  subtitle!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF9FB5C7),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Flexible(child: child),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 宣言数值/属性/种族的通用选择弹窗：从给定选项列表中选一项。
+///
+/// 选项由 [SelectOption.label] 展示文本、[SelectOption.code] 存原始值；
+/// 点击后回传该选项的下标（引擎按下标解析宣言结果）。
+class AnnounceChoiceDialog extends StatelessWidget {
+  final String title;
+  final List<SelectOption> options;
+  final void Function(int index) onSelect;
+
+  const AnnounceChoiceDialog({
+    super.key,
+    required this.title,
+    required this.options,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnnounceDialogShell(
+      title: title,
+      child: SingleChildScrollView(
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          alignment: WrapAlignment.center,
+          children: [
+            for (var i = 0; i < options.length; i++)
+              FilledButton(
+                onPressed: () => onSelect(i),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF111D2A),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(88, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: const BorderSide(color: Color(0x5500F0FF)),
+                  ),
+                ),
+                child: Text(
+                  options[i].label ?? '${options[i].code}',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 /// 宣言卡名弹窗。
 ///
@@ -132,108 +259,73 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 860, maxHeight: 680),
-        child: Container(
-          margin: const EdgeInsets.all(24),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF09111A),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0x5500F0FF)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0xAA000000),
-                blurRadius: 28,
-                offset: Offset(0, 12),
+    return AnnounceDialogShell(
+      title: '宣言卡名',
+      subtitle: _restricted
+          ? '从下方可宣言的卡片中选择要宣言的卡片。'
+          : '输入卡名关键字，然后从搜索结果中选择要宣言的卡片。',
+      maxWidth: 860,
+      maxHeight: 680,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 受限宣言候选已直接罗列，不再提供搜索框。
+          if (!_restricted) ...[
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              onChanged: _onQueryChanged,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
               ),
-            ],
+              decoration: InputDecoration(
+                hintText: '例如：电子龙、青眼、禁发令',
+                hintStyle: const TextStyle(color: Color(0x668FA6BA)),
+                filled: true,
+                fillColor: const Color(0xFF111D2A),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: Color(0xFF00F0FF),
+                ),
+                suffixIcon: _isSearching
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : (_controller.text.isEmpty
+                          ? null
+                          : IconButton(
+                              onPressed: () {
+                                // 先取消挂起的搜索防抖，避免清空后
+                                // 旧查询的延迟搜索又被触发。
+                                _debounce?.cancel();
+                                _debounce = null;
+                                _controller.clear();
+                                _performSearch('');
+                              },
+                              icon: const Icon(
+                                Icons.close,
+                                color: Color(0xFF8FA6BA),
+                              ),
+                            )),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          Expanded(
+            child: _restricted ? _buildDeclarableBody() : _buildSearchBody(),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                '宣言卡名',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                _restricted
-                    ? '从下方可宣言的卡片中选择要宣言的卡片。'
-                    : '输入卡名关键字，然后从搜索结果中选择要宣言的卡片。',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF9FB5C7),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 18),
-              // 受限宣言候选已直接罗列，不再提供搜索框。
-              if (!_restricted) ...[
-                TextField(
-                  controller: _controller,
-                  autofocus: true,
-                  onChanged: _onQueryChanged,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: '例如：电子龙、青眼、禁发令',
-                    hintStyle: const TextStyle(color: Color(0x668FA6BA)),
-                    filled: true,
-                    fillColor: const Color(0xFF111D2A),
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      color: Color(0xFF00F0FF),
-                    ),
-                    suffixIcon: _isSearching
-                        ? const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          )
-                        : (_controller.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  onPressed: () {
-                                    // 先取消挂起的搜索防抖，避免清空后
-                                    // 旧查询的延迟搜索又被触发。
-                                    _debounce?.cancel();
-                                    _debounce = null;
-                                    _controller.clear();
-                                    _performSearch('');
-                                  },
-                                  icon: const Icon(
-                                    Icons.close,
-                                    color: Color(0xFF8FA6BA),
-                                  ),
-                                )),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              Expanded(
-                child: _restricted ? _buildDeclarableBody() : _buildSearchBody(),
-              ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }
