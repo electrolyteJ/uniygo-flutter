@@ -6,6 +6,13 @@ import 'package:flutter/widget_previews.dart';
 import 'package:biz/duel/models/select_state.dart';
 import 'package:biz/widgets/card_image.dart';
 
+/// 表示形式选择弹窗（MSG_SELECT_POSITION）。
+///
+/// 无状态单选：把引擎下发的可选表示形式渲染为卡片预览横排
+///（守备旋转 90°、里侧显示卡背），点选即经 [onSelect] 回传位置位
+///（POS_* 位掩码，如表侧攻击 0x1 / 表侧守备 0x4 / 里侧守备 0x8）。
+///
+/// 与 [CardSelector] 不合并的原因见 CardSelector 的类注释。
 class PositionSelector extends StatelessWidget {
   final SelectState? select;
   final void Function(int position) onSelect;

@@ -14,6 +14,17 @@ import 'package:duelink/duelink.dart'
         CARD_ZONE_REMOVED,
         CARD_ZONE_SZONE;
 
+/// 选卡弹窗（MSG_SELECT_CARD / TRIBUTE / UNSELECT 等卡选窗口）。
+///
+/// 横滚卡片列表多选：点卡切换勾选（带来源徽标/选中描边），满足 min~max
+/// 后「确认」回传下标列表 [onSelect]；[SelectState.immediateSingleToggle]
+/// 模式（解除选择类窗口）点卡即回传单卡、「完成」回传空列表结束。
+///
+/// 与 [PositionSelector] 不合并的原因：本组件是有状态的多选确认流，
+/// PositionSelector 是无状态的单选即回传，选择语义、回调签名
+/// （`List<int>` vs `int position`）、卡片呈现（徽标/描边 vs 旋转/卡背
+/// 预览）均不同构；可共用的仅面板外壳样式，强行合并只会得到两套
+/// 互斥参数的 union API。
 class CardSelector extends StatefulWidget {
   final SelectState select;
   final void Function(List<int> indices) onSelect;
