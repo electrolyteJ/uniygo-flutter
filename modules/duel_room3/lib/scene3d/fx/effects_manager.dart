@@ -261,35 +261,112 @@ class EffectsManager extends Component3D {
 
   // ───────────────────────── 抽牌飞牌 ─────────────────────────
 
-  /// 卡背小卡从 [from]（牌组槽位）弧线飞向手牌方向。
-  /// [toSelf] 为己方（飞向屏幕近端下方），否则飞向对方牌手方向。
-  Future<void> playDrawFlight(Vector3 from, {required bool toSelf}) async {
+  /// 抽牌三段式演出（MDPro3 风格）：
+  /// 1) 从牌组弹起（上升 + 放大）
+  /// 2) 悬停翻牌：[faceCode] 非空（明牌/己方抽牌）时绕 Y 轴翻到正面卡图
+  /// 3) 弧线滑向手牌方向 + 粒子拖尾，末端缩小消失
+  ///
+  /// [index] 连抽时的序号（错帧播放）；[toSelf] 为己方（飞向屏幕近端）。
+  /// 各阶段通过 onComplete 链式调度（TweenEngine 的补间并行执行，
+  /// 并行写同一属性会互相覆盖）。
+  Future<void> playDrawFlight(
+    Vector3 from, {
+    required bool toSelf,
+    int index = 0,
+    int? faceCode,
+  }) async {
     final back = await CardTextureCache.instance.cardBack();
     final material = UnlitMaterial(albedoTexture: back);
     final card = MeshComponent(
-      mesh: PlaneMesh(size: Vector2(0.5, 0.73), material: material),
-      position: from + Vector3(0, 0.3, 0),
+      mesh: PlaneMesh(size: Vector2(0.62, 0.90), material: material),
+      position: from + Vector3(0, 0.2, 0),
       rotation: Quaternion.euler(0, 1.5707963, 0),
+      scale: Vector3.all(0.3),
     );
-    _spawnTransient(card, ttl: 0.6);
-    final target = toSelf
-        ? Vector3(0, 1.2, 5.4) // 近端下方（HUD 手牌方向）
-        : Vector3(0, 1.2, -5.4);
-    tweens.addVector(Vector3Tween(
-      from: card.position.clone(),
-      to: target,
-      duration: 0.55,
-      arcHeight: 1.6,
-      apply: (v) {
-        card.position.setFrom(v);
-        particles.trail(origin: v, color: const ui.Color(0xFF9FE8FF));
-      },
-    ));
+    // 悬停点：牌组上方，略偏场心（朝镜头方向）
+    final hover = from + Vector3(-from.x * 0.25, 2.2, -from.z * 0.25);
+    // 手牌方向终点：己方近端下方（HUD 手牌区），对方远端上方
+    final target = toSelf ? Vector3(0, 1.0, 5.6) : Vector3(0, 1.6, -5.6);
+    final stagger = index * 0.22;
+    final total = stagger + 0.32 + 0.3 + 0.6; // 延迟+弹起+翻牌+滑入
+    _spawnTransient(card, ttl: total + 0.05);
+
+    _after(stagger, () {
+      // 阶段 1：弹起
+      tweens.addVector(Vector3Tween(
+        from: card.position.clone(),
+        to: hover,
+        duration: 0.32,
+        ease: easeOutCubic,
+        apply: (v) => card.position.setFrom(v),
+      ));
+      tweens.addVector(Vector3Tween(
+        from: Vector3.all(0.3),
+        to: Vector3.all(1.0),
+        duration: 0.32,
+        ease: easeOutBack,
+        apply: (v) => card.scale.setFrom(v),
+        onComplete: () {
+          // 阶段 2：悬停翻牌（明牌翻到卡图，否则卡背转一圈示意）
+          final flipTo = faceCode != null ? math.pi : math.pi * 2;
+          var swapped = false;
+          tweens.addScalar(ScalarTween(
+            from: 0,
+            to: flipTo,
+            duration: 0.3,
+            ease: easeInOutCubic,
+            apply: (v) {
+              card.rotation.setFrom(
+                Quaternion.euler(0, 1.5707963 + v, 0),
+              );
+              if (!swapped && faceCode != null && v >= math.pi / 2) {
+                swapped = true;
+                CardTextureCache.instance.ensure(faceCode, (texture) {
+                  material.albedoTexture = texture;
+                });
+              }
+            },
+            onComplete: () {
+              // 阶段 3：滑向手牌 + 拖尾 + 缩小
+              tweens.addVector(Vector3Tween(
+                from: card.position.clone(),
+                to: target,
+                duration: 0.6,
+                arcHeight: 0.5,
+                ease: easeInOutCubic,
+                apply: (v) {
+                  card.position.setFrom(v);
+                  particles.trail(
+                    origin: v,
+                    color: const ui.Color(0xFF9FE8FF),
+                  );
+                },
+              ));
+              tweens.addVector(Vector3Tween(
+                from: Vector3.all(1.0),
+                to: Vector3.all(0.4),
+                duration: 0.6,
+                apply: (v) => card.scale.setFrom(v),
+              ));
+            },
+          ));
+        },
+      ));
+    });
+  }
+
+  /// 延迟 [delay] 秒后执行 [fn]（借道补间引擎的空标量补间）。
+  void _after(double delay, void Function() fn) {
+    if (delay <= 0) {
+      fn();
+      return;
+    }
     tweens.addScalar(ScalarTween(
       from: 0,
-      to: math.pi * 4,
-      duration: 0.55,
-      apply: (v) => card.rotation.setFrom(Quaternion.euler(v, 1.5707963, 0)),
+      to: 1,
+      duration: delay,
+      apply: (_) {},
+      onComplete: fn,
     ));
   }
 

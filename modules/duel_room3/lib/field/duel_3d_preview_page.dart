@@ -49,7 +49,7 @@ class _Duel3DPreviewPageState extends State<Duel3DPreviewPage> {
   int _demoStep = 0;
 
   void _startAutoDemo() {
-    const steps = <String>['summon', 'attack', 'damage', 'draw'];
+    const steps = <String>['draw', 'summon', 'draw', 'attack', 'draw', 'damage'];
     _autoDemo?.cancel();
     _autoDemo = Timer.periodic(const Duration(milliseconds: 2600), (_) {
       if (!mounted) return;
@@ -136,8 +136,25 @@ class _Duel3DPreviewPageState extends State<Duel3DPreviewPage> {
   }
 
   void _playDraw() {
-    final deck = _game.slots.firstWhere((s) => s.label == 'self_deck');
-    _game.effects.playDrawFlight(deck.center, toSelf: true);
+    // 连抽 3 张（第一张明牌展示卡图）
+    final selfDeck = _game.slots.firstWhere((s) => s.label == 'self_deck');
+    final oppDeck = _game.slots.firstWhere((s) => s.label == 'opp_deck');
+    for (var i = 0; i < 3; i++) {
+      _game.effects.playDrawFlight(
+        selfDeck.center,
+        toSelf: true,
+        index: i,
+        faceCode: i == 0 ? _demoCodes[1] : null,
+      );
+    }
+    // 对方抽 2 张（卡背）
+    for (var i = 0; i < 2; i++) {
+      _game.effects.playDrawFlight(
+        oppDeck.center,
+        toSelf: false,
+        index: i,
+      );
+    }
   }
 
   @override

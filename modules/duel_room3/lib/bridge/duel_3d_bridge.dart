@@ -140,7 +140,17 @@ class Duel3DBridge {
       final deckCenter = _slotGroundCenter(isSelf ? 'self_deck' : 'opp_deck');
       if (deckCenter != null) {
         for (var i = 0; i < event.codes.length; i++) {
-          game.effects.playDrawFlight(deckCenter, toSelf: isSelf);
+          // 己方抽牌（含明牌）展示卡图；对方抽牌只见卡背（隐私）
+          final code = event.codes[i];
+          final faceCode = (isSelf || event.revealCard) && code > 0
+              ? code
+              : null;
+          game.effects.playDrawFlight(
+            deckCenter,
+            toSelf: isSelf,
+            index: i,
+            faceCode: faceCode,
+          );
         }
       }
     }
