@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import 'package:biz/duel/models/select_state.dart';
@@ -63,49 +61,56 @@ class _CardSelectorState extends State<CardSelector> {
   @override
   Widget build(BuildContext context) {
     final select = widget.select;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const itemWidth = 108.0;
-        final count = select.options.length;
-        // 下界不能超过 maxWidth，否则窄屏（<~388px）下 clamp 抛 ArgumentError
-        final panelWidth = (itemWidth * count + 32.0).clamp(
-          math.min<double>(itemWidth * 3 + 32.0, constraints.maxWidth),
-          constraints.maxWidth,
-        );
-        return Container(
-          width: panelWidth,
-          padding: const EdgeInsets.all(16),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640, maxHeight: 620),
+        child: Container(
+          margin: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.grey.shade900,
-            borderRadius: BorderRadius.circular(12),
+            color: const Color(0xFF09111A),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0x5500F0FF)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0xAA000000),
+                blurRadius: 28,
+                offset: Offset(0, 12),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 select.immediateSingleToggle
-                    ? '已选择 ${_selectedIndices.length} 张卡'
-                          '，继续点卡切换，满足条件后完成'
-                    : '选择 ${select.min}-${select.max} 张卡'
-                          ' (${_selectedIndices.length}/${select.max})',
-                style: const TextStyle(color: Colors.white),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 144,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Center(
-                    child: Row(
-                      children: [
-                        for (var i = 0; i < count; i++)
-                          _buildCardItem(i, select),
-                      ],
-                    ),
-                  ),
+                    ? '已选择 ${_selectedIndices.length} 张卡，继续点卡切换，满足条件后完成'
+                    : '选择 ${select.min}-${select.max} 张卡 (${_selectedIndices.length}/${select.max})',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 14),
+              // 网格布局（参考 CardGridSelectDialog）：多行自适应排列，
+              // 替代旧的单行横滚——卡多时一目了然。
+              Flexible(
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  gridDelegate:
+                      const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 104,
+                    childAspectRatio: 100 / 150,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                  ),
+                  itemCount: select.options.length,
+                  itemBuilder: (context, index) =>
+                      _buildCardItem(index, select),
+                ),
+              ),
+              const SizedBox(height: 12),
               Wrap(
                 alignment: WrapAlignment.center,
                 children: [
@@ -159,8 +164,8 @@ class _CardSelectorState extends State<CardSelector> {
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 

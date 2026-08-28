@@ -8,7 +8,6 @@ import 'package:biz/duel/models/field_card.dart';
 
 import 'component/card_flight_component.dart';
 import 'component/hand_bar_component.dart';
-import 'component/hand_flight_component.dart';
 import 'duel_field_world.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:duel_room1/field/models/phase_rail_layout.dart';
@@ -70,7 +69,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   double _oppHandTopY = 0;
 
   /// 播放中的抽卡/发牌飞行动画（新对局时统一清除）。
-  final Set<HandFlightComponent> _flights = {};
+  final Set<CardFlightComponent> _flights = {};
 
   /// 播放中的移动飞牌动画（CardMoveAnimator 注册；新对局统一清除）。
   final Set<CardFlightComponent> moveFlights = {};
@@ -218,8 +217,8 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     final indices = targetIndices;
     final targets = [for (final i in indices) bar.cardSlotRect(i)];
     // late final：onAllDone 闭包在动画完成后才执行，届时已赋值。
-    late final HandFlightComponent flight;
-    flight = HandFlightComponent(
+    late final CardFlightComponent flight;
+    flight = CardFlightComponent(
       codes: event.codes,
       // 己方抽卡显示卡面；对方抽卡显示卡背（revealCard 为公开抽卡例外）。
       faceUp: isSelf || event.revealCard,
