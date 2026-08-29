@@ -109,7 +109,9 @@ Future<void> leaveRoomAfterNotJoined(BuildContext context,
     if (!context.mounted) {
       return;
     }
-    // 结算由决斗页的半弹窗展示（MSG_WIN 触发），离房一律回首页。
-    context.go('/');
   }
+  // 已标记 leaving（backHome 在跑）时也补做导航：backHome 持有的页面
+  // 可能已在断开期间销毁，它的 context.go 不会执行。
+  // 结算由决斗页的半弹窗展示（MSG_WIN 触发），离房一律回首页。
+  context.go('/');
 }

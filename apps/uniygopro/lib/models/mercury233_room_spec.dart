@@ -1,5 +1,5 @@
 import 'package:duelink/duelink.dart';
-import 'package:ygo_data/lf_table.dart';
+import 'package:resource_data/lf_table.dart';
 
 class Mercury233BanlistOption {
   final String label;

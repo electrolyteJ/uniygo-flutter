@@ -14,14 +14,14 @@ dependencies:
   provider: ^6.1.1
   go_router: ^14.0.0
   http: ^1.2.1
-  ygo_data:
-    path: ../../packages/ygo_data
+  resource_data:
+    path: ../../packages/resource_data
   biz:
     path: ../../packages/biz
-  ygo_card_mycard:
-    path: ../../packages/ygo_card_mycard
-  ygo_banlist_mycard:
-    path: ../../packages/ygo_banlist_mycard
+  resource_card_mycard:
+    path: ../../packages/resource_card_mycard
+  resource_banlist_mycard:
+    path: ../../packages/resource_banlist_mycard
 
 dev_dependencies:
   flutter_test:

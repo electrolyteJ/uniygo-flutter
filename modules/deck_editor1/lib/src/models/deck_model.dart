@@ -1,4 +1,4 @@
-import 'package:ygo_data/card_info.dart';
+import 'package:resource_data/card_info.dart';
 
 /// 卡组元数据
 class DeckMeta {

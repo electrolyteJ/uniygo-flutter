@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:service_loader/service_loader.dart';
-import 'package:ygo_data/ygo_data.dart';
+import 'package:resource_data/ygo_data.dart';
 
 
 class YgoDataService implements IService,IDeckService, ICardService, IBanlistService {

@@ -1,8 +1,8 @@
 import 'package:biz/service_singleton.dart';
 import 'package:biz/ygo_data_service.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:ygo_data/card_info.dart';
-import 'package:ygo_data/deck_info.dart';
+import 'package:resource_data/card_info.dart';
+import 'package:resource_data/deck_info.dart';
 
 import 'editor_rules.dart';
 

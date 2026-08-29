@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
-import 'package:ygo_data/ygo_data.dart' as pkg;
+import 'package:resource_data/ygo_data.dart' as pkg;
 
 import 'package:biz/widgets/card_image.dart';
 

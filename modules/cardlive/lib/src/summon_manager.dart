@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ygo_data/card_info.dart';
+import 'package:resource_data/card_info.dart';
 
 import 'category.dart';
 import 'twod/themes/summon_theme.dart';

@@ -13,7 +13,7 @@ import 'package:duelink/duelink.dart' hide CardInfo;
 import 'package:duelink_ai/duelink_ai.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ocgcore/ocgcore.dart' show ScriptLoader;
-import 'package:ygo_data/card_info.dart';
+import 'package:resource_data/card_info.dart';
 
 // ============================================================
 // 测试用卡牌常量（与 src/test_card_data.dart 的 kTestCards 对应）

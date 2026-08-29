@@ -2,7 +2,7 @@ import 'dart:developer' as console;
 
 import 'package:ocgcore/ocgcore.dart';
 import 'package:service_loader/service_loader.dart';
-import 'package:ygo_data/ygo_data.dart';
+import 'package:resource_data/ygo_data.dart';
 
 /// 残局卡牌数据加载器 —— ocgcore [CardReader] 的实现。
 ///

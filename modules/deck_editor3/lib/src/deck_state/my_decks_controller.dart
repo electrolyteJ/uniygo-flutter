@@ -1,7 +1,7 @@
 import 'package:biz/service_singleton.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:ygo_data/deck_info.dart';
-import 'package:ygo_data/ygo_data.dart' show IDeckService;
+import 'package:resource_data/deck_info.dart';
+import 'package:resource_data/ygo_data.dart' show IDeckService;
 
 part 'my_decks_controller.g.dart';
 

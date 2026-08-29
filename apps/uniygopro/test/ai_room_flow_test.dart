@@ -22,7 +22,7 @@ import 'dart:typed_data';
 import 'package:duelink/duelink.dart';
 import 'package:duelink_ai/duelink_ai.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ygo_data/ygo_data.dart' as ygo_data;
+import 'package:resource_data/ygo_data.dart' as ygo_data;
 
 import 'support/ocgcore_lib_loader.dart';
 import 'support/ocgcore_web_bootstrap.dart';

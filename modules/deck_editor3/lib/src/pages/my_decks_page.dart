@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:provider/provider.dart' as provider;
-import 'package:ygo_data/deck_info.dart';
-import 'package:ygo_deck_mdpro3/services/deck_api_client.dart';
+import 'package:resource_data/deck_info.dart';
+import 'package:resource_deck_mdpro3/services/deck_api_client.dart';
 
 import '../deck_state/editor_controller.dart';
 import '../deck_state/my_decks_controller.dart';

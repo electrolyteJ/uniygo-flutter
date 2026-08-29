@@ -6,7 +6,7 @@ import 'package:biz/ygo_data_service.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:ygo_data/card_info.dart' as pkg;
+import 'package:resource_data/card_info.dart' as pkg;
 
 import '../models/battle_presentation.dart';
 import '../models/card_move_event.dart';

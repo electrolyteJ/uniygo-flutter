@@ -8,7 +8,7 @@ import 'package:duelink_ai_ygo_agent/duelink_ai_ygo_agent.dart'
 import 'package:duelink_ai_ygo_agent_http/duelink_ai_ygo_agent_http.dart';
 import 'package:duelink_ai_ygo_agent_tflite/duelink_ai_ygo_agent_tflite.dart';
 import 'package:ocgcore/ocgcore.dart' show DuelEngine, ScriptLoader;
-import 'package:ygo_data/ygo_data.dart';
+import 'package:resource_data/ygo_data.dart';
 
 import '../ai_strategy.dart';
 import '../duelink_ai.dart';

@@ -14,8 +14,8 @@ import 'package:uniygopro/models/mercury233_room_spec.dart';
 import 'package:uniygopro/models/mercury233_room_string_codec.dart';
 import 'package:uniygopro/pages/create_room/match_store.dart';
 import 'package:uniygopro/pages/create_room/room_history_store.dart';
-import 'package:ygo_data/card_info.dart' as pkg;
-import 'package:ygo_data/lf_table.dart';
+import 'package:resource_data/card_info.dart' as pkg;
+import 'package:resource_data/lf_table.dart';
 
 pkg.CardInfo _card(int code, {String name = '', int type = 0x1}) =>
     pkg.CardInfo(code: code, type: type, name: name);

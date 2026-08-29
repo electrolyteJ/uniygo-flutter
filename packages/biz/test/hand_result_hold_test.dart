@@ -19,7 +19,7 @@ import 'package:duelink/duelink.dart' hide CardInfo;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:ygo_data/ygo_data.dart';
+import 'package:resource_data/ygo_data.dart';
 
 // ── 桩：卡片/卡组/禁限表服务（对齐 match_siding_233_test） ──
 

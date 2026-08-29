@@ -9,7 +9,7 @@ import 'package:duel_room3/hud/hud_theme.dart';
 import 'package:duel_room3/hud/lp_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ygo_data/card_info.dart';
+import 'package:resource_data/card_info.dart';
 
 Widget _wrap(Widget child) => MaterialApp(
   home: Scaffold(body: Center(child: child)),

@@ -177,6 +177,15 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
       );
       ref.read(duelRoomProvider.notifier).clearError();
     });
+    // 离开房间（RoomNotJoined）→ 回首页。
+    // 统一走 leaveRoomAfterNotJoined：主动退出（backHome）触发断连时
+    // 这里补做导航兜底（若主动退出方在断开期间被销毁，保证仍能离房）；
+    // 服务器踢人/断连（未走 backHome）时负责完整离房流程。
+    ref.listen(duelRoomProvider.select((s) => s.stage), (prev, next) {
+      if (prev is! RoomNotJoined && next is RoomNotJoined) {
+        unawaited(leaveRoomAfterNotJoined(context, ref));
+      }
+    });
     final room = ref.watch(duelRoomProvider);
     final roomCtl = ref.read(duelRoomProvider.notifier);
     // 本局结果（MSG_WIN 设置；下一局 MSG_START 时 handleStart 清空）。

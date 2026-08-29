@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
-import 'package:ygo_data/card_info.dart';
+import 'package:resource_data/card_info.dart';
 
 import 'package:biz/widgets/card_image.dart';
 

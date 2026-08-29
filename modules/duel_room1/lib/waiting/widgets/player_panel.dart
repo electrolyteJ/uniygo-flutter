@@ -1,6 +1,6 @@
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
-import 'package:ygo_data/deck_info.dart';
+import 'package:resource_data/deck_info.dart';
 
 import 'playerslot.dart';
 import 'deck_selector.dart';

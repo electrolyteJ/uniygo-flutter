@@ -6,7 +6,7 @@ import 'package:duelink/duelink.dart';
 import 'package:duelink_ai/ai_strategy.dart';
 import 'package:ocgcore/ocgcore.dart' show DuelEngine;
 import 'package:ocgcore_edo/puzzle_script_loader.dart';
-import 'package:ygo_data/ygo_data.dart';
+import 'package:resource_data/ygo_data.dart';
 
 import 'puzzle_card_data_loader.dart';
 

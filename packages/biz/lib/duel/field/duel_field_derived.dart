@@ -2,7 +2,7 @@ import 'dart:developer' as console;
 
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';
-import 'package:ygo_data/card_info.dart' as pkg;
+import 'package:resource_data/card_info.dart' as pkg;
 
 import 'duel_field_state.dart';
 import 'field_overlay_state.dart';

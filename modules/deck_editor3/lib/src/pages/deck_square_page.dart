@@ -1,7 +1,7 @@
 import 'package:biz/widgets/card_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:ygo_data/deck_info.dart' show DeckSummary;
+import 'package:resource_data/deck_info.dart' show DeckSummary;
 
 import '../deck_state/square_controller.dart';
 import 'deck_detail_page.dart';

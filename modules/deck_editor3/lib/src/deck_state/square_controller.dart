@@ -1,6 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:ygo_data/deck_info.dart' show DeckSummary;
-import 'package:ygo_deck_mdpro3/services/deck_api_client.dart';
+import 'package:resource_data/deck_info.dart' show DeckSummary;
+import 'package:resource_deck_mdpro3/services/deck_api_client.dart';
 
 part 'square_controller.g.dart';
 

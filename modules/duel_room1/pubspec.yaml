@@ -26,8 +26,8 @@ dependencies:
     path: ../../packages/biz
   duelink:
     path: ../../packages/duelink
-  ygo_data:
-    path: ../../packages/ygo_data
+  resource_data:
+    path: ../../packages/resource_data
   cardlive:
     path: ../cardlive
   flutter_scene: ^0.21.1

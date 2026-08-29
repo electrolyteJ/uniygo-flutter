@@ -17,8 +17,8 @@ dependencies:
     path: ../ocgcore
   ocgcore_edo:
     path: ../ocgcore_edo
-  ygo_data:
-    path: ../ygo_data
+  resource_data:
+    path: ../resource_data
   async: ^2.11.0
   service_loader:
     path: ../service_loader

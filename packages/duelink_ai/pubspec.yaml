@@ -22,8 +22,8 @@ dependencies:
     path: ../service_loader
   ocgcore:
     path: ../ocgcore
-  ygo_data:
-    path: ../ygo_data
+  resource_data:
+    path: ../resource_data
 
 
 dev_dependencies:

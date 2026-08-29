@@ -16,7 +16,7 @@ import 'package:biz/duel/models/field_zone_key.dart';
 import 'package:biz/duel/models/playmat_resolved_action.dart';
 import 'package:biz/duel/models/select_state.dart';
 import 'package:duelink/duelink.dart' show PlayerInfo, PlayerType, RoomInDuel;
-import 'package:ygo_data/card_info.dart' as pkg;
+import 'package:resource_data/card_info.dart' as pkg;
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

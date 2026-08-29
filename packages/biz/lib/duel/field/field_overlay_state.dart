@@ -1,4 +1,4 @@
-import 'package:ygo_data/card_info.dart' as pkg;
+import 'package:resource_data/card_info.dart' as pkg;
 
 import '../models/field_card.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';

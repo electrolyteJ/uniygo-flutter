@@ -1,4 +1,4 @@
-import 'package:ygo_data/card_info.dart';
+import 'package:resource_data/card_info.dart';
 
 /// 召唤类别 —— cardlive 的权威分类。
 ///

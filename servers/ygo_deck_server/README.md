@@ -1,6 +1,6 @@
 # ygo_deck_server
 
-卡组云函数服务（Dart Frog）：把 packages/ygo_deck_mycard 的 IDeckService
+卡组云函数服务（Dart Frog）：把 packages/resource_deck_mycard 的 IDeckService
 六能力暴露为 HTTP API。纯 Dart，零 Flutter 依赖，独立于 Flutter workspace。
 
 ## 端点
@@ -15,7 +15,7 @@
 | GET | /decks/:key/ydk | 导出 YDK（text/plain） |
 | POST | /decks/:key/ydk | 导入 YDK 纯文本并保存，返回卡组 JSON |
 
-卡组 JSON 与 packages/ygo_data DeckInfo 结构一致；存储文件
+卡组 JSON 与 packages/resource_data DeckInfo 结构一致；存储文件
 （data/decks/{deckName}.json）与 ygo_deck_mycard DeckService.saveDeck 的
 写入格式完全一致，本地 ↔ 云端可直接互通。
 

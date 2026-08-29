@@ -6,7 +6,7 @@ import 'package:duelink/duelink.dart' hide ConnectionState;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:ygo_data/lf_table.dart';
+import 'package:resource_data/lf_table.dart';
 
 import 'package:biz/duel/chat/duel_chat_state.dart';
 import 'package:biz/duel/room/duel_room_state.dart';

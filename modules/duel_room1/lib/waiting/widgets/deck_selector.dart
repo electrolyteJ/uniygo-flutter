@@ -1,7 +1,7 @@
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 
-import 'package:ygo_data/deck_info.dart';
+import 'package:resource_data/deck_info.dart';
 
 class DeckSelector extends StatelessWidget {
   final bool enabled;

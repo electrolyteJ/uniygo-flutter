@@ -10,8 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:uniygopro/service_loader.registrations.g.dart';
-import 'package:ygo_data/card_info.dart' as pkg;
-import 'package:ygo_data/deck_info.dart';
+import 'package:resource_data/card_info.dart' as pkg;
+import 'package:resource_data/deck_info.dart';
 
 pkg.CardInfo _card(
   int code, {

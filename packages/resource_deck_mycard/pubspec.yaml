@@ -1,0 +1,30 @@
+name: resource_deck_mycard
+description: "Local deck service — YDK import/export, built-in decks, local persistence via resource_storage."
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.12.2
+  flutter: '>=3.3.0'
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  resource_data:
+    path: ../resource_data
+  resource_storage:
+    path: ../resource_storage
+  service_loader:
+    path: ../service_loader
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  assets:
+    - assets/decks/
+#    - vendor/ygopro-card-list/pack/

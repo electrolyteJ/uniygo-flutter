@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
-import 'package:ygo_data/ygo_data.dart';
+import 'package:resource_data/ygo_data.dart';
 import 'package:biz/widgets/card_detail_dialog.dart';
 
 /// 禁限卡表详情弹窗

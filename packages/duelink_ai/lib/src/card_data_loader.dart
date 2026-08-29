@@ -2,7 +2,7 @@ import 'dart:developer' as console;
 
 import 'package:ocgcore/ocgcore.dart';
 import 'package:service_loader/service_loader.dart';
-import 'package:ygo_data/card_info.dart';
+import 'package:resource_data/card_info.dart';
 import '../duelink_ai.dart';
 
 /// ocgcore 卡牌数据加载器 —— [CardReader] 的实现对局引擎通过它读取卡数据。

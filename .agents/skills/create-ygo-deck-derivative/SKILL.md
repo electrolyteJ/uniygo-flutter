@@ -68,7 +68,7 @@ Path: `packages/ygo_deck_<name>/lib/services/deck_service.dart`
 
 ```dart
 import 'package:service_loader/service_loader.dart';
-import 'package:ygo_data/ygo_deck.dart';
+import 'package:resource_data/ygo_deck.dart';
 
 /// Deck service implementing IDeckService.
 @Service(<Name>DeckService)
@@ -82,7 +82,7 @@ onServiceRegister() {
 }
 ```
 
-Reference implementation at `packages/ygo_deck_mdpro3/lib/services/deck_service.dart:18`.
+Reference implementation at `packages/resource_deck_mdpro3/lib/services/deck_service.dart:18`.
 
 ### 5. Create main entry file
 
@@ -108,11 +108,11 @@ dart pub get
 
 ## Key Interfaces & Models (from ygo_data)
 
-- **`IDeckService`** (`packages/ygo_data/lib/ygo_deck.dart:4`) — abstract deck service contract (extensible, currently minimal)
-- **`DeckInfo`** / **`DeckCard`** (`packages/ygo_data/lib/deck_info.dart`) — deck data models
-- **`MdPro3DeckInfo`** (`packages/ygo_data/lib/deck_info.dart`) — MDPro3-specific deck info
-- **`DeckSummary`** (`packages/ygo_data/lib/deck_info.dart`) — deck summary for list views
-- **`DeckListPage`** (`packages/ygo_data/lib/deck_list_page.dart`) — paginated deck list
+- **`IDeckService`** (`packages/resource_data/lib/ygo_deck.dart:4`) — abstract deck service contract (extensible, currently minimal)
+- **`DeckInfo`** / **`DeckCard`** (`packages/resource_data/lib/deck_info.dart`) — deck data models
+- **`MdPro3DeckInfo`** (`packages/resource_data/lib/deck_info.dart`) — MDPro3-specific deck info
+- **`DeckSummary`** (`packages/resource_data/lib/deck_info.dart`) — deck summary for list views
+- **`DeckListPage`** (`packages/resource_data/lib/deck_list_page.dart`) — paginated deck list
 
 ## Optional: HTTP API Client
 
@@ -120,7 +120,7 @@ If the derivative talks to an HTTP API (like `ygo_deck_mdpro3` does), create:
 
 Path: `packages/ygo_deck_<name>/lib/services/deck_api_client.dart`
 
-Reference implementation at `packages/ygo_deck_mdpro3/lib/services/deck_api_client.dart`.
+Reference implementation at `packages/resource_deck_mdpro3/lib/services/deck_api_client.dart`.
 
 ## Common Mistakes
 

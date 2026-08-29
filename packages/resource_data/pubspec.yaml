@@ -1,0 +1,20 @@
+name: resource_data
+description: "YGOPRO card and deck data models and service interfaces."
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.12.2
+
+resolution: workspace
+
+dependencies:
+  http: ^1.2.1
+  path_provider: ^2.1.3
+  path: ^1.9.0
+  service_loader:
+    path: ../service_loader
+
+dev_dependencies:
+  test: ^1.24.0
+  flutter_lints: ^6.0.0

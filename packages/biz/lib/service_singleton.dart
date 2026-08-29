@@ -5,12 +5,12 @@ import 'package:duelink_websocket/duelink_websocket.dart'
     show WebSocketDuelService;
 import 'package:service_loader/service_loader.dart';
 import 'package:biz/ygo_data_service.dart';
-import 'package:ygo_card_baige/ygo_card_baige.dart';
-import 'package:ygo_data/ygo_data.dart';
-import 'package:ygo_deck_mycard/ygo_deck_mycard.dart';
+import 'package:resource_card_baige/ygo_card_baige.dart';
+import 'package:resource_data/ygo_data.dart';
+import 'package:resource_deck_mycard/ygo_deck_mycard.dart';
 import 'duel_service.dart';
 import 'ygo_sound_service.dart';
-import 'package:ygo_card_mycard/ygo_card_mycard.dart';
+import 'package:resource_card_mycard/ygo_card_mycard.dart';
 class ServiceSingleton {
   YgoDataService? _dataService;
   final aiDuelService = ServiceFactory.create<AiDuelService>();

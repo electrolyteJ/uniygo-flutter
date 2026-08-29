@@ -2,7 +2,7 @@ import 'package:biz/service_singleton.dart';
 import 'package:biz/widgets/card_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:ygo_data/card_info.dart';
+import 'package:resource_data/card_info.dart';
 
 import '../deck_state/editor_controller.dart';
 import '../deck_state/editor_rules.dart';

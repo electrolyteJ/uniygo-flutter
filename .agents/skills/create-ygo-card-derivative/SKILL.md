@@ -67,9 +67,9 @@ include: package:flutter_lints/flutter.yaml
 Path: `packages/ygo_card_<name>/lib/src/card_service.dart`
 
 ```dart
-import 'package:ygo_data/card_info.dart';
-import 'package:ygo_data/lf_table.dart';
-import 'package:ygo_data/ygo_data.dart';
+import 'package:resource_data/card_info.dart';
+import 'package:resource_data/lf_table.dart';
+import 'package:resource_data/ygo_data.dart';
 
 class <Name>CardService implements ICardService {
   @override
@@ -125,7 +125,7 @@ class <Name>CardService implements ICardService {
 }
 ```
 
-Reference implementation at `packages/ygo_card_mycard/lib/src/card_service.dart:66` (`BaseCardService`).
+Reference implementation at `packages/resource_card_mycard/lib/src/card_service.dart:66` (`BaseCardService`).
 
 ### 5. Create main entry file
 
@@ -170,13 +170,13 @@ dart pub get
 
 ## Key Interfaces (from ygo_data)
 
-- **`ICardService`** (`packages/ygo_data/lib/ygo_data.dart:7`) — abstract card resource contract:
+- **`ICardService`** (`packages/resource_data/lib/ygo_data.dart:7`) — abstract card resource contract:
   - `getAllLfTable()` / `getLfTable(int code)` — banlist
   - `getCardImageUrl(int code)` — CDN image URL
   - `getCard(int code)` / `searchCards(String)` / `searchCombined(...)` — card lookup
   - `validateDeck(main, extra, side)` — deck validation
-- **`CardInfo`** (`packages/ygo_data/lib/card_info.dart`) — card data model
-- **`LfTable`** / **`LfInfo`** (`packages/ygo_data/lib/lf_table.dart`) — banlist model
+- **`CardInfo`** (`packages/resource_data/lib/card_info.dart`) — card data model
+- **`LfTable`** / **`LfInfo`** (`packages/resource_data/lib/lf_table.dart`) — banlist model
 
 ## Common Mistakes
 

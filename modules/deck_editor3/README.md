@@ -15,7 +15,7 @@
 
 ## 卡组市场数据源
 
-协议为 MDPro3 卡组广场（`packages/ygo_deck_mdpro3` DeckApiClient）。
+协议为 MDPro3 卡组广场（`packages/resource_deck_mdpro3` DeckApiClient）。
 **注意：官方卡组广场域名 deck.moecube.com 已下线（NXDOMAIN）**，
 baseUrl 可通过构造参数或编译期 `--dart-define=DECK_SQUARE_URL=...` 覆盖。
 

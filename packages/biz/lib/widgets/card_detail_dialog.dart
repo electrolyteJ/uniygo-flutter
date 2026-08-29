@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ygo_data/card_info.dart';
+import 'package:resource_data/card_info.dart';
 
 /// 卡牌详情弹窗
 /// 支持显示卡牌完整信息、禁限状态、添加到卡组

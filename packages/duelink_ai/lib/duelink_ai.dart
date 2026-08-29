@@ -11,7 +11,7 @@ import 'package:duelink_ai_ygo_agent/duelink_ai_ygo_agent.dart'
 import 'package:ocgcore/ocgcore.dart' show ScriptLoader;
 import 'package:service_loader/service_loader.dart';
 import 'duelink_ai.dart';
-import 'package:ygo_data/card_info.dart';
+import 'package:resource_data/card_info.dart';
 /// AI 本地决斗服务实现 — 只需提供 ocgcore 连接，其余由 [BaseDuelService] 承担。
 ///
 /// [lib] 用于显式指定 ocgcore 动态库（测试环境传入；为 null 时按平台默认

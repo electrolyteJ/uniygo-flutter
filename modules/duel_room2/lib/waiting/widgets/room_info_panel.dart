@@ -2,7 +2,7 @@ import 'package:biz/widgets/banlist_detail_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
-import 'package:ygo_data/ygo_data.dart' show CardInfo, LfTable;
+import 'package:resource_data/ygo_data.dart' show CardInfo, LfTable;
 
 class RoomInfoPanel extends StatelessWidget {
   final RoomOptions opts;

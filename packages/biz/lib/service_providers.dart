@@ -11,10 +11,10 @@ import 'package:duelink_websocket/duelink_websocket.dart'
     show WebSocketDuelService;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:service_loader/service_loader.dart';
-import 'package:ygo_card_mycard/ygo_card_mycard.dart' show MyCardCardService;
-import 'package:ygo_data/ygo_data.dart' show IBanlistService;
-import 'package:ygo_deck_mycard/ygo_deck_mycard.dart' show MycardDeckService;
-import 'package:ygo_strings_mycard/ygo_strings_mycard.dart';
+import 'package:resource_card_mycard/ygo_card_mycard.dart' show MyCardCardService;
+import 'package:resource_data/ygo_data.dart' show IBanlistService;
+import 'package:resource_deck_mycard/ygo_deck_mycard.dart' show MycardDeckService;
+import 'package:resource_strings_mycard/ygo_strings_mycard.dart';
 
 export 'ygo_settings.dart';
 

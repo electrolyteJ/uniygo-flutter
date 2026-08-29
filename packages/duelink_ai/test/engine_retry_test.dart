@@ -8,7 +8,7 @@ import 'package:duelink_ai/ai_strategy.dart';
 import 'package:duelink_ai/duelink_ai.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ocgcore/ocgcore.dart' show DuelEngine, ScriptLoader;
-import 'package:ygo_data/card_info.dart';
+import 'package:resource_data/card_info.dart';
 
 /// 与 ai_duel_test.dart 相同的 harness。
 ffi.DynamicLibrary? _loadCoreLib() {

@@ -1,6 +1,6 @@
 import 'package:deck_editor3/src/deck_state/editor_rules.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ygo_data/card_info.dart';
+import 'package:resource_data/card_info.dart';
 
 CardInfo monster({int code = 1}) => CardInfo(
       code: code, alias: 0, setcode: const [], type: 0x21, level: 4,

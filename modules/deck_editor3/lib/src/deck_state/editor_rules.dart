@@ -6,8 +6,8 @@
 /// - 融合/同调/超量/链接怪只能进额外卡组；魔法/陷阱只能进主/副卡组
 library;
 
-import 'package:ygo_data/card_info.dart';
-import 'package:ygo_data/deck_info.dart';
+import 'package:resource_data/card_info.dart';
+import 'package:resource_data/deck_info.dart';
 
 /// 卡组分区。
 enum DeckZone { main, extra, side }

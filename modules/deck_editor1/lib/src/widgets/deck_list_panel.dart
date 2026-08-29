@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ygo_data/deck_info.dart';
+import 'package:resource_data/deck_info.dart';
 
 class DeckListPanel extends StatelessWidget {
   final List<DeckInfo> decks;

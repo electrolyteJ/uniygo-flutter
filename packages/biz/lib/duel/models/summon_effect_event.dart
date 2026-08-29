@@ -5,7 +5,7 @@
 /// deckShuffleTick / DrawAnimationEvent 的 tick 范式。
 library;
 
-import 'package:ygo_data/card_info.dart' as pkg;
+import 'package:resource_data/card_info.dart' as pkg;
 
 /// 召唤特效类型（决定配色与是否升卡图）。
 ///

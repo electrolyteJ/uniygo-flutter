@@ -1,8 +1,8 @@
 import 'package:biz/service_singleton.dart';
 import 'package:biz/widgets/card_image.dart';
 import 'package:flutter/material.dart';
-import 'package:ygo_data/card_info.dart';
-import 'package:ygo_data/deck_info.dart';
+import 'package:resource_data/card_info.dart';
+import 'package:resource_data/deck_info.dart';
 
 /// 卡组分区网格：主/额外/副三个分区展示卡片，支持减卡回调。
 class DeckZoneGrid extends StatelessWidget {

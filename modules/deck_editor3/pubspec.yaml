@@ -17,16 +17,16 @@ dependencies:
     path: ../../packages/biz
   account_mycard:
     path: ../../packages/account_mycard
-  ygo_data:
-    path: ../../packages/ygo_data
-  ygo_card_mycard:
-    path: ../../packages/ygo_card_mycard
-  ygo_deck_mycard:
-    path: ../../packages/ygo_deck_mycard
-  ygo_deck_mdpro3:
-    path: ../../packages/ygo_deck_mdpro3
-  ygo_banlist_mycard:
-    path: ../../packages/ygo_banlist_mycard
+  resource_data:
+    path: ../../packages/resource_data
+  resource_card_mycard:
+    path: ../../packages/resource_card_mycard
+  resource_deck_mycard:
+    path: ../../packages/resource_deck_mycard
+  resource_deck_mdpro3:
+    path: ../../packages/resource_deck_mdpro3
+  resource_banlist_mycard:
+    path: ../../packages/resource_banlist_mycard
   service_loader:
     path: ../../packages/service_loader
   riverpod_annotation: ^4.0.6

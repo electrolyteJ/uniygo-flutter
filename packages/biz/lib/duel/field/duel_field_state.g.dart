@@ -53,7 +53,7 @@ final class DuelFieldNotifierProvider
   }
 }
 
-String _$duelFieldNotifierHash() => r'251f2dbdc4890637ebc6ad4e1c1dbceebe478f2b';
+String _$duelFieldNotifierHash() => r'14e481a4510fbbcae2fce57a0e08333956dd46f2';
 
 /// 对局事实（战场）的 Notifier：持有全部 MSG_* 战场消息应用逻辑。
 ///

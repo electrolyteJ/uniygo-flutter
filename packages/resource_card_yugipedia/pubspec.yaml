@@ -1,0 +1,18 @@
+name: resource_card_yugipedia
+description: Yugipedia MediaWiki API client — multilingual card names/texts (yugipedia.com).
+version: 1.0.0
+resolution: workspace
+publish_to: 'none'
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  http: ^1.2.1
+  resource_data:
+    path: ../resource_data
+  service_loader:
+    path: ../service_loader
+
+dev_dependencies:
+  test: ^1.24.0
+  flutter_lints: ^6.0.0

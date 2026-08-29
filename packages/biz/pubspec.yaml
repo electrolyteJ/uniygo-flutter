@@ -22,18 +22,18 @@ dependencies:
     path: ../duelink_ai
   duelink_ai_edo:
     path: ../duelink_ai_edo
-  ygo_data:
-    path: ../ygo_data
-  ygo_card_baige:
-    path: ../ygo_card_baige
-  ygo_card_mycard:
-    path: ../ygo_card_mycard
-  ygo_banlist_mycard:
-    path: ../ygo_banlist_mycard
-  ygo_strings_mycard:
-    path: ../ygo_strings_mycard
-  ygo_deck_mycard:
-    path: ../ygo_deck_mycard
+  resource_data:
+    path: ../resource_data
+  resource_card_baige:
+    path: ../resource_card_baige
+  resource_card_mycard:
+    path: ../resource_card_mycard
+  resource_banlist_mycard:
+    path: ../resource_banlist_mycard
+  resource_strings_mycard:
+    path: ../resource_strings_mycard
+  resource_deck_mycard:
+    path: ../resource_deck_mycard
   flutter_riverpod: ^3.4.2
   shared_preferences: ^2.5.3
   cached_network_image: ^3.4.1

@@ -17,8 +17,8 @@
 	path = packages/ocgcore_edo/vendor/CardScripts
 	url = git@github.com:ProjectIgnis/CardScripts.git
 
-[submodule "packages/ygo_deck_mycard/vendor/ygopro-card-list"]
-	path = packages/ygo_deck_mycard/vendor/ygopro-card-list
+[submodule "packages/resource_deck_mycard/vendor/ygopro-card-list"]
+	path = packages/resource_deck_mycard/vendor/ygopro-card-list
 	url = https://github.com/mycard/ygopro-card-list.git
 
 [submodule "packages/duelink_ai_edo/vendor/Puzzles"]

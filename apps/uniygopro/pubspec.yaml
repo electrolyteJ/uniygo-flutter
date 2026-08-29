@@ -34,8 +34,8 @@ dependencies:
     path: ../../modules/duel_room3
   ygo_settings:
     path: ../../modules/ygo_settings
-  ygo_storage:
-    path: ../../packages/ygo_storage
+  resource_storage:
+    path: ../../packages/resource_storage
   service_loader:
     path: ../../packages/service_loader
   biz:
@@ -50,18 +50,18 @@ dependencies:
     path: ../../packages/duelink_ai
   duelink_ai_edo:
     path: ../../packages/duelink_ai_edo
-  ygo_data:
-    path: ../../packages/ygo_data
-  ygo_card_baige:
-    path: ../../packages/ygo_card_baige
-  ygo_card_mycard:
-    path: ../../packages/ygo_card_mycard
-  ygo_banlist_mycard:
-    path: ../../packages/ygo_banlist_mycard
-  ygo_deck_mdpro3:
-    path: ../../packages/ygo_deck_mdpro3
-  ygo_deck_mycard:
-    path: ../../packages/ygo_deck_mycard
+  resource_data:
+    path: ../../packages/resource_data
+  resource_card_baige:
+    path: ../../packages/resource_card_baige
+  resource_card_mycard:
+    path: ../../packages/resource_card_mycard
+  resource_banlist_mycard:
+    path: ../../packages/resource_banlist_mycard
+  resource_deck_mdpro3:
+    path: ../../packages/resource_deck_mdpro3
+  resource_deck_mycard:
+    path: ../../packages/resource_deck_mycard
   account_mycard:
     path: ../../packages/account_mycard
   go_router: ^14.0.0

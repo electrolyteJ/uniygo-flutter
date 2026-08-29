@@ -1,7 +1,7 @@
 import 'package:biz/widgets/banlist_detail_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
-import 'package:ygo_data/ygo_data.dart' show CardInfo, LfTable;
+import 'package:resource_data/ygo_data.dart' show CardInfo, LfTable;
 
 /// 房间「卡片允许规则」取值（RoomOptions.rule 的协议值；
 /// duelink 暂无对应枚举，先就地命名，避免裸整数 switch）。

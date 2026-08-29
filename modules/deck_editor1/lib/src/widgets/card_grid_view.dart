@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ygo_data/card_info.dart';
+import 'package:resource_data/card_info.dart';
 import 'banlist_status_badge.dart';
 import 'package:biz/widgets/card_detail_dialog.dart';
 
