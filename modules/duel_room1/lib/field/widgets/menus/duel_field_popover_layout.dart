@@ -14,16 +14,22 @@ Offset fieldCardAnchor(Size size, FieldCard fieldCard, int myController) {
   final startX = boardCenterX - (boardWidth / 2);
   final stepX = boardWidth / 6;
 
+  final isSelf = fieldCard.controller == myController;
   int displayColumn;
   if (fieldCard.zone == 4 && fieldCard.sequence >= 5) {
-    displayColumn = fieldCard.sequence == 5 ? 2 : 4;
+    // EMZ 为双方共享的物理槽位：屏幕左 EMZ = 己方 s5 / 对方 s6，
+    // 屏幕右 EMZ = 己方 s6 / 对方 s5（见 zone_slot_spec 的 emz 注释）。
+    displayColumn = (fieldCard.sequence == 5) == isSelf ? 2 : 4;
   } else if (fieldCard.zone == 8 && fieldCard.sequence == 5) {
-    displayColumn = fieldCard.controller == myController ? 0 : 6;
+    displayColumn = isSelf ? 0 : 6;
+  } else if (fieldCard.zone == 8 && fieldCard.sequence >= 6) {
+    // 灵摆区（SZONE s6/s7）：落在经验网格最左/最右列，双方镜像
+    // （本模块暂未渲染灵摆槽位，此分支为锚点兜底）。
+    final selfCol = fieldCard.sequence == 6 ? 0 : 6;
+    displayColumn = isSelf ? selfCol : 6 - selfCol;
   } else {
     final rawColumn = fieldCard.sequence + 1;
-    displayColumn = fieldCard.controller == myController
-        ? rawColumn
-        : 6 - rawColumn;
+    displayColumn = isSelf ? rawColumn : 6 - rawColumn;
   }
 
   final normalizedY = switch ((fieldCard.zone, fieldCard.sequence)) {

@@ -79,8 +79,9 @@ class HandSnapshot {
 
 /// 推入 Flame 场地的不可变状态快照。
 ///
-/// widget 层（DuelFieldPage）每次 build 从 biz/duel 的 Riverpod Provider
-/// 组装本快照并经 [DuelFlameGame.applySnapshot] 推入游戏；Flame component
+/// widget 层（DuelFieldPage）的 listenManual 订阅在 provider 变更时
+/// 组装本快照并经 [DuelFlameGame.applySnapshot] 推入游戏（不经 build）；
+/// Flame component
 /// 只读快照、不 watch 任何 Provider，渲染循环与 Riverpod 完全解耦。
 ///
 /// 快照只包含 Flame 渲染真正用到的字段子集（场上卡/手牌/阶段/伤害步骤/

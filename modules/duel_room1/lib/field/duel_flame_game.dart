@@ -122,8 +122,9 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
 
   /// 接收 widget 层推送的最新快照并驱动场地重建。
   ///
-  /// 等价旧实现里 ChangeNotifier 监听触发的重建：每次 Riverpod 状态变更
-  /// → 页面 build → 本方法。world 尚未加载完成时只替换快照引用，
+  /// 由页面侧的 listenManual 订阅驱动（board/select/confirm/overlay
+  /// 任一 provider 变更 → 页面组快照并推送，不经 build）。
+  /// world 尚未加载完成时只替换快照引用，
   /// 首次 onLoad 会直接按最新快照构建。
   void applySnapshot(FlameFieldSnapshot next) {
     // 内容判等短路：纯 UI 状态变化（弹窗/检视/菜单）触发的页面 build
@@ -162,11 +163,11 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
 
   /// 页面推入对方手牌栏顶部 y（含状态栏/顶部 HUD 高度的视口坐标）。
   void setOppHandTopY(double y) {
+    if (_oppHandTopY == y) return;
     _oppHandTopY = y;
-    final bar = oppHandBar;
-    if (bar != null) {
-      bar.hudTopY = y;
-    }
+    // setHudTopY 内部触发重排：页面在 build 路径推值，手牌栏可能已
+    // 布局完毕，只改字段会让对方栏停在旧位置直到下一次快照/缩放。
+    oppHandBar?.setHudTopY(y);
   }
 
   /// 选中己方手牌的屏幕矩形（Flutter 操作菜单的锚定，拉式查询）。

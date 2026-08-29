@@ -38,6 +38,7 @@ import 'package:duel_room1/field/widgets/menus/phase_action_menu.dart';
 import 'package:duel_room1/field/widgets/selector/announce_card_dialog.dart';
 import 'package:duel_room1/field/widgets/selector/announce_choice_dialog.dart';
 import 'package:duel_room1/field/widgets/selector/card_selector.dart';
+import 'package:duel_room1/field/widgets/selector/counter_select_dialog.dart';
 import 'package:duel_room1/field/widgets/overlay/confirm_cards_dialog.dart';
 import 'package:duel_room1/field/widgets/overlay/confirm_floating_card.dart';
 import 'package:duel_room1/field/widgets/selector/position_selector.dart';
@@ -178,8 +179,12 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     if (active == null) return;
     final game = _flameGame;
     if (game == null) {
-      // 游戏尚未创建（理论上不会：场地页常驻挂载），丢弃本段动画防卡死。
-      queue.drain();
+      // 游戏尚未创建（理论上不会：场地页常驻挂载），丢弃本侧待发动画
+      // 防卡死。必须用 clear 而非 drain：drain 会把下一个排队事件提为
+      // active 却无人播放，后续 submit 全部堵在它后面；对应的藏牌
+      // 记录一并清掉，避免泄漏。
+      _concealedDrawTargets.remove(active.id);
+      queue.clear();
       return;
     }
     if (isSelf) {
@@ -613,8 +618,10 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
           select: select,
           onSelect: (sequences) =>
               _selectN.respondSelectCard(sequences, generation: generation),
-          onCancel: () =>
-              _selectN.respondSelectCard([], generation: generation),
+          // 取消必须走引擎语义：min>=1 的可取消窗口回 selectSingle(-1)，
+          // 空 selectMulti 会被引擎当成「选 0 张」回 MSG_RETRY，而
+          // handleRetry 不重开此类窗口，对局将卡死。
+          onCancel: _selectN.cancelInlineSelect,
           onInspectCard: onInspectCard,
         );
       case SelectType.unselect:
@@ -719,14 +726,18 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
               _selectN.respondSelectSum(sequences, generation: generation),
           onCancel: () => _selectN.respondSelectSum([], generation: generation),
           onInspectCard: onInspectCard,
+          // SUM 的合法性是合计数值（引擎 sum_check），不是张数下限；
+          // 不合法的回包会吃 MSG_RETRY 且窗口不重开，对局卡死。
+          selectionValidator: _selectN.isSumSelectionValid,
         );
       case SelectType.counter:
-        return CardSelector(
+        // 计数器窗口的应答是「每卡移除数量」列表，CardSelector 的
+        // 下标多选语义无法满足（会被 respondSelectCounter 拒绝且窗口
+        // 不可取消），必须用专用的逐卡步进弹窗。
+        return CounterSelectDialog(
           select: select,
-          onSelect: (sequences) =>
-              _selectN.respondSelectCounter(sequences, generation: generation),
-          onCancel: () =>
-              _selectN.respondSelectCounter([], generation: generation),
+          onSelect: (counts) =>
+              _selectN.respondSelectCounter(counts, generation: generation),
           onInspectCard: onInspectCard,
         );
       case SelectType.sort:
@@ -1230,6 +1241,10 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   // ---- 手牌 ----
 
   void handleHandCardTap(int sequence, int code) {
+    // HUD 隐藏（猜拳/等待阶段场地页仅作背景）时不响应手牌点击：
+    // HandBarComponent 靠 renderTree 早退隐藏，但 Flame 点击分发不
+    // 随渲染关闭，隐形卡仍可被点中。
+    if (!widget.hudVisible) return;
     // 就地选择窗口优先：高亮卡点击即选择/连锁，其余卡仅检视。
     if (_selectN.inlineSelectActive) {
       handleInlineHandCardTap(sequence, code);
@@ -1240,6 +1255,8 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   }
 
   void handleFieldCardTap(FieldCard? fieldCard, int? code) {
+    // 与 handleHandCardTap 同理：HUD 隐藏阶段不响应场上点击。
+    if (!widget.hudVisible) return;
     // 就地选择窗口优先：高亮卡点击即选择/连锁，其余卡仅检视。
     if (fieldCard != null && _selectN.inlineSelectActive) {
       handleInlineFieldCardTap(fieldCard);

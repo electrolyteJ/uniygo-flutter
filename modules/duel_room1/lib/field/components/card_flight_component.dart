@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
@@ -67,6 +69,19 @@ class CardFlightComponent extends PositionComponent
 
   int _completed = 0;
 
+  /// 飞行期间持有的卡图克隆：加载器 LRU 驱逐会 dispose 原图，
+  /// 飞行途中渲染必须自持克隆；组件移除时统一释放。
+  final List<ui.Image> _faceClones = [];
+
+  @override
+  void onRemove() {
+    for (final clone in _faceClones) {
+      clone.dispose();
+    }
+    _faceClones.clear();
+    super.onRemove();
+  }
+
   @override
   void onLoad() {
     super.onLoad();
@@ -77,8 +92,10 @@ class CardFlightComponent extends PositionComponent
       final faceImage = codes[i] > 0
           ? game.world.getCachedCardImage(codes[i])
           : null;
+      final faceClone = faceUp ? faceImage?.clone() : null;
+      if (faceClone != null) _faceClones.add(faceClone);
       final card = SpriteComponent(
-        sprite: (faceUp && faceImage != null) ? Sprite(faceImage) : back,
+        sprite: faceClone != null ? Sprite(faceClone) : back,
         size: Vector2(cardSize.width, cardSize.height),
         anchor: Anchor.center,
         position: Vector2(source.center.dx, source.center.dy),

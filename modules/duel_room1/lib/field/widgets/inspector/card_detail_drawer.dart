@@ -142,7 +142,16 @@ class CardDetailDrawer extends StatelessWidget {
                           children: [
                             _buildBadge(cardInfo!.kindLabel, goldGlow),
                             if (cardInfo!.isMonster) ...[
-                              _buildBadge('${cardInfo!.level}星', goldGlow),
+                              // 等级徽标分类型：XYZ 的 level 存负值（阶级），
+                              // 连接的 level 是 LINK 值而非星级。
+                              _buildBadge(
+                                cardInfo!.isLink
+                                    ? 'LINK-${cardInfo!.level}'
+                                    : cardInfo!.isXyz
+                                    ? '${-cardInfo!.level}阶'
+                                    : '${cardInfo!.level}星',
+                                goldGlow,
+                              ),
                               _buildBadge(cardInfo!.attributeText, goldGlow),
                               _buildBadge(cardInfo!.raceText, goldGlow),
                             ],

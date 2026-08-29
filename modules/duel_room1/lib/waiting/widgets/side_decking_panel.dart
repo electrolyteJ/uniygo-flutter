@@ -302,16 +302,19 @@ class _SideDeckingPanelState extends State<SideDeckingPanel> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      _moveButton(
-                        '→主',
-                        () => widget.onMoveCard(
-                          SidingZone.side,
-                          SidingZone.main,
-                          i,
+                      // 「→主」「→额」按卡类型互斥：额外卡组类型
+                      // （融合/同调/超量/连接）只能回额外卡组，其余卡
+                      // 只能回主卡组；放错会被服务端按「卡组无效」拒绝
+                      // 且提示无法定位问题卡。
+                      if (!_isExtraDeckCard(cards[i]))
+                        _moveButton(
+                          '→主',
+                          () => widget.onMoveCard(
+                            SidingZone.side,
+                            SidingZone.main,
+                            i,
+                          ),
                         ),
-                      ),
-                      // 「→额」仅对额外卡组类型显示：魔陷等塞不进
-                      // 额外卡组，提交了也会被服务端拒绝。
                       if (_isExtraDeckCard(cards[i])) ...[
                         const SizedBox(width: 4),
                         _moveButton(

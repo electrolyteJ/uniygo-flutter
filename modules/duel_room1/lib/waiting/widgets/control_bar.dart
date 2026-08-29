@@ -91,9 +91,12 @@ class ControlBar extends StatelessWidget {
                 if (isPlayer)
                   _roomButton(
                     key: const ValueKey('waiting-room-ready'),
+                    // 自动开局只在房主端生效（notifier 内按 isHost
+                    // 门控），非房主即使开过偏好也不会自动开始，
+                    // 标签同步隐藏避免误导。
                     label: isSelfReady
                         ? '取消准备'
-                        : (autoDuelEnabled ? '准备&决斗' : '准备'),
+                        : (isHost && autoDuelEnabled ? '准备&决斗' : '准备'),
                     icon: isSelfReady ? Icons.cancel : Icons.check_circle,
                     accent: _accentReady,
                     active: isSelfReady,

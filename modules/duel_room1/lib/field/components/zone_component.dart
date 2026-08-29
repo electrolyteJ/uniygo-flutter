@@ -48,6 +48,17 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
   ZonesComponent({this.onCardSelect, this.onZoneInspect, this.onPlaceSlotTap});
 
   @override
+  void onMount() {
+    super.onMount();
+    // 热重载重建（DuelFieldWorld.reload）时游标从当前快照续起，
+    // 避免把重建前最后一次洗牌动效重播一次。
+    _lastSelfDeckShuffleTick = _snapshot.selfDeckShuffleTick;
+    _lastOppDeckShuffleTick = _snapshot.oppDeckShuffleTick;
+    _lastSelfExtraShuffleTick = _snapshot.selfExtraShuffleTick;
+    _lastOppExtraShuffleTick = _snapshot.oppExtraShuffleTick;
+  }
+
+  @override
   void update(double dt) {
     super.update(dt);
     _syncParallax();
@@ -390,7 +401,9 @@ class CardSlotComponent extends PositionComponent
   Effect? _scaleFx;
   Effect? _liftFx;
 
-  /// 已加载的卡图（表侧卡牌才加载）。
+  /// 已加载的卡图（表侧卡牌才加载）。持有的是加载器缓存图的克隆
+  ///（CardImageLoader LRU 超上限会 dispose 被逐出的原图），换卡与
+  /// onRemove 时负责 dispose。
   ui.Image? _cardImage;
   bool _imageRequested = false;
   bool _disposed = false;
@@ -431,6 +444,8 @@ class CardSlotComponent extends PositionComponent
   @override
   void onRemove() {
     _disposed = true;
+    _cardImage?.dispose();
+    _cardImage = null;
     super.onRemove();
   }
 
@@ -447,6 +462,7 @@ class CardSlotComponent extends PositionComponent
   }) {
     final prevCode = this.card?.code;
     if (card == null || card.code != prevCode) {
+      _cardImage?.dispose();
       _cardImage = null;
       _imageRequested = false;
     }
@@ -482,7 +498,7 @@ class CardSlotComponent extends PositionComponent
     final code = card!.code;
     final cached = world.getCachedCardImage(code);
     if (cached != null) {
-      _cardImage = cached;
+      _cardImage = cached.clone();
       return;
     }
     world.loadCardImage(code).then((image) {
@@ -491,7 +507,7 @@ class CardSlotComponent extends PositionComponent
       // 会被 updateContent 的 code 判等保留，永久停留）。
       if (_disposed || card?.code != code) return;
       if (image != null) {
-        _cardImage = image;
+        _cardImage = image.clone();
       } else {
         // 加载失败（CardImageLoader 负缓存 30s 内直接回 null）：
         // 解除占用标记，下次 updateContent 可重试，

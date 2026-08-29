@@ -24,10 +24,16 @@ SummonAnimationSpec summonSpecForEvent(
   DuelFieldWorld world,
   SummonEffectEvent event,
 ) {
+  // 卡图克隆持有：CardImageLoader 的 LRU 驱逐会 dispose 原图，动画
+  // 播放期（约 1.1s）内必须自持克隆；播放结束经驱动器链式回调
+  // onFinished 释放（driver._startNext 会先推进队列再调本回调）。
+  final cached = event.code > 0 ? world.getCachedCardImage(event.code) : null;
+  final image = cached?.clone();
   return SummonAnimationSpec(
     category: summonCategoryOfEffect(event.type),
     position: world.worldPositionForZoneKey(event.zoneKey) ?? Vector2.zero(),
-    cardImage: event.code > 0 ? world.getCachedCardImage(event.code) : null,
+    cardImage: image,
+    onFinished: image == null ? null : () => image.dispose(),
   );
 }
 
@@ -48,6 +54,15 @@ class SummonEffectAdapter extends Component
 
   int _lastTick = 0;
   bool _disposed = false;
+
+  @override
+  void onMount() {
+    super.onMount();
+    // DuelFieldWorld.reload()（热重载）会把同一实例移除后重新挂载，
+    // 复位闭锁与 tick 游标，避免复用后静默丢特效/重播旧特效。
+    _disposed = false;
+    _lastTick = world.game.snapshot.summonEffectTick;
+  }
 
   @override
   void onRemove() {

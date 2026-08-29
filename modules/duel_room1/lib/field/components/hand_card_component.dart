@@ -116,6 +116,7 @@ class HandCardComponent extends PositionComponent
   }) {
     if (code != _code) {
       _code = code;
+      _cardImage?.dispose();
       _cardImage = null;
       _imageRequested = false;
     }
@@ -199,9 +200,10 @@ class HandCardComponent extends PositionComponent
     if (!_faceUp || _code <= 0 || _imageRequested) return;
     _imageRequested = true;
     final code = _code;
+    // 克隆持有：加载器 LRU 驱逐会 dispose 原图，长持有必须自持克隆。
     final cached = game.world.getCachedCardImage(code);
     if (cached != null) {
-      _cardImage = cached;
+      _cardImage = cached.clone();
       _syncBodySprite();
       return;
     }
@@ -209,7 +211,7 @@ class HandCardComponent extends PositionComponent
       // A→B 换卡竞态：慢请求返回时卡可能已换，仅当仍是同一张才采用。
       if (_disposed || _code != code) return;
       if (image != null) {
-        _cardImage = image;
+        _cardImage = image.clone();
         _syncBodySprite();
       } else {
         _imageRequested = false;
@@ -220,6 +222,8 @@ class HandCardComponent extends PositionComponent
   @override
   void onRemove() {
     _disposed = true;
+    _cardImage?.dispose();
+    _cardImage = null;
     super.onRemove();
   }
 

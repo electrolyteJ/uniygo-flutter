@@ -29,6 +29,14 @@ class CardMoveAnimator extends Component
   int _lastTick = 0;
 
   @override
+  void onMount() {
+    super.onMount();
+    // 热重载重建（DuelFieldWorld.reload）时游标从当前快照续起，
+    // 避免把重建前最后一条移动特效重播一次。
+    _lastTick = world.game.snapshot.cardMoveTick;
+  }
+
+  @override
   void update(double dt) {
     super.update(dt);
     final snapshot = world.game.snapshot;
@@ -69,9 +77,12 @@ class CardMoveAnimator extends Component
       faceUp: faceUp,
       source: fromRect,
       targets: [toRect],
+      // 飞行卡挂在 viewport（屏幕空间），而 DuelFieldLayout 槽位尺寸
+      // 是世界坐标：必须与落点矩形（_rectFor boardSlot 分支）一样乘以
+      // 相机 zoom，否则竖屏小 zoom 下飞牌明显大于落点卡槽、落地跳变。
       cardSize: Size(
-        DuelFieldLayout.slotWidth,
-        DuelFieldLayout.slotHeight,
+        DuelFieldLayout.slotWidth * game.camera.viewfinder.zoom,
+        DuelFieldLayout.slotHeight * game.camera.viewfinder.zoom,
       ),
       perCardDuration: movePerCardSeconds,
       stagger: 0,

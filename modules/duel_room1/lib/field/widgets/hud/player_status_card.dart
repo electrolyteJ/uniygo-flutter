@@ -188,6 +188,10 @@ class _PlayerStatusCardState extends State<PlayerStatusCard> {
                           right: -6,
                           top: -20,
                           child: TweenAnimationBuilder<double>(
+                            // 以事件 id 为 key：新 LP 事件到达时旧浮字
+                            // 动画直接作废重播，否则 0→1 的 tween 不变、
+                            // 新数值会继承旧进度（可能一出现就近乎透明）。
+                            key: ValueKey(widget.lpEventId),
                             duration: const Duration(milliseconds: 900),
                             curve: Curves.easeOutCubic,
                             tween: Tween<double>(begin: 0, end: 1),

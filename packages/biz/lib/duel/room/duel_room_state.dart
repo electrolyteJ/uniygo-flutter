@@ -871,6 +871,12 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
     };
     if (index < 0 || index >= fromList.length) return false;
     final card = fromList[index];
+    // YGOPro 规则兜底：额外卡组类型只能 额外↔副，其余卡只能 主↔副。
+    // 面板按类型隐藏按钮，这里拦截绕过面板的非法移动。
+    final isExtraType =
+        card.isFusion || card.isSynchro || card.isXyz || card.isLink;
+    if (to == SidingZone.main && isExtraType) return false;
+    if (to == SidingZone.extra && !isExtraType) return false;
     final main = [...siding.main];
     final extra = [...siding.extra];
     final side = [...siding.side];

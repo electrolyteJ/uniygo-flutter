@@ -31,8 +31,16 @@ class HandBarComponent extends PositionComponent
   /// 点击手牌回调（index, code）；对方手牌栏为 null（不可交互）。
   final void Function(int index, int code)? onCardTap;
 
-  /// 对方手牌栏顶部 y（页面按 HUD 高度推入，见 [hudTopY]）。
+  /// 对方手牌栏顶部 y（页面按 HUD 高度推入，见 [setHudTopY]）。
   double hudTopY = 0;
+
+  /// 更新顶部 y 并重排手牌（值未变时跳过）。布局在 [_relayout] 中
+  /// 读取 [hudTopY]，直接改字段不重排会让对方手牌栏停在旧位置。
+  void setHudTopY(double y) {
+    if (hudTopY == y) return;
+    hudTopY = y;
+    _relayout();
+  }
 
   /// 手牌栏整体是否可见（HUD 可见性跟随对局阶段：
   /// 猜拳/等待阶段场地页作背景时隐藏）。

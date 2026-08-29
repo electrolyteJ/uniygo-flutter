@@ -42,14 +42,35 @@ class _DuelResultPageState extends ConsumerState<DuelResultPage> {
     // 防御性解析结果字段：深链/热重载/生产端数据漂移可能缺字段，
     // 裸 as 强转会直接 TypeError 崩溃，缺失时回退合理默认值。
     final didWin = widget.result['didWin'] as bool? ?? false;
+    final winPlayer = widget.result['winPlayer'] as int?;
     final selfName = widget.result['selfName'] as String? ?? '自己';
     final opponentName = widget.result['opponentName'] as String? ?? '对手';
     final selfLp = widget.result['selfLp'] as int? ?? 0;
     final opponentLp = widget.result['opponentLp'] as int? ?? 0;
     final reason = widget.result['reason'] as int?;
-    final accent = didWin ? const Color(0xFFD7B65A) : const Color(0xFF7BA7D9);
-    final title = didWin ? '胜利' : '失败';
-    final subtitle = didWin ? '你赢下了这场决斗' : '这场决斗落败';
+    // 平局：服务端 MSG_WIN 的 winPlayer 为 PLAYER_NONE（ocgcore=2），
+    // 此时 didWin 对双方都是 false，不能按「失败」展示。
+    final isDraw = winPlayer != null && winPlayer != 0 && winPlayer != 1;
+    // 观战者没有胜负立场（myController 恒为 1，didWin 只是随机的座位
+    // 对齐结果），标题/副标题都用中性文案。
+    final isDuelist = ref.watch(
+      duelRoomProvider.select((s) => s.selfType.isDuelist),
+    );
+    final accent = isDraw
+        ? const Color(0xFF9E9E9E)
+        : didWin
+        ? const Color(0xFFD7B65A)
+        : const Color(0xFF7BA7D9);
+    final title = isDraw
+        ? '平局'
+        : isDuelist
+        ? (didWin ? '胜利' : '失败')
+        : '决斗结束';
+    final subtitle = isDraw
+        ? '双方战平'
+        : isDuelist
+        ? (didWin ? '你赢下了这场决斗' : '这场决斗落败')
+        : (didWin ? '$selfName 获胜' : '$opponentName 获胜');
     // match 局间换备阶段（RoomSideDecking）：按钮改「进入换备阶段」关闭
     // 弹窗进入换备（自持 _dismissed）；否则「返回首页」离房。
     final isSideDecking = ref.watch(

@@ -29,12 +29,17 @@ class CardSelector extends StatefulWidget {
   final VoidCallback onCancel;
   final void Function(int code) onInspectCard;
 
+  /// 自定义确认门槛（SUM 窗口按引擎 sum_check 判定合计合法性）；
+  /// null 时回退到「勾选数 >= [SelectState.min]」。
+  final bool Function(Set<int> selectedIndices)? selectionValidator;
+
   const CardSelector({
     super.key,
     required this.select,
     required this.onSelect,
     required this.onCancel,
     required this.onInspectCard,
+    this.selectionValidator,
   });
 
   @override
@@ -43,6 +48,13 @@ class CardSelector extends StatefulWidget {
 
 class _CardSelectorState extends State<CardSelector> {
   final List<int> _selectedIndices = [];
+
+  /// 确认按钮门槛：有自定义校验（SUM 合计）走校验，否则按张数下限。
+  bool get _canConfirm {
+    final validator = widget.selectionValidator;
+    if (validator != null) return validator(_selectedIndices.toSet());
+    return _selectedIndices.length >= widget.select.min;
+  }
 
   @override
   void initState() {
@@ -83,9 +95,7 @@ class _CardSelectorState extends State<CardSelector> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                select.immediateSingleToggle
-                    ? '已选择 ${_selectedIndices.length} 张卡，继续点卡切换，满足条件后完成'
-                    : '选择 ${select.min}-${select.max} 张卡 (${_selectedIndices.length}/${select.max})',
+                _title(select),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 15,
@@ -125,14 +135,12 @@ class _CardSelectorState extends State<CardSelector> {
                   if (!select.immediateSingleToggle) ...[
                     const SizedBox(width: 12),
                     ElevatedButton(
-                      onPressed: _selectedIndices.length >= select.min
-                          ? _confirmSelection
-                          : null,
+                      onPressed: _canConfirm ? _confirmSelection : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _selectedIndices.length >= select.min
+                        backgroundColor: _canConfirm
                             ? const Color(0xFF00F0FF)
                             : Colors.grey.shade800,
-                        foregroundColor: _selectedIndices.length >= select.min
+                        foregroundColor: _canConfirm
                             ? Colors.black
                             : Colors.grey.shade500,
                         disabledBackgroundColor: Colors.grey.shade800,
@@ -272,11 +280,27 @@ class _CardSelectorState extends State<CardSelector> {
     );
   }
 
+  String _title(SelectState select) {
+    if (select.immediateSingleToggle) {
+      return '已选择 ${_selectedIndices.length} 张卡，继续点卡切换，满足条件后完成';
+    }
+    // SUM 窗口按合计数值选卡而非张数：max==0（精确合计）时没有张数上限，
+    // 展示「min-max 张」会误导。
+    if (select.type == SelectType.sum) {
+      return select.sumExact
+          ? '选择合计恰为 ${select.sumTarget} 的卡（已选 ${_selectedIndices.length} 张）'
+          : '选择合计达到 ${select.sumTarget} 的卡（已选 ${_selectedIndices.length} 张）';
+    }
+    return '选择 ${select.min}-${select.max} 张卡 (${_selectedIndices.length}/${select.max})';
+  }
+
   void _toggleSelection(int index, SelectState select) {
     setState(() {
       if (_selectedIndices.contains(index)) {
         _selectedIndices.remove(index);
-      } else if (_selectedIndices.length < select.max) {
+        // max<=0（SUM 精确合计窗口）表示无张数上限，不能按 0 上限拦截，
+        // 否则一张都选不了、窗口又不可取消，对局卡死。
+      } else if (select.max <= 0 || _selectedIndices.length < select.max) {
         _selectedIndices.add(index);
       }
     });

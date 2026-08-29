@@ -195,9 +195,17 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
                             deckListLoading: !_deckListLoadFinished,
                             selectedDeckName: room.selectedDeckName,
                             onSelectDeck: (value) {
-                              if (value != null) {
-                                unawaited(roomCtl.selectDeck(value));
-                              }
+                              if (value == null) return;
+                              // selectDeck 的失败（卡组加载失败/不存在）
+                              // 不回写 invalidationDeckResult，不经
+                              // errorMessage 渠道就会静默丢弃。
+                              unawaited(() async {
+                                final r = await roomCtl.selectDeck(value);
+                                final error = r.error;
+                                if (error != null) {
+                                  roomCtl.setErrorText(error);
+                                }
+                              }());
                             },
                             onEditDeck: room.selectedDeckName == null
                                 ? null
