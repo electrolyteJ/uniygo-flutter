@@ -8,13 +8,16 @@ import 'package:flutter/material.dart';
 import 'package:duel_room1/field/duel_field_world.dart';
 import 'package:duel_room1/field/util/phase_rail_layout.dart';
 
-/// 阶段轨道：棋盘右侧的垂直阶段按钮列（DP/SP/M1/BP/M2/EP）。
+/// 阶段轨道：棋盘右侧的垂直阶段按钮列（DP/SP/M1/BP/M2/EP），
+/// 末端（EP 下方）挂一个阶段操作菜单按钮（≡）。
 ///
 /// 视觉语义：
 /// - 已过阶段：青色淡填充（本回合已走过的流程）；
 /// - 当前阶段：发光胶囊（可点击时发光呼吸脉动），点击打开阶段跳转菜单；
 /// - 未到阶段：暗色空心；
-/// - idle（回合间隙）：全部按未到处理。
+/// - idle（回合间隙）：全部按未到处理；
+/// - 末端按钮：阶段菜单的显式入口（整列可点不够显眼），可点击时
+///   同样呼吸发光；与整列点击同一动作（onTap）。
 ///
 /// 几何全部来自 [PhaseRailLayout]（纯数据，单测锁定与相机内容宽度的
 /// 关系）；组件尺寸固定，duel_flame_game 的菜单锚点按同一几何上报。
@@ -105,7 +108,7 @@ class PhaseRailComponent extends PositionComponent
         anchor: Anchor.center,
         size: Vector2(
           PhaseRailLayout.pillWidth + _haloMargin * 2,
-          PhaseRailLayout.height + _haloMargin * 2,
+          PhaseRailLayout.heightWithButton + _haloMargin * 2,
         ),
       );
 
@@ -128,9 +131,11 @@ class PhaseRailComponent extends PositionComponent
   }
 
   void _syncPosition() {
+    // 组件含末端按钮，几何中心相对胶囊区中心（centerY）下移
+    // actionButtonShift，胶囊区因此仍居中于棋盘中线。
     final anchor = world.project3D(
       PhaseRailLayout.centerX,
-      PhaseRailLayout.centerY,
+      PhaseRailLayout.centerY + PhaseRailLayout.actionButtonShift,
     );
     if (anchor.x == _lastAnchorX && anchor.y == _lastAnchorY) return;
     _lastAnchorX = anchor.x;
@@ -148,17 +153,22 @@ class PhaseRailComponent extends PositionComponent
   @override
   void render(Canvas canvas) {
     canvas.save();
-    canvas.translate(size.x / 2, size.y / 2);
+    // 上半段（胶囊区）仍按 centerY 居中绘制：组件中心被按钮下移，
+    // 这里反向平移回去。
+    canvas.translate(
+      size.x / 2,
+      size.y / 2 - PhaseRailLayout.actionButtonShift,
+    );
 
     final count = PhaseRailLayout.phases.length;
     final currentIndex = PhaseRailLayout.orderIndex(_phase);
 
-    // 1. 整条轨道的底板（提升在棋盘上的可读性）。
+    // 1. 整条轨道的底板（含末端按钮区，提升在棋盘上的可读性）。
     final dockRect = RRect.fromRectAndRadius(
       Rect.fromCenter(
-        center: Offset.zero,
+        center: Offset(0, PhaseRailLayout.actionButtonShift),
         width: PhaseRailLayout.pillWidth + 8,
-        height: PhaseRailLayout.height + 8,
+        height: PhaseRailLayout.heightWithButton + 8,
       ),
       const Radius.circular(14),
     );
@@ -206,7 +216,53 @@ class PhaseRailComponent extends PositionComponent
       }
     }
 
+    // 4. 末端阶段操作菜单按钮（≡）。
+    _renderActionButton(canvas);
+
     canvas.restore();
+  }
+
+  /// 阶段操作菜单按钮：可点击时呼吸发光（同当前阶段胶囊语义），
+  /// 不可点击时暗色降级。图标为手绘三线，避免引入字体图标依赖。
+  void _renderActionButton(Canvas canvas) {
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(0, PhaseRailLayout.actionButtonCenterY),
+        width: PhaseRailLayout.actionButtonWidth,
+        height: PhaseRailLayout.actionButtonHeight,
+      ),
+      const Radius.circular(PhaseRailLayout.actionButtonHeight / 2),
+    );
+    if (_enabled) {
+      final pulse = 0.30 + 0.20 * sin(_time * 3.2);
+      canvas.drawRRect(
+        rect,
+        _currentGlowPaint..color = _accent.withValues(alpha: pulse),
+      );
+      canvas.drawRRect(rect, _currentFillPaint);
+      canvas.drawRRect(rect, _currentBorderPaint);
+    } else {
+      canvas.drawRRect(rect, _futureFillPaint);
+      canvas.drawRRect(rect, _futureBorderPaint);
+    }
+    final iconColor = _enabled
+        ? _accent
+        : Colors.white.withValues(alpha: 0.30);
+    final iconPaint = Paint()
+      ..color = iconColor
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round;
+    const iconHalfWidth = 6.0;
+    const iconSpacing = 4.0;
+    final cy = PhaseRailLayout.actionButtonCenterY;
+    for (var i = -1; i <= 1; i++) {
+      final y = cy + i * iconSpacing;
+      canvas.drawLine(
+        Offset(-iconHalfWidth, y),
+        Offset(iconHalfWidth, y),
+        iconPaint,
+      );
+    }
   }
 
   void _renderStyledPill(

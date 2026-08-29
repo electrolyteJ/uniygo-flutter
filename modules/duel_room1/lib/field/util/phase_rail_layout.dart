@@ -56,6 +56,27 @@ class PhaseRailLayout {
   /// 轨道右沿（相机内容宽度需覆盖到它）。
   static double get rightEdge => centerX + pillWidth / 2; // 344
 
+  // ── 阶段操作菜单按钮（EP 胶囊下方）──
+  /// 按钮尺寸：与胶囊同宽，略高以容纳图标与呼吸辉光。
+  static const actionButtonWidth = pillWidth;
+  static const actionButtonHeight = 22.0;
+
+  /// 按钮与末位胶囊（EP）的纵向间距。
+  static const actionButtonGap = 8.0;
+
+  /// 按钮中心 y（胶囊区以 centerY 居中，按钮挂在其下方）。
+  static double get actionButtonCenterY =>
+      height / 2 + actionButtonGap + actionButtonHeight / 2; // 75+8+11 = 94
+
+  /// 含按钮的轨道总高（组件尺寸与菜单锚点用）。
+  static double get heightWithButton =>
+      height + actionButtonGap + actionButtonHeight; // 180
+
+  /// 按钮引入的组件中心下移量：胶囊区保持以 centerY 居中，
+  /// 组件整体（胶囊 + 按钮）的几何中心相对 centerY 下移该值。
+  static double get actionButtonShift =>
+      (actionButtonGap + actionButtonHeight) / 2; // 15
+
   /// 包含轨道的棋盘内容宽度（供 DuelFlameGame 相机自适配引用）。
   /// 在旧值 600 基础上加宽到 704：横屏高度受限场景 zoom 不变，
   /// 轨道免费入镜；窄屏（宽受限）才轻微缩出。

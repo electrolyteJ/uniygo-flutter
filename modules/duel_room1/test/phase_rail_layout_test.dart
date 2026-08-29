@@ -64,5 +64,42 @@ void main() {
     test('轨道高度不超棋盘内容高度（510）', () {
       expect(PhaseRailLayout.height, lessThan(510));
     });
+
+    test('阶段菜单按钮挂在 EP 胶囊下方且不越界', () {
+      // 按钮在末位胶囊之下、互不重叠。
+      final lastPillBottom =
+          PhaseRailLayout.pillCenterY(PhaseRailLayout.phases.length - 1) +
+          PhaseRailLayout.pillHeight / 2;
+      final buttonTop =
+          PhaseRailLayout.actionButtonCenterY -
+          PhaseRailLayout.actionButtonHeight / 2;
+      expect(buttonTop, greaterThan(lastPillBottom));
+      // 含按钮总高 = 胶囊区 + 间距 + 按钮。
+      expect(
+        PhaseRailLayout.heightWithButton,
+        closeTo(
+          PhaseRailLayout.height +
+              PhaseRailLayout.actionButtonGap +
+              PhaseRailLayout.actionButtonHeight,
+          1e-9,
+        ),
+      );
+      // 组件中心下移量恰好补偿按钮占位（胶囊区保持居中）。
+      expect(
+        PhaseRailLayout.actionButtonShift,
+        closeTo(
+          (PhaseRailLayout.actionButtonGap +
+                  PhaseRailLayout.actionButtonHeight) /
+              2,
+          1e-9,
+        ),
+      );
+      // 按钮不超出相机内容高度（510 的一半）。
+      expect(
+        PhaseRailLayout.actionButtonCenterY +
+            PhaseRailLayout.actionButtonHeight / 2,
+        lessThan(255),
+      );
+    });
   });
 }

@@ -12,6 +12,7 @@ import 'package:biz/duel/field/duel_field_derived.dart';
 import 'package:biz/duel/field/duel_field_state.dart';
 import 'package:biz/duel/field/field_overlay_state.dart';
 import 'package:biz/duel/field/select_window_state.dart';
+import 'package:biz/duel/models/field_card.dart';
 import 'package:biz/duel/models/select_state.dart';
 import 'package:biz/duel/room/duel_room_state.dart';
 import 'package:biz/service_providers.dart';
@@ -223,5 +224,57 @@ void main() {
     );
     // 同一 provider 在根容器读到根状态（互不影响）。
     expect(appContainer.read(scopedModeProvider), SelectPromptMode.none);
+  });
+
+  // ── 攻击对象选择应走就地选择（不弹窗）的回归 ──
+
+  test('攻击对象（对方场上怪兽）窗口应解析为 inline 而非 modal', () {
+    // 构造：对方（controller=1）怪兽区 0/1 号位各一张卡在场。
+    const board = DuelFieldState(
+      myController: 0,
+      fieldCards: {
+        '1_4_0': FieldCard(
+          code: 46986414,
+          controller: 1,
+          zone: CARD_ZONE_MZONE,
+          sequence: 0,
+          position: 0x1,
+        ),
+        '1_4_1': FieldCard(
+          code: 70781052,
+          controller: 1,
+          zone: CARD_ZONE_MZONE,
+          sequence: 1,
+          position: 0x1,
+        ),
+      },
+    );
+    const select = SelectWindowState(
+      currentSelect: SelectState(
+        type: SelectType.card,
+        player: 0,
+        min: 1,
+        max: 1,
+        options: [
+          SelectOption(
+            code: 46986414,
+            controller: 1,
+            zone: CARD_ZONE_MZONE,
+            sequence: 0,
+          ),
+          SelectOption(
+            code: 70781052,
+            controller: 1,
+            zone: CARD_ZONE_MZONE,
+            sequence: 1,
+          ),
+        ],
+      ),
+    );
+    expect(
+      resolveSelectPromptMode(select, board),
+      SelectPromptMode.inline,
+      reason: '攻击对象都在对方怪兽区，应直接点选场上怪兽，不弹窗',
+    );
   });
 }
