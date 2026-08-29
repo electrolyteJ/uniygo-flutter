@@ -136,7 +136,7 @@ final class DuelRoomNotifierProvider
   }
 }
 
-String _$duelRoomNotifierHash() => r'dee583b0a540f714f1319745e62a2e9401072732';
+String _$duelRoomNotifierHash() => r'0cfadb540567c03c252e7e619279588ffcb4cb05';
 
 /// 决斗房间控制器（Riverpod 版 DuelRoomStore）。
 ///

@@ -17,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'constants.dart';
 import 'duel_room_exit.dart';
+import 'duel_result_overlay.dart';
 import 'field/duel_field_page.dart';
 import 'waiting/waiting_room_page.dart';
 
@@ -78,6 +79,10 @@ class DuelRoomPage3D extends StatelessWidget {
           cardConfirmProvider.overrideWith(CardConfirmNotifier.new),
           fieldOverlayProvider.overrideWith(FieldOverlayNotifier.new),
           duelMessageRouterProvider.overrideWith(DuelMessageRouter.new),
+          // 连接生命周期钩子必须在房间 scope 内实例化：它只 watch 应用级
+          // duelServiceProvider，不 override 会解析到根容器，onDispose 只在
+          // 应用退出时触发，房间 scope 销毁时断连兜底失效。
+          roomConnectionLifetimeProvider.overrideWith(roomConnectionLifetime),
         ],
         child: _DuelRoomView(args: args),
       ),
@@ -204,7 +209,15 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
         key: const ValueKey('duel-room3-page'),
         backgroundColor: const Color(0xFF05070F),
         appBar: isInDuel ? null : _buildAppBar(room),
-        body: content,
+        // 内建结算 overlay 常驻置顶：结果非空时盖住对局/等待室，
+        // 空时内部返回透明占位不拦截点击（对局/等待房两个阶段都能盖住）。
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            content,
+            const Positioned.fill(child: DuelResultOverlay()),
+          ],
+        ),
       ),
     );
   }

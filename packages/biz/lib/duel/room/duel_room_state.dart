@@ -241,8 +241,11 @@ class DuelRoomState {
 /// disconnect 重复调用是安全的。
 @Riverpod(keepAlive: true)
 void roomConnectionLifetime(Ref ref) {
+  // Riverpod 3 禁止在 onDispose 等生命周期回调里使用 ref（read 会断言
+  // _debugCallbackStack == 0）；duelService 是应用级单例，提前捕获即可。
+  final duelService = ref.read(duelServiceProvider);
   ref.onDispose(() {
-    unawaited(ref.read(duelServiceProvider).disconnect());
+    unawaited(duelService.disconnect());
   });
 }
 

@@ -14,9 +14,7 @@ import '../models/field_card.dart';
 import '../models/idle_action.dart';
 import '../models/playmat_resolved_action.dart';
 import 'select_window_state.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-part 'duel_field_derived.g.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// 场地派生读取：把「当前窗口 + 选中态」派生为动作/菜单条目，供页面
 /// 以 Provider 形式响应式消费（替代原 DuelFieldController 里的纯读取方法）。
@@ -28,8 +26,11 @@ part 'duel_field_derived.g.dart';
 /// DuelFieldPage 内作为薄方法。
 ///
 /// ⚠️ 维护约定（两处易碎的隐式约束，改动时务必遵守）：
-/// 1. Provider 的依赖关系由 riverpod_generator 从 `ref.watch` 调用自动推导，
-///    无需再手写 `dependencies:`；derived_provider_scoping_test.dart 继续兜底。
+/// 1. 派生 provider 一律手写 `Provider(...)` 并显式声明 `dependencies:`
+///    （列出所有 ref.watch/read 的房间级 provider）。riverpod_generator
+///    不会从函数体推导 dependencies（生成恒为 null），缺了它 provider
+///    会解析到根容器、读到根容器的空状态而不是房间 scope 的 override
+///    （announce_modal_scope_test.dart 是本类问题的回归兜底）。
 /// 2. onTap 闭包通过 `ref.read(xxxProvider.notifier)` 捕获 Notifier 实例；
 ///    依赖「四个子状态 Provider 在房间 scope 内实例稳定」这一前提。
 ///    全部 provider 保持 @Riverpod(keepAlive: true)（手写时代语义），
@@ -346,20 +347,98 @@ void _dispatchResolvedAction(
 }
 
 // ──────────────────────────────────────────
-// 派生 Provider
+// 派生 Provider（手写 + 显式 dependencies，见文件头维护约定第 1 条）
 // ──────────────────────────────────────────
 
 /// 当前窗口的阶段动作（进入战斗/结束回合/进 M2）。
-@Riverpod(keepAlive: true)
-List<PlaymatResolvedAction> phaseActions(Ref ref) {
+final phaseActionsProvider = Provider<List<PlaymatResolvedAction>>(
+  (ref) => _phaseActions(ref),
+  dependencies: [duelFieldProvider, selectWindowProvider],
+);
+
+/// 手牌选中卡的操作菜单条目。
+final handActionMenuProvider = Provider<List<ActionMenuEntry>>(
+  (ref) => _handActionMenu(ref),
+  dependencies: [
+    duelFieldProvider,
+    selectWindowProvider,
+    fieldOverlayProvider,
+  ],
+);
+
+/// 阶段菜单条目（阶段灯点击后的弹层内容）。
+final phaseActionMenuProvider = Provider<List<ActionMenuEntry>>(
+  (ref) => _phaseActionMenu(ref),
+  dependencies: [
+    phaseActionsProvider,
+    selectWindowProvider,
+    fieldOverlayProvider,
+  ],
+);
+
+/// 场上选中卡的操作菜单条目。
+final fieldActionMenuProvider = Provider<List<ActionMenuEntry>>(
+  (ref) => _fieldActionMenu(ref),
+  dependencies: [
+    duelFieldProvider,
+    selectWindowProvider,
+    fieldOverlayProvider,
+  ],
+);
+
+/// 区域浏览器（墓地/除外/额外）内展示的卡列表。
+final zoneBrowserEntriesProvider =
+    Provider.family<List<ZoneBrowserCardEntry>, String>(
+  (ref, zoneKey) => _zoneBrowserEntries(ref, zoneKey),
+  dependencies: [duelFieldProvider, selectWindowProvider],
+);
+
+/// 区域浏览器内选中卡的操作菜单条目。
+final zoneBrowserActionsProvider =
+    Provider.family<List<ActionMenuEntry>, String>(
+  (ref, zoneKey) => _zoneBrowserActions(ref, zoneKey),
+  dependencies: [
+    duelFieldProvider,
+    selectWindowProvider,
+    fieldOverlayProvider,
+    zoneBrowserEntriesProvider,
+  ],
+);
+
+/// 区域浏览器的「隐藏数量」展示值。
+final zoneHiddenCountProvider = Provider.family<int, String>(
+  (ref, zoneKey) => _zoneHiddenCount(ref, zoneKey),
+  dependencies: [duelFieldProvider],
+);
+
+/// 出现更高优先级选择窗口（非阶段指令）时，本地弹层是否应当让位。
+final needsHigherPriorityDismissProvider = Provider<bool>(
+  (ref) => _needsHigherPriorityDismiss(ref),
+  dependencies: [selectWindowProvider, fieldOverlayProvider],
+);
+
+/// 当前窗口下，墓地/除外/额外中「有可发动/可召唤卡」的区域 key 集合，
+/// 用于场地上的可发动区域高亮提醒（智能打牌反馈：墓效/额外召唤提示）。
+final activatableZoneKeysProvider = Provider<Set<String>>(
+  (ref) => _activatableZoneKeys(ref),
+  dependencies: [duelFieldProvider, selectWindowProvider],
+);
+
+/// 选择提示呈现方式（跨 selectWindow+duelField 派生）。
+/// 页面按区域订阅本 provider，替代整页 watch 后的 notifier 读取。
+final selectPromptModeProvider = Provider<SelectPromptMode>(
+  (ref) => _selectPromptMode(ref),
+  dependencies: [selectWindowProvider, duelFieldProvider],
+);
+
+/// 当前窗口的阶段动作（进入战斗/结束回合/进 M2）。
+List<PlaymatResolvedAction> _phaseActions(Ref ref) {
   final board = ref.watch(duelFieldProvider);
   final select = ref.watch(selectWindowProvider);
   return _resolvePhaseActions(select, board);
 }
 
-/// 手牌选中卡的操作菜单条目。
-@Riverpod(keepAlive: true)
-List<ActionMenuEntry> handActionMenu(Ref ref) {
+List<ActionMenuEntry> _handActionMenu(Ref ref) {
   final board = ref.watch(duelFieldProvider);
   final select = ref.watch(selectWindowProvider);
   final overlay = ref.watch(fieldOverlayProvider);
@@ -387,9 +466,7 @@ List<ActionMenuEntry> handActionMenu(Ref ref) {
       .toList();
 }
 
-/// 阶段菜单条目（阶段灯点击后的弹层内容）。
-@Riverpod(keepAlive: true)
-List<ActionMenuEntry> phaseActionMenu(Ref ref) {
+List<ActionMenuEntry> _phaseActionMenu(Ref ref) {
   final selectN = ref.read(selectWindowProvider.notifier);
   final overlayN = ref.read(fieldOverlayProvider.notifier);
   return ref
@@ -406,9 +483,7 @@ List<ActionMenuEntry> phaseActionMenu(Ref ref) {
       .toList(growable: false);
 }
 
-/// 场上选中卡的操作菜单条目。
-@Riverpod(keepAlive: true)
-List<ActionMenuEntry> fieldActionMenu(Ref ref) {
+List<ActionMenuEntry> _fieldActionMenu(Ref ref) {
   final board = ref.watch(duelFieldProvider);
   final select = ref.watch(selectWindowProvider);
   final overlay = ref.watch(fieldOverlayProvider);
@@ -441,9 +516,7 @@ List<ActionMenuEntry> fieldActionMenu(Ref ref) {
       .toList(growable: false);
 }
 
-/// 区域浏览器（墓地/除外/额外）内展示的卡列表。
-@Riverpod(keepAlive: true)
-List<ZoneBrowserCardEntry> zoneBrowserEntries(Ref ref, String zoneKey) {
+List<ZoneBrowserCardEntry> _zoneBrowserEntries(Ref ref, String zoneKey) {
   final board = ref.watch(duelFieldProvider);
   final select = ref.watch(selectWindowProvider);
 
@@ -481,9 +554,7 @@ List<ZoneBrowserCardEntry> zoneBrowserEntries(Ref ref, String zoneKey) {
   ];
 }
 
-/// 区域浏览器内选中卡的操作菜单条目。
-@Riverpod(keepAlive: true)
-List<ActionMenuEntry> zoneBrowserActions(Ref ref, String zoneKey) {
+List<ActionMenuEntry> _zoneBrowserActions(Ref ref, String zoneKey) {
   final board = ref.watch(duelFieldProvider);
   final select = ref.watch(selectWindowProvider);
   final overlay = ref.watch(fieldOverlayProvider);
@@ -538,9 +609,7 @@ List<ActionMenuEntry> zoneBrowserActions(Ref ref, String zoneKey) {
       .toList(growable: false);
 }
 
-/// 区域浏览器的「隐藏数量」展示值。
-@Riverpod(keepAlive: true)
-int zoneHiddenCount(Ref ref, String zoneKey) {
+int _zoneHiddenCount(Ref ref, String zoneKey) {
   final board = ref.watch(duelFieldProvider);
   switch (zoneKey) {
     case 'self_grave':
@@ -560,9 +629,7 @@ int zoneHiddenCount(Ref ref, String zoneKey) {
   }
 }
 
-/// 出现更高优先级选择窗口（非阶段指令）时，本地弹层是否应当让位。
-@Riverpod(keepAlive: true)
-bool needsHigherPriorityDismiss(Ref ref) {
+bool _needsHigherPriorityDismiss(Ref ref) {
   final select = ref.watch(selectWindowProvider);
   final overlay = ref.watch(fieldOverlayProvider);
   final hasHigherPriorityOverlay =
@@ -579,8 +646,7 @@ bool needsHigherPriorityDismiss(Ref ref) {
 /// 仅覆盖主阶段 idle 指令窗口：战斗指令窗口（MSG_SELECT_BATTLE_CMD）的
 /// action 是攻击，attacker 均在场上，不涉及墓地/除外/额外发动；
 /// 战斗中的快速效果走 MSG_SELECT_CHAIN，属另一套交互，不在此处理。
-@Riverpod(keepAlive: true)
-Set<String> activatableZoneKeys(Ref ref) {
+Set<String> _activatableZoneKeys(Ref ref) {
   final board = ref.watch(duelFieldProvider);
   final select = ref.watch(selectWindowProvider);
   if (!select.hasIdleCommandWindow ||
@@ -663,8 +729,7 @@ List<String> selectLogSlice(DuelFieldState s) => s.duelLogs;
 
 /// 选择提示呈现方式（跨 selectWindow+duelField 派生）。
 /// 页面按区域订阅本 provider，替代整页 watch 后的 notifier 读取。
-@Riverpod(keepAlive: true)
-SelectPromptMode selectPromptMode(Ref ref) => resolveSelectPromptMode(
+SelectPromptMode _selectPromptMode(Ref ref) => resolveSelectPromptMode(
   ref.watch(selectWindowProvider),
   ref.watch(duelFieldProvider),
 );

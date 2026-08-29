@@ -58,6 +58,10 @@ class DuelRoomPage extends StatelessWidget {
           cardConfirmProvider.overrideWith(CardConfirmNotifier.new),
           fieldOverlayProvider.overrideWith(FieldOverlayNotifier.new),
           duelMessageRouterProvider.overrideWith(DuelMessageRouter.new),
+          // 连接生命周期钩子必须在房间 scope 内实例化：它只 watch 应用级
+          // duelServiceProvider，不 override 会解析到根容器，onDispose 只在
+          // 应用退出时触发，房间 scope 销毁时断连兜底失效。
+          roomConnectionLifetimeProvider.overrideWith(roomConnectionLifetime),
         ],
         child: _DuelRoomView(args: args),
       ),

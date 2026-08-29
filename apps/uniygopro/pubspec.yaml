@@ -20,6 +20,8 @@ dependencies:
   flame: ^1.38.0
   path: ^1.9.1
   shared_preferences: ^2.5.3
+  service_loader:
+    path: ../../packages/service_loader
   cardlive:
     path: ../../modules/cardlive
   deck_editor1:
@@ -36,34 +38,12 @@ dependencies:
     path: ../../modules/ygo_settings
   resource_storage:
     path: ../../packages/resource_storage
-  service_loader:
-    path: ../../packages/service_loader
   biz:
     path: ../../packages/biz
   duelink:
     path: ../../packages/duelink
-  duelink_websocket:
-    path: ../../packages/duelink_websocket
-  #  duelink_socket:
-  #    path: ../../packages/duelink_socket
-  duelink_ai:
-    path: ../../packages/duelink_ai
-  duelink_ai_edo:
-    path: ../../packages/duelink_ai_edo
   resource_data:
     path: ../../packages/resource_data
-  resource_card_baige:
-    path: ../../packages/resource_card_baige
-  resource_card_mycard:
-    path: ../../packages/resource_card_mycard
-  resource_banlist_mycard:
-    path: ../../packages/resource_banlist_mycard
-  resource_deck_mdpro3:
-    path: ../../packages/resource_deck_mdpro3
-  resource_deck_mycard:
-    path: ../../packages/resource_deck_mycard
-  account_mycard:
-    path: ../../packages/account_mycard
   go_router: ^14.0.0
   http: ^1.2.1
   flutter_portal: ^1.1.4

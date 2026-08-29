@@ -4,6 +4,7 @@
 import 'package:duelink_ai/duelink_ai.dart';
 import 'package:duelink_ai_edo/duelink_puzzle.dart';
 import 'package:duelink_ai_edo/src/puzzle_service.dart';
+import 'package:duelink_socket/duelink_socket.dart';
 import 'package:duelink_websocket/duelink_websocket.dart';
 import 'package:resource_banlist_mycard/ygo_banlist_mycard.dart';
 import 'package:resource_card_baige/ygo_card_baige.dart';
@@ -32,6 +33,7 @@ void registerAllServices() {
   _i7.onServiceRegister();
   _i8.onServiceRegister();
   ServiceFactory.register<WebSocketDuelService>(() => WebSocketDuelService());
+  ServiceFactory.register<SocketDuelService>(() => SocketDuelService());
   ServiceFactory.register<AiDuelService>(() => AiDuelService());
   ServiceFactory.register<PuzzleDuelService>(() => PuzzleDuelService());
   ServiceFactory.register<IPuzzleService>(() => PuzzleService());

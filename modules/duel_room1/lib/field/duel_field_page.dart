@@ -15,6 +15,9 @@ import 'package:biz/duel/models/field_card.dart';
 import 'package:biz/duel/models/field_zone_key.dart';
 import 'package:biz/duel/models/playmat_resolved_action.dart';
 import 'package:biz/duel/models/select_state.dart';
+import 'package:duel_room1/field/widgets/confirm/confirm_cards_dialog.dart';
+import 'package:duel_room1/field/widgets/confirm/confirm_floating_card.dart';
+import 'package:duel_room1/field/widgets/selector/duel_select_prompt.dart';
 import 'package:duelink/duelink.dart' show PlayerInfo, PlayerType, RoomInDuel;
 import 'package:resource_data/card_info.dart' as pkg;
 import 'package:flutter/material.dart';
@@ -35,16 +38,7 @@ import 'package:duel_room1/field/widgets/menus/duel_field_popover_layout.dart';
 import 'package:duel_room1/field/widgets/menus/field_action_popover.dart';
 import 'package:duel_room1/field/widgets/menus/hand_action_popover.dart';
 import 'package:duel_room1/field/widgets/menus/phase_action_menu.dart';
-import 'package:duel_room1/field/widgets/selector/announce_card_dialog.dart';
-import 'package:duel_room1/field/widgets/selector/announce_choice_dialog.dart';
-import 'package:duel_room1/field/widgets/selector/card_selector.dart';
-import 'package:duel_room1/field/widgets/selector/counter_select_dialog.dart';
-import 'package:duel_room1/field/widgets/overlay/confirm_cards_dialog.dart';
-import 'package:duel_room1/field/widgets/overlay/confirm_floating_card.dart';
-import 'package:duel_room1/field/widgets/selector/position_selector.dart';
-import 'package:duel_room1/field/widgets/overlay/select_prompt_layer.dart';
-import 'package:duel_room1/field/widgets/overlay/turn_order_hint.dart';
-import 'package:duel_room1/field/widgets/selector/yes_no_dialog.dart';
+import 'package:duel_room1/field/widgets/turn_order_hint.dart';
 import 'package:duel_room1/duel_room_exit.dart';
 
 /// 决斗场地页：负责 biz/duel Provider 接线、Flame 游戏生命周期与整体布局。
@@ -130,13 +124,21 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   // 四个子状态 + 跨状态控制器的便捷访问；读取经 ref.read，
   // 重建由 build 里的四个 ref.watch 驱动。
   DuelFieldState get _board => ref.read(duelFieldProvider);
+
   SelectWindowState get _select => ref.read(selectWindowProvider);
+
   FieldOverlayState get _overlay => ref.read(fieldOverlayProvider);
+
   CardConfirmState get _confirm => ref.read(cardConfirmProvider);
+
   DuelFieldNotifier get _boardN => ref.read(duelFieldProvider.notifier);
+
   SelectWindowNotifier get _selectN => ref.read(selectWindowProvider.notifier);
+
   CardConfirmNotifier get _confirmN => ref.read(cardConfirmProvider.notifier);
+
   FieldOverlayNotifier get _overlayN => ref.read(fieldOverlayProvider.notifier);
+
   YgoSoundService get _sound => ref.read(ygoSoundServiceProvider);
 
   @override
@@ -150,8 +152,14 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     );
     // 手牌已 Flame 化：选中/高亮/确认等交互态也在快照里，
     // 这两个 provider 的变化同样要推快照。
-    _confirmSub = ref.listenManual(cardConfirmProvider, (_, _) => _pushSnapshot());
-    _overlaySub = ref.listenManual(fieldOverlayProvider, (_, _) => _pushSnapshot());
+    _confirmSub = ref.listenManual(
+      cardConfirmProvider,
+      (_, _) => _pushSnapshot(),
+    );
+    _overlaySub = ref.listenManual(
+      fieldOverlayProvider,
+      (_, _) => _pushSnapshot(),
+    );
   }
 
   @override
@@ -351,8 +359,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   HandSnapshot _buildSelfHandSnapshot() {
     final confirm = _confirm;
     final isDuelist = ref.read(duelRoomProvider).selfType.isDuelist;
-    final inlineActive =
-        _selectN.selectPromptMode == SelectPromptMode.inline;
+    final inlineActive = _selectN.selectPromptMode == SelectPromptMode.inline;
     final confirmedOnSelf =
         confirm.confirmedHandOwner == _board.myController &&
         confirm.confirmedHandSequences.isNotEmpty;
@@ -560,197 +567,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
         ),
       ),
     );
-  }
-
-  // ---- 选择提示组装 ----
-
-  /// 把选择子状态组装成 [SelectPromptLayer] 的纯 UI props，
-  /// 选择响应（respondXxx）的分发全部收口在这里；所有 respond* 调用
-  /// 都带上当前窗口的 generation，过期窗口的响应由 notifier 丢弃。
-  Widget _buildSelectPromptLayer(SelectPromptMode mode) {
-    final select = _select.currentSelect;
-    switch (mode) {
-      case SelectPromptMode.none:
-        return const SizedBox.shrink();
-      case SelectPromptMode.place:
-        return SelectPromptLayer(
-          mode: mode,
-          placeTargetCount: _select.placeTargetFieldKeys.length,
-        );
-      case SelectPromptMode.inline:
-        // 多选（非单张、非连锁、非解除选择）才需要本地确认按钮。
-        final showConfirm =
-            select != null &&
-            select.type != SelectType.chain &&
-            select.type != SelectType.unselect &&
-            !(select.min == 1 && select.max == 1);
-        return SelectPromptLayer(
-          mode: mode,
-          inlineHint: _select.inlineSelectHint,
-          inlineCancelLabel: select?.cancelable == true
-              ? (select!.type == SelectType.chain ? '不连锁' : '取消')
-              : null,
-          inlineShowFinish:
-              select?.type == SelectType.unselect && select!.finishable,
-          inlineShowConfirm: showConfirm,
-          inlineCanConfirm: _select.inlineSelectCanConfirm,
-          onInlineCancel: _selectN.cancelInlineSelect,
-          onInlineFinish: _selectN.finishInlineUnselect,
-          onInlineConfirm: _selectN.confirmInlineSelect,
-        );
-      case SelectPromptMode.modal:
-        return SelectPromptLayer(
-          mode: mode,
-          modalChild: select == null ? null : _buildSelectModal(select),
-        );
-    }
-  }
-
-  /// 模态选择弹窗：选项落在不可直接点击的区域的回退，
-  /// 以及排序/计数器/效果选项等复杂交互。
-  Widget _buildSelectModal(SelectState select) {
-    final onInspectCard = inspectCard;
-    final generation = select.generation;
-    switch (select.type) {
-      case SelectType.card:
-      case SelectType.tribute:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) =>
-              _selectN.respondSelectCard(sequences, generation: generation),
-          // 取消必须走引擎语义：min>=1 的可取消窗口回 selectSingle(-1)，
-          // 空 selectMulti 会被引擎当成「选 0 张」回 MSG_RETRY，而
-          // handleRetry 不重开此类窗口，对局将卡死。
-          onCancel: _selectN.cancelInlineSelect,
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.unselect:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => _selectN.respondSelectUnselectCard(
-            sequences.isEmpty ? null : sequences.first,
-            generation: generation,
-          ),
-          onCancel: () =>
-              _selectN.respondSelectUnselectCard(null, generation: generation),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.chain:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => _selectN.respondSelectChain(
-            sequences.isNotEmpty ? sequences.first : -1,
-            generation: generation,
-          ),
-          onCancel: () =>
-              _selectN.respondSelectChain(-1, generation: generation),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.position:
-        return PositionSelector(
-          select: select,
-          onSelect: (position) =>
-              _selectN.respondSelectPosition(position, generation: generation),
-        );
-      case SelectType.effectYn:
-        return YesNoDialog(
-          message: '是否发动效果？',
-          cardCode: select.options.isNotEmpty
-              ? select.options.first.code
-              : null,
-          onInspectCard: onInspectCard,
-          onYes: () =>
-              _selectN.respondSelectEffectYn(true, generation: generation),
-          onNo: () =>
-              _selectN.respondSelectEffectYn(false, generation: generation),
-        );
-      case SelectType.yesNo:
-        return YesNoDialog(
-          message: '是否执行？',
-          cardCode: select.options.isNotEmpty
-              ? select.options.first.code
-              : null,
-          onInspectCard: onInspectCard,
-          onYes: () =>
-              _selectN.respondSelectYesNo(true, generation: generation),
-          onNo: () =>
-              _selectN.respondSelectYesNo(false, generation: generation),
-        );
-      case SelectType.option:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) => _selectN.respondSelectOption(
-            sequences.isNotEmpty ? sequences.first : 0,
-            generation: generation,
-          ),
-          onCancel: () =>
-              _selectN.respondSelectOption(0, generation: generation),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.announceCard:
-        return AnnounceCardDialog(
-          // 受限宣言（抹杀之指名者等）：把引擎下发的可宣言卡集合
-          // 传给弹窗直接罗列候选；null 时退回自由宣言搜索。
-          declarableCodes: _select.announceCardDeclarableCodes,
-          onLoadDeclarable: _selectN.loadDeclarableCards,
-          onSearch: _selectN.searchAnnounceCards,
-          onSelect: (code) =>
-              _selectN.respondAnnounceCard(code, generation: generation),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.announceNumber:
-        return AnnounceChoiceDialog(
-          title: '宣言数值',
-          options: select.options,
-          onSelect: (index) =>
-              _selectN.respondAnnounceNumber(index, generation: generation),
-        );
-      case SelectType.announceAttrib:
-        return AnnounceChoiceDialog(
-          title: '宣言属性',
-          options: select.options,
-          onSelect: (index) =>
-              _selectN.respondAnnounceAttrib(index, generation: generation),
-        );
-      case SelectType.announceRace:
-        return AnnounceChoiceDialog(
-          title: '宣言种族',
-          options: select.options,
-          onSelect: (index) =>
-              _selectN.respondAnnounceRace(index, generation: generation),
-        );
-      case SelectType.sum:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) =>
-              _selectN.respondSelectSum(sequences, generation: generation),
-          onCancel: () => _selectN.respondSelectSum([], generation: generation),
-          onInspectCard: onInspectCard,
-          // SUM 的合法性是合计数值（引擎 sum_check），不是张数下限；
-          // 不合法的回包会吃 MSG_RETRY 且窗口不重开，对局卡死。
-          selectionValidator: _selectN.isSumSelectionValid,
-        );
-      case SelectType.counter:
-        // 计数器窗口的应答是「每卡移除数量」列表，CardSelector 的
-        // 下标多选语义无法满足（会被 respondSelectCounter 拒绝且窗口
-        // 不可取消），必须用专用的逐卡步进弹窗。
-        return CounterSelectDialog(
-          select: select,
-          onSelect: (counts) =>
-              _selectN.respondSelectCounter(counts, generation: generation),
-          onInspectCard: onInspectCard,
-        );
-      case SelectType.sort:
-        return CardSelector(
-          select: select,
-          onSelect: (sequences) =>
-              _selectN.respondSortCard(sequences, generation: generation),
-          onCancel: () => _selectN.respondSortCard([], generation: generation),
-          onInspectCard: onInspectCard,
-        );
-      default:
-        return const SizedBox.shrink();
-    }
   }
 
   @override
@@ -1000,26 +816,9 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
             );
           },
         ),
-        Consumer(
-          builder: (context, ref, _) {
-            final mode = ref.watch(selectPromptModeProvider);
-            // 同模式内的窗口推进（选项/提示语变化）也要驱动重建。
-            ref.watch(
-              selectWindowProvider.select(
-                (s) => (
-                  s.currentSelect,
-                  s.inlineSelectHint,
-                  s.inlineSelectCanConfirm,
-                  s.placeTargetFieldKeys.length,
-                ),
-              ),
-            );
-            if (mode == SelectPromptMode.none) {
-              return const SizedBox.shrink();
-            }
-            return Positioned.fill(child: _buildSelectPromptLayer(mode));
-          },
-        ),
+        // 选择提示弹层：模式判定、呈现与 respondXxx 分发
+        // 全部收口在 DuelSelectPrompt。
+        DuelSelectPrompt(onInspectCard: inspectCard),
         Consumer(
           builder: (context, ref, _) {
             final panel = ref.watch(

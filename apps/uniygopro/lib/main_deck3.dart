@@ -8,7 +8,7 @@ import 'package:deck_editor3/deck_editor3.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uniygopro/service_loader.registrations.g.dart';
+import 'package:biz/service_loader.registrations.g.dart';
 import 'package:ygo_settings/ygo_settings.dart';
 
 void main() async {

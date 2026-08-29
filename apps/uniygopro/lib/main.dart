@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:account_mycard/account_mycard.dart';
 import 'package:uniygopro/pages/create_room/match_store.dart';
-import 'package:uniygopro/service_loader.registrations.g.dart';
+import 'package:biz/service_loader.registrations.g.dart';
 import 'package:deck_editor1/deck_editor1.dart' show DeckEditorStore;
 import 'package:biz/card_image_loader.dart';
 import 'package:biz/service_providers.dart';
