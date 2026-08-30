@@ -91,19 +91,38 @@ class CardConfirmState {
 ///
 /// keepAlive: true 保持手写 NotifierProvider 语义；按房间 ProviderScope
 /// override 隔离。
+///
+/// 确认面板是**队列**而非单槽位：连续多条确认消息（连锁中多次展示卡）
+/// 时，新面板在 [_panelQueue] 排队，用户关闭当前面板后自动接续展示，
+/// 不再出现「未确认的面板被最新面板直接覆盖」。
 @Riverpod(keepAlive: true)
 class CardConfirmNotifier extends _$CardConfirmNotifier {
-  Timer? _confirmTimer;
+  /// 浮动预览（卡组/额外顶部逐卡轮播）的计时器。
+  Timer? _floatTimer;
+
+  /// 场上/手牌高亮 → 弹面板的揭示计时器。
+  Timer? _revealTimer;
+
+  /// 揭示完成时要弹出的面板（高亮 1.5s 后展示）；null = 纯高亮。
+  ConfirmPanel? _pendingRevealPanel;
+
+  /// 排队等待展示的确认面板（当前面板关闭后按序接续）。
+  final List<ConfirmPanel> _panelQueue = [];
 
   @override
   CardConfirmState build() {
-    ref.onDispose(() => _confirmTimer?.cancel());
+    ref.onDispose(() {
+      _floatTimer?.cancel();
+      _revealTimer?.cancel();
+    });
     return const CardConfirmState();
   }
 
-  /// 取消尚未触发的确认计时器（新的确认消息到达时由协调器调用）。
-  void cancelTimer() {
-    _confirmTimer?.cancel();
+  /// 新的确认消息到达时由协调器调用：未决的揭示**立即结算**
+  /// （其面板入队而不是随计时器取消被丢弃），浮动预览停表。
+  void flushPending() {
+    _floatTimer?.cancel();
+    _completeReveal();
   }
 
   /// 卡组顶部/额外顶部的浮动预览：notifier 是唯一计时源。
@@ -114,7 +133,7 @@ class CardConfirmNotifier extends _$CardConfirmNotifier {
   /// 最后一卡展示完毕后再留 500ms 收尾，然后清空预览并把下标归零。
   /// UI（ConfirmFloatingCard.currentIndex）只渲染该下标，不再自行计时。
   void showFloatPreview(List<int> codes, int owner, {required bool isExtra}) {
-    _confirmTimer?.cancel();
+    _floatTimer?.cancel();
     state = state.copyWith(
       floatPreviewCodes: codes,
       floatPreviewOwner: owner,
@@ -125,7 +144,7 @@ class CardConfirmNotifier extends _$CardConfirmNotifier {
     final count = codes.length;
     if (count == 0) return;
     final interval = count > 5 ? 200 : 750;
-    _confirmTimer = Timer.periodic(Duration(milliseconds: interval), (timer) {
+    _floatTimer = Timer.periodic(Duration(milliseconds: interval), (timer) {
       final previewCodes = state.floatPreviewCodes;
       if (previewCodes.isEmpty) {
         // 预览已被其他路径（dismiss/reset）清空：兜底停表。
@@ -136,7 +155,7 @@ class CardConfirmNotifier extends _$CardConfirmNotifier {
       if (nextIndex >= previewCodes.length) {
         // 最后一卡已展示完整一档：+500ms 收尾后清空并归零。
         timer.cancel();
-        _confirmTimer = Timer(
+        _floatTimer = Timer(
           const Duration(milliseconds: 500),
           _clearFloatPreview,
         );
@@ -152,7 +171,7 @@ class CardConfirmNotifier extends _$CardConfirmNotifier {
   }
 
   /// 场上/手牌确认高亮：先高亮 1.5s，消退后若还有卡组/额外的卡
-  /// 需要展示，再弹出确认面板。
+  /// 需要展示，再把面板送入队列（当前有面板打开时排队接续）。
   void scheduleConfirmedReveal({
     required Set<String> fieldSlotKeys,
     required Set<int> handSequences,
@@ -160,39 +179,56 @@ class CardConfirmNotifier extends _$CardConfirmNotifier {
     required Set<int> panelCodes,
     required String title,
   }) {
-    _confirmTimer?.cancel();
+    // 上一条确认的未决揭示先结算（其面板入队），避免被本条覆盖丢失。
+    flushPending();
+    _pendingRevealPanel = panelCodes.isEmpty
+        ? null
+        : ConfirmPanel(title: title, codes: panelCodes.toList());
     state = state.copyWith(
       confirmedFieldSlotKeys: fieldSlotKeys,
       confirmedHandSequences: handSequences,
       confirmedHandOwner: handOwner,
     );
 
-    _confirmTimer = Timer(const Duration(milliseconds: 1500), () {
-      state = state.copyWith(
-        confirmedFieldSlotKeys: const {},
-        confirmedHandSequences: const {},
-        confirmedHandOwner: 0,
-      );
-
-      if (panelCodes.isNotEmpty) {
-        state = state.copyWith(
-          confirmPanel: ConfirmPanel(title: title, codes: panelCodes.toList()),
-        );
-      }
-    });
-  }
-
-  /// 直接弹出确认面板（无场上/手牌高亮前置时）。
-  void showConfirmPanel({required String title, required List<int> codes}) {
-    state = state.copyWith(
-      confirmPanel: ConfirmPanel(title: title, codes: codes),
+    _revealTimer = Timer(
+      const Duration(milliseconds: 1500),
+      _completeReveal,
     );
   }
 
+  /// 揭示完成：消退高亮，待弹面板送入面板队列。
+  void _completeReveal() {
+    _revealTimer?.cancel();
+    _revealTimer = null;
+    final panel = _pendingRevealPanel;
+    _pendingRevealPanel = null;
+    state = state.copyWith(
+      confirmedFieldSlotKeys: const {},
+      confirmedHandSequences: const {},
+      confirmedHandOwner: 0,
+    );
+    if (panel != null) _offerPanel(panel);
+  }
+
+  /// 直接弹出确认面板（无场上/手牌高亮前置时）；当前有面板打开时排队。
+  void showConfirmPanel({required String title, required List<int> codes}) {
+    _offerPanel(ConfirmPanel(title: title, codes: codes));
+  }
+
+  /// 面板入队：无面板在展示时立即展示，否则排队等当前面板关闭。
+  void _offerPanel(ConfirmPanel panel) {
+    if (state.confirmPanel == null) {
+      state = state.copyWith(confirmPanel: panel);
+    } else {
+      _panelQueue.add(panel);
+    }
+  }
+
   /// 关闭确认弹窗（服务端已在收到消息时自动确认）。
-  /// 同时清空浮动预览并把展示下标归零（计时器一并取消）。
+  /// 同时清空浮动预览并把展示下标归零（浮动计时器一并取消）；
+  /// 队列中还有面板时自动接续展示下一个。
   void dismissConfirmPanel() {
-    _confirmTimer?.cancel();
+    _floatTimer?.cancel();
     state = state.copyWith(
       confirmPanel: null,
       confirmedFieldSlotKeys: const {},
@@ -201,5 +237,18 @@ class CardConfirmNotifier extends _$CardConfirmNotifier {
       floatPreviewCodes: const [],
       floatPreviewIndex: 0,
     );
+    if (_panelQueue.isNotEmpty) {
+      state = state.copyWith(confirmPanel: _panelQueue.removeAt(0));
+    }
+  }
+
+  /// 新对局开始（MSG_START）：清空全部确认呈现与面板队列——
+  /// 上一局未看完的确认面板不带进新局。
+  void resetForNewDuel() {
+    _panelQueue.clear();
+    _pendingRevealPanel = null;
+    _revealTimer?.cancel();
+    _revealTimer = null;
+    dismissConfirmPanel();
   }
 }

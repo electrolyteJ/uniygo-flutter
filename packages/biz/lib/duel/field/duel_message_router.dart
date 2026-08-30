@@ -105,7 +105,7 @@ class DuelMessageRouter extends _$DuelMessageRouter {
         // 新对局开始（首局或 Match 局间）：先清空上一局的作答/展示/浮层，
         // 避免 Match 局间状态串台，再由 handleStart 写入新局初始事实。
         _selectN.clearSelect();
-        _confirmN.dismissConfirmPanel();
+        _confirmN.resetForNewDuel();
         _overlayN.clearLocalUi();
         _boardN.handleStart(innerMsg);
         _sound.playDuelStart();
@@ -583,7 +583,14 @@ class DuelMessageRouter extends _$DuelMessageRouter {
     for (final card in msg.cards) {
       _boardN.syncConfirmedCard(card);
     }
-    final owner = msg.player == _board.myController ? '我方' : '对方';
+    // 展示归属按卡的 controller 判定：MSG_CONFIRM_* 的 player 是
+    // 「确认（查看）方」而非卡的持有方——对方效果向我展示其卡片时
+    // player 仍是我方，按 player 会把标题误写成「我方 展示的卡片」。
+    final owner =
+        (msg.cards.isNotEmpty ? msg.cards.first.controller : msg.player) ==
+                _board.myController
+            ? '我方'
+            : '对方';
     final zoneLabel = switch (func) {
       MSG_CONFIRM_DECKTOP => '卡组顶部卡片',
       MSG_CONFIRM_EXTRATOP => '额外卡组顶部卡片',
@@ -598,7 +605,7 @@ class DuelMessageRouter extends _$DuelMessageRouter {
     console.log(
       'Confirm cards: func=$func, count=${msg.count}, skipPanel=${msg.skipPanel}',
     );
-    _confirmN.cancelTimer();
+    _confirmN.flushPending();
 
     if (func == MSG_CONFIRM_DECKTOP || func == MSG_CONFIRM_EXTRATOP) {
       final codes = msg.cards.map((card) => card.code).toList();

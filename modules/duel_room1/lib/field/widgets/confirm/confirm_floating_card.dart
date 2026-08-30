@@ -13,7 +13,10 @@ import 'package:biz/widgets/card_image.dart';
 /// 对应的卡片，不持有任何逐张计时 / 自动关闭逻辑。
 ///
 /// 组件自身仅保留淡入/缩放动效（约 300ms，纯装饰），
-/// 在 [currentIndex] 变化时重播；点击卡片仍可提前关闭（[onDismiss]）。
+/// 在 [currentIndex] 变化时重播。
+///
+/// 手势：点击卡片经 [onInspectCard] 打开卡片详情抽屉（纯检视、不回包）；
+/// 提前关闭挪到右上角 × 按钮（[onDismiss]）。
 class ConfirmFloatingCard extends StatefulWidget {
   final List<int> codes;
 
@@ -24,6 +27,9 @@ class ConfirmFloatingCard extends StatefulWidget {
   final String Function(int code) cardNameBuilder;
   final VoidCallback? onDismiss;
 
+  /// 点击卡片查看详情；为 null 时卡片不响应点击。
+  final void Function(int code)? onInspectCard;
+
   const ConfirmFloatingCard({
     super.key,
     required this.codes,
@@ -31,6 +37,7 @@ class ConfirmFloatingCard extends StatefulWidget {
     required this.title,
     required this.cardNameBuilder,
     this.onDismiss,
+    this.onInspectCard,
   });
 
   @override
@@ -49,10 +56,7 @@ class _ConfirmFloatingCardState extends State<ConfirmFloatingCard>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: _cosmeticDuration,
-      vsync: this,
-    );
+    _controller = AnimationController(duration: _cosmeticDuration, vsync: this);
     _scaleAnim = Tween<double>(
       begin: 0.6,
       end: 1.0,
@@ -95,58 +99,90 @@ class _ConfirmFloatingCardState extends State<ConfirmFloatingCard>
           child: Transform.scale(scale: _scaleAnim.value, child: child),
         );
       },
-      child: GestureDetector(
-        onTap: widget.onDismiss,
-        child: Container(
-          width: 150,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xF2080C14),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF00F0FF), width: 1.8),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF00F0FF).withValues(alpha: 0.4),
-                blurRadius: 30,
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      child: MouseRegion(
+        cursor: widget.onInspectCard != null
+            ? SystemMouseCursors.click
+            : MouseCursor.defer,
+        child: GestureDetector(
+          onTap: widget.onInspectCard == null
+              ? null
+              : () => widget.onInspectCard!(code),
+          child: Stack(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: CardImage(
-                  code: code,
-                  width: 130,
-                  height: 186,
-                  fit: BoxFit.contain,
+              Container(
+                width: 150,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xF2080C14),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFF00F0FF),
+                    width: 1.8,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF00F0FF).withValues(alpha: 0.4),
+                      blurRadius: 30,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CardImage(
+                        code: code,
+                        width: 130,
+                        height: 186,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xFFD7E3F2),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Noto Sans SC',
+                        height: 1.25,
+                      ),
+                    ),
+                    if (widget.codes.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '${index + 1} / ${widget.codes.length}',
+                          style: const TextStyle(
+                            color: Color(0xFF8B9BB4),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Orbitron',
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFFD7E3F2),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Noto Sans SC',
-                  height: 1.25,
-                ),
-              ),
-              if (widget.codes.length > 1)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    '${index + 1} / ${widget.codes.length}',
-                    style: const TextStyle(
-                      color: Color(0xFF8B9BB4),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'Orbitron',
+              // 提前关闭挪到右上角 ×；卡片本体点击 = 查看详情。
+              if (widget.onDismiss != null)
+                Positioned(
+                  top: 2,
+                  right: 2,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: widget.onDismiss,
+                    child: const Padding(
+                      padding: EdgeInsets.all(6),
+                      child: Icon(
+                        Icons.close,
+                        color: Color(0xFF8B9BB4),
+                        size: 14,
+                      ),
                     ),
                   ),
                 ),
