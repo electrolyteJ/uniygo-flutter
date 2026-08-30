@@ -1,4 +1,4 @@
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 
 import 'package:ocgcore/ocgcore.dart';
 import 'package:service_loader/service_loader.dart';

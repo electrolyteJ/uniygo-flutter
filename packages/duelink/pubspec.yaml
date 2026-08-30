@@ -7,6 +7,8 @@ resolution: workspace
 publish_to: 'none'
 
 dependencies:
+  applog:
+    path: ../applog
   flutter:
     sdk: flutter
   async: ^2.11.0

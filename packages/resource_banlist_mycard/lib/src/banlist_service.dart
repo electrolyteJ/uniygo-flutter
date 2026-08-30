@@ -1,4 +1,4 @@
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:resource_data/ygo_data.dart';

@@ -8,6 +8,8 @@ environment:
   flutter: ">=1.17.0"
 publish_to: 'none'
 dependencies:
+  applog:
+    path: ../applog
   flutter:
     sdk: flutter
   service_loader:
@@ -38,6 +40,7 @@ dependencies:
     path: ../resource_deck_mdpro3
   flutter_riverpod: ^3.4.2
   shared_preferences: ^2.5.3
+  path_provider: ^2.1.5
   cached_network_image: ^3.4.1
   flutter_cache_manager: ^3.4.2
   audioplayers: ^6.8.1

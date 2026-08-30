@@ -1,4 +1,4 @@
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 import 'dart:typed_data';
 import 'package:resource_data/ygo_data.dart';
 import 'package:resource_card_mycard/src/card_dao.dart';

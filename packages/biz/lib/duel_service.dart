@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
+import 'package:applog/console.dart' as console;
 import 'package:duelink/duelink.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:service_loader/service_loader.dart';
 
 /// 统一决斗服务门面 — 根据 connect 的协议 scheme 自动路由到底层实现。
@@ -37,6 +39,9 @@ class DuelService implements IDuelService {
 
   @override
   Future<void> connect(Uri address) async {
+    // 进房即开启房间会话日志：覆盖重写 duel_latest.log，直至 disconnect。
+    // 日志系统失败只退化为仅控制台，绝不影响进房。
+    await _startDuelLogSession();
     final scheme = address.hasScheme ? address.scheme : null;
     switch (scheme) {
       case 'ai':
@@ -62,7 +67,28 @@ class DuelService implements IDuelService {
   ConnectionState get connectionState => _svc.connectionState;
 
   @override
-  Future<void> disconnect() => _svc.disconnect();
+  Future<void> disconnect() async {
+    try {
+      await _svc.disconnect();
+    } finally {
+      await console.DuelLogSession.stop();
+    }
+  }
+
+  /// 开启房间会话日志：应用文档目录/logs/duel_latest.log（覆盖写）。
+  Future<void> _startDuelLogSession() async {
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      // 正斜杠拼接：dart:io File 全平台（含 Windows）均接受。
+      final path = '${docs.path}/logs/duel_latest.log';
+      await console.DuelLogSession.start(path);
+      if (console.DuelLogSession.isActive) {
+        console.log('Duel log file: $path', name: 'DuelService');
+      }
+    } catch (e) {
+      console.log('Duel log session unavailable: $e', name: 'DuelService');
+    }
+  }
 
   @override
   void setPlayerName(String name) => _svc.setPlayerName(name);

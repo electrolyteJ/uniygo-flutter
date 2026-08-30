@@ -39,7 +39,7 @@
 /// （引擎停住等待），不做规则 AI 回退。
 library;
 
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 import 'dart:typed_data';
 
 import 'package:duelink/duelink.dart' show BufferWriter;

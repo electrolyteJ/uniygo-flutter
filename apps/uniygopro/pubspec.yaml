@@ -9,6 +9,8 @@ environment:
 resolution: workspace
 
 dependencies:
+  applog:
+    path: ../../packages/applog
   flutter:
     sdk: flutter
   flutter_localizations:

@@ -1,4 +1,4 @@
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 
 import 'package:sqflite/sqflite.dart' hide openDatabase;
 import '../card_dao.dart';

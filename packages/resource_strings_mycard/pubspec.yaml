@@ -9,6 +9,8 @@ environment:
 resolution: workspace
 
 dependencies:
+  applog:
+    path: ../applog
   http: ^1.2.1
 
 dev_dependencies:

@@ -7,6 +7,8 @@ environment:
   sdk: ^3.12.2
 
 dependencies:
+  applog:
+    path: ../applog
   http: ^1.2.1
   resource_data:
     path: ../resource_data

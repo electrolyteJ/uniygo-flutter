@@ -19,7 +19,7 @@
 /// [DuelFieldTracker]、[AgentInputBuilder]、agent_answer_utils。
 library;
 
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 import 'dart:typed_data';
 
 import 'package:duelink/duelink.dart' show BufferWriter;

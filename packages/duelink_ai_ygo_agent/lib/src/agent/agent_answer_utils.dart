@@ -5,7 +5,7 @@
 /// 集中在此避免两处漂移。
 library;
 
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 import 'dart:typed_data';
 
 import 'package:duelink/duelink.dart' show BufferReader, BufferWriter;

@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 
 import 'package:http/http.dart' as http;
 

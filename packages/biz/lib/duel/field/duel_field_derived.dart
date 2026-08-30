@@ -1,4 +1,4 @@
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 
 import 'package:duelink/duelink.dart';
 import 'package:flutter/foundation.dart';

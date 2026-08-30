@@ -1,4 +1,4 @@
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:typed_data';

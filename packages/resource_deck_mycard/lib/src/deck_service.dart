@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 
 import 'package:flutter/services.dart';
 import 'package:resource_data/ygo_data.dart';

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 import 'dart:typed_data';
 
 import '../duelink.dart';

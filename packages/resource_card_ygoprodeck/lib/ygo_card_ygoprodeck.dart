@@ -1,4 +1,4 @@
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 
 import 'package:service_loader/service_loader.dart';
 import 'package:resource_card_ygoprodeck/src/ygoprodeck_card_service.dart';

@@ -9,7 +9,7 @@ import 'package:duelink_ai_ygo_agent/duelink_ai_ygo_agent.dart';
 import 'package:ocgcore/ocgcore.dart' show CardData;
 
 import 'src/agent_auto_answer.dart';
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 
 import 'package:flutter/services.dart' show rootBundle;
 

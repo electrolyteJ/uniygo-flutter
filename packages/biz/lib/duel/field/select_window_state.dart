@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 
 import 'package:biz/card_image_loader.dart';
 import 'package:biz/service_providers.dart';

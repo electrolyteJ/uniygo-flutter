@@ -1,5 +1,5 @@
 import '../constants.dart';
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 
 enum DuelPhase {
   idle("Idle"),

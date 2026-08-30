@@ -11,6 +11,8 @@ environment:
 resolution: workspace
 
 dependencies:
+  applog:
+    path: ../applog
   flutter:
     sdk: flutter
   flutter_litert: ^3.8.0

@@ -5,6 +5,7 @@ environment:
   sdk: ^3.12.2
 
 workspace:
+  - packages/applog
   - packages/service_loader
   - packages/service_loader_gen
   - packages/resource_data

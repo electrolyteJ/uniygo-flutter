@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 import 'dart:io';
 
 import 'package:flutter/services.dart';

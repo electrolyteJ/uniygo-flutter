@@ -5,7 +5,7 @@ export 'src/puzzle_catalog.dart';
 export 'src/puzzle_connection.dart';
 export 'src/puzzle_service.dart';
 
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 
 import 'package:duelink/duelink.dart';
 import 'package:service_loader/service_loader.dart';

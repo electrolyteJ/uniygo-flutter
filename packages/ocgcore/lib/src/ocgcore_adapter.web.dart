@@ -18,7 +18,7 @@
 /// ```
 library;
 
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:typed_data';

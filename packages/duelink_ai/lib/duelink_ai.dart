@@ -3,7 +3,7 @@ library duelink_ai;
 export 'src/ai_connection.dart';
 export 'src/card_data_loader.dart';
 
-import 'dart:developer' as console;
+import 'package:applog/console.dart' as console;
 
 import 'package:duelink/duelink.dart' hide CardInfo;
 import 'package:duelink_ai_ygo_agent/duelink_ai_ygo_agent.dart'
