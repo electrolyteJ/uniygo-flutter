@@ -10,16 +10,28 @@ import 'package:http/http.dart' as http;
 ///   !counter <code> <name>   —— 指示物名
 /// 与卡片数据库（cards.cdb）不同，这是引擎规则/文案资源，故独立成包。
 class StringsService {
-  StringsService({this.url = defaultStringsUrl});
+  StringsService({this.url = defaultStringsUrl})
+    : _system = {},
+      _counter = {},
+      _loaded = false;
+
+  /// 测试用：直接注入字符串表，跳过网络抓取。
+  StringsService.seeded({
+    Map<int, String> system = const {},
+    Map<int, String> counter = const {},
+  }) : url = '',
+       _system = Map.of(system),
+       _counter = Map.of(counter),
+       _loaded = true;
 
   static const defaultStringsUrl =
       'https://cdn02.moecube.com:444/ygopro-database/zh-CN/strings.conf';
 
   final String url;
 
-  final Map<int, String> _system = {};
-  final Map<int, String> _counter = {};
-  bool _loaded = false;
+  final Map<int, String> _system;
+  final Map<int, String> _counter;
+  bool _loaded;
 
   bool get isLoaded => _loaded;
 

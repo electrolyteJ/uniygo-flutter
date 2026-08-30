@@ -1099,20 +1099,93 @@ class SelectWindowNotifier extends _$SelectWindowNotifier {
   }
 
   void applySelectOption(MsgSelectOption msg) {
+    final options = [
+      for (var index = 0; index < msg.codes.length; index++)
+        SelectOption(
+          code: cardCodeFromDescriptionValue(msg.codes[index]) ?? 0,
+          sequence: index,
+          label: _resolveOptionLabel(msg.codes[index], index),
+        ),
+    ];
     _openWindow(
       SelectState(
         type: SelectType.option,
         player: msg.player,
-        options: [
-          for (var index = 0; index < msg.codes.length; index++)
-            SelectOption(
-              code: cardCodeFromDescriptionValue(msg.codes[index]) ?? 0,
-              sequence: index,
-              label: '选项 ${index + 1}',
-            ),
-        ],
+        options: options,
         min: 1,
         max: 1,
+      ),
+    );
+    // 卡信息未缓存时同步解析会落空为「选项 N」；开窗后异步补齐，
+    // 到达时按 generation 门卫刷新当前窗口的选项文案。
+    unawaited(_refreshOptionLabelsAsync(msg.codes));
+  }
+
+  /// 解析 MSG_SELECT_OPTION 选项的 desc 值（ocgcore GetDesc 语义）：
+  /// - desc < 10000：strings.conf !system 系统文案（如「正面」「反面」）；
+  /// - 否则 desc>>4 为卡码、desc&0xf 为 texts.str1~str16 下标
+  ///   （脚本 aux.Stringid(code, i) 的效果选项文本）。
+  /// 解析不到时兜底「选项 N」。
+  String _resolveOptionLabel(int desc, int index) {
+    final text = _optionTextFromCache(desc);
+    return (text != null && text.isNotEmpty) ? text : '选项 ${index + 1}';
+  }
+
+  /// 仅从已就绪的数据源解析文案：系统字符串表 + 卡信息缓存。
+  /// 解析不到返回 null（可能卡信息尚未缓存，由异步补齐）。
+  String? _optionTextFromCache(int desc) {
+    if (desc > 0 && desc < 10000) {
+      return ref.read(stringsServiceProvider).systemString(desc);
+    }
+    final code = desc >> 4;
+    final idx = desc & 0xf;
+    if (code < 1000000 || code > 99999999) return null;
+    final info = _dataService.getCardCached(code);
+    if (info == null) return null;
+    if (idx < info.strings.length) return info.strings[idx];
+    return null;
+  }
+
+  /// 异步补齐选项文案：拉取未缓存的卡信息后，若当前窗口仍是同一次
+  /// 选项选择（generation 未变），重写各选项 label。
+  Future<void> _refreshOptionLabelsAsync(List<int> descs) async {
+    final window = state.currentSelect;
+    if (window == null || window.type != SelectType.option) return;
+    // 需要异步拉取的卡码：desc 指向有效卡且缓存未命中。
+    final codes = <int>{
+      for (final desc in descs)
+        if (desc >= 10000 &&
+            (desc >> 4) >= 1000000 &&
+            (desc >> 4) <= 99999999 &&
+            _dataService.getCardCached(desc >> 4) == null)
+          desc >> 4,
+    };
+    if (codes.isEmpty) return;
+    for (final code in codes) {
+      try {
+        await _dataService.getCard(code);
+      } catch (e) {
+        console.log('applySelectOption: 拉取选项卡信息失败 code=$code: $e');
+      }
+    }
+    final current = state.currentSelect;
+    if (current == null ||
+        current.type != SelectType.option ||
+        current.generation != window.generation) {
+      return; // 窗口已关闭或已被新窗口取代，丢弃迟到结果
+    }
+    state = state.copyWith(
+      currentSelect: current.copyWith(
+        options: [
+          for (var index = 0; index < current.options.length; index++)
+            SelectOption(
+              code: current.options[index].code,
+              controller: current.options[index].controller,
+              zone: current.options[index].zone,
+              sequence: current.options[index].sequence,
+              label: _resolveOptionLabel(descs[index], index),
+            ),
+        ],
       ),
     );
   }

@@ -264,10 +264,12 @@ class _CardSelectorState extends State<CardSelector> {
                     '${index + 1}. ${option.label}',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 9,
-                      height: 1.2,
+                      fontSize: 10,
+                      height: 1.25,
                     ),
-                    maxLines: 3,
+                    // 效果选项文案来自 cards.cdb 的 str1~16，可能较长，
+                    // 放宽行数保证完整可读。
+                    maxLines: 6,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                   ),
