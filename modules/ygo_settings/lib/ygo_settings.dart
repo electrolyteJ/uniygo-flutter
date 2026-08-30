@@ -13,6 +13,8 @@ export 'duel_room_renderer.dart';
 const _kChain1 = 'duel_settings.show_chain1_animation';
 const _kMonster = 'duel_settings.auto_monster_position';
 const _kSpellTrap = 'duel_settings.auto_spell_trap_position';
+const _kSpectateJump = 'duel_settings.spectate_jump_to_current';
+const _kReplaySpeed = 'duel_settings.replay_speed_factor';
 
 /// 带 SharedPreferences 持久化的设置实现。
 ///
@@ -37,6 +39,10 @@ class PersistentYgoSettingsNotifier extends YgoSettingsNotifier {
           prefs.getBool(_kMonster) ?? state.autoMonsterPosition,
       autoSpellTrapPosition:
           prefs.getBool(_kSpellTrap) ?? state.autoSpellTrapPosition,
+      spectateJumpToCurrent:
+          prefs.getBool(_kSpectateJump) ?? state.spectateJumpToCurrent,
+      replaySpeedFactor:
+          prefs.getDouble(_kReplaySpeed) ?? state.replaySpeedFactor,
     );
   }
 
@@ -58,9 +64,26 @@ class PersistentYgoSettingsNotifier extends YgoSettingsNotifier {
     _persist(_kSpellTrap, value);
   }
 
+  @override
+  void setSpectateJumpToCurrent(bool value) {
+    super.setSpectateJumpToCurrent(value);
+    _persist(_kSpectateJump, value);
+  }
+
+  @override
+  void setReplaySpeedFactor(double value) {
+    super.setReplaySpeedFactor(value);
+    _persistDouble(_kReplaySpeed, value);
+  }
+
   Future<void> _persist(String key, bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, value);
+  }
+
+  Future<void> _persistDouble(String key, double value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(key, value);
   }
 }
 
@@ -88,6 +111,8 @@ class YgoSettingsDialog extends StatefulWidget {
     required this.onShowChain1Changed,
     required this.onAutoMonsterChanged,
     required this.onAutoSpellTrapChanged,
+    required this.onSpectateJumpChanged,
+    required this.onReplaySpeedFactorChanged,
     this.extraActions = const [],
   });
 
@@ -95,6 +120,12 @@ class YgoSettingsDialog extends StatefulWidget {
   final ValueChanged<bool> onShowChain1Changed;
   final ValueChanged<bool> onAutoMonsterChanged;
   final ValueChanged<bool> onAutoSpellTrapChanged;
+
+  /// 观战回放模式切换（true = 跳到当前局面）。
+  final ValueChanged<bool> onSpectateJumpChanged;
+
+  /// 回放速度倍率切换（0.5/1/2/4）。
+  final ValueChanged<double> onReplaySpeedFactorChanged;
 
   /// 弹窗底部附加动作（宿主自定义入口）。
   final List<SettingsExtraAction> extraActions;
@@ -107,6 +138,8 @@ class _YgoSettingsDialogState extends State<YgoSettingsDialog> {
   late bool _showChain1;
   late bool _autoMonster;
   late bool _autoSpellTrap;
+  late bool _spectateJump;
+  late double _replaySpeedFactor;
 
   @override
   void initState() {
@@ -114,6 +147,8 @@ class _YgoSettingsDialogState extends State<YgoSettingsDialog> {
     _showChain1 = widget.initialSettings.showChain1Animation;
     _autoMonster = widget.initialSettings.autoMonsterPosition;
     _autoSpellTrap = widget.initialSettings.autoSpellTrapPosition;
+    _spectateJump = widget.initialSettings.spectateJumpToCurrent;
+    _replaySpeedFactor = widget.initialSettings.replaySpeedFactor;
   }
 
   @override
@@ -201,6 +236,73 @@ class _YgoSettingsDialogState extends State<YgoSettingsDialog> {
                 widget.onAutoSpellTrapChanged(v);
               },
             ),
+            // ── 观战 ──
+            const Divider(),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Text(
+                '观战',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(
+                      value: false,
+                      icon: Icon(Icons.play_circle_outline),
+                      label: Text('带节奏回放'),
+                    ),
+                    ButtonSegment(
+                      value: true,
+                      icon: Icon(Icons.fast_forward),
+                      label: Text('跳到当前局面'),
+                    ),
+                  ],
+                  selected: {_spectateJump},
+                  onSelectionChanged: (selection) {
+                    setState(() => _spectateJump = selection.first);
+                    widget.onSpectateJumpChanged(selection.first);
+                  },
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Text(
+                '中途进入观战时，开局以来的历史消息如何呈现',
+                style: TextStyle(fontSize: 11, color: Colors.white54),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<double>(
+                  segments: const [
+                    ButtonSegment(value: 0.5, label: Text('0.5x')),
+                    ButtonSegment(value: 1.0, label: Text('1x')),
+                    ButtonSegment(value: 2.0, label: Text('2x')),
+                    ButtonSegment(value: 4.0, label: Text('4x')),
+                  ],
+                  selected: {_replaySpeedFactor},
+                  onSelectionChanged: (selection) {
+                    setState(() => _replaySpeedFactor = selection.first);
+                    widget.onReplaySpeedFactorChanged(selection.first);
+                  },
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Text(
+                '带节奏回放的播放速度；跳到当前局面时无效',
+                style: TextStyle(fontSize: 11, color: Colors.white54),
+              ),
+            ),
             // ── 宿主附加动作 ──
             if (widget.extraActions.isNotEmpty) ...[
               const Divider(),
@@ -238,6 +340,8 @@ void showGlobalSettingsDialog(
       onShowChain1Changed: notifier.setShowChain1Animation,
       onAutoMonsterChanged: notifier.setAutoMonsterPosition,
       onAutoSpellTrapChanged: notifier.setAutoSpellTrapPosition,
+      onSpectateJumpChanged: notifier.setSpectateJumpToCurrent,
+      onReplaySpeedFactorChanged: notifier.setReplaySpeedFactor,
       extraActions: extraActions,
     ),
   );
@@ -259,6 +363,8 @@ void showYgoSettingsDialog(BuildContext context) {
       onShowChain1Changed: notifier.setShowChain1Animation,
       onAutoMonsterChanged: notifier.setAutoMonsterPosition,
       onAutoSpellTrapChanged: notifier.setAutoSpellTrapPosition,
+      onSpectateJumpChanged: notifier.setSpectateJumpToCurrent,
+      onReplaySpeedFactorChanged: notifier.setReplaySpeedFactor,
     ),
   );
 }
