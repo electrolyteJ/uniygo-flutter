@@ -14,7 +14,15 @@ class YgoSoundService {
   /// after the widget tree was disposed」）。
   static bool enabled = true;
 
+  /// 实例级静音开关：观战「跳到当前局面」的静默清场期间由
+  /// DuelMessageRouter 短暂置位（同步代码段，无 await 交错），
+  /// 压掉清场过程中密集的过场音效。
+  bool suppress = false;
+
   final _pool = <String, AudioPlayer>{};
+
+  /// 已创建的播放器数（测试观测用）。
+  int get activePlayerCount => _pool.length;
 
   /// 每个音效固定复用同一个 [AudioPlayer]。
   ///
@@ -34,7 +42,7 @@ class YgoSoundService {
   Future<void> _playDuel(String assetName) => _playAt(_duelBasePath, assetName);
 
   Future<void> _playAt(String basePath, String assetName) async {
-    if (!enabled) return;
+    if (!enabled || suppress) return;
     final player = _acquire(assetName);
     try {
       // 同一音效连续触发：停掉旧播放重新播放（重启语义，不叠加声道）。

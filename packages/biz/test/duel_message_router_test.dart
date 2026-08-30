@@ -14,6 +14,7 @@ import 'package:biz/duel/field/duel_field_state.dart';
 import 'package:biz/duel/field/duel_message_router.dart';
 import 'package:biz/service_providers.dart';
 import 'package:biz/ygo_data_service.dart';
+import 'package:biz/ygo_settings.dart';
 import 'package:biz/ygo_sound_service.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
 import 'package:fake_async/fake_async.dart';
@@ -110,11 +111,50 @@ class _FakeDuelService implements IDuelService {
   void sendChat(String message) {}
 }
 
+/// 开启「跳到当前局面」的设置桩。
+class _JumpSettingsNotifier extends YgoSettingsNotifier {
+  @override
+  YgoSettings build() => const YgoSettings(spectateJumpToCurrent: true);
+}
+
+/// 记录音效调用时刻 suppress 状态的音效服务：router 的静音包装
+/// 在调用 play* 前应已置位 suppress。
+class _RecordingSoundService extends YgoSoundService {
+  final List<bool> newPhaseSuppressStates = [];
+  int duelStartCount = 0;
+
+  @override
+  Future<void> playNewPhase() async {
+    newPhaseSuppressStates.add(suppress);
+  }
+
+  @override
+  Future<void> playDuelStart() async {
+    duelStartCount++;
+  }
+}
+
 YgoStocMsg _startMsg() => YgoStocMsg.gameMsg(
       const StocGameMessage(
         func: MSG_START,
         innerMsg: MsgStart(
           playerType: 0,
+          life1: 8000,
+          life2: 8000,
+          deckSize1: 40,
+          extraSize1: 15,
+          deckSize2: 40,
+          extraSize2: 15,
+        ),
+      ),
+    );
+
+/// 观战身份开局（playerType 高位 0x10 标记观战）。
+YgoStocMsg _observerStartMsg() => YgoStocMsg.gameMsg(
+      const StocGameMessage(
+        func: MSG_START,
+        innerMsg: MsgStart(
+          playerType: 0x10,
           life1: 8000,
           life2: 8000,
           deckSize1: 40,
@@ -143,13 +183,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   YgoSoundService.enabled = false;
 
-  late ProviderContainer container;
   late _FakeDuelService service;
+  late ProviderContainer container;
 
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
-    service = _FakeDuelService();
-    container = ProviderContainer(overrides: [
+  ProviderContainer makeContainer({
+    bool jumpToCurrent = false,
+    YgoSoundService? sound,
+  }) {
+    return ProviderContainer(overrides: [
       duelServiceProvider.overrideWithValue(service),
       dataServiceProvider.overrideWithValue(
         YgoDataService(
@@ -158,8 +199,15 @@ void main() {
           banlistService: _StubBanlistService(),
         ),
       ),
-      ygoSoundServiceProvider.overrideWithValue(YgoSoundService()),
+      ygoSoundServiceProvider.overrideWithValue(sound ?? YgoSoundService()),
+      if (jumpToCurrent)
+        ygoSettingsProvider.overrideWith(_JumpSettingsNotifier.new),
     ]);
+  }
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    service = _FakeDuelService();
   });
 
   tearDown(() => container.dispose());
@@ -168,6 +216,7 @@ void main() {
 
   group('DuelMessageRouter 节奏泵接线', () {
     test('MSG_NEW_PHASE 由队列驱动：首条直通，后续按节奏应用', () {
+      container = makeContainer();
       fakeAsync((async) {
         final router = container.read(duelMessageRouterProvider.notifier);
         router.start();
@@ -186,6 +235,7 @@ void main() {
     });
 
     test('MSG_START 清空残留队列：排队中的上局消息被丢弃', () {
+      container = makeContainer();
       fakeAsync((async) {
         final router = container.read(duelMessageRouterProvider.notifier);
         router.start();
@@ -206,7 +256,59 @@ void main() {
       });
     });
 
+    test('观战 + 跳到当前局面：积压爆发静默同步落位，尾部仍按节奏播放', () {
+      final sound = _RecordingSoundService();
+      container = makeContainer(jumpToCurrent: true, sound: sound);
+      fakeAsync((async) {
+        final router = container.read(duelMessageRouterProvider.notifier);
+        router.start();
+
+        service.emit(_observerStartMsg()); // 观战身份 → jump 生效（直通，带音效）
+        expect(sound.duelStartCount, 1);
+
+        // 30 条阶段消息爆发：积压到 21 时触发 jump 清场，静音同步消费。
+        for (var i = 0; i < 30; i++) {
+          service.emit(_phaseMsg(PHASE_BATTLE));
+        }
+
+        expect(field().phase, DuelPhase.bp, reason: 'jump 应同步追平到最新阶段');
+        expect(sound.newPhaseSuppressStates.length, 21);
+        expect(sound.newPhaseSuppressStates.every((s) => s), isTrue,
+            reason: 'jump 清场期间的音效调用应处于 suppress');
+
+        // 尾部不足阈值的 9 条仍按节奏播放（不静音）。
+        async.elapse(const Duration(milliseconds: 120));
+        expect(sound.newPhaseSuppressStates.last, isFalse);
+        async.elapse(const Duration(seconds: 10));
+      });
+    });
+
+    test('玩家对局不受观战开关影响：jump 设置开启仍按节奏播放', () {
+      final sound = _RecordingSoundService();
+      container = makeContainer(jumpToCurrent: true, sound: sound);
+      fakeAsync((async) {
+        final router = container.read(duelMessageRouterProvider.notifier);
+        router.start();
+
+        service.emit(_startMsg()); // playerType 0 = 玩家身份
+        for (var i = 0; i < 25; i++) {
+          service.emit(_phaseMsg(PHASE_BATTLE));
+        }
+
+        expect(field().phase, DuelPhase.idle,
+            reason: '玩家对局不触发 jump，阶段消息仍排队');
+
+        async.elapse(const Duration(milliseconds: 120));
+        expect(field().phase, DuelPhase.bp, reason: '按节奏消费第一条');
+        expect(sound.newPhaseSuppressStates, [false],
+            reason: '玩家对局音效不 suppress');
+
+        async.elapse(const Duration(seconds: 30));
+      });
+    });
+
     test('STOC_TIME_LIMIT 直通：队列积压时计时立即应用（特征测试，改动前后均通过）', () {
+      container = makeContainer();
       fakeAsync((async) {
         final router = container.read(duelMessageRouterProvider.notifier);
         router.start();

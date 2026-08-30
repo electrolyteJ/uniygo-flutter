@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:applog/console.dart' as console;
 
 import 'package:biz/service_providers.dart';
+import 'package:biz/ygo_settings.dart';
 import 'package:biz/ygo_sound_service.dart';
 import 'package:duelink/duelink.dart';
 
@@ -37,6 +38,10 @@ class DuelMessageRouter extends _$DuelMessageRouter {
   /// 空闲时 0ms 直通。start() 重建，随订阅一起回收。
   MessagePump<YgoStocMsg>? _pump;
 
+  /// 当前对局是否为观战局（MSG_START 的 isObserver 捕获，start() 复位）。
+  /// 「跳到当前局面」仅观战局生效，玩家对局的开局爆发不应被静默吞掉。
+  bool _isObserverDuel = false;
+
   DuelFieldState get _board => ref.read(duelFieldProvider);
   DuelFieldNotifier get _boardN => ref.read(duelFieldProvider.notifier);
   SelectWindowNotifier get _selectN => ref.read(selectWindowProvider.notifier);
@@ -47,6 +52,8 @@ class DuelMessageRouter extends _$DuelMessageRouter {
   @override
   void build() {
     ref.onDispose(_cancelSubscriptions);
+    // 运行时改设置即时生效（下一条入队/清场即按新模式）。
+    ref.listen(ygoSettingsProvider, (_, __) => _applyReplaySettings());
   }
 
   void _cancelSubscriptions() {
@@ -66,9 +73,19 @@ class DuelMessageRouter extends _$DuelMessageRouter {
   void start({String? Function(DuelPhase phase)? phaseLabel}) {
     _phaseLabel = phaseLabel;
     _cancelSubscriptions();
+    _isObserverDuel = false;
     final service = ref.read(duelServiceProvider);
     _pump = MessagePump(consume: _handleServerMessage);
+    _applyReplaySettings();
     _msgSub = service.onServerMessage.listen(_onServerMessage);
+  }
+
+  /// 把观战回放设置写入节奏泵：jump 仅观战局生效。
+  void _applyReplaySettings() {
+    final s = ref.read(ygoSettingsProvider);
+    _pump
+      ?..speedFactor = s.replaySpeedFactor
+      ..jumpToCurrent = s.spectateJumpToCurrent && _isObserverDuel;
   }
 
   /// 服务器消息入口（入队前的唯一分叉）：
@@ -84,14 +101,34 @@ class DuelMessageRouter extends _$DuelMessageRouter {
     }
     final pump = _pump;
     if (pump == null) return;
-    if (msg.gameMsg?.func == MSG_START) {
+    final gameMsg = msg.gameMsg;
+    if (gameMsg?.func == MSG_START) {
+      // Match 局间重开：丢弃上一局排队中的消息，并按新局身份重估 jump。
+      _isObserverDuel = switch (gameMsg!.innerMsg) {
+        MsgStart m => m.isObserver,
+        _ => false,
+      };
       pump.clear();
+      _applyReplaySettings();
     }
     pump.enqueue(msg);
   }
 
-  /// 服务器原始消息入口：解码为对局事件后分发到对应状态。
-  void _handleServerMessage(YgoStocMsg msg) {
+  /// 泵消费入口：silent（观战「跳到当前局面」清场）时压掉音效。
+  /// suppress 置位/复位在同一同步代码段内完成，无 await 交错，
+  /// 不会影响共享实例上的其它音效。
+  void _handleServerMessage(YgoStocMsg msg, {bool silent = false}) {
+    if (!silent) return _dispatchServerMessage(msg);
+    _sound.suppress = true;
+    try {
+      _dispatchServerMessage(msg);
+    } finally {
+      _sound.suppress = false;
+    }
+  }
+
+  /// 服务器原始消息分发：解码为对局事件后分发到对应状态。
+  void _dispatchServerMessage(YgoStocMsg msg) {
     // STOC_TIME_LIMIT 不在 GameMsg 内，单独处理
     final timeLimit = msg.timeLimit;
     if (timeLimit != null) {
