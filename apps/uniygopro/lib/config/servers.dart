@@ -65,9 +65,6 @@ class GameServer {
   final String? duelHost;
   final int? duelPort;
 
-  /// 观战进场跳转的决斗房路由路径（决定用 duel_room1 还是 duel_room2）。
-  final String duelRoomPath;
-
   const GameServer({
     required this.id,
     required this.displayName,
@@ -78,7 +75,6 @@ class GameServer {
     this.requiresMatchApi = false,
     this.duelHost,
     this.duelPort,
-    this.duelRoomPath = '/duel-room',
   });
 
   String get wsUrl => 'wss://$host:$port';
@@ -170,7 +166,6 @@ const List<GameServer> gameServers = [
     port: 8923,
     duelHost: 'tiramisu.moenext.com',
     duelPort: 8912,
-    duelRoomPath: '/duel-room',
     type: ServerType.spectateAthletic,
   ),
   GameServer(
@@ -181,7 +176,6 @@ const List<GameServer> gameServers = [
     port: 7923,
     duelHost: 'tiramisu.moenext.com',
     duelPort: 7912,
-    duelRoomPath: '/duel-room',
     type: ServerType.spectateEntertain,
   ),
   GameServer(

@@ -35,26 +35,39 @@ class _MatchJoinSheetState extends State<MatchJoinSheet> {
   }
 
   Future<void> _join(BuildContext context) async {
-    // MyCard 匹配服务需要登录（u16Secret 时间轮换密钥作 Basic 密钥）。
-    final accountApi = context.read<MyCardAccountApi>();
-    final account = await requireMyCardAccount(
-      context,
-      reason: widget.server.displayName,
-    );
-    if (account == null || !context.mounted) return;
-
-    setState(() {
-      _connecting = true;
-      _error = null;
-    });
     final matchStore = context.read<MatchStore>();
     final arena = widget.server.type == ServerType.matchAthletic
         ? 'athletic'
         : 'entertain';
-    matchStore.startSearching(arena);
-    Navigator.of(context).pop();
+    // 单飞守卫必须在首个 await 之前：登录门控（未登录时弹登录框，耗时
+    // 数秒）期间 _connecting 尚未置位、按钮仍可点，重复触发会并发起
+    // 两个匹配流程，完成后同帧两次 context.go('/duel-room') 撞车
+    // （Navigator._debugLocked 断言崩溃）。
+    if (!matchStore.tryStartSearching(arena)) return;
+    // 弹层 pop 后本 State 随退场动画销毁，context.mounted 变 false——
+    // 匹配完成时的 context.go 会静默失败。GoRouter 是应用级单例，
+    // 不随弹层销毁，先捕获再 pop。
+    final router = GoRouter.of(context);
+    // MyCard 匹配服务需要登录（u16Secret 时间轮换密钥作 Basic 密钥）。
+    final accountApi = context.read<MyCardAccountApi>();
 
     try {
+      final account = await requireMyCardAccount(
+        context,
+        reason: widget.server.displayName,
+      );
+      // 用户取消登录 / 门控期间弹层被关闭：放弃本次匹配，恢复入口。
+      if (account == null || !mounted) {
+        matchStore.stopSearching();
+        return;
+      }
+
+      setState(() {
+        _connecting = true;
+        _error = null;
+      });
+      Navigator.of(context).pop();
+
       final secret = await accountApi.fetchU16Secret();
       final result = await MatchService().match(
         arena: arena,
@@ -63,17 +76,17 @@ class _MatchJoinSheetState extends State<MatchJoinSheet> {
       );
       matchStore.setMatchResult(result.address, result.port, result.password);
       matchStore.setUsername(account.username);
-      if (context.mounted) {
-        context.go(DuelRoomRoute.current, extra: matchStore.toDuelRoomParams());
-      }
+      // 参数快照必须先于 reset 构建（reset 会清空地址/密码/用户名）。
+      final params = matchStore.toDuelRoomParams();
       matchStore.reset();
+      router.go(Routes.duelRoom, extra: params);
     } catch (e) {
+      matchStore.stopSearching();
       if (mounted) {
         setState(() {
           _connecting = false;
           _error = '匹配失败: $e';
         });
-        matchStore.stopSearching();
       }
     }
   }

@@ -18,14 +18,13 @@ class MatchPage extends StatefulWidget {
 class _MatchPageState extends State<MatchPage> {
   final _matchService = MatchService();
 
-  /// 匹配进行中标记：防重复触发。连点「竞技/娱乐匹配」会并发起两个
-  /// 匹配流程，各自完成后两次 `context.go('/duel-room')` 撞车，触发
-  /// Navigator._debugLocked 断言崩溃（handlePush 过渡被取消）。
-  bool _matching = false;
-
   Future<void> _startMatch(String arena) async {
-    if (_matching) return;
-    _matching = true;
+    final store = context.read<MatchStore>();
+    // 单飞守卫必须在登录门控之前：门控是 await（未登录时弹登录框，耗时
+    // 数秒），期间按钮仍可点——per-State 的守卫曾在此窗口失守，两个流程
+    // 完成后同帧两次 context.go('/duel-room') 撞车，触发
+    // Navigator._debugLocked 断言崩溃（handlePush 过渡被取消）。
+    if (!store.tryStartSearching(arena)) return;
     try {
       // MyCard 匹配服务需要登录（u16Secret 时间轮换密钥作 Basic 密钥）。
       final accountApi = context.read<MyCardAccountApi>();
@@ -33,10 +32,11 @@ class _MatchPageState extends State<MatchPage> {
         context,
         reason: '自动撮合匹配（天梯/休闲）',
       );
-      if (account == null || !mounted) return;
+      if (account == null || !mounted) {
+        store.stopSearching();
+        return;
+      }
 
-      final store = context.read<MatchStore>();
-      store.startSearching(arena);
       ServiceSingleton.instance.ygoSoundService.playMatchStart();
 
       try {
@@ -49,7 +49,7 @@ class _MatchPageState extends State<MatchPage> {
         store.setMatchResult(result.address, result.port, result.password);
         ServiceSingleton.instance.ygoSoundService.playMatchFound();
         if (mounted) {
-          context.go(DuelRoomRoute.current, extra: store.toDuelRoomParams());
+          context.go(Routes.duelRoom, extra: store.toDuelRoomParams());
           store.reset();
         }
       } catch (e) {
@@ -62,7 +62,7 @@ class _MatchPageState extends State<MatchPage> {
         }
       }
     } finally {
-      _matching = false;
+      // 成功路径由 setMatchResult/reset 收尾（isSearching=false）。
     }
   }
 

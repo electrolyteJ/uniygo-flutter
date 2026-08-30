@@ -119,7 +119,7 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
     }
     final params = matchStore.toDuelRoomParams();
     Navigator.of(context).pop();
-    if (context.mounted) context.go(DuelRoomRoute.current, extra: params);
+    if (context.mounted) context.go(Routes.duelRoom, extra: params);
     matchStore.reset();
   }
 

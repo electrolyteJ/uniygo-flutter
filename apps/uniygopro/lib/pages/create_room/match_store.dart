@@ -88,6 +88,19 @@ class MatchStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 匹配流程单飞守卫：已有匹配/搜索在进行时返回 false，调用方应直接放弃。
+  ///
+  /// 背景：MatchPage 的 _matching 是 State 实例字段（页面销毁即失效），
+  /// MatchJoinSheet 曾在首个 await（登录门控）之后才置 connecting——
+  /// 任一入口重复触发都会并发起两个匹配流程，双方完成后同帧
+  /// context.go(duelRoom) 撞车，触发 Navigator._debugLocked 断言崩溃
+  /// （进房路由过渡被取消）。守卫收敛到仓库层，与 UI 实例生命周期解耦。
+  bool tryStartSearching(String arena) {
+    if (isSearching) return false;
+    startSearching(arena);
+    return true;
+  }
+
   void stopSearching() {
     isSearching = false;
     notifyListeners();

@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:biz/service_singleton.dart';
+import 'package:uniygopro/config/route.dart';
 import 'package:uniygopro/config/servers.dart';
 import '../../services/mycard_gate.dart';
 import '../../services/spectate_service.dart';
@@ -78,7 +79,7 @@ class _SpectateRoomSheetState extends State<SpectateRoomSheet> {
       ServiceSingleton.instance.ygoSoundService.playButtonTap();
       Navigator.of(context).pop();
       if (context.mounted) {
-        context.go(widget.server.duelRoomPath, extra: params);
+        context.go(Routes.duelRoom, extra: params);
       }
       matchStore.reset();
     } on MyCardAuthException catch (e) {

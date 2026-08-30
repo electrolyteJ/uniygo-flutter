@@ -24,9 +24,6 @@ void main() async {
   // 全应用横屏（仅 Android/iOS 生效；决斗房间同样横屏，无需单独锁）。
   lockAppLandscape();
 
-  // 恢复决斗房路由偏好（2D / 3D）。
-  await DuelRoomRoute.restore();
-
   registerAllServices();
   // 注入跨包设置实现（持久化 + 设置弹窗）到 biz 的 provider 契约；
   // 必须在首个 DuelRoomPage 构建（duelRoomServiceContainer 懒初始化）前注册。

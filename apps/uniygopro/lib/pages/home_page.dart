@@ -56,7 +56,7 @@ class HomePage extends StatelessWidget {
                 extraActions: [
                   if (!kIsWeb)
                     SettingsExtraAction(
-                      label: '3D 场景预览（duel_room3）',
+                      label: '3D 场景预览',
                       icon: Icons.view_in_ar,
                       onTap: (ctx) {
                         Navigator.of(ctx).pop();
