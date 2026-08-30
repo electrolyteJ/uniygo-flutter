@@ -16,6 +16,8 @@ class YgoSettings {
     this.showChain1Animation = false,
     this.autoMonsterPosition = false,
     this.autoSpellTrapPosition = false,
+    this.spectateJumpToCurrent = false,
+    this.replaySpeedFactor = 1.0,
   });
 
   /// 连锁 1 也显示连锁叠层动画（默认只显示 2 张及以上）。
@@ -27,18 +29,31 @@ class YgoSettings {
   /// 自动选择魔陷卡放置位置（MSG_SELECT_PLACE 时自动回包）。
   final bool autoSpellTrapPosition;
 
+  /// 观战中途进入时直接跳到当前局面（false = 带节奏地快速回放历史消息）。
+  /// 仅观战局生效（MSG_START 的 isObserver 判定），玩家对局不受影响。
+  final bool spectateJumpToCurrent;
+
+  /// 对局消息回放速度倍率：节奏泵各档间隔 ÷ 倍率（2.0 = 快一倍）。
+  /// 「跳到当前局面」模式下无效。
+  final double replaySpeedFactor;
+
   static const defaults = YgoSettings();
 
   YgoSettings copyWith({
     bool? showChain1Animation,
     bool? autoMonsterPosition,
     bool? autoSpellTrapPosition,
+    bool? spectateJumpToCurrent,
+    double? replaySpeedFactor,
   }) {
     return YgoSettings(
       showChain1Animation: showChain1Animation ?? this.showChain1Animation,
       autoMonsterPosition: autoMonsterPosition ?? this.autoMonsterPosition,
       autoSpellTrapPosition:
           autoSpellTrapPosition ?? this.autoSpellTrapPosition,
+      spectateJumpToCurrent:
+          spectateJumpToCurrent ?? this.spectateJumpToCurrent,
+      replaySpeedFactor: replaySpeedFactor ?? this.replaySpeedFactor,
     );
   }
 
@@ -47,13 +62,17 @@ class YgoSettings {
       other is YgoSettings &&
       other.showChain1Animation == showChain1Animation &&
       other.autoMonsterPosition == autoMonsterPosition &&
-      other.autoSpellTrapPosition == autoSpellTrapPosition;
+      other.autoSpellTrapPosition == autoSpellTrapPosition &&
+      other.spectateJumpToCurrent == spectateJumpToCurrent &&
+      other.replaySpeedFactor == replaySpeedFactor;
 
   @override
   int get hashCode => Object.hash(
     showChain1Animation,
     autoMonsterPosition,
     autoSpellTrapPosition,
+    spectateJumpToCurrent,
+    replaySpeedFactor,
   );
 }
 
@@ -75,6 +94,12 @@ class YgoSettingsNotifier extends _$YgoSettingsNotifier {
 
   void setAutoSpellTrapPosition(bool value) =>
       state = state.copyWith(autoSpellTrapPosition: value);
+
+  void setSpectateJumpToCurrent(bool value) =>
+      state = state.copyWith(spectateJumpToCurrent: value);
+
+  void setReplaySpeedFactor(double value) =>
+      state = state.copyWith(replaySpeedFactor: value);
 }
 
 /// 打开全局设置弹窗的函数指针。默认 null（对局包不感知设置 UI 的具体实现），
