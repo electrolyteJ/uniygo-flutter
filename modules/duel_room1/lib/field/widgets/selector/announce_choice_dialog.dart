@@ -69,9 +69,7 @@ class AnnounceChoiceDialog extends StatelessWidget {
                             minimumSize: const Size(88, 48),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
-                              side: const BorderSide(
-                                color: Color(0x5500F0FF),
-                              ),
+                              side: const BorderSide(color: Color(0x5500F0FF)),
                             ),
                           ),
                           child: Text(

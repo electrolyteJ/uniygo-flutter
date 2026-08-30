@@ -38,7 +38,11 @@ class DuelSelectPrompt extends ConsumerWidget {
     borderRadius: BorderRadius.circular(14),
     border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
     boxShadow: const [
-      BoxShadow(color: Color(0x66000000), blurRadius: 20, offset: Offset(0, 10)),
+      BoxShadow(
+        color: Color(0x66000000),
+        blurRadius: 20,
+        offset: Offset(0, 10),
+      ),
     ],
   );
 
@@ -129,7 +133,10 @@ class DuelSelectPrompt extends ConsumerWidget {
   }
 
   /// 就地选择的操作栏：提示文案 + 取消/确认/完成，置于手牌栏上方。
-  Widget _buildInlineBar(SelectWindowState state, SelectWindowNotifier selectN) {
+  Widget _buildInlineBar(
+    SelectWindowState state,
+    SelectWindowNotifier selectN,
+  ) {
     final select = state.currentSelect;
     // 多选（非单张、非连锁、非解除选择）才需要本地确认按钮。
     final showConfirm =
@@ -286,10 +293,8 @@ class DuelSelectPrompt extends ConsumerWidget {
               ? select.options.first.code
               : null,
           onInspectCard: onInspectCard,
-          onYes: () =>
-              selectN.respondSelectYesNo(true, generation: generation),
-          onNo: () =>
-              selectN.respondSelectYesNo(false, generation: generation),
+          onYes: () => selectN.respondSelectYesNo(true, generation: generation),
+          onNo: () => selectN.respondSelectYesNo(false, generation: generation),
         );
       case SelectType.option:
         return CardSelector(

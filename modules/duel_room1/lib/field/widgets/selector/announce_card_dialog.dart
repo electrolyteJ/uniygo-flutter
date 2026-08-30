@@ -229,7 +229,9 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
                 const SizedBox(height: 16),
               ],
               Expanded(
-                child: _restricted ? _buildDeclarableBody() : _buildSearchBody(),
+                child: _restricted
+                    ? _buildDeclarableBody()
+                    : _buildSearchBody(),
               ),
             ],
           ),
@@ -360,9 +362,7 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
                   Text(
                     '宣言这张卡',
                     style: TextStyle(
-                      color: const Color(
-                        0xFF00F0FF,
-                      ).withValues(alpha: 0.92),
+                      color: const Color(0xFF00F0FF).withValues(alpha: 0.92),
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
                     ),

@@ -108,8 +108,7 @@ class _CardSelectorState extends State<CardSelector> {
               Flexible(
                 child: GridView.builder(
                   shrinkWrap: true,
-                  gridDelegate:
-                      const SliverGridDelegateWithMaxCrossAxisExtent(
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: 104,
                     childAspectRatio: 100 / 150,
                     mainAxisSpacing: 8,

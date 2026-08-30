@@ -15,4 +15,5 @@ class FlamePlaymatField extends StatelessWidget {
     // 不在 build 里做副作用赋值。
     return GameWidget(game: game);
   }
+
 }

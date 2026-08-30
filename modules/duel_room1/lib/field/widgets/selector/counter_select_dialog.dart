@@ -28,8 +28,7 @@ class CounterSelectDialog extends StatefulWidget {
 }
 
 class _CounterSelectDialogState extends State<CounterSelectDialog> {
-  late final List<int> _counts =
-      List.filled(widget.select.options.length, 0);
+  late final List<int> _counts = List.filled(widget.select.options.length, 0);
 
   int get _sum => _counts.fold(0, (a, b) => a + b);
 
@@ -83,10 +82,12 @@ class _CounterSelectDialogState extends State<CounterSelectDialog> {
                     ? () => widget.onSelect(List<int>.of(_counts))
                     : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      satisfied ? const Color(0xFF00F0FF) : Colors.grey.shade800,
-                  foregroundColor:
-                      satisfied ? Colors.black : Colors.grey.shade500,
+                  backgroundColor: satisfied
+                      ? const Color(0xFF00F0FF)
+                      : Colors.grey.shade800,
+                  foregroundColor: satisfied
+                      ? Colors.black
+                      : Colors.grey.shade500,
                   disabledBackgroundColor: Colors.grey.shade800,
                   disabledForegroundColor: Colors.grey.shade500,
                 ),
