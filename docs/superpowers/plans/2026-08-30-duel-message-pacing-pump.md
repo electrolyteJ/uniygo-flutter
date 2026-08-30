@@ -753,6 +753,24 @@ Expected: `No issues found!`（`_phaseSub` 移除后无未用引用；`onDuelPha
 
 ---
 
+## 实施偏差记录（2026-08-30 执行时补记）
+
+1. **冷却窗口语义**：计划中的泵实现只在队列非空时排定时器，导致爆发循环里
+   每条消息都看到空闲泵而被同步直通（测试暴露）。实际实现改为**每次消费后
+   都排冷却窗口**（队列空按积压 1 档 = 120ms），窗口内到达的消息入队等待。
+   因此爆发的第二条消息间隔固定为 120ms（首跳），之后按积压档位加速——
+   Task 1「中爆发/大爆发」与 Task 3「MSG_START 清队 / TIME_LIMIT」测试的
+   时序断言已按此修正。
+2. **依赖声明**：`fake_async` 补入 `packages/biz` 的 dev_dependencies
+   （`^1.3.3`），消除 depend_on_referenced_packages（含既有
+   `card_confirm_queue_test.dart` 的同类 info）。
+3. **遗留 info**：`message_pump.dart` 构造函数有一条
+   `prefer_initializing_formals` info，无法在不暴露私有字段的前提下消除，
+   与仓库既有 28 条 info 同级保留。
+4. **已知无关失败**：`test/zone_browser_activatable_test.dart`（用户未跟踪
+   的 WIP 文件）因缺少 `dataServiceProvider` override 失败，与本次改动无关，
+   回归时排除。
+
 ## Self-Review 记录
 
 - Spec 覆盖：节奏档位表 ✓（Task 1）、入队接入 ✓（Task 3c）、TIME_LIMIT 直通 ✓（Task 3c + 特征测试）、相位并队 ✓（Task 3d）、MSG_START 清队 ✓（Task 2 + 3c）、dispose 随 scope 回收 ✓（Task 3c 经 `_cancelSubscriptions` ← `ref.onDispose`）。
