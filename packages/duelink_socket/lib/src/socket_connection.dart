@@ -88,6 +88,12 @@ class SocketConnection implements DuelConnection {
       socket.add(encodeCtos(msg));
     } on StateError catch (e) {
       console.log('Ignoring send on closed socket: $e');
+    } on SocketException catch (e) {
+      // 对端 RST（Connection reset by peer）后 socket 对象尚未标记关闭，
+      // add 会同步抛 SocketException——若逃逸到心跳/应答的 Timer 回调
+      // 就变成未处理异常（crash log 的 PlatformDispatcher 条目）。
+      // 发送失败无需上报：对端已断开，连接状态流会走 onDone/onError 通知。
+      console.log('Ignoring send on reset socket: $e');
     }
   }
 

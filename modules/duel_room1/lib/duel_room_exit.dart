@@ -39,6 +39,37 @@ void backHomeDialog({
   );
 }
 
+/// 意外断连（服务器关闭/网络重置/被踢）时的页面内提醒弹窗。
+///
+/// 与 [backHomeDialog] 的区别：这不是用户主动退出，不弹确认框——
+/// 告知断连事实后，唯一出口「返回首页」走 [leaveRoomAfterNotJoined]
+/// （幂等：断开已完成时仅补导航）。
+/// 返回对话框关闭的 Future：调用方据此跟踪弹窗是否仍在展示
+/// （断连弹窗弹出期间若 MSG_WIN 才从节奏泵消费到，需要关掉弹窗
+/// 让结算页展示）。
+Future<void> showDisconnectDialog({
+  required BuildContext context,
+  required WidgetRef ref,
+}) {
+  return showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      title: const Text('连接已断开'),
+      content: const Text('与服务器的连接已中断，无法继续对局。'),
+      actions: [
+        FilledButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+            unawaited(leaveRoomAfterNotJoined(context, ref));
+          },
+          child: const Text('返回首页'),
+        ),
+      ],
+    ),
+  );
+}
+
 /// 离开房间回首页。
 ///
 /// 幂等：经 [DuelRoomNotifier.markLeaving] 去重——主动退出触发的

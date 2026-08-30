@@ -51,6 +51,28 @@ bool shouldHoldForDuelResult({
   return prev is RoomDuelEnded && next is RoomNotJoined && hasDuelResult;
 }
 
+/// 断连/被踢时是否应「页面内弹窗提醒」而不是静默自动离房。
+///
+/// 与 [shouldHoldForDuelResult] 互补——房间页 stage 监听的三种出口：
+/// 1. 主动退出（isLeaving）：leaveRoomAfterNotJoined 已在跑，直接导航；
+/// 2. 出结算即断连（shouldHoldForDuelResult）：停留展示结算弹窗；
+/// 3. 其余意外断开（本函数 true）：停留并弹「连接已断开」提醒，
+///    由用户点击「返回首页」再走离房导航——对局中断不再静默丢回首页。
+bool shouldPromptDisconnect({
+  required RoomStage? prev,
+  required RoomStage next,
+  required bool isLeaving,
+  required bool hasDuelResult,
+}) {
+  if (prev is RoomNotJoined || next is! RoomNotJoined) return false;
+  if (isLeaving) return false;
+  return !shouldHoldForDuelResult(
+    prev: prev,
+    next: next,
+    hasDuelResult: hasDuelResult,
+  );
+}
+
 /// 房间页不可变状态快照。
 ///
 /// 房间阶段/玩家列表等均由服务端事件整体替换，适合不可变建模；

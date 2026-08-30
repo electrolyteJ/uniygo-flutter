@@ -100,6 +100,11 @@ class _DuelRoomView extends ConsumerStatefulWidget {
 }
 
 class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
+  /// 断连提醒弹窗是否展示中：弹窗弹出后若 MSG_WIN 才从节奏泵
+  /// 消费到（服务端在关连接前的最后一个 TCP 段里发了结果），
+  /// 需要关掉断连弹窗让结算 overlay 展示。
+  bool _disconnectDialogOpen = false;
+
   @override
   void initState() {
     super.initState();
@@ -188,7 +193,32 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
         )) {
           return;
         }
+        // 意外断连（对局中被服务器断开/网络重置）：停留并弹窗提醒，
+        // 不再静默丢回首页；主动退出（isLeaving）维持直接导航。
+        if (shouldPromptDisconnect(
+          prev: prev,
+          next: next,
+          isLeaving: ref.read(duelRoomProvider.notifier).isLeaving,
+          hasDuelResult: ref.read(duelFieldProvider).duelResult != null,
+        )) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted || _disconnectDialogOpen) return;
+            _disconnectDialogOpen = true;
+            showDisconnectDialog(context: context, ref: ref).whenComplete(() {
+              _disconnectDialogOpen = false;
+            });
+          });
+          return;
+        }
         unawaited(leaveRoomAfterNotJoined(context, ref));
+      }
+    });
+    // 断连弹窗弹出期间 MSG_WIN 才消费到（结果曾排在节奏泵队列里）：
+    // 关掉断连弹窗，结算 overlay 按既有 duelResult 监听自动挂载。
+    ref.listen(duelFieldProvider.select((s) => s.duelResult), (prev, next) {
+      if (next != null && _disconnectDialogOpen) {
+        _disconnectDialogOpen = false;
+        Navigator.of(context, rootNavigator: true).pop();
       }
     });
 

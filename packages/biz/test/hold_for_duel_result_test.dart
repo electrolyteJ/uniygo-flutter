@@ -51,6 +51,54 @@ void main() {
       );
     });
 
+    test('对局中断线（未出结果）→ 提示断连弹窗', () {
+      expect(
+        shouldPromptDisconnect(
+          prev: const RoomInDuel(isFirstTurn: true),
+          next: const RoomNotJoined(),
+          isLeaving: false,
+          hasDuelResult: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('主动退出（isLeaving）→ 不提示，直接导航', () {
+      expect(
+        shouldPromptDisconnect(
+          prev: const RoomInDuel(isFirstTurn: true),
+          next: const RoomNotJoined(),
+          isLeaving: true,
+          hasDuelResult: false,
+        ),
+        isFalse,
+      );
+    });
+
+    test('出结算即断连 → 不提示（走结算停留分支）', () {
+      expect(
+        shouldPromptDisconnect(
+          prev: const RoomDuelEnded(),
+          next: const RoomNotJoined(),
+          isLeaving: false,
+          hasDuelResult: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('非 RoomNotJoined 转换 → 不提示', () {
+      expect(
+        shouldPromptDisconnect(
+          prev: const RoomInDuel(isFirstTurn: true),
+          next: const RoomJoined(),
+          isLeaving: false,
+          hasDuelResult: false,
+        ),
+        isFalse,
+      );
+    });
+
     test('非 RoomNotJoined 转换 → 不停留', () {
       expect(
         shouldHoldForDuelResult(

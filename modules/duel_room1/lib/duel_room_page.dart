@@ -84,6 +84,11 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
   /// 日志/聊天抽屉是否展开（非模态常驻面板，见 build 的 Stack）。
   bool _logDrawerOpen = false;
 
+  /// 断连提醒弹窗是否展示中：弹窗弹出后若 MSG_WIN 才从节奏泵
+  /// 消费到（服务端在关连接前的最后一个 TCP 段里发了结果），
+  /// 需要关掉断连弹窗让结算弹窗展示。
+  bool _disconnectDialogOpen = false;
+
   /// 开合日志/聊天抽屉：非模态——无遮罩、不阻断场地交互、点外部
   /// 不关闭，只能由右下角按钮（再次点击）或抽屉内的关闭按钮收起。
   /// 面板常驻页面 Stack（不经路由），开合走 AnimatedSlide 滑入滑出。
@@ -251,7 +256,32 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
         )) {
           return;
         }
+        // 意外断连（对局中被服务器断开/网络重置）：停留并弹窗提醒，
+        // 不再静默丢回首页；主动退出（isLeaving）维持直接导航。
+        if (shouldPromptDisconnect(
+          prev: prev,
+          next: next,
+          isLeaving: ref.read(duelRoomProvider.notifier).isLeaving,
+          hasDuelResult: ref.read(duelFieldProvider).duelResult != null,
+        )) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted || _disconnectDialogOpen) return;
+            _disconnectDialogOpen = true;
+            showDisconnectDialog(context: context, ref: ref).whenComplete(() {
+              _disconnectDialogOpen = false;
+            });
+          });
+          return;
+        }
         unawaited(leaveRoomAfterNotJoined(context, ref));
+      }
+    });
+    // 断连弹窗弹出期间 MSG_WIN 才消费到（结果曾排在节奏泵队列里）：
+    // 关掉断连弹窗，结算弹窗随之按既有 roundResult 逻辑挂载。
+    ref.listen(duelFieldProvider.select((s) => s.duelResult), (prev, next) {
+      if (next != null && _disconnectDialogOpen) {
+        _disconnectDialogOpen = false;
+        Navigator.of(context, rootNavigator: true).pop();
       }
     });
     final room = ref.watch(duelRoomProvider);
