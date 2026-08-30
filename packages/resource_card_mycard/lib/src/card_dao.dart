@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../src/card_info.dart';
 import 'package:resource_data/card_info.dart' as pkg;
+
 /// Pure data-access layer for card queries against a cards.cdb SQLite database.
 ///
 /// Accepts an already-open [Database] in the constructor — it does **not** own
@@ -57,26 +58,31 @@ class CardDao {
   /// Get a single card by its 8-digit [code] (passcode).
   /// Returns null when no card with that code exists.
   Future<CardInfo?> getCard(int code) async {
-    final rows = await _db.rawQuery(
-      _cardSql('WHERE d.id = ?'),
-      [code],
-    );
+    final rows = await _db.rawQuery(_cardSql('WHERE d.id = ?'), [code]);
     return rows.isEmpty ? null : _rowToCard(rows.first);
   }
 
   /// Search cards whose name contains [query] (case-insensitive substring
   /// match).  Sorted by id.  Limit with [maxResults] (default 50).
-  Future<List<CardInfo>> searchByName(String query, {int maxResults = 50}) async {
+  Future<List<CardInfo>> searchByName(
+    String query, {
+    int maxResults = 50,
+  }) async {
     final rows = await _db.rawQuery(
       _cardSql('WHERE t.name LIKE ? ORDER BY d.id LIMIT ?'),
       ['%$query%', maxResults],
     );
-    console.log('searchByName: query="$query", maxResults=$maxResults, found=${rows.length}');
+    console.log(
+      'searchByName: query="$query", maxResults=$maxResults, found=${rows.length}',
+    );
     return rows.map(_rowToCard).toList();
   }
 
   /// Get all cards of a given [type] (bitmask).
-  Future<List<CardInfo>> getCardsByType(int type, {int maxResults = 100}) async {
+  Future<List<CardInfo>> getCardsByType(
+    int type, {
+    int maxResults = 100,
+  }) async {
     final rows = await _db.rawQuery(
       _cardSql('WHERE (d.type & ?) != 0 ORDER BY d.id LIMIT ?'),
       [type, maxResults],
@@ -210,25 +216,26 @@ class CardDao {
   // ---------------------------------------------------------------------------
 
   Map<String, Object?> _cardToRow(CardInfo c) => {
-        'id': c.code,
-        'alias': c.alias,
-        'setcode': c.setcode,
-        'type': c.type,
-        'atk': c.atk,
-        'def': c.def,
-        'level': c.level,
-        'race': c.race,
-        'attribute': c.attribute,
-        'ot': c.ot,
-        'category': c.category,
-      };
+    'id': c.code,
+    'alias': c.alias,
+    'setcode': c.setcode,
+    'type': c.type,
+    'atk': c.atk,
+    'def': c.def,
+    'level': c.level,
+    'race': c.race,
+    'attribute': c.attribute,
+    'ot': c.ot,
+    'category': c.category,
+  };
 
   Map<String, Object?> _cardToTextsRow(CardInfo c) => {
-        'id': c.code,
-        'name': c.name,
-        'desc': c.desc,
-        for (int i = 0; i < 16; i++) 'str${i + 1}': i < c.strings.length ? c.strings[i] : null,
-      };
+    'id': c.code,
+    'name': c.name,
+    'desc': c.desc,
+    for (int i = 0; i < 16; i++)
+      'str${i + 1}': i < c.strings.length ? c.strings[i] : null,
+  };
 
   // ---------------------------------------------------------------------------
   // Metadata / integrity helpers (exposed for tests)
@@ -244,14 +251,18 @@ class CardDao {
 
   /// Return (minId, maxId) from the datas table.
   Future<(int, int)> minMaxIds() async {
-    final r = await _db.rawQuery('SELECT MIN(id) AS mn, MAX(id) AS mx FROM datas');
+    final r = await _db.rawQuery(
+      'SELECT MIN(id) AS mn, MAX(id) AS mx FROM datas',
+    );
     final row = r.first;
     return (row['mn'] as int, row['mx'] as int);
   }
 
   /// Count records where level < 0 (should be zero for valid data).
   Future<int> countNegativeLevel() async {
-    final r = await _db.rawQuery('SELECT COUNT(*) AS c FROM datas WHERE level < 0');
+    final r = await _db.rawQuery(
+      'SELECT COUNT(*) AS c FROM datas WHERE level < 0',
+    );
     return r.first['c'] as int;
   }
 
@@ -264,6 +275,7 @@ class CardDao {
     ''');
     return (r.first['c'] as int) == 0;
   }
+
   /// 组合搜索：按名称关键字 + 类型 + 属性 + 种族筛选
   Future<List<CardInfo>> searchCombined({
     String? query,
@@ -308,22 +320,22 @@ class CardDao {
 // ---------------------------------------------------------------------------
 /// 将本地 CardInfo 转换为包 CardInfo（用于卡组编辑器）
 pkg.CardInfo toPackageCard(CardInfo c) {
-// 从 level 提取灵摆刻度（高16位为右刻度，低16位为左刻度）
+  // 从 level 提取灵摆刻度（高16位为右刻度，低16位为左刻度）
   final lscale = (c.level >> 24) & 0xFF;
   final rscale = (c.level >> 16) & 0xFF;
-// 从 level 提取等级（低16位）
+  // 从 level 提取等级（低16位）
   final levelValue = c.level & 0xFFFF;
-// 负等级表示 XYZ
+  // 负等级表示 XYZ
   final effectiveLevel = (c.type & 0x800000) != 0
       ? -levelValue.abs()
       : levelValue;
   return pkg.CardInfo(
     code: c.code,
     alias: c.alias,
-    setcode: List
-        .generate(16, (i) => c.setcodeAt(i))
-        .where((v) => v != 0)
-        .toList(),
+    setcode: List.generate(
+      16,
+      (i) => c.setcodeAt(i),
+    ).where((v) => v != 0).toList(),
     type: c.type,
     level: effectiveLevel,
     attribute: c.attribute,
@@ -335,5 +347,6 @@ pkg.CardInfo toPackageCard(CardInfo c) {
     linkMarker: c.type & 0x4000000 != 0 ? c.def : 0,
     name: c.name,
     desc: c.desc,
+    strings: c.strings,
   );
 }

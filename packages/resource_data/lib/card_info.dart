@@ -45,6 +45,13 @@ class CardInfo {
   /// 卡牌效果/描述文本
   final String desc;
 
+  /// 效果选项文本（cards.cdb texts 表的 str1~str16）。
+  ///
+  /// ocgcore 脚本用 aux.Stringid(code, i)（desc = code*16+i）引用第 i 条，
+  /// 典型场景是 MSG_SELECT_OPTION 的选项文案（如「破坏怪兽」「加入手卡」）。
+  /// 非 cards.cdb 来源的数据可能为空列表。
+  final List<String?> strings;
+
   const CardInfo({
     required this.code,
     this.alias = 0,
@@ -60,6 +67,7 @@ class CardInfo {
     this.linkMarker = 0,
     this.name = '',
     this.desc = '',
+    this.strings = const [],
   });
 
   // ---------------------------------------------------------------------------
@@ -121,6 +129,7 @@ class CardInfo {
     if (isCounter) types.add('反击');
     return types.join(' ');
   }
+
   /// Human-readable card kind (for debug / UI labels).
   String get kindLabel {
     if (isLink) return 'Link';
@@ -159,21 +168,45 @@ class CardInfo {
 
   String get attributeText {
     const attrs = {
-      0x01: '地', 0x02: '水', 0x04: '炎', 0x08: '风',
-      0x10: '光', 0x20: '暗', 0x40: '神',
+      0x01: '地',
+      0x02: '水',
+      0x04: '炎',
+      0x08: '风',
+      0x10: '光',
+      0x20: '暗',
+      0x40: '神',
     };
     return attrs[attribute] ?? '无';
   }
 
   String get raceText {
     const races = {
-      0x1: '战士', 0x2: '魔法师', 0x4: '天使', 0x8: '恶魔',
-      0x10: '不死', 0x20: '机械', 0x40: '水族', 0x80: '炎族',
-      0x100: '岩石', 0x200: '鸟兽', 0x400: '植物', 0x800: '昆虫',
-      0x1000: '雷族', 0x2000: '龙', 0x4000: '兽', 0x8000: '兽战士',
-      0x10000: '恐龙', 0x20000: '鱼', 0x40000: '海龙', 0x80000: '爬虫类',
-      0x100000: '念动力', 0x200000: '幻神', 0x400000: '创造神',
-      0x800000: '幻龙', 0x1000000: '电子界', 0x2000000: '幻兽神',
+      0x1: '战士',
+      0x2: '魔法师',
+      0x4: '天使',
+      0x8: '恶魔',
+      0x10: '不死',
+      0x20: '机械',
+      0x40: '水族',
+      0x80: '炎族',
+      0x100: '岩石',
+      0x200: '鸟兽',
+      0x400: '植物',
+      0x800: '昆虫',
+      0x1000: '雷族',
+      0x2000: '龙',
+      0x4000: '兽',
+      0x8000: '兽战士',
+      0x10000: '恐龙',
+      0x20000: '鱼',
+      0x40000: '海龙',
+      0x80000: '爬虫类',
+      0x100000: '念动力',
+      0x200000: '幻神',
+      0x400000: '创造神',
+      0x800000: '幻龙',
+      0x1000000: '电子界',
+      0x2000000: '幻兽神',
     };
     return races[race] ?? '未知';
   }
@@ -183,45 +216,44 @@ class CardInfo {
   // ---------------------------------------------------------------------------
 
   Map<String, dynamic> toJson() => {
-        'code': code,
-        'alias': alias,
-        'setcode': setcode,
-        'type': type,
-        'level': level,
-        'attribute': attribute,
-        'race': race,
-        'attack': attack,
-        'defense': defense,
-        'lscale': lscale,
-        'rscale': rscale,
-        'linkMarker': linkMarker,
-        'name': name,
-        'desc': desc,
-      };
+    'code': code,
+    'alias': alias,
+    'setcode': setcode,
+    'type': type,
+    'level': level,
+    'attribute': attribute,
+    'race': race,
+    'attack': attack,
+    'defense': defense,
+    'lscale': lscale,
+    'rscale': rscale,
+    'linkMarker': linkMarker,
+    'name': name,
+    'desc': desc,
+  };
 
   factory CardInfo.fromJson(Map<String, dynamic> json) => CardInfo(
-        code: (json['code'] ?? json['id'] ?? 0) as int,
-        alias: (json['alias'] ?? 0) as int,
-        setcode: json['setcode'] is List
-            ? List<int>.from(json['setcode'])
-            : [json['setcode'] as int? ?? 0],
-        type: (json['type'] ?? 0) as int,
-        level: (json['level'] ?? 0) as int,
-        attribute: (json['attribute'] ?? 0) as int,
-        race: (json['race'] ?? 0) as int,
-        attack: (json['attack'] ?? json['atk'] ?? 0) as int,
-        defense: (json['defense'] ?? json['def'] ?? 0) as int,
-        lscale: (json['lscale'] ?? 0) as int,
-        rscale: (json['rscale'] ?? 0) as int,
-        linkMarker: (json['linkMarker'] ?? json['link_marker'] ?? 0) as int,
-        name: (json['name'] ?? '') as String,
-        desc: (json['desc'] ?? '') as String,
-      );
+    code: (json['code'] ?? json['id'] ?? 0) as int,
+    alias: (json['alias'] ?? 0) as int,
+    setcode: json['setcode'] is List
+        ? List<int>.from(json['setcode'])
+        : [json['setcode'] as int? ?? 0],
+    type: (json['type'] ?? 0) as int,
+    level: (json['level'] ?? 0) as int,
+    attribute: (json['attribute'] ?? 0) as int,
+    race: (json['race'] ?? 0) as int,
+    attack: (json['attack'] ?? json['atk'] ?? 0) as int,
+    defense: (json['defense'] ?? json['def'] ?? 0) as int,
+    lscale: (json['lscale'] ?? 0) as int,
+    rscale: (json['rscale'] ?? 0) as int,
+    linkMarker: (json['linkMarker'] ?? json['link_marker'] ?? 0) as int,
+    name: (json['name'] ?? '') as String,
+    desc: (json['desc'] ?? '') as String,
+  );
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CardInfo && code == other.code;
+      identical(this, other) || other is CardInfo && code == other.code;
 
   @override
   int get hashCode => code.hashCode;
