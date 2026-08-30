@@ -6,6 +6,7 @@ import 'package:uniygopro/pages/create_room/match_store.dart';
 import 'package:biz/service_loader.registrations.g.dart';
 import 'package:deck_editor1/deck_editor1.dart' show DeckEditorStore;
 import 'package:biz/card_image_loader.dart';
+import 'package:biz/crash_log.dart';
 import 'package:biz/service_providers.dart';
 import 'package:biz/service_singleton.dart';
 import 'package:biz/util/orientation_lock.dart';
@@ -15,6 +16,10 @@ import 'config/route.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // [临时诊断] 全局崩溃捕获落盘（logs/flutter_crash.log），
+  // 定位进决斗房间时导航器断言吞掉的原始异常，修复后移除。
+  installCrashLogHook();
 
   // 全应用横屏（仅 Android/iOS 生效；决斗房间同样横屏，无需单独锁）。
   lockAppLandscape();
