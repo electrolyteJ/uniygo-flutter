@@ -1,12 +1,10 @@
 import 'dart:async';
-import 'dart:developer' as console;
 
 import 'package:biz/service_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:biz/duel/field/duel_field_state.dart';
 import 'package:biz/duel/room/duel_room_state.dart';
 
 /// 退出决斗前的确认弹窗。
@@ -100,21 +98,12 @@ Future<void> backHome(
   // 断开不依赖 widget：即使等待/断开期间页面被销毁也照常执行，
   // 让服务器收到断连并下发 RoomNotJoined，触发兜底导航。
   await duelService.disconnect();
-  // 结算数据先取出：导航后房间页 ProviderScope 销毁，provider 随之回收，
-  // 各 controller/store 的流订阅由 ref.onDispose / dispose 自动清理，
-  // 无需 duel_room1 那样的手动 reset 三件套。
+  // 结算由房间内 DuelResultOverlay 展示（MSG_WIN 触发），退出一律回首页；
+  // 不再读 duelResult 跳结算页（宿主未注册该路由，结算由房间内 overlay 展示）。
   // 若本函数持有的页面已销毁（对局页随卸载失效），ref 不可再用，
   // 这里直接返回，由 leaveRoomAfterNotJoined 用房间页自身的 ref 完成导航。
   if (!context.mounted) return;
-  final duelResult = ref.read(duelFieldProvider).duelResult;
-  console.log('backHome: duelResult=$duelResult');
-  // 单次导航直达目标：有结算去结算页，否则回首页
-  // （旧实现先 go('/') 再 go('/duel-result')，多一次无谓跳转）。
-  if (duelResult != null) {
-    context.go('/duel-result', extra: duelResult);
-  } else {
-    context.go('/');
-  }
+  context.go('/');
 }
 
 /// RoomNotJoined 到达时的统一离房处理（房间页 stage 监听调用）。
@@ -140,21 +129,6 @@ Future<void> leaveRoomAfterNotJoined(
     await ref.read(duelServiceProvider).disconnect();
     if (!context.mounted) return;
   }
-  final duelResult = ref.read(duelFieldProvider).duelResult;
-  if (duelResult != null) {
-    context.go('/duel-result', extra: duelResult);
-  } else {
-    context.go('/');
-  }
-}
-
-/// 结算页「返回首页」入口。
-///
-/// 结算页展示时房间页的 ProviderScope 已销毁，无法再用 ref 取服务；
-/// 这里直接读应用级服务容器（service_providers.dart 中的同一批单例）：
-/// 播放返回音效、兜底断开连接（房间页退出时已断，幂等），再回首页。
-void backHomeAfterDuel(BuildContext context) {
-  duelRoomServiceContainer.read(ygoSoundServiceProvider).playBackNavigation();
-  unawaited(duelRoomServiceContainer.read(duelServiceProvider).disconnect());
+  // 结算由房间内 DuelResultOverlay 展示（MSG_WIN 触发），离房一律回首页。
   context.go('/');
 }

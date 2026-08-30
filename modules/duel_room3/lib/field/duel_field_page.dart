@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:biz/duel/chat/duel_chat_state.dart';
+import 'package:biz/duel/field/card_confirm_state.dart';
 import 'package:biz/duel/field/duel_field_derived.dart';
 import 'package:biz/duel/field/duel_field_state.dart';
 import 'package:biz/duel/field/field_overlay_state.dart';
 import 'package:biz/duel/field/select_window_state.dart';
 import 'package:biz/duel/models/select_state.dart';
+import 'package:biz/duel/room/duel_room_state.dart';
 import 'package:biz/widgets/card_image.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flame/game.dart' show GameWidget;
@@ -16,11 +18,15 @@ import '../bridge/duel_3d_bridge.dart';
 import '../duel_room_exit.dart';
 import '../hud/action_bar.dart';
 import '../hud/card_detail_panel.dart';
+import '../hud/confirm_cards_dialog.dart';
+import '../hud/confirm_floating_card.dart';
 import '../hud/duel_overlays.dart';
 import '../hud/hand_bar.dart';
 import '../hud/hud_theme.dart';
 import '../hud/lp_bar.dart';
 import '../hud/phase_rail.dart';
+import '../hud/turn_order_hint.dart';
+import '../hud/zone_count_bar.dart';
 import '../scene3d/duel_3d_game.dart';
 
 /// 3D 决斗场地页：flame_3d 场景 + MDPro3 风格 HUD 叠层。
@@ -37,6 +43,8 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
   Duel3DGame? _game;
   Duel3DBridge? _bridge;
   bool _logDrawerOpen = false;
+  bool _showTurnOrderHint = false;
+  bool _isFirstTurn = false;
 
   DuelFieldState get _board => ref.read(duelFieldProvider);
   DuelFieldNotifier get _boardN => ref.read(duelFieldProvider.notifier);
@@ -183,10 +191,61 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
     if (_overlay.showInspector) _overlayN.dismissInspector();
   }
 
+  /// 挂载先后攻提示浮层。观战者由 build 里的 ref.listen 过滤，
+  /// 这里只做去重与状态记录；提示自身负责淡入 → 停留 → 淡出，
+  /// 并在 onDismiss 回调里复位显示状态。
+  void _revealTurnOrderHint(bool isFirst) {
+    if (!mounted || _showTurnOrderHint) return;
+    _isFirstTurn = isFirst;
+    setState(() => _showTurnOrderHint = true);
+  }
+
+  /// 顶部浮动确认卡的定位：owner == myController 时视为己方（底部手牌上方），
+  /// 否则视为对方（顶部）。room3 无 room1 的 fieldAnchors 锚点，这里用固定
+  /// 偏移贴近对应半场（右 150 避开右侧 LP 条 / 阶段轨道）。
+  Widget _buildFloatPreview(
+    WidgetRef ref, {
+    required int owner,
+    required bool isExtra,
+    required List<int> codes,
+    required int index,
+  }) {
+    // 下标越界（codes 变短等瞬态）时不渲染，避免 RangeError。
+    if (index >= codes.length) return const SizedBox.shrink();
+    final myController = ref.read(duelFieldProvider).myController;
+    final isSelf = owner == myController;
+    final boardN = ref.read(duelFieldProvider.notifier);
+    final confirmN = ref.read(cardConfirmProvider.notifier);
+    return Positioned(
+      top: isSelf ? null : 120,
+      bottom: isSelf ? 180 : null,
+      right: 150,
+      child: ConfirmFloatingCard(
+        codes: codes,
+        currentIndex: index,
+        title: isExtra ? '额外卡组顶部' : '卡组顶部',
+        cardNameBuilder: (code) =>
+            boardN.getCardInfo(code)?.name ?? 'Card #$code',
+        onDismiss: confirmN.dismissConfirmPanel,
+      ),
+    );
+  }
+
   // ───────────────────────── 构建 ─────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    // 先后攻提示：随房间 stage 进入 RoomInDuel 触发（isFirstTurn 与 stage
+    // 由服务器同帧下发）。match 多局之间 isFirstTurn 可能同值、select 不触发，
+    // 故监听 stage 变迁而非 isFirstTurn 值本身（对照 room1 的做法）。
+    ref.listen(duelRoomProvider.select((s) => s.stage), (prev, next) {
+      if (next is! RoomInDuel || prev is RoomInDuel) return;
+      final room = ref.read(duelRoomProvider);
+      final isFirst = room.isFirstTurn;
+      if (isFirst == null || room.selfType == PlayerType.observer) return;
+      _revealTurnOrderHint(isFirst);
+    });
+
     _ensureGame();
     final game = _game!;
     final board = ref.watch(duelFieldProvider);
@@ -338,6 +397,40 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
                       ),
                     ),
                   ),
+                // 双方剩余秒数（B3）：0 表示无限制/未计时则不显示，≤30 秒变红。
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _TurnTimerBadge(
+                        label: '我方',
+                        seconds: board.selfTimeLeft,
+                        accent: HudTheme.cyan,
+                      ),
+                      const SizedBox(width: 6),
+                      _TurnTimerBadge(
+                        label: '对方',
+                        seconds: board.opponentTimeLeft,
+                        accent: HudTheme.gold,
+                      ),
+                    ],
+                  ),
+                ),
+                // 对方区域计数条（B2）：挂在左上信息簇下方，与回合/连锁徽章对齐。
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: ZoneCountBar(
+                    handCount: board.opponentHand.length,
+                    deckCount: board.oppDeck,
+                    extraCount: board.oppExtra,
+                    graveCount: board.oppGrave,
+                    removedCount: board.oppRemoved,
+                    onExtraTap: () => _overlayN.openZoneBrowser('opp_extra'),
+                    onGraveTap: () => _overlayN.openZoneBrowser('opp_grave'),
+                    onRemovedTap: () => _overlayN.openZoneBrowser('opp_removed'),
+                  ),
+                ),
               ],
             ),
           ),
@@ -386,6 +479,23 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // 己方区域计数条（B2）：置于手牌条/操作条上方，随底部堆叠自然上移，
+                // 避免与居中的操作条重叠（用 Positioned 固定底边会互相遮挡）。
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Center(
+                    child: ZoneCountBar(
+                      handCount: board.selfHand.length,
+                      deckCount: board.selfDeck,
+                      extraCount: board.selfExtra,
+                      graveCount: board.selfGrave,
+                      removedCount: board.selfRemoved,
+                      onExtraTap: () => _overlayN.openZoneBrowser('self_extra'),
+                      onGraveTap: () => _overlayN.openZoneBrowser('self_grave'),
+                      onRemovedTap: () => _overlayN.openZoneBrowser('self_removed'),
+                    ),
+                  ),
+                ),
                 if (fieldActions.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 6),
@@ -458,6 +568,58 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
               ),
             ),
 
+          // 顶部浮动确认卡（A2b）：只读渲染 notifier 计时的当前下标，
+          // 己方显示在底部手牌上方、对方显示在顶部（owner 与 myController 比较）。
+          Consumer(
+            builder: (context, ref, _) {
+              final preview = ref.watch(
+                cardConfirmProvider.select(
+                  (s) => (
+                    isFloat: s.isFloatPreview,
+                    owner: s.floatPreviewOwner,
+                    isExtra: s.floatPreviewIsExtra,
+                    codes: s.floatPreviewCodes,
+                    index: s.floatPreviewIndex,
+                  ),
+                ),
+              );
+              if (!preview.isFloat) return const SizedBox.shrink();
+              return _buildFloatPreview(
+                ref,
+                owner: preview.owner,
+                isExtra: preview.isExtra,
+                codes: preview.codes,
+                index: preview.index,
+              );
+            },
+          ),
+
+          // 确认多卡弹窗（A2a）：confirmPanel 非空时模态展示，点击任意处关闭。
+          Consumer(
+            builder: (context, ref, _) {
+              final panel = ref.watch(
+                cardConfirmProvider.select((s) => s.confirmPanel),
+              );
+              if (panel == null) return const SizedBox.shrink();
+              // 卡名缓存批次完成时刷新弹窗里的卡名（getCardInfo 惰性加载）。
+              ref.watch(duelFieldProvider.select((s) => s.cardInfoVersion));
+              final confirmN = ref.read(cardConfirmProvider.notifier);
+              final boardN = ref.read(duelFieldProvider.notifier);
+              return Positioned.fill(
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  child: ConfirmCardsDialog(
+                    title: panel.title,
+                    codes: panel.codes,
+                    cardNameBuilder: (code) =>
+                        boardN.getCardInfo(code)?.name ?? 'Card #$code',
+                    onDismiss: confirmN.dismissConfirmPanel,
+                  ),
+                ),
+              );
+            },
+          ),
+
           // 日志/聊天抽屉
           if (_logDrawerOpen)
             Positioned.fill(
@@ -468,6 +630,24 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
           if (overlay.openZoneBrowserKey != null)
             Positioned.fill(
               child: _ZoneBrowser(zoneKey: overlay.openZoneBrowserKey!),
+            ),
+
+          // 先后攻提示（B4）：居中短暂展示，IgnorePointer 不拦截手势；
+          // TurnOrderHint 自身负责淡入 → 停留 → 淡出 → onDismiss。
+          if (_showTurnOrderHint)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: TurnOrderHint(
+                    isFirst: _isFirstTurn,
+                    onDismiss: () {
+                      if (mounted) {
+                        setState(() => _showTurnOrderHint = false);
+                      }
+                    },
+                  ),
+                ),
+              ),
             ),
         ],
       ),
@@ -502,6 +682,50 @@ class _HudIconButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 回合剩余秒数徽章（B3）：0 表示无限制/未计时则不显示；≤30 秒变红。
+class _TurnTimerBadge extends StatelessWidget {
+  const _TurnTimerBadge({
+    required this.label,
+    required this.seconds,
+    required this.accent,
+  });
+
+  final String label;
+  final int seconds;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    if (seconds <= 0) return const SizedBox.shrink();
+    final urgent = seconds <= 30;
+    final color = urgent ? HudTheme.danger : accent;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: HudTheme.panel(radius: 16),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: HudTheme.caption),
+          const SizedBox(width: 6),
+          Text(
+            _format(seconds),
+            style: HudTheme.caption.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _format(int totalSeconds) {
+    final m = totalSeconds ~/ 60;
+    final s = totalSeconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 }
 

@@ -1,10 +1,93 @@
+import 'dart:async';
+
 import 'package:biz/duel/chat/duel_chat_state.dart';
 import 'package:biz/duel/room/duel_room_state.dart';
+import 'package:biz/service_providers.dart';
 import 'package:duelink/duelink.dart' hide ConnectionState;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:resource_data/lf_table.dart';
 
 import '../hud/hud_theme.dart';
+import 'widgets/automation_switch.dart';
+import 'widgets/room_info_panel.dart';
+import 'widgets/side_decking_panel.dart';
+
+/// 自动化开关切换：先等 notifier 裁决，被接受才播放提示音。
+///
+/// 已准备状态下 notifier 会拒绝变更（返回 false），旧实现先响音后
+/// 调用 action，被拒绝的切换也会发出声音；同时持久化失败已在
+/// notifier 内走 errorMessage 渠道，这里兜底 catch，避免未处理异常。
+Future<void> _onToggleAutomation(
+  WidgetRef ref,
+  bool value,
+  Future<bool> Function(bool) action,
+) async {
+  // await（SharedPreferences 往返）之前先捕获声音服务：
+  // 等待期间房间页可能销毁，事后再 ref.read 会抛异常。
+  final sound = ref.read(ygoSoundServiceProvider);
+  bool accepted;
+  try {
+    accepted = await action(value);
+  } catch (_) {
+    accepted = false;
+  }
+  if (!accepted) return;
+  if (value) {
+    sound.playToggleOn();
+  } else {
+    sound.playToggleOff();
+  }
+}
+
+/// 编辑当前所选卡组：打开卡组编辑器，保存后刷新卡组校验。
+///
+/// 路由参数用通用 Map 传递（不依赖卡组编辑器的类型）：
+/// `initialDeckName` / `noCheckDeck` / `lfTableHash` /
+/// `lockDeckSelection` / `lockDeckName`；返回值同为 Map，
+/// 含 `saved`（bool）。
+Future<void> _onEditDeck(BuildContext context, WidgetRef ref) async {
+  final controller = ref.read(duelRoomProvider.notifier);
+  final roomState = ref.read(duelRoomProvider);
+  final opts = roomState.roomOptions;
+  final result = await context.push<Map<String, Object?>>(
+    '/deck-editor',
+    extra: <String, Object?>{
+      'initialDeckName': roomState.selectedDeckName,
+      if (opts != null) 'noCheckDeck': opts.noCheckDeck,
+      if (opts != null) 'lfTableHash': opts.lfTableHash,
+      'lockDeckSelection': true,
+      'lockDeckName': true,
+    },
+  );
+  // 跨页 await 之后 context 可能已卸载。
+  if (!context.mounted) return;
+  if (result?['saved'] == true) {
+    await controller.refreshSelectedDeckValidation();
+  }
+}
+
+/// 换备确认：提交换备后的卡组并 ready，失败原因走 SnackBar。
+Future<void> _onConfirmSiding(BuildContext context, WidgetRef ref) async {
+  // 兜住一切异常：确认是 match 局间唯一推进通道，未处理异常会让
+  // 换备永远卡住（第二局不开局）且无任何提示。
+  String? error;
+  try {
+    error = await ref.read(duelRoomProvider.notifier).confirmSiding();
+  } catch (e) {
+    error = '换备提交失败: $e';
+  }
+  if (error != null && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+}
 
 /// MDPro3 风格等待室：暗色科技风，玩家卡座 + 卡组选择 + 准备/开始。
 class WaitingRoomPage3D extends ConsumerWidget {
@@ -48,33 +131,86 @@ class WaitingRoomPage3D extends ConsumerWidget {
   }
 }
 
-class _RoomHeader extends StatelessWidget {
+/// 顶部房间信息条：模式 + 观战数 + 可展开的完整房间信息面板。
+///
+/// 默认收起保持紧凑；点击信息图标展开 [RoomInfoPanel]（含禁限卡表弹层）。
+class _RoomHeader extends ConsumerStatefulWidget {
   const _RoomHeader({required this.room});
 
   final DuelRoomState room;
 
   @override
+  ConsumerState<_RoomHeader> createState() => _RoomHeaderState();
+}
+
+class _RoomHeaderState extends ConsumerState<_RoomHeader> {
+  /// 房间信息面板是否展开。
+  bool _infoExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
-    final mode = switch (room.roomOptions?.mode) {
+    final room = widget.room;
+    final opts = room.roomOptions;
+    final mode = switch (opts?.mode) {
       RoomMode.single => '单局',
       RoomMode.match => '比赛（三局两胜）',
       RoomMode.tag => '双打',
       null => '',
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: HudTheme.panel(radius: 12),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.sports_esports, color: HudTheme.cyan, size: 20),
-          const SizedBox(width: 10),
-          Text('3D 决斗房间', style: HudTheme.title),
-          const SizedBox(width: 12),
-          Text(mode, style: HudTheme.caption),
-          const Spacer(),
-          const Icon(Icons.visibility, color: HudTheme.textSecondary, size: 16),
-          const SizedBox(width: 4),
-          Text('${room.observerCount} 观战', style: HudTheme.caption),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                const Icon(Icons.sports_esports, color: HudTheme.cyan, size: 20),
+                const SizedBox(width: 10),
+                Text('3D 决斗房间', style: HudTheme.title),
+                const SizedBox(width: 12),
+                Text(mode, style: HudTheme.caption),
+                const Spacer(),
+                if (opts != null) ...[
+                  IconButton(
+                    key: const ValueKey('room-info-toggle'),
+                    icon: Icon(
+                      _infoExpanded ? Icons.info : Icons.info_outline,
+                      color: _infoExpanded
+                          ? HudTheme.cyan
+                          : HudTheme.textSecondary,
+                      size: 20,
+                    ),
+                    onPressed: () =>
+                        setState(() => _infoExpanded = !_infoExpanded),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                const Icon(Icons.visibility, color: HudTheme.textSecondary, size: 16),
+                const SizedBox(width: 4),
+                Text('${room.observerCount} 观战', style: HudTheme.caption),
+              ],
+            ),
+          ),
+          if (_infoExpanded && opts != null) ...[
+            const Divider(color: HudTheme.panelBorder, height: 1),
+            FutureBuilder<LfTable?>(
+              // getLfTable 按 hash 记忆化，FutureBuilder 不会反复重跑。
+              future: ref
+                  .read(duelRoomProvider.notifier)
+                  .getLfTable(opts.lfTableHash),
+              builder: (context, snapshot) => RoomInfoPanel(
+                opts: opts,
+                lfTable: snapshot.data,
+                lfTableLoading:
+                    snapshot.connectionState != ConnectionState.done &&
+                    !snapshot.hasError,
+                lfTableFailed: snapshot.hasError,
+                cardLoader: ref.read(dataServiceProvider).getCard,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -253,13 +389,36 @@ class _StageBody extends ConsumerWidget {
       return const _TurnSelectPanel();
     }
     if (stage is RoomSideDecking) {
-      return _SidingPanel(room: room);
+      final notifier = ref.read(duelRoomProvider.notifier);
+      // 换备内容随卡组规模增长，外层套滚动 + 宽度上限，避免长卡组溢出。
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: SingleChildScrollView(
+            child: SideDeckingPanel(
+              // tag 模式座位 2/3（player3/player4）同样是决斗者。
+              isDuelist: room.selfType.isDuelist,
+              sidingMain: room.sidingMain,
+              sidingExtra: room.sidingExtra,
+              sidingSide: room.sidingSide,
+              sidingInitFailed: room.sidingInitFailed,
+              onRetryInit: notifier.retrySidingInit,
+              baselineMainCount: room.sidingBaseline?.main.length ?? 0,
+              baselineExtraCount: room.sidingBaseline?.extra.length ?? 0,
+              baselineSideCount: room.sidingBaseline?.side.length ?? 0,
+              onMoveCard: notifier.moveSidingCard,
+              onReset: notifier.resetSiding,
+              onConfirm: () => _onConfirmSiding(context, ref),
+            ),
+          ),
+        ),
+      );
     }
     return _LobbyPanel(room: room);
   }
 }
 
-/// 大厅面板：卡组选择 + 校验状态。
+/// 大厅面板：卡组选择（含主/额/副数量）+ 校验状态 + 编辑卡组入口。
 class _LobbyPanel extends ConsumerWidget {
   const _LobbyPanel({required this.room});
 
@@ -270,58 +429,99 @@ class _LobbyPanel extends ConsumerWidget {
     final notifier = ref.read(duelRoomProvider.notifier);
     final decks = room.availableDecks;
     final invalid = room.invalidationDeckResult;
+    // 卡组重命名/删除后所选名可能已不在列表中：value 逃逸会触发
+    // DropdownButton 断言，逃逸时回退为未选中（对齐 room1）。
+    final hasSelectedDeck =
+        room.selectedDeckName != null &&
+        decks.any((d) => d.deckName == room.selectedDeckName);
     return Center(
-      child: Container(
-        width: 460,
-        padding: const EdgeInsets.all(20),
-        decoration: HudTheme.panel(radius: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('选择出战卡组', style: HudTheme.title),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0E1626),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: HudTheme.panelBorder),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: room.selectedDeckName,
-                  isExpanded: true,
-                  dropdownColor: const Color(0xFF0E1626),
-                  style: HudTheme.body,
-                  hint: const Text('选择卡组', style: HudTheme.caption),
-                  items: [
-                    for (final deck in decks)
-                      DropdownMenuItem(
-                        value: deck.deckName,
-                        child: Text(deck.deckName),
-                      ),
-                  ],
-                  onChanged: (name) {
-                    if (name != null) notifier.selectDeck(name);
-                  },
+      child: SingleChildScrollView(
+        child: Container(
+          width: 460,
+          padding: const EdgeInsets.all(20),
+          decoration: HudTheme.panel(radius: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('选择出战卡组', style: HudTheme.title),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0E1626),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: HudTheme.panelBorder),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: hasSelectedDeck ? room.selectedDeckName : null,
+                    isExpanded: true,
+                    dropdownColor: const Color(0xFF0E1626),
+                    style: HudTheme.body,
+                    hint: const Text('选择卡组', style: HudTheme.caption),
+                    items: [
+                      for (final deck in decks)
+                        DropdownMenuItem(
+                          value: deck.deckName,
+                          // 下拉项内联显示主/额/副数量，便于选卡组时对比。
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  deck.deckName,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '主${deck.mainCount}/额${deck.extraCount}/副${deck.sideCount}',
+                                style: HudTheme.caption.copyWith(fontSize: 10),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                    onChanged: (name) {
+                      if (name != null) notifier.selectDeck(name);
+                    },
+                  ),
                 ),
               ),
-            ),
-            if (invalid != null && invalid.isNotEmpty) ...[
-              const SizedBox(height: 10),
+              if (invalid != null && invalid.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  '卡组不合法：${invalid.take(3).join("、")}',
+                  style: HudTheme.caption.copyWith(color: HudTheme.danger),
+                ),
+              ],
+              if (hasSelectedDeck) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _onEditDeck(context, ref),
+                    icon: const Icon(Icons.edit_note, size: 16),
+                    label: const Text('编辑当前卡组'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: HudTheme.gold,
+                      side: const BorderSide(color: HudTheme.gold),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
               Text(
-                '卡组不合法：${invalid.take(3).join("、")}',
-                style: HudTheme.caption.copyWith(color: HudTheme.danger),
+                '规则：${room.roomOptions?.lfTableHash != null ? "禁限表已启用" : "无禁限"} · '
+                '${room.roomOptions?.noCheckDeck == true ? "不校验卡组" : "校验卡组"}',
+                style: HudTheme.caption,
               ),
             ],
-            const SizedBox(height: 14),
-            Text(
-              '规则：${room.roomOptions?.lfTableHash != null ? "禁限表已启用" : "无禁限"} · '
-              '${room.roomOptions?.noCheckDeck == true ? "不校验卡组" : "校验卡组"}',
-              style: HudTheme.caption,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -451,64 +651,7 @@ class _TurnSelectPanel extends ConsumerWidget {
   }
 }
 
-/// 换备面板（简化版：显示副卡组数量状态，确认提交）。
-class _SidingPanel extends ConsumerWidget {
-  const _SidingPanel({required this.room});
-
-  final DuelRoomState room;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final notifier = ref.read(duelRoomProvider.notifier);
-    return Center(
-      child: Container(
-        width: 420,
-        padding: const EdgeInsets.all(20),
-        decoration: HudTheme.panel(radius: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('换备阶段', style: HudTheme.title),
-            const SizedBox(height: 12),
-            Text(
-              room.sidingInitFailed
-                  ? '换备初始化失败，请重试'
-                  : '本版本暂不支持换卡操作；数量合法即可直接进入下一局。',
-              style: HudTheme.caption,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                if (room.sidingInitFailed)
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: notifier.retrySidingInit,
-                      child: const Text('重试'),
-                    ),
-                  ),
-                if (room.sidingInitFailed) const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: HudTheme.cyanDim,
-                    ),
-                    onPressed: room.isSidingCountsValid
-                        ? () => notifier.confirmSiding()
-                        : null,
-                    child: const Text('确认换备'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 底部操作栏：准备/开始 + 观战切换 + 聊天。
+/// 底部操作栏：准备/开始 + 观战切换 + 聊天 + 自动化开关。
 class _ControlBar extends ConsumerWidget {
   const _ControlBar({required this.room, required this.stage});
 
@@ -519,58 +662,105 @@ class _ControlBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(duelRoomProvider.notifier);
     final inLobby = stage is RoomInLobby || stage is RoomJoined;
+    final isDuelist = room.selfType.isDuelist;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: HudTheme.panel(radius: 14),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // 聊天
-          IconButton(
-            icon: const Icon(Icons.chat_bubble_outline,
-                color: HudTheme.textSecondary),
-            onPressed: () => _showChat(context),
-          ),
-          const Spacer(),
-          if (inLobby && room.selfType.isDuelist) ...[
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: HudTheme.textPrimary,
-                side: const BorderSide(color: HudTheme.panelBorder),
-              ),
-              onPressed: notifier.becomeObserver,
-              child: const Text('转为观战'),
-            ),
-            const SizedBox(width: 12),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: room.isSelfReady
-                    ? HudTheme.panelBorder
-                    : HudTheme.cyanDim,
-              ),
-              onPressed: () => notifier.toggleReady(),
-              child: Text(room.isSelfReady ? '取消准备' : '准备'),
-            ),
-            if (room.isHost) ...[
-              const SizedBox(width: 12),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: HudTheme.gold,
-                  foregroundColor: Colors.black,
+          // 自动化开关行：仅决斗者可见（自动猜拳/先后手对观战无意义），
+          // 已准备后禁用，避免与准备态冲突（对齐 room1）。
+          if (inLobby && isDuelist) ...[
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 16,
+              runSpacing: 4,
+              children: [
+                if (room.isHost)
+                  AutomationSwitch(
+                    label: '自动加入决斗',
+                    value: room.autoDuelEnabled,
+                    enabled: !room.isSelfReady,
+                    onChanged: (v) => unawaited(
+                      _onToggleAutomation(ref, v, notifier.setAutoDuelEnabled),
+                    ),
+                  ),
+                AutomationSwitch(
+                  label: '自动猜拳',
+                  value: room.autoHandEnabled,
+                  enabled: !room.isSelfReady,
+                  onChanged: (v) => unawaited(
+                    _onToggleAutomation(ref, v, notifier.setAutoHandEnabled),
+                  ),
                 ),
-                onPressed: room.isAllReady ? notifier.startDuel : null,
-                child: const Text('开始决斗'),
-              ),
-            ],
-          ] else if (inLobby) ...[
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: HudTheme.textPrimary,
-                side: const BorderSide(color: HudTheme.panelBorder),
-              ),
-              onPressed: notifier.becomeDuelist,
-              child: const Text('转为决斗者'),
+                AutomationSwitch(
+                  label: '自动随机先后手',
+                  value: room.autoTurnOrderEnabled,
+                  enabled: !room.isSelfReady,
+                  onChanged: (v) => unawaited(
+                    _onToggleAutomation(
+                      ref,
+                      v,
+                      notifier.setAutoTurnOrderEnabled,
+                    ),
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 8),
           ],
+          Row(
+            children: [
+              // 聊天
+              IconButton(
+                icon: const Icon(Icons.chat_bubble_outline,
+                    color: HudTheme.textSecondary),
+                onPressed: () => _showChat(context),
+              ),
+              const Spacer(),
+              if (inLobby && isDuelist) ...[
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: HudTheme.textPrimary,
+                    side: const BorderSide(color: HudTheme.panelBorder),
+                  ),
+                  onPressed: notifier.becomeObserver,
+                  child: const Text('转为观战'),
+                ),
+                const SizedBox(width: 12),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: room.isSelfReady
+                        ? HudTheme.panelBorder
+                        : HudTheme.cyanDim,
+                  ),
+                  onPressed: () => notifier.toggleReady(),
+                  child: Text(room.isSelfReady ? '取消准备' : '准备'),
+                ),
+                if (room.isHost) ...[
+                  const SizedBox(width: 12),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: HudTheme.gold,
+                      foregroundColor: Colors.black,
+                    ),
+                    onPressed: room.isAllReady ? notifier.startDuel : null,
+                    child: const Text('开始决斗'),
+                  ),
+                ],
+              ] else if (inLobby) ...[
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: HudTheme.textPrimary,
+                    side: const BorderSide(color: HudTheme.panelBorder),
+                  ),
+                  onPressed: notifier.becomeDuelist,
+                  child: const Text('转为决斗者'),
+                ),
+              ],
+            ],
+          ),
         ],
       ),
     );

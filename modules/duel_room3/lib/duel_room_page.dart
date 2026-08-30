@@ -179,6 +179,15 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     });
     ref.listen(duelRoomProvider.select((s) => s.stage), (prev, next) {
       if (prev is! RoomNotJoined && next is RoomNotJoined) {
+        // 决斗刚结束就被断开（AI 对决的本地服务端在 MSG_WIN 后立即
+        // 关连接）：停留展示结算 overlay，导航由其「返回首页」按钮触发。
+        if (shouldHoldForDuelResult(
+          prev: prev,
+          next: next,
+          hasDuelResult: ref.read(duelFieldProvider).duelResult != null,
+        )) {
+          return;
+        }
         unawaited(leaveRoomAfterNotJoined(context, ref));
       }
     });

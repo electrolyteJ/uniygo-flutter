@@ -32,6 +32,25 @@ typedef SubmittedDeck = ({List<int> main, List<int> extra, List<int> side});
 /// 换备编辑的卡组分区。
 enum SidingZone { main, extra, side }
 
+/// RoomNotJoined 到达时是否「停留展示结算」而不自动离房导航。
+///
+/// 背景：AI 对决的本地服务端在决斗结束（MSG_WIN → STOC_DUEL_END）后
+/// 立即关闭连接，RoomDuelEnded → RoomNotJoined 紧跟到达；若照常规
+/// 自动离房，结算弹窗（room1 DuelResultPage / room3 DuelResultOverlay）
+/// 根本来不及展示。此时停留在房间页，由结算弹窗的「返回首页」按钮
+/// 再触发离房导航（leaveRoomAfterNotJoined 幂等：已断开时仅补导航）。
+///
+/// 仅限从 RoomDuelEnded 直接断开且本局已有结果（MSG_WIN 已下发）：
+/// 换备阶段（RoomSideDecking）断开仍自动离房——该阶段结算弹窗可能
+/// 已被「进入换备阶段」关闭，停留会卡死页面。
+bool shouldHoldForDuelResult({
+  required RoomStage? prev,
+  required RoomStage next,
+  required bool hasDuelResult,
+}) {
+  return prev is RoomDuelEnded && next is RoomNotJoined && hasDuelResult;
+}
+
 /// 房间页不可变状态快照。
 ///
 /// 房间阶段/玩家列表等均由服务端事件整体替换，适合不可变建模；
