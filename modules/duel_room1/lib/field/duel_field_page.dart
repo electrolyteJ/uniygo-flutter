@@ -15,8 +15,7 @@ import 'package:biz/duel/models/field_card.dart';
 import 'package:biz/duel/models/field_zone_key.dart';
 import 'package:biz/duel/models/playmat_resolved_action.dart';
 import 'package:biz/duel/models/select_state.dart';
-import 'package:duel_room1/field/widgets/confirm/confirm_cards_dialog.dart';
-import 'package:duel_room1/field/widgets/confirm/confirm_floating_card.dart';
+import 'package:duel_room1/field/widgets/confirm/duel_confirm_dialog.dart';
 import 'package:duel_room1/field/widgets/selector/duel_select_prompt.dart';
 import 'package:duelink/duelink.dart' show PlayerInfo, PlayerType, RoomInDuel;
 import 'package:resource_data/card_info.dart' as pkg;
@@ -28,18 +27,18 @@ import 'package:duel_room1/field/duel_flame_game.dart';
 import 'package:duel_room1/field/util/chain_order_map.dart';
 import 'package:duel_room1/field/util/duel_field_layout.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
-import 'package:duel_room1/field/util/phase_rail_layout.dart';
+import 'package:duel_room1/field/components/phase_rail/phase_rail_layout.dart';
 import 'package:duel_room1/field/flame_playmat_field.dart';
-import 'package:duel_room1/field/widgets/hud/phase_bar.dart';
-import 'package:duel_room1/field/widgets/hud/player_status_card.dart';
 import 'package:duel_room1/field/widgets/inspector/card_detail_drawer.dart';
-import 'package:duel_room1/field/widgets/inspector/zone_browser_modal.dart';
+import 'package:duel_room1/field/widgets/inspector/zone_browser_panel.dart';
 import 'package:duel_room1/field/widgets/menus/duel_field_popover_layout.dart';
 import 'package:duel_room1/field/widgets/menus/field_action_popover.dart';
 import 'package:duel_room1/field/widgets/menus/hand_action_popover.dart';
 import 'package:duel_room1/field/widgets/menus/phase_action_menu.dart';
 import 'package:duel_room1/field/widgets/turn_order_hint.dart';
 import 'package:duel_room1/duel_room_exit.dart';
+
+import 'components/hand_card/hand.dart';
 
 /// 决斗场地页：负责 biz/duel Provider 接线、Flame 游戏生命周期与整体布局。
 ///
@@ -75,7 +74,7 @@ class DuelFieldPage extends ConsumerStatefulWidget {
 }
 
 class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
-  static const double _topHudBodyHeight = 112.0;
+  static const double _topHudBodyHeight = 52.0;
   static const double _opponentHandGap = 10.0;
   static const double _inspectorTop = 124.0;
 
@@ -134,8 +133,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   DuelFieldNotifier get _boardN => ref.read(duelFieldProvider.notifier);
 
   SelectWindowNotifier get _selectN => ref.read(selectWindowProvider.notifier);
-
-  CardConfirmNotifier get _confirmN => ref.read(cardConfirmProvider.notifier);
 
   FieldOverlayNotifier get _overlayN => ref.read(fieldOverlayProvider.notifier);
 
@@ -349,8 +346,42 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       ).field,
       selfHand: _buildSelfHandSnapshot(),
       oppHand: _buildOppHandSnapshot(),
+      // ── HUD 字段（回合徽章/中央计时/左侧状态卡；不参与快照判等）──
+      turnCount: _board.turnCount,
+      currentPlayer: _board.currentPlayer,
+      selfTimeLeft: _board.selfTimeLeft,
+      opponentTimeLeft: _board.opponentTimeLeft,
+      selfLp: _board.selfLp,
+      opponentLp: _board.opponentLp,
+      selfExtra: _board.selfExtra,
+      oppExtra: _board.oppExtra,
+      selfGrave: _board.selfGrave,
+      oppGrave: _board.oppGrave,
+      selfRemoved: _board.selfRemoved,
+      oppRemoved: _board.oppRemoved,
+      selfName: _selfName,
+      oppName: _oppName,
+      lpChangeTick: _board.lpChangeTick,
+      lpChangeEvent: _board.lpChangeEvent,
     );
   }
+
+  /// 我方显示名：players 取局中最新（DuelFieldState.players），
+  /// 未下发时退回 widget.players；tag 模式同队名字 " / " 连接。
+  String get _selfName => teamDisplayName(
+    _board.teamOfEnginePlayer(_board.myController),
+    _effectivePlayers,
+    fallback: '我方',
+  );
+
+  String get _oppName => teamDisplayName(
+    _board.teamOfEnginePlayer(1 - _board.myController),
+    _effectivePlayers,
+    fallback: '对方',
+  );
+
+  List<PlayerInfo> get _effectivePlayers =>
+      _board.players.isNotEmpty ? _board.players : widget.players;
 
   /// 己方手牌快照（底部手牌栏）。
   ///
@@ -423,7 +454,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     return Rect.fromCenter(
       center: Offset(viewport.width * 0.94, viewport.height * 0.5),
       width: PhaseRailLayout.pillWidth + 20,
-      height: PhaseRailLayout.height + 20,
+      height: PhaseRailLayout.heightWithButton + 20,
     );
   }
 
@@ -440,32 +471,11 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     );
   }
 
-  Widget _buildTopHud(DuelHudSlice hud, List<PlayerInfo> players) {
-    final mc = hud.myController;
-    final isMyTurn = hud.currentPlayer == mc;
-    // 引擎玩家编号 → 队伍 → 座位名字：tag（双打）模式座位 0-3、
-    // 队伍为 pos % 2，引擎消息里的玩家编号是队伍号，同队队友名字
-    // 以 " / " 连接展示；1v1 每队恰一座位，与旧的 pos 精确匹配一致。
-    // 见 biz 的 teamOfSeat / teamDisplayName。
-    // players 取 DuelFieldState.players（局中最新），未下发时退回 widget.players。
-    final effectivePlayers = players.isNotEmpty ? players : widget.players;
-    // 引擎编号 → 队伍/座位经 teamOfEnginePlayer 的「myController ↔ mySeat」
-    // 锚点映射：服务端猜拳 TPResult 可能交换 players[]（引擎编号 ≠ 座位号），
-    // 直接拿引擎编号当座位会把名字与 LP 错位（观感即"生命值对调"）。
-    final selfName = teamDisplayName(
-      _board.teamOfEnginePlayer(mc),
-      effectivePlayers,
-      fallback: '我方',
-    );
-    final oppName = teamDisplayName(
-      _board.teamOfEnginePlayer(1 - mc),
-      effectivePlayers,
-      fallback: '对方',
-    );
-    // 当前回合玩家的剩余时间
-    final turnTimeLeft = hud.currentPlayer == mc
-        ? hud.selfTimeLeft
-        : hud.opponentTimeLeft;
+  /// 顶部 HUD：只剩返回按钮。回合徽章（PhaseRailComponent 顶部）、
+  /// 中央计时（CenterTimerComponent）、双方状态卡
+  /// （PlayerStatusCardComponent，场地左侧竖排）已全部下沉为 Flame
+  /// 组件，不再由 widget 层承载。
+  Widget _buildTopHud() {
     return Positioned(
       top: 0,
       left: 0,
@@ -485,56 +495,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
                   content: '是否确认退出当前决斗？',
                 );
               },
-            ),
-            Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.topCenter,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    PlayerStatusCard(
-                      name: oppName,
-                      lp: hud.opponentLp,
-                      lpDelta: hud.opponentLpDelta,
-                      lpEventId: hud.opponentLpEventId,
-                      isSelf: false,
-                      isActiveTurn: !isMyTurn,
-                      handCount: hud.opponentHandCount,
-                      deckCount: hud.oppDeck,
-                      extraCount: hud.oppExtra,
-                      graveCount: hud.oppGrave,
-                      removedCount: hud.oppRemoved,
-                      onExtraTap: () => openZoneBrowser('opp_extra'),
-                      onGraveTap: () => openZoneBrowser('opp_grave'),
-                      onRemovedTap: () => openZoneBrowser('opp_removed'),
-                    ),
-                    const SizedBox(width: 16),
-                    PhaseBar(
-                      turnCount: hud.turnCount,
-                      isMyTurn: isMyTurn,
-                      leftTimeSeconds: turnTimeLeft,
-                    ),
-                    const SizedBox(width: 16),
-                    PlayerStatusCard(
-                      name: selfName,
-                      lp: hud.selfLp,
-                      lpDelta: hud.selfLpDelta,
-                      lpEventId: hud.selfLpEventId,
-                      isSelf: true,
-                      isActiveTurn: isMyTurn,
-                      handCount: hud.selfHandCount,
-                      deckCount: hud.selfDeck,
-                      extraCount: hud.selfExtra,
-                      graveCount: hud.selfGrave,
-                      removedCount: hud.selfRemoved,
-                      onExtraTap: () => openZoneBrowser('self_extra'),
-                      onGraveTap: () => openZoneBrowser('self_grave'),
-                      onRemovedTap: () => openZoneBrowser('self_removed'),
-                    ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),
@@ -734,11 +694,20 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
             if (!hasFieldAnchors || !show || entries.isEmpty) {
               return const SizedBox.shrink();
             }
+            // 锚定到轨道末端的阶段菜单按钮，菜单在按钮左侧展开
+            // （原来锚整条轨道上方：轨道加按钮后高 200+，菜单悬在
+            // 屏幕右上方、离点击点远，观感突兀）。
+            final buttonRect = _flameGame?.phaseActionButtonRect() ?? phaseRect;
             return Positioned.fromRect(
-              rect: phaseRect,
+              rect: buttonRect,
               child: PortalTarget(
                 visible: true,
-                anchor: overlayAnchor,
+                anchor: const Aligned(
+                  follower: Alignment.centerRight,
+                  target: Alignment.centerLeft,
+                  offset: Offset(-8, 0),
+                  shiftToWithinBound: AxisFlag(x: true, y: true),
+                ),
                 portalFollower: PhaseActionMenu(actions: entries),
                 child: const SizedBox.shrink(),
               ),
@@ -788,12 +757,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
             );
           },
         ),
-        Consumer(
-          builder: (context, ref, _) => _buildTopHud(
-            ref.watch(duelFieldProvider.select(selectHudSlice)),
-            ref.watch(duelFieldProvider.select((s) => s.players)),
-          ),
-        ),
+        _buildTopHud(),
         Consumer(
           builder: (context, ref, _) {
             final key = ref.watch(
@@ -803,7 +767,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
             final selectedSeq = ref.watch(
               fieldOverlayProvider.select((s) => s.selectedZoneBrowserSequence),
             );
-            return ZoneBrowserModal(
+            return ZoneBrowserPanel(
               zoneBrowserKey: key,
               cards: ref.watch(zoneBrowserEntriesProvider(key)),
               selectedCardSequence: selectedSeq,
@@ -819,50 +783,11 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
         // 选择提示弹层：模式判定、呈现与 respondXxx 分发
         // 全部收口在 DuelSelectPrompt。
         DuelSelectPrompt(onInspectCard: inspectCard),
-        Consumer(
-          builder: (context, ref, _) {
-            final panel = ref.watch(
-              cardConfirmProvider.select((s) => s.confirmPanel),
-            );
-            if (panel == null) return const SizedBox.shrink();
-            // 卡名缓存到达时刷新面板文字。
-            ref.watch(duelFieldProvider.select((s) => s.cardInfoVersion));
-            return Positioned.fill(
-              child: GestureDetector(
-                onTap: () => _confirmN.dismissConfirmPanel(),
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.65),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                    child: ConfirmCardsDialog(
-                      title: panel.title,
-                      codes: panel.codes,
-                      cardNameBuilder: (code) =>
-                          _boardN.getCardInfo(code)?.name ?? 'Card #$code',
-                      onDismiss: () => _confirmN.dismissConfirmPanel(),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-        Consumer(
-          builder: (context, ref, _) {
-            final preview = ref.watch(
-              cardConfirmProvider.select(
-                (s) => (
-                  isFloat: s.isFloatPreview,
-                  owner: s.floatPreviewOwner,
-                  isExtra: s.floatPreviewIsExtra,
-                  codes: s.floatPreviewCodes,
-                  index: s.floatPreviewIndex,
-                ),
-              ),
-            );
-            if (!preview.isFloat) return const SizedBox.shrink();
-            return _buildFloatPreview(preview);
-          },
+        // 确认展示弹层：模态面板/浮动卡片的呈现与 dismiss 分发
+        // 全部收口在 DuelConfirmDialog。
+        DuelConfirmDialog(
+          slotRectOf: (key) => _fieldAnchors?.slotRects[key],
+          onInspectCard: inspectCard,
         ),
         Consumer(
           builder: (context, ref, _) {
@@ -915,52 +840,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
         cardInfo: inspectedCardInfo,
         cardCode: inspectedCardCode,
         onClose: _overlayN.dismissInspector,
-      ),
-    );
-  }
-
-  Widget _buildFloatPreview(
-    ({bool isFloat, int? owner, bool isExtra, List<int> codes, int index})
-    preview,
-  ) {
-    // 下标越界（codes 变短等瞬态）时不渲染，避免 RangeError。
-    if (preview.index >= preview.codes.length) {
-      return const SizedBox.shrink();
-    }
-    final isSelf = preview.owner == _board.myController;
-    final zoneKey = preview.isExtra
-        ? (isSelf ? 'self_extra' : 'opp_extra')
-        : (isSelf ? 'self_deck' : 'opp_deck');
-    final zoneRect = _fieldAnchors?.slotRects[zoneKey];
-
-    double? top, bottom, left, right;
-    if (zoneRect != null) {
-      top = zoneRect.top - 200;
-      left = zoneRect.center.dx - 75;
-    } else {
-      if (isSelf) {
-        bottom = 30;
-        right = 30;
-      } else {
-        top = 120;
-        right = 30;
-      }
-    }
-
-    return Positioned(
-      top: top,
-      bottom: bottom,
-      left: left,
-      right: right,
-      child: ConfirmFloatingCard(
-        codes: preview.codes,
-        // 当前展示下标由 notifier 计时推进（每卡 750ms + 500ms 收尾），
-        // 组件自身不再持有逐张计时与自动关闭逻辑。
-        currentIndex: preview.index,
-        title: preview.isExtra ? '额外卡组顶部' : '卡组顶部',
-        cardNameBuilder: (code) =>
-            _boardN.getCardInfo(code)?.name ?? 'Card #$code',
-        onDismiss: () => _confirmN.dismissConfirmPanel(),
       ),
     );
   }

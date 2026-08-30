@@ -8,8 +8,10 @@ import 'components/battle_presentation_component.dart';
 import 'components/card_move_animator.dart';
 import 'package:duel_room1/field/components/summon_effect_adapter.dart';
 import 'components/board_mesh_component.dart';
-import 'components/zone_component.dart';
-import 'components/phase_rail_component.dart';
+import 'components/center_timer_component.dart';
+import 'components/player_status/player_status_card_component.dart';
+import 'components/zone/zone_component.dart';
+import 'components/phase_rail/phase_rail_component.dart';
 import 'duel_flame_game.dart';
 import 'package:duel_room1/field/util/duel_field_layout.dart';
 
@@ -54,6 +56,10 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
       enabledGetter: game.isPhaseLampEnabled,
     );
     add(_phaseRail!);
+    // 场地中央计时器 + 左侧玩家状态卡：直读快照渲染，无需重建触发。
+    add(CenterTimerComponent());
+    add(PlayerStatusCardComponent(isSelf: false));
+    add(PlayerStatusCardComponent(isSelf: true));
   }
 
   /// Hot reload 支持：移除并重建全部子组件。

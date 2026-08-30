@@ -2,7 +2,8 @@
 library;
 
 import 'package:duel_room1/field/util/duel_field_layout.dart';
-import 'package:duel_room1/field/util/phase_rail_layout.dart';
+import 'package:duel_room1/field/components/phase_rail/phase_rail_layout.dart';
+import 'package:duel_room1/field/components/player_status/player_status_layout.dart';
 import 'package:duelink/duelink.dart' show DuelPhase;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -84,12 +85,15 @@ void main() {
           1e-9,
         ),
       );
-      // 组件中心下移量恰好补偿按钮占位（胶囊区保持居中）。
+      // 组件中心净下移量 = 按钮块与徽章块的差值（两者等大 → 0，
+      // 胶囊区保持居中棋盘中线）。
       expect(
         PhaseRailLayout.actionButtonShift,
         closeTo(
-          (PhaseRailLayout.actionButtonGap +
-                  PhaseRailLayout.actionButtonHeight) /
+          ((PhaseRailLayout.actionButtonGap +
+                      PhaseRailLayout.actionButtonHeight) -
+                  (PhaseRailLayout.turnBadgeGap +
+                      PhaseRailLayout.turnBadgeHeight)) /
               2,
           1e-9,
         ),
@@ -99,6 +103,43 @@ void main() {
         PhaseRailLayout.actionButtonCenterY +
             PhaseRailLayout.actionButtonHeight / 2,
         lessThan(255),
+      );
+    });
+
+    test('回合徽章挂在 DP 胶囊上方且不越界', () {
+      // 徽章在首位胶囊之上、互不重叠。
+      final firstPillTop =
+          PhaseRailLayout.pillCenterY(0) - PhaseRailLayout.pillHeight / 2;
+      final badgeBottom =
+          PhaseRailLayout.turnBadgeCenterY + PhaseRailLayout.turnBadgeHeight / 2;
+      expect(badgeBottom, lessThan(firstPillTop));
+      // 含徽章总高 = 徽章 + 间距 + 胶囊区与按钮。
+      expect(
+        PhaseRailLayout.heightWithBadgeAndButton,
+        closeTo(
+          PhaseRailLayout.turnBadgeHeight +
+              PhaseRailLayout.turnBadgeGap +
+              PhaseRailLayout.heightWithButton,
+          1e-9,
+        ),
+      );
+      // 徽章上沿不超出相机内容高度（510 的一半）。
+      expect(-PhaseRailLayout.turnBadgeTop, lessThan(255));
+    });
+
+    test('内容宽度同时覆盖右侧轨道与左侧状态卡', () {
+      // 左右附件都在相机内容半宽内（左侧状态卡左缘比轨道右沿更远）。
+      expect(
+        PhaseRailLayout.contentHalfExtent,
+        greaterThanOrEqualTo(PhaseRailLayout.rightEdge),
+      );
+      expect(
+        PhaseRailLayout.contentHalfExtent,
+        greaterThanOrEqualTo(-PlayerStatusLayout.leftEdge),
+      );
+      expect(
+        PhaseRailLayout.boardContentWidth,
+        closeTo(2 * (PhaseRailLayout.contentHalfExtent + 8), 1e-9),
       );
     });
   });

@@ -58,10 +58,22 @@ void main() {
     );
 
     test('卡组/额外与布局常量一致', () {
-      expect(pos(0, CARD_ZONE_DECK, 0), DuelFieldLayout.deckSlotPos(isSelf: true));
-      expect(pos(1, CARD_ZONE_DECK, 0), DuelFieldLayout.deckSlotPos(isSelf: false));
-      expect(pos(0, CARD_ZONE_EXTRA, 0), DuelFieldLayout.extraSlotPos(isSelf: true));
-      expect(pos(1, CARD_ZONE_EXTRA, 0), DuelFieldLayout.extraSlotPos(isSelf: false));
+      expect(
+        pos(0, CARD_ZONE_DECK, 0),
+        DuelFieldLayout.deckSlotPos(isSelf: true),
+      );
+      expect(
+        pos(1, CARD_ZONE_DECK, 0),
+        DuelFieldLayout.deckSlotPos(isSelf: false),
+      );
+      expect(
+        pos(0, CARD_ZONE_EXTRA, 0),
+        DuelFieldLayout.extraSlotPos(isSelf: true),
+      );
+      expect(
+        pos(1, CARD_ZONE_EXTRA, 0),
+        DuelFieldLayout.extraSlotPos(isSelf: false),
+      );
     });
 
     test('墓地/除外：己方右列、对方左列，y 行正确', () {

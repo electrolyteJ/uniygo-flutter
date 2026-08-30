@@ -19,8 +19,8 @@ import 'package:duel_room1/waiting/widgets/side_decking_panel.dart';
 /// （对齐 godot RoomOverlay 根节点 MOUSE_FILTER_IGNORE 的穿透行为）。
 ///
 /// 面板内容：PlayerPanel + RoomInfoPanel + ControlBar。
-/// 聊天室与猜拳/选先攻不在本页：它们由 DuelRoomPage 直接挂载
-/// （聊天室停靠右下，DuelLogDrawer 反向锚定在聊天面板正上方；
+/// 日志/聊天与猜拳/选先攻不在本页：它们由 DuelRoomPage 直接挂载
+/// （日志/聊天合并为 DuelLogDrawer 抽屉，AppBar actions 的按钮开合；
 /// 猜拳/选先攻为中央阶段面板）。
 class WaitingRoomPage extends ConsumerStatefulWidget {
   const WaitingRoomPage({super.key});

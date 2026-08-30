@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:biz/duel/field/duel_field_derived.dart';
 import 'package:biz/service_providers.dart';
 import 'package:biz/duel/chat/duel_chat_state.dart';
 import 'package:biz/duel/room/duel_room_state.dart';
@@ -15,10 +14,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:duel_room1/chat/chat_panel.dart';
 import 'package:duel_room1/constants.dart';
 import 'package:duel_room1/field/duel_field_page.dart';
-import 'duel_log_drawer.dart';
+import 'widgets/duel_log_drawer.dart';
 import 'duel_result_page.dart';
 import 'duel_room_exit.dart';
 import 'package:duel_room1/waiting/waiting_room_page.dart';
@@ -79,6 +77,63 @@ class _DuelRoomView extends ConsumerStatefulWidget {
 }
 
 class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
+  /// 已读聊天消息计数：打开/关闭抽屉时对齐到最新；关闭期间的新消息
+  /// 在抽屉开关按钮上显示未读角标（弥补旧常驻聊天面板的可见性）。
+  int _seenChatCount = 0;
+
+  /// 日志/聊天抽屉是否展开（非模态常驻面板，见 build 的 Stack）。
+  bool _logDrawerOpen = false;
+
+  /// 开合日志/聊天抽屉：非模态——无遮罩、不阻断场地交互、点外部
+  /// 不关闭，只能由右下角按钮（再次点击）或抽屉内的关闭按钮收起。
+  /// 面板常驻页面 Stack（不经路由），开合走 AnimatedSlide 滑入滑出。
+  void _toggleLogDrawer() {
+    setState(() {
+      _logDrawerOpen = !_logDrawerOpen;
+      if (!_logDrawerOpen) {
+        // 抽屉内已读到最新：关闭时对齐已读基线，清掉角标。
+        _seenChatCount = ref.read(duelChatProvider).messages.length;
+      }
+    });
+  }
+
+  /// 抽屉开关按钮（带未读角标，打开时角标隐藏）：所有阶段统一
+  /// 浮动在右下角（旧常驻聊天面板的位置）。
+  Widget _buildLogDrawerButton() {
+    final chatCount = ref.watch(
+      duelChatProvider.select((s) => s.messages.length),
+    );
+    final unread = _logDrawerOpen
+        ? 0
+        : (chatCount - _seenChatCount).clamp(0, 999);
+    return Tooltip(
+      message: _logDrawerOpen ? '收起日志 / 聊天' : '日志 / 聊天',
+      child: InkWell(
+        onTap: _toggleLogDrawer,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: const Color(0xE6080E18),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0x4D00F0FF)),
+          ),
+          child: Badge(
+            isLabelVisible: unread > 0,
+            label: Text('$unread'),
+            child: const Icon(
+              Icons.forum_outlined,
+              color: Color(0xFF00F0FF),
+              size: 18,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -187,6 +242,15 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     // 服务器踢人/断连（未走 backHome）时负责完整离房流程。
     ref.listen(duelRoomProvider.select((s) => s.stage), (prev, next) {
       if (prev is! RoomNotJoined && next is RoomNotJoined) {
+        // 决斗刚结束就被断开（AI 对决的本地服务端在 MSG_WIN 后立即
+        // 关连接）：停留展示结算弹窗，导航由其「返回首页」按钮触发。
+        if (shouldHoldForDuelResult(
+          prev: prev,
+          next: next,
+          hasDuelResult: ref.read(duelFieldProvider).duelResult != null,
+        )) {
+          return;
+        }
         unawaited(leaveRoomAfterNotJoined(context, ref));
       }
     });
@@ -207,11 +271,6 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     // 弹窗浮在场地上（弹窗之外全透明），非对局阶段场地页隐藏 HUD
     // （hudVisible）。不再做“等待页 ↔ 场地页”整页切换，
     // 开局/局间等待的闪跳也随之消除。
-    // 日志抽屉与聊天面板共用的高度公式：窗口 40% 高，夹在 200~380。
-    final panelHeight = (MediaQuery.sizeOf(context).height * 0.4).clamp(
-      200.0,
-      380.0,
-    );
     final content = Stack(
       fit: StackFit.expand,
       children: [
@@ -243,27 +302,30 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
         // DuelResultPage 内部，父页只管按结果是否存在挂载。
         if (roundResult != null)
           Positioned.fill(child: DuelResultPage(result: roundResult)),
+        // 日志/聊天合并抽屉：非模态常驻面板（右侧贴边、全高），
+        // 无遮罩、不拦截面板外点击（场地/等待室照常可交互）、
+        // 点外部不关闭；AnimatedSlide 滑入滑出，常驻挂载保住
+        // 输入框与滚动状态。置于开关按钮之下（按钮保持可点）。
         Positioned(
-          right: kChatDockRight,
-          bottom: kChatDockBottom,
-          child: SizedBox(
-            width: kChatDockWidth,
-            height: panelHeight,
-            child: ChatPanel(),
+          right: 0,
+          top: 0,
+          bottom: 0,
+          child: AnimatedSlide(
+            offset: _logDrawerOpen ? Offset.zero : const Offset(1, 0),
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            child: DuelLogDrawer(onClose: _toggleLogDrawer),
           ),
         ),
-        // 日志抽屉底边锚在聊天面板顶边之上：原来固定 top:126 + 高至 380
-        // 在窗口高 <~900px 时会与右下聊天面板（bottom:16）重叠，
-        // 改为反向定位后任意窗口高度下两者都不相交。
-        Positioned(
-          right: kChatDockRight,
-          top: kChatDockBottom,
-          child: SizedBox(
-            height: panelHeight,
-            child: DuelLogDrawer(
-              logs: ref.watch(duelFieldProvider.select(selectLogSlice)),
-            ),
-          ),
+        // 日志/聊天合并抽屉开关：所有阶段统一浮动在右下角
+        //（旧常驻聊天面板的位置；等待室不再占用 AppBar actions）。
+        // 抽屉展开时按钮随动左移，让出面板（不遮挡抽屉底部输入区）。
+        AnimatedPositioned(
+          right: _logDrawerOpen ? DuelLogDrawer.panelWidth + 8 : 16,
+          bottom: 16,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          child: SafeArea(child: _buildLogDrawerButton()),
         ),
       ],
     );

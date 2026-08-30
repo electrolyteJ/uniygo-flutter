@@ -20,8 +20,7 @@ class CardDetailDrawer extends StatelessWidget {
     const cyanGlow = Color(0xFF00F0FF);
     const goldGlow = Color(0xFFFFD700);
     const panelDark = Color(0xF1080C14);
-    // 高度由父级 Positioned(top/bottom) 约束决定，自适应屏幕：
-    // 填满两张 PlayerStatusCard 之间的可用空间。
+    // 高度由父级 Positioned(top/bottom) 约束决定，自适应屏幕。
     final resolvedCode = cardInfo?.code ?? cardCode ?? 0;
 
     return ClipRect(

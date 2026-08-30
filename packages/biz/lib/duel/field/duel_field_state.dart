@@ -13,6 +13,7 @@ import '../models/card_move_event.dart';
 import '../models/chain_link.dart';
 import '../models/draw_animation_event.dart';
 import '../models/field_card.dart';
+import '../models/lp_change_event.dart';
 import '../models/summon_effect_event.dart';
 import '../models/field_zone_key.dart';
 // 注：与本文件存在双向 import（duel_room_state 也引用 duelFieldProvider）；
@@ -146,6 +147,8 @@ class DuelFieldState {
     this.drawAnimationTick = 0,
     this.summonEffectEvent,
     this.summonEffectTick = 0,
+    this.lpChangeEvent,
+    this.lpChangeTick = 0,
     this.duelLogs = const [],
     this.players = const [],
     this.roomMode,
@@ -261,6 +264,12 @@ class DuelFieldState {
   final SummonEffectEvent? summonEffectEvent;
   final int summonEffectTick;
 
+  /// 最近一次 LP 变动事件与单调 tick（伤害/回复/支付/直接变值）。
+  /// 表现层按 tick diff 在受影响玩家的状态卡旁播锚定 toast；
+  /// 与 cardMoveEvent 同构：同帧多条只保留最新一条。
+  final LpChangeEvent? lpChangeEvent;
+  final int lpChangeTick;
+
   /// 对局日志（战报），供日志抽屉展示。
   final List<String> duelLogs;
 
@@ -337,6 +346,8 @@ class DuelFieldState {
     int? drawAnimationTick,
     Object? summonEffectEvent = _undefined,
     int? summonEffectTick,
+    Object? lpChangeEvent = _undefined,
+    int? lpChangeTick,
     List<String>? duelLogs,
     int? cardInfoVersion,
     List<PlayerInfo>? players,
@@ -415,6 +426,10 @@ class DuelFieldState {
           ? this.summonEffectEvent
           : summonEffectEvent as SummonEffectEvent?,
       summonEffectTick: summonEffectTick ?? this.summonEffectTick,
+      lpChangeEvent: identical(lpChangeEvent, _undefined)
+          ? this.lpChangeEvent
+          : lpChangeEvent as LpChangeEvent?,
+      lpChangeTick: lpChangeTick ?? this.lpChangeTick,
       duelLogs: duelLogs ?? this.duelLogs,
       cardInfoVersion: cardInfoVersion ?? this.cardInfoVersion,
       players: players ?? this.players,
@@ -1735,12 +1750,14 @@ class DuelFieldNotifier extends _$DuelFieldNotifier {
   void handleDamage(dynamic data) {
     final msg = data as MsgDamage;
     _applyLpChange(msg.player, -msg.value);
+    _pushLpChange(msg.player, -msg.value, LpChangeKind.damage);
     addLog('受到 ${msg.value} 点伤害。', player: msg.player);
   }
 
   void handleRecover(dynamic data) {
     final msg = data as MsgRecover;
     _applyLpChange(msg.player, msg.value);
+    _pushLpChange(msg.player, msg.value, LpChangeKind.recover);
     addLog('回复了 ${msg.value} 点生命值。', player: msg.player);
   }
 
@@ -1750,6 +1767,10 @@ class DuelFieldNotifier extends _$DuelFieldNotifier {
         ? state.selfLp
         : state.opponentLp;
     final delta = msg.newLp - oldLp;
+    // 差值为 0 的 LP_UPDATE（刷新同步）不产生事件，避免无效 toast。
+    if (delta != 0) {
+      _pushLpChange(msg.player, delta, LpChangeKind.set);
+    }
     if (msg.player == state.myController) {
       state = state.copyWith(
         selfLp: msg.newLp,
@@ -1771,7 +1792,17 @@ class DuelFieldNotifier extends _$DuelFieldNotifier {
   void handlePayLife(dynamic data) {
     final msg = data as MsgPayLpCost;
     _applyLpChange(msg.player, -msg.value);
+    _pushLpChange(msg.player, -msg.value, LpChangeKind.pay);
     addLog('支付了 ${msg.value} 点生命值。', player: msg.player);
+  }
+
+  /// 推入一条 LP 变动事件：tick 自增 + 记录最新一条，供表现层按
+  /// tick diff 消费（锚定 toast）。
+  void _pushLpChange(int player, int delta, LpChangeKind kind) {
+    state = state.copyWith(
+      lpChangeEvent: LpChangeEvent(player: player, delta: delta, kind: kind),
+      lpChangeTick: state.lpChangeTick + 1,
+    );
   }
 
   void syncConfirmedCard(CardInfo card) {

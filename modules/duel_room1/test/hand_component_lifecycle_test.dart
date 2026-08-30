@@ -7,8 +7,9 @@
 /// 本测试不挂载组件、不依赖游戏实例，直接驱动公开 API 验证时序安全。
 library;
 
-import 'package:duel_room1/field/components/hand_bar_component.dart';
-import 'package:duel_room1/field/components/hand_card_component.dart';
+import 'package:duel_room1/field/components/hand_card/hand.dart';
+import 'package:duel_room1/field/components/hand_card/hand_bar_component.dart';
+import 'package:duel_room1/field/components/hand_card/hand_card_component.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:flutter_test/flutter_test.dart';
 

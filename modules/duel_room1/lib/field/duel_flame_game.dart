@@ -7,10 +7,11 @@ import 'package:biz/duel/models/draw_animation_event.dart';
 import 'package:biz/duel/models/field_card.dart';
 
 import 'components/card_flight_component.dart';
-import 'components/hand_bar_component.dart';
+import 'components/hand_card/hand_bar_component.dart';
+import 'components/lp/lp_change_toast_component.dart';
 import 'duel_field_world.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
-import 'package:duel_room1/field/util/phase_rail_layout.dart';
+import 'package:duel_room1/field/components/phase_rail/phase_rail_layout.dart';
 
 /// 决斗场地 FlameGame：只持有 [DuelFieldWorld] 与观察它的
 /// [CameraComponent]，负责鼠标视差输入与 Flutter 侧锚点上报。
@@ -21,10 +22,11 @@ import 'package:duel_room1/field/util/phase_rail_layout.dart';
 /// Flame 侧不订阅任何 Provider（渲染循环与状态管理解耦）。
 class DuelFlameGame extends FlameGame<DuelFieldWorld>
     with MouseMovementDetector {
-  /// 阶段轨道（右侧垂直阶段按钮列）的组件尺寸，锚点上报用同一几何。
+  /// 阶段轨道（右侧垂直阶段按钮列，含末端阶段菜单按钮）的组件尺寸，
+  /// 锚点上报用同一几何。
   static final _phaseRailSize = Size(
-    PhaseRailLayout.pillWidth + 20,
-    PhaseRailLayout.height + 20,
+    PhaseRailLayout.turnBadgeWidth + 20,
+    PhaseRailLayout.heightWithBadgeAndButton + 20,
   );
 
   /// 沉浸式布局参数：把卡槽阵列在「扣除 HUD 的可见区」内最大化铺满。
@@ -33,13 +35,14 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   /// 卡槽阵列内容尺寸（含 hover 中心缩放的小幅溢出与边距余量）。
   /// 注：场地卡槽的 hover 上浮(lift)当前已关闭，仅 1.12 中心缩放，
   /// 每边溢出约 4-6px，故高度取静态阵列 496 + 少量边距。
-  /// 宽度覆盖右侧阶段轨道（PhaseRailLayout.rightEdge），横屏高度受限
-  /// 场景 zoom 不变，轨道免费入镜。
-  static const _boardContentWidth = PhaseRailLayout.boardContentWidth;
+  /// 宽度覆盖右侧阶段轨道与左侧玩家状态卡（见
+  /// PhaseRailLayout.contentHalfExtent），横屏高度受限场景 zoom 不变，
+  /// 左右附件免费入镜。
+  static final _boardContentWidth = PhaseRailLayout.boardContentWidth;
   static const _boardContentHeight = 510.0; // 双方怪兽/魔陷两层 + EMZ + 边距
-  /// 视口四周需为 HUD 预留的不可侵占空间（对称水平预留，用于左右状态卡；
-  /// 不考虑检查器展开的覆盖）。
-  static const _horizontalReserved = 96.0;
+  /// 视口四周需为 HUD 预留的不可侵占空间。水平预留已收窄：左右状态卡
+  /// 已下沉为世界内组件（计入棋盘内容宽），不再占用 HUD 预留。
+  static const _horizontalReserved = 24.0;
   static const _topReserved = 230.0; // 顶部 HUD + 对手手牌预留
   static const _bottomReserved = 116.0; // 己方手牌栏 height:96 + 间隙
   /// zoom 上下限。下限取很小的值：沉浸式相机的目的就是让卡槽阵列「恰好」
@@ -116,6 +119,12 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
       onCardTap: onHandCardTap,
     );
     camera.viewport.addAll([oppHandBar!, selfHandBar!]);
+    // LP 变动 toast：与手牌栏同层（viewport 屏幕空间），
+    // 锚定受影响玩家手牌栏附近。
+    camera.viewport.addAll([
+      LpChangeToastComponent(isSelf: false),
+      LpChangeToastComponent(isSelf: true),
+    ]);
     _applyImmersiveCamera();
     _emitAnchors();
   }
@@ -172,6 +181,23 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
 
   /// 选中己方手牌的屏幕矩形（Flutter 操作菜单的锚定，拉式查询）。
   Rect? selectedHandCardRect() => selfHandBar?.selectedCardRect();
+
+  /// 阶段轨道末端「阶段菜单按钮」的屏幕矩形（阶段菜单的锚定，
+  /// 拉式查询），与卡槽/手牌矩形同一几何口径（世界坐标 × zoom）。
+  Rect phaseActionButtonRect() {
+    final zoom = camera.viewfinder.zoom;
+    final center = worldToWidget(
+      world.project3D(
+        PhaseRailLayout.centerX,
+        PhaseRailLayout.centerY + PhaseRailLayout.actionButtonCenterY,
+      ),
+    );
+    return Rect.fromCenter(
+      center: center,
+      width: PhaseRailLayout.actionButtonWidth * zoom,
+      height: PhaseRailLayout.actionButtonHeight * zoom,
+    );
+  }
 
   /// 卡组槽位的屏幕矩形（抽卡/发牌飞行起点），与锚点上报同一几何。
   Rect deckSlotWidgetRect(bool isSelf) {
@@ -404,9 +430,13 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     slotRects['${opponentController}_4_5'] = emz2Rect;
 
     // 阶段轨道位置固定（PhaseRailLayout.centerX/centerY，棋盘中线右侧），
-    // 不依赖卡槽锚点，直接由世界坐标换算。
+    // 不依赖卡槽锚点，直接由世界坐标换算。含末端按钮后几何中心较
+    // 胶囊区中心下移 actionButtonShift（与组件 _syncPosition 同一偏移）。
     final railCenter = worldToWidget(
-      world.project3D(PhaseRailLayout.centerX, PhaseRailLayout.centerY),
+      world.project3D(
+        PhaseRailLayout.centerX,
+        PhaseRailLayout.centerY + PhaseRailLayout.actionButtonShift,
+      ),
     );
     final phaseLampRect = Rect.fromCenter(
       center: railCenter,

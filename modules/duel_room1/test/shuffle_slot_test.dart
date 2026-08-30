@@ -5,9 +5,10 @@
 library;
 
 import 'package:biz/duel/models/field_card.dart';
+import 'package:duel_room1/field/components/hand_card/hand.dart';
 import 'package:duel_room1/field/util/duel_field_layout.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
-import 'package:duel_room1/field/components/zone_slot_spec.dart';
+import 'package:duel_room1/field/components/zone/zone_slot_spec.dart';
 import 'package:duelink/duelink.dart' show DuelPhase;
 import 'package:flutter_test/flutter_test.dart';
 

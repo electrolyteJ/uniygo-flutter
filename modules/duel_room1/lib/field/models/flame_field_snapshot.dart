@@ -2,80 +2,12 @@ import 'package:biz/duel/models/battle_presentation.dart';
 import 'package:biz/duel/models/card_move_event.dart';
 import 'package:biz/duel/models/summon_effect_event.dart';
 import 'package:biz/duel/models/field_card.dart';
+import 'package:biz/duel/models/lp_change_event.dart';
 import 'package:collection/collection.dart';
 import 'package:duelink/duelink.dart' show DuelPhase;
 
-/// 一侧手牌的不可变快照（己方底部 / 对方顶部手牌栏共用）。
-///
-/// 对手手牌隐私：[codes] 为 0 占位（长度即张数），配合 faceUp=false
-/// 只渲染卡背，与 biz 层的隐私纪律一致。
-class HandSnapshot {
-  const HandSnapshot({
-    required this.codes,
-    required this.faceUp,
-    required this.selectedIndex,
-    required this.highlightedIndices,
-    required this.checkedIndices,
-    required this.chainOrderByIndex,
-    required this.shuffleTick,
-  });
+import '../components/hand_card/hand.dart';
 
-  const HandSnapshot.empty()
-    : codes = const [],
-      faceUp = false,
-      selectedIndex = null,
-      highlightedIndices = const {},
-      checkedIndices = const {},
-      chainOrderByIndex = const {},
-      shuffleTick = 0;
-
-  /// 手牌卡码（对手为 0 占位，长度即张数）。
-  final List<int> codes;
-
-  /// 是否显示卡面（false 渲染卡背：对手手牌、观战视角）。
-  final bool faceUp;
-
-  /// 当前选中的手牌下标（操作菜单锚定），null = 无选中。
-  final int? selectedIndex;
-
-  /// 就地选择/确认模式中高亮的手牌下标。
-  final Set<int> highlightedIndices;
-
-  /// 就地选择多选中已勾选的手牌下标（比高亮更强的选中态）。
-  final Set<int> checkedIndices;
-
-  /// 连锁序号映射：手牌下标 → 连锁序号（1 起）。
-  final Map<int, int> chainOrderByIndex;
-
-  /// 手牌洗切信号（按侧独立单调 tick，变化时播放一次洗牌动画）。
-  final int shuffleTick;
-
-  static const _deep = DeepCollectionEquality();
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is HandSnapshot &&
-        other.faceUp == faceUp &&
-        other.selectedIndex == selectedIndex &&
-        other.shuffleTick == shuffleTick &&
-        _deep.equals(other.codes, codes) &&
-        _deep.equals(other.highlightedIndices, highlightedIndices) &&
-        _deep.equals(other.checkedIndices, checkedIndices) &&
-        _deep.equals(other.chainOrderByIndex, chainOrderByIndex);
-  }
-
-  @override
-  int get hashCode => Object.hash(
-    faceUp,
-    selectedIndex,
-    shuffleTick,
-    _deep.hash(codes),
-    _deep.hash(highlightedIndices),
-    _deep.hash(checkedIndices),
-    _deep.hash(chainOrderByIndex),
-  );
-}
 
 /// 推入 Flame 场地的不可变状态快照。
 ///
@@ -113,6 +45,29 @@ class FlameFieldSnapshot {
     required this.chainOrderBySlotKey,
     required this.selfHand,
     required this.oppHand,
+    // ── HUD 字段（回合徽章/中央计时/左侧状态卡）──
+    // ⚠️ 本组字段刻意【不参与 ==/hashCode】：计时每秒变化、LP 频繁
+    // 变化，纳入判等会让 applySnapshot 的 changed 短路失效，每秒触发
+    // world.rebuildField() 全量重建。消费这些字段的组件（PhaseRail
+    // 回合徽章 / CenterTimer / PlayerStatusCard）在 render/update 中
+    // 直读快照，不依赖重建触发。给默认值是为了既有构造点（测试等）
+    // 不受影响。
+    this.turnCount = 0,
+    this.currentPlayer = 0,
+    this.selfTimeLeft = 0,
+    this.opponentTimeLeft = 0,
+    this.selfLp = 0,
+    this.opponentLp = 0,
+    this.selfExtra = 0,
+    this.oppExtra = 0,
+    this.selfGrave = 0,
+    this.oppGrave = 0,
+    this.selfRemoved = 0,
+    this.oppRemoved = 0,
+    this.selfName = '',
+    this.oppName = '',
+    this.lpChangeTick = 0,
+    this.lpChangeEvent,
   });
 
   /// 首次推送前的空快照（场地状态尚未到达）。
@@ -212,6 +167,42 @@ class FlameFieldSnapshot {
 
   /// 对方手牌（顶部手牌栏；codes 为 0 占位，faceUp=false）。
   final HandSnapshot oppHand;
+
+  // ── HUD 字段（不参与判等，见构造器注释）──
+
+  /// 当前回合数（MSG_NEW_TURN 累进；0 = 尚未下发）。
+  final int turnCount;
+
+  /// 当前行动方控制器编号（0/1）。
+  final int currentPlayer;
+
+  /// 双方剩余时间（秒，TIME_LIMIT 推送）。
+  final int selfTimeLeft;
+  final int opponentTimeLeft;
+
+  /// 双方 LP。
+  final int selfLp;
+  final int opponentLp;
+
+  /// 双方区域计数（额外/墓地/除外；卡组数用既有 selfDeck/oppDeck，
+  /// 手牌数用 selfHand/oppHand 的 codes 长度）。
+  final int selfExtra;
+  final int oppExtra;
+  final int selfGrave;
+  final int oppGrave;
+  final int selfRemoved;
+  final int oppRemoved;
+
+  /// 双方显示名（页面侧经 teamDisplayName 解析后推入，
+  /// tag 双打为同队名字 " / " 连接）。
+  final String selfName;
+  final String oppName;
+
+  /// LP 变动事件（伤害/回复/支付/直接变值）：tick 自增驱动
+  /// LpChangeToastComponent 在受影响玩家状态卡旁播锚定 toast。
+  /// 与 cardMoveEvent 同构：同帧多条只保留最新一条。
+  final int lpChangeTick;
+  final LpChangeEvent? lpChangeEvent;
 
   List<int> zoneCodesOf(String zoneKey) => zoneCodes[zoneKey] ?? const [];
 

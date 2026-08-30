@@ -91,7 +91,11 @@ class CardMoveAnimator extends Component
         game.moveFlights.remove(flight);
         if (concealZoneKey != null) {
           game.concealedMoveTargetKeys.remove(concealZoneKey);
-          world.rebuildField();
+          // 飞牌挂在 camera.viewport，活得比 world 子组件久：热重载
+          // （DuelFieldWorld.reload）已把本 animator 卸载时，自身
+          // HasWorldReference.world 断言会崩，改走 game.world（world
+          // 实例跨 reload 复用，reload 只重建其子组件）。
+          game.world.rebuildField();
         }
         handConceal?.call();
       },
