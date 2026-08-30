@@ -14,7 +14,7 @@ void main() {
     test('空闲时首条消息同步直通（0ms）', () {
       fakeAsync((async) {
         final consumed = <int>[];
-        final pump = MessagePump<int>(consume: consumed.add);
+        final pump = MessagePump<int>(consume: (m, {required bool silent}) => consumed.add(m));
 
         pump.enqueue(1);
 
@@ -27,7 +27,7 @@ void main() {
     test('小爆发（≤20 积压）：每 120ms 消费一条', () {
       fakeAsync((async) {
         final consumed = <int>[];
-        final pump = MessagePump<int>(consume: consumed.add);
+        final pump = MessagePump<int>(consume: (m, {required bool silent}) => consumed.add(m));
 
         for (var i = 0; i < 5; i++) {
           pump.enqueue(i);
@@ -48,7 +48,7 @@ void main() {
     test('中爆发（21~100 积压）：每 40ms 消费一条', () {
       fakeAsync((async) {
         final consumed = <int>[];
-        final pump = MessagePump<int>(consume: consumed.add);
+        final pump = MessagePump<int>(consume: (m, {required bool silent}) => consumed.add(m));
 
         for (var i = 0; i < 30; i++) {
           pump.enqueue(i);
@@ -74,7 +74,7 @@ void main() {
     test('大爆发（>100 积压，观战追赶）：每 12ms 消费一条，追平后恢复直通', () {
       fakeAsync((async) {
         final consumed = <int>[];
-        final pump = MessagePump<int>(consume: consumed.add);
+        final pump = MessagePump<int>(consume: (m, {required bool silent}) => consumed.add(m));
 
         for (var i = 0; i < 300; i++) {
           pump.enqueue(i);
@@ -102,24 +102,21 @@ void main() {
     });
 
     test('intervalForBacklog 档位边界', () {
-      expect(MessagePump.intervalForBacklog(1),
-          const Duration(milliseconds: 120));
-      expect(MessagePump.intervalForBacklog(20),
-          const Duration(milliseconds: 120));
-      expect(MessagePump.intervalForBacklog(21),
-          const Duration(milliseconds: 40));
-      expect(MessagePump.intervalForBacklog(100),
-          const Duration(milliseconds: 40));
-      expect(MessagePump.intervalForBacklog(101),
-          const Duration(milliseconds: 12));
-      expect(MessagePump.intervalForBacklog(500),
-          const Duration(milliseconds: 12));
+      final pump =
+          MessagePump<int>(consume: (m, {required bool silent}) {});
+      expect(pump.intervalForBacklog(1), const Duration(milliseconds: 120));
+      expect(pump.intervalForBacklog(20), const Duration(milliseconds: 120));
+      expect(pump.intervalForBacklog(21), const Duration(milliseconds: 40));
+      expect(pump.intervalForBacklog(100), const Duration(milliseconds: 40));
+      expect(pump.intervalForBacklog(101), const Duration(milliseconds: 12));
+      expect(pump.intervalForBacklog(500), const Duration(milliseconds: 12));
+      pump.dispose();
     });
 
     test('clear 丢弃全部待消费消息，之后可重新入队', () {
       fakeAsync((async) {
         final consumed = <int>[];
-        final pump = MessagePump<int>(consume: consumed.add);
+        final pump = MessagePump<int>(consume: (m, {required bool silent}) => consumed.add(m));
 
         for (var i = 0; i < 50; i++) {
           pump.enqueue(i);
@@ -138,10 +135,62 @@ void main() {
       });
     });
 
+    test('jumpToCurrent：积压超阈值同步静音清场，尾部不足阈值仍按节奏', () {
+      fakeAsync((async) {
+        final consumed = <int>[];
+        final silents = <bool>[];
+        final pump = MessagePump<int>(consume: (m, {required bool silent}) {
+          consumed.add(m);
+          silents.add(silent);
+        });
+        pump.jumpToCurrent = true;
+
+        pump.enqueue(0); // 空闲直通（非静音）
+        expect(consumed, [0]);
+        expect(silents, [false]);
+
+        // 积压到 21（>20）时触发清场：1..21 同步静音消费。
+        for (var i = 1; i <= 30; i++) {
+          pump.enqueue(i);
+        }
+        expect(consumed.length, 22);
+        expect(silents.sublist(1).every((s) => s), isTrue,
+            reason: '清场期间全部 silent');
+        // 剩余 22..30 不足阈值，仍按节奏排队。
+        expect(pump.pendingCount, 9);
+
+        async.elapse(const Duration(seconds: 10));
+        expect(consumed.length, 31);
+        expect(silents.sublist(22).every((s) => !s), isTrue,
+            reason: '尾部按节奏消费，不静音');
+        pump.dispose();
+      });
+    });
+
+    test('回放速度倍率：2x 时消费间隔减半', () {
+      fakeAsync((async) {
+        final consumed = <int>[];
+        final pump = MessagePump<int>(
+            consume: (m, {required bool silent}) => consumed.add(m));
+        pump.speedFactor = 2.0;
+        expect(pump.intervalForBacklog(1), const Duration(milliseconds: 60));
+        expect(pump.intervalForBacklog(101), const Duration(milliseconds: 6));
+
+        pump.enqueue(0);
+        pump.enqueue(1);
+        expect(consumed, [0]);
+        async.elapse(const Duration(milliseconds: 59));
+        expect(consumed, [0]);
+        async.elapse(const Duration(milliseconds: 1));
+        expect(consumed, [0, 1]);
+        pump.dispose();
+      });
+    });
+
     test('dispose 停止泵：定时器取消，后续入队被忽略', () {
       fakeAsync((async) {
         final consumed = <int>[];
-        final pump = MessagePump<int>(consume: consumed.add);
+        final pump = MessagePump<int>(consume: (m, {required bool silent}) => consumed.add(m));
 
         for (var i = 0; i < 50; i++) {
           pump.enqueue(i);
