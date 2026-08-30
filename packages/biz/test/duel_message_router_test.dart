@@ -14,7 +14,6 @@ import 'package:biz/duel/field/duel_field_state.dart';
 import 'package:biz/duel/field/duel_message_router.dart';
 import 'package:biz/service_providers.dart';
 import 'package:biz/ygo_data_service.dart';
-import 'package:biz/ygo_settings.dart';
 import 'package:biz/ygo_sound_service.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
 import 'package:fake_async/fake_async.dart';

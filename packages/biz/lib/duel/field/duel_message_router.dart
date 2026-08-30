@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:applog/console.dart' as console;
 
 import 'package:biz/service_providers.dart';
-import 'package:biz/ygo_settings.dart';
 import 'package:biz/ygo_sound_service.dart';
 import 'package:duelink/duelink.dart';
 
@@ -53,7 +52,7 @@ class DuelMessageRouter extends _$DuelMessageRouter {
   void build() {
     ref.onDispose(_cancelSubscriptions);
     // 运行时改设置即时生效（下一条入队/清场即按新模式）。
-    ref.listen(ygoSettingsProvider, (_, __) => _applyReplaySettings());
+    ref.listen(ygoSettingsProvider, (_, _) => _applyReplaySettings());
   }
 
   void _cancelSubscriptions() {
@@ -102,6 +101,14 @@ class DuelMessageRouter extends _$DuelMessageRouter {
     final pump = _pump;
     if (pump == null) return;
     final gameMsg = msg.gameMsg;
+    // MSG_WIN 入队时点留痕：节奏泵按序消费，若服务端在关连接前的
+    // 最后一个 TCP 段里发了结果，日志可区分「服务端没发」与
+    // 「发了但房间已退出、泵被销毁」两种断连无结算场景。
+    if (gameMsg?.func == MSG_WIN) {
+      console.log(
+        'router: MSG_WIN enqueued (pump pending=${pump.pendingCount})',
+      );
+    }
     if (gameMsg?.func == MSG_START) {
       // Match 局间重开：丢弃上一局排队中的消息，并按新局身份重估 jump。
       _isObserverDuel = switch (gameMsg!.innerMsg) {
