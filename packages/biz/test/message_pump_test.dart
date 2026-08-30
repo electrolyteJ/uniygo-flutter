@@ -116,6 +116,28 @@ void main() {
           const Duration(milliseconds: 12));
     });
 
+    test('clear 丢弃全部待消费消息，之后可重新入队', () {
+      fakeAsync((async) {
+        final consumed = <int>[];
+        final pump = MessagePump<int>(consume: consumed.add);
+
+        for (var i = 0; i < 50; i++) {
+          pump.enqueue(i);
+        }
+        expect(consumed, [0]);
+
+        pump.clear();
+        expect(pump.pendingCount, 0);
+
+        async.elapse(const Duration(seconds: 10));
+        expect(consumed, [0], reason: 'clear 后队列中的消息不得再被消费');
+
+        pump.enqueue(100);
+        expect(consumed, [0, 100], reason: 'clear 后泵应恢复正常工作');
+        pump.dispose();
+      });
+    });
+
     test('dispose 停止泵：定时器取消，后续入队被忽略', () {
       fakeAsync((async) {
         final consumed = <int>[];

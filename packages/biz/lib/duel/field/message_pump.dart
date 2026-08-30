@@ -45,12 +45,18 @@ class MessagePump<T> {
     if (_timer == null) _drainOne();
   }
 
-  /// 停止泵：取消定时器、清空队列，后续入队被忽略。
-  void dispose() {
-    _disposed = true;
+  /// 丢弃全部待消费消息并停止调度（MSG_START 局间切换清上局残留）。
+  /// 不影响后续入队。
+  void clear() {
     _queue.clear();
     _timer?.cancel();
     _timer = null;
+  }
+
+  /// 停止泵：取消定时器、清空队列，后续入队被忽略。
+  void dispose() {
+    _disposed = true;
+    clear();
   }
 
   void _drainOne() {
