@@ -411,6 +411,18 @@ final zoneHiddenCountProvider = Provider.family<int, String>(
   dependencies: [duelFieldProvider],
 );
 
+/// 区域浏览器内「有可发动/可召唤动作」的卡位 sequence 集合
+/// （墓地/除外/额外），驱动 tile 上的「可发动」标记。
+///
+/// 生效条件与可发动卡合并进列表的条件一致（idle 窗口 + 己方窗口），
+/// sequence 口径与 [zoneBrowserActionsProvider] 的匹配口径一致——
+/// 被标记的 tile 点开后一定有可执行动作。
+final zoneBrowserActivatableSequencesProvider =
+    Provider.family<Set<int>, String>(
+  (ref, zoneKey) => _zoneBrowserActivatableSequences(ref, zoneKey),
+  dependencies: [duelFieldProvider, selectWindowProvider],
+);
+
 /// 出现更高优先级选择窗口（非阶段指令）时，本地弹层是否应当让位。
 final needsHigherPriorityDismissProvider = Provider<bool>(
   (ref) => _needsHigherPriorityDismiss(ref),
@@ -607,6 +619,24 @@ List<ActionMenuEntry> _zoneBrowserActions(Ref ref, String zoneKey) {
         );
       })
       .toList(growable: false);
+}
+
+Set<int> _zoneBrowserActivatableSequences(Ref ref, String zoneKey) {
+  final board = ref.watch(duelFieldProvider);
+  final select = ref.watch(selectWindowProvider);
+  final controller = _controllerForZoneKey(zoneKey, board.myController);
+  final location = _locationForZoneKey(zoneKey);
+  if (controller == null ||
+      location == null ||
+      !select.hasIdleCommandWindow ||
+      !select.ownsCurrentWindow(board.myController)) {
+    return const {};
+  }
+  return {
+    for (final action in select.selectedIdleActions)
+      if (action.controller == controller && action.location == location)
+        action.locationSequence,
+  };
 }
 
 int _zoneHiddenCount(Ref ref, String zoneKey) {

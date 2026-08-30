@@ -774,6 +774,9 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
               onCardTap: inspectZoneBrowserCard,
               onClose: closeZoneBrowser,
               selectedActions: ref.watch(zoneBrowserActionsProvider(key)),
+              activatableSequences: ref.watch(
+                zoneBrowserActivatableSequencesProvider(key),
+              ),
               hiddenCount: ref.watch(zoneHiddenCountProvider(key)),
               cardNameBuilder: (code) =>
                   _boardN.getCardInfo(code)?.name ?? 'Card #$code',

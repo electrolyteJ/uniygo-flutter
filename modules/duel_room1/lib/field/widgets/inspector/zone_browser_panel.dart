@@ -24,7 +24,12 @@ String _zoneTitle(String zoneKey) => _zoneTitles[zoneKey] ?? '区域详情';
 ///   （overlay 状态 openZoneBrowser 换 key 天然支持）；
 /// - 关闭只走右上角 × 按钮（[onClose]）或动作执行后的状态清理；
 /// - 面板内选中卡片实时联动左侧 inspector。
-class ZoneBrowserPanel extends StatelessWidget {
+/// 可发动标记的统一强调色：琥珀金。
+/// 面板 chrome / 选中态全部是青色，金色与其互补冲突，
+/// 「可发动」信息才能从一片青里跳出来。
+const activatableGold = Color(0xFFFFC400);
+
+class ZoneBrowserPanel extends StatefulWidget {
   final String zoneBrowserKey;
   final List<ZoneBrowserCardEntry> cards;
   final int? selectedCardSequence;
@@ -38,6 +43,11 @@ class ZoneBrowserPanel extends StatelessWidget {
   /// 空态会提示“里侧不可见”而不是“没有卡片”。
   final int hiddenCount;
 
+  /// 当前窗口下可发动/可召唤的卡位 sequence 集合
+  /// （biz zoneBrowserActivatableSequencesProvider）：命中的 tile
+  /// 左上角显示「可发动」标记。
+  final Set<int> activatableSequences;
+
   const ZoneBrowserPanel({
     super.key,
     required this.zoneBrowserKey,
@@ -48,29 +58,78 @@ class ZoneBrowserPanel extends StatelessWidget {
     this.cardNameBuilder,
     this.selectedActions = const [],
     this.hiddenCount = 0,
+    this.activatableSequences = const {},
   });
+
+  @override
+  State<ZoneBrowserPanel> createState() => _ZoneBrowserPanelState();
+}
+
+class _ZoneBrowserPanelState extends State<ZoneBrowserPanel>
+    with SingleTickerProviderStateMixin {
+  /// 可发动卡金色光环的呼吸脉冲。整面板共享一个 controller——
+  /// 无论几张卡可发动都只有一个动画控制器；没有可发动卡时
+  /// 停表归零，不可发动 tile 不挂动画、零逐帧重建。
+  late final AnimationController _glowController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1300),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _syncGlow();
+  }
+
+  @override
+  void didUpdateWidget(covariant ZoneBrowserPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncGlow();
+  }
+
+  void _syncGlow() {
+    if (widget.activatableSequences.isNotEmpty) {
+      if (!_glowController.isAnimating) {
+        _glowController.repeat(reverse: true);
+      }
+    } else if (_glowController.isAnimating) {
+      _glowController.stop();
+      _glowController.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _glowController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return DockedPanelShell(
-      title: _zoneTitle(zoneBrowserKey),
-      count: cards.length,
-      onClose: onClose,
+      title: _zoneTitle(widget.zoneBrowserKey),
+      count: widget.cards.length,
+      onClose: widget.onClose,
+      titleSuffix: widget.activatableSequences.isEmpty
+          ? null
+          : _ActivatableCountChip(count: widget.activatableSequences.length),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
             child: _CardsGrid(
-              cards: cards,
-              hiddenCount: hiddenCount,
-              selectedCardSequence: selectedCardSequence,
-              onCardTap: onCardTap,
-              cardNameBuilder: cardNameBuilder,
+              cards: widget.cards,
+              hiddenCount: widget.hiddenCount,
+              selectedCardSequence: widget.selectedCardSequence,
+              onCardTap: widget.onCardTap,
+              cardNameBuilder: widget.cardNameBuilder,
+              activatableSequences: widget.activatableSequences,
+              glowPulse: _glowController,
             ),
           ),
-          if (selectedActions.isNotEmpty) ...[
+          if (widget.selectedActions.isNotEmpty) ...[
             const SizedBox(height: 16),
-            _ActionsSection(actions: selectedActions),
+            _ActionsSection(actions: widget.selectedActions),
           ],
         ],
       ),
@@ -92,6 +151,10 @@ class _CardsGrid extends StatelessWidget {
   final int? selectedCardSequence;
   final void Function(int sequence, int code) onCardTap;
   final String Function(int code)? cardNameBuilder;
+  final Set<int> activatableSequences;
+
+  /// 面板级共享的可发动光环脉冲（0→1→0 循环）。
+  final Animation<double> glowPulse;
 
   const _CardsGrid({
     required this.cards,
@@ -99,6 +162,8 @@ class _CardsGrid extends StatelessWidget {
     required this.selectedCardSequence,
     required this.onCardTap,
     required this.cardNameBuilder,
+    required this.activatableSequences,
+    required this.glowPulse,
   });
 
   @override
@@ -131,6 +196,8 @@ class _CardsGrid extends StatelessWidget {
           code: entry.code,
           name: cardNameBuilder?.call(entry.code) ?? 'Card #${entry.code}',
           isSelected: selectedCardSequence == entry.sequence,
+          isActivatable: activatableSequences.contains(entry.sequence),
+          glowPulse: glowPulse,
           onTap: () => onCardTap(entry.sequence, entry.code),
         );
       },
@@ -186,6 +253,12 @@ class _ZoneBrowserCardTile extends StatelessWidget {
   final int code;
   final String name;
   final bool isSelected;
+
+  /// 当前窗口下该卡有可发动/可召唤动作（墓地诱发、额外特召等）。
+  final bool isActivatable;
+
+  /// 面板级共享的可发动光环脉冲（0→1→0 循环）。
+  final Animation<double> glowPulse;
   final VoidCallback onTap;
 
   const _ZoneBrowserCardTile({
@@ -194,23 +267,59 @@ class _ZoneBrowserCardTile extends StatelessWidget {
     required this.name,
     required this.isSelected,
     required this.onTap,
+    required this.glowPulse,
+    this.isActivatable = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    // 只有可发动卡才挂脉冲动画：不可发动 tile 静态构建，
+    // 不跟随动画逐帧重建。
+    if (!isActivatable) return _buildTile(glow: 0);
+    return AnimatedBuilder(
+      animation: glowPulse,
+      builder: (context, _) => _buildTile(glow: glowPulse.value),
+    );
+  }
+
+  Widget _buildTile({required double glow}) {
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
+      // 外层容器承载金色呼吸光环：不进 AnimatedContainer，
+      // 避免 180ms 隐式动画把脉冲追平成滞后的平滑跟随。
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: isActivatable
+              ? [
+                  BoxShadow(
+                    color: activatableGold.withValues(
+                      alpha: 0.30 + 0.40 * glow,
+                    ),
+                    blurRadius: 10 + 16 * glow,
+                    spreadRadius: 0.5 + 0.5 * glow,
+                  ),
+                ]
+              : null,
+        ),
+        child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: isSelected ? 0.09 : 0.04),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
+            // 选中优先青色（交互反馈一致）；非选中的可发动卡金描边。
             color: isSelected
                 ? DockedPanelShell.accent
-                : Colors.white.withValues(alpha: 0.1),
-            width: isSelected ? 1.6 : 1,
+                : isActivatable
+                    ? activatableGold
+                    : Colors.white.withValues(alpha: 0.1),
+            width: isSelected
+                ? 1.6
+                : isActivatable
+                    ? 1.5
+                    : 1,
           ),
           boxShadow: isSelected
               ? [
@@ -232,11 +341,24 @@ class _ZoneBrowserCardTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               child: AspectRatio(
                 aspectRatio: 59 / 86,
-                child: CardImage(
-                  code: code,
-                  width: 160,
-                  height: 233,
-                  fit: BoxFit.contain,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CardImage(
+                      code: code,
+                      width: 160,
+                      height: 233,
+                      fit: BoxFit.contain,
+                    ),
+                    // 可发动标记：左上角小胶囊（与选中态的整框
+                    // 描边区分，非选中也可辨识）。
+                    if (isActivatable)
+                      const Positioned(
+                        left: 3,
+                        top: 3,
+                        child: _ActivatableBadge(),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -255,6 +377,86 @@ class _ZoneBrowserCardTile extends StatelessWidget {
             ),
           ],
         ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 「可发动」角标：琥珀金胶囊 + 闪电图标，叠在卡图左上角。
+/// 金色与面板青色 chrome 强对比，字号/内边距比旧版加大，
+/// 保证 3 列网格缩略图上一眼可辨。
+class _ActivatableBadge extends StatelessWidget {
+  const _ActivatableBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: activatableGold,
+        borderRadius: BorderRadius.circular(5),
+        boxShadow: [
+          BoxShadow(
+            color: activatableGold.withValues(alpha: 0.65),
+            blurRadius: 8,
+            spreadRadius: 0.5,
+          ),
+        ],
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.bolt, color: Colors.black, size: 10),
+          SizedBox(width: 1),
+          Text(
+            '可发动',
+            style: TextStyle(
+              color: Colors.black,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Noto Sans SC',
+              height: 1.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 标题栏「⚡ N 可发动」计数 chip：金框金字，在青色 chrome 的
+/// 标题栏里一眼定位本区域有多少张卡可以行动。
+class _ActivatableCountChip extends StatelessWidget {
+  final int count;
+
+  const _ActivatableCountChip({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: activatableGold.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: activatableGold, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.bolt, color: activatableGold, size: 12),
+          const SizedBox(width: 2),
+          Text(
+            '$count 可发动',
+            style: const TextStyle(
+              color: activatableGold,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Noto Sans SC',
+              height: 1.2,
+            ),
+          ),
+        ],
       ),
     );
   }

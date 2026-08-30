@@ -867,6 +867,9 @@ class _ZoneBrowser extends ConsumerWidget {
     final entries = ref.watch(zoneBrowserEntriesProvider(zoneKey));
     final overlay = ref.watch(fieldOverlayProvider);
     final actions = ref.watch(zoneBrowserActionsProvider(zoneKey));
+    final activatable = ref.watch(
+      zoneBrowserActivatableSequencesProvider(zoneKey),
+    );
     final overlayN = ref.read(fieldOverlayProvider.notifier);
     final boardN = ref.read(duelFieldProvider.notifier);
     final title = switch (zoneKey) {
@@ -931,6 +934,11 @@ class _ZoneBrowser extends ConsumerWidget {
                               final selected =
                                   overlay.selectedZoneBrowserSequence ==
                                   entry.sequence;
+                              // 当前窗口下可发动/可召唤的卡：右上角
+                              // 「可发动」角标（与选中描边区分）。
+                              final canActivate = activatable.contains(
+                                entry.sequence,
+                              );
                               return GestureDetector(
                                 onTap: () {
                                   final code = entry.code;
@@ -955,10 +963,41 @@ class _ZoneBrowser extends ConsumerWidget {
                                   ),
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(4),
-                                    child: CardImage(
-                                      code: entry.code,
-                                      width: 82,
-                                      height: 120,
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        CardImage(
+                                          code: entry.code,
+                                          width: 82,
+                                          height: 120,
+                                        ),
+                                        if (canActivate)
+                                          Positioned(
+                                            left: 2,
+                                            top: 2,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 3,
+                                                vertical: 1,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: HudTheme.cyan,
+                                                borderRadius:
+                                                    BorderRadius.circular(3),
+                                              ),
+                                              child: const Text(
+                                                '可发动',
+                                                style: TextStyle(
+                                                  color: Colors.black,
+                                                  fontSize: 7,
+                                                  fontWeight: FontWeight.w900,
+                                                  height: 1.2,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
                                 ),

@@ -25,6 +25,7 @@ void main() {
     List<ZoneBrowserCardEntry> entries = cards,
     int hiddenCount = 0,
     List<ActionMenuEntry> actions = const [],
+    Set<int> activatableSequences = const {},
   }) {
     final underlyingTaps = <int>[];
     final closeTaps = <int>[];
@@ -48,6 +49,7 @@ void main() {
               cardNameBuilder: (code) => 'C$code',
               selectedActions: actions,
               hiddenCount: hiddenCount,
+              activatableSequences: activatableSequences,
             ),
           ],
         ),
@@ -132,6 +134,17 @@ void main() {
     expect(pos.right, 18);
     expect(pos.width, 440);
     expect(pos.left, isNull);
+  });
+
+  testWidgets('可发动的卡显示角标，未命中集合的不显示', (tester) async {
+    final s = buildSubject(activatableSequences: const {1});
+    await tester.pumpWidget(s.widget);
+    // 可发动光环是 repeat 脉冲动画，pumpAndSettle 永不 settle——
+    // 用定长 pump 等进场动画播完即可。
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // 只有 sequence=1（C1002）一张可发动 → 恰好一个角标。
+    expect(find.text('可发动'), findsOneWidget);
   });
 
   testWidgets('动作区渲染可执行动作按钮', (tester) async {

@@ -15,6 +15,9 @@ class DockedPanelShell extends StatelessWidget {
   /// 标题前的可选引导图标。
   final Widget? leading;
 
+  /// 标题栏「N 张」计数前的可选后缀 chip（如区域浏览的「⚡ N 可发动」）。
+  final Widget? titleSuffix;
+
   const DockedPanelShell({
     super.key,
     required this.title,
@@ -22,6 +25,7 @@ class DockedPanelShell extends StatelessWidget {
     required this.onClose,
     required this.child,
     this.leading,
+    this.titleSuffix,
   });
 
   // ---- 停靠几何（页面 Stack 内右侧停靠） ----
@@ -88,6 +92,7 @@ class DockedPanelShell extends StatelessWidget {
                     title: title,
                     count: count,
                     leading: leading,
+                    titleSuffix: titleSuffix,
                   ),
                   const SizedBox(height: 16),
                   Expanded(child: child),
@@ -113,11 +118,13 @@ class _DockedPanelHeader extends StatelessWidget {
   final String title;
   final int count;
   final Widget? leading;
+  final Widget? titleSuffix;
 
   const _DockedPanelHeader({
     required this.title,
     required this.count,
     required this.leading,
+    this.titleSuffix,
   });
 
   @override
@@ -136,6 +143,10 @@ class _DockedPanelHeader extends StatelessWidget {
             ),
           ),
         ),
+        if (titleSuffix != null) ...[
+          titleSuffix!,
+          const SizedBox(width: 8),
+        ],
         Text(
           '$count 张',
           style: const TextStyle(
