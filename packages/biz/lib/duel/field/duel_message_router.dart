@@ -8,6 +8,7 @@ import 'package:duelink/duelink.dart';
 import 'card_confirm_state.dart';
 import 'duel_field_state.dart';
 import 'field_overlay_state.dart';
+import 'message_pump.dart';
 import 'select_window_state.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -30,8 +31,11 @@ part 'duel_message_router.g.dart';
 @Riverpod(keepAlive: true)
 class DuelMessageRouter extends _$DuelMessageRouter {
   StreamSubscription<YgoStocMsg>? _msgSub;
-  StreamSubscription<DuelPhase>? _phaseSub;
   String? Function(DuelPhase phase)? _phaseLabel;
+
+  /// 消息节奏泵：观战追赶/开局爆发时把消息摊平成自适应节奏逐条消费；
+  /// 空闲时 0ms 直通。start() 重建，随订阅一起回收。
+  MessagePump<YgoStocMsg>? _pump;
 
   DuelFieldState get _board => ref.read(duelFieldProvider);
   DuelFieldNotifier get _boardN => ref.read(duelFieldProvider.notifier);
@@ -47,9 +51,9 @@ class DuelMessageRouter extends _$DuelMessageRouter {
 
   void _cancelSubscriptions() {
     _msgSub?.cancel();
-    _phaseSub?.cancel();
     _msgSub = null;
-    _phaseSub = null;
+    _pump?.dispose();
+    _pump = null;
   }
 
   /// 在 duelService.connect 之后调用：把服务绑定到需要回包的 Notifier，
@@ -63,12 +67,27 @@ class DuelMessageRouter extends _$DuelMessageRouter {
     _phaseLabel = phaseLabel;
     _cancelSubscriptions();
     final service = ref.read(duelServiceProvider);
-    _phaseSub = service.onDuelPhaseMessage.listen((phase) {
-      // 阶段合法性（enableBp/enableM2/enableEp）只由服务端下发的
-      // MSG_SELECT_IDLE_CMD / MSG_SELECT_BATTLE_CMD 驱动，这里不做本地推断。
-      _boardN.setPhaseFromStream(phase, _phaseLabel?.call(phase));
-    });
-    _msgSub = service.onServerMessage.listen(_handleServerMessage);
+    _pump = MessagePump(consume: _handleServerMessage);
+    _msgSub = service.onServerMessage.listen(_onServerMessage);
+  }
+
+  /// 服务器消息入口（入队前的唯一分叉）：
+  /// - STOC_TIME_LIMIT 直通：计时必须实时，不进节奏泵；
+  /// - MSG_START 先清残留队列：Match 局间重开时丢弃上一局排队中的消息，
+  ///   防止串台（与 MSG_START 分支的清状态逻辑对齐）；
+  /// - 其余一律入泵，按自适应节奏消费。
+  void _onServerMessage(YgoStocMsg msg) {
+    final timeLimit = msg.timeLimit;
+    if (timeLimit != null) {
+      _boardN.handleTimeLimit(timeLimit);
+      return;
+    }
+    final pump = _pump;
+    if (pump == null) return;
+    if (msg.gameMsg?.func == MSG_START) {
+      pump.clear();
+    }
+    pump.enqueue(msg);
   }
 
   /// 服务器原始消息入口：解码为对局事件后分发到对应状态。
@@ -121,7 +140,13 @@ class DuelMessageRouter extends _$DuelMessageRouter {
         console.log(
           'handleServerMessage: MSG_NEW_PHASE（新阶段） innerMsg=${gameMsg.innerMsg}',
         );
-        // 已通过 onDuelPhaseMessage 单独派发，避免这里重复记日志。
+        // 相位不再走 onDuelPhaseMessage 独立流（会超前于节奏泵中的画面），
+        // 在消费到本条时同步更新：音效、阶段、战报、画面同源同节奏。
+        // 阶段合法性（enableBp/enableM2/enableEp）只由服务端下发的
+        // MSG_SELECT_IDLE_CMD / MSG_SELECT_BATTLE_CMD 驱动，这里不做本地推断。
+        final phaseMsg = innerMsg as MsgNewPhase;
+        final phase = DuelPhase.of(phaseMsg.rawPhase);
+        _boardN.setPhaseFromStream(phase, _phaseLabel?.call(phase));
         _sound.playNewPhase();
         break;
       case MSG_WAITING: // 等待对手操作
