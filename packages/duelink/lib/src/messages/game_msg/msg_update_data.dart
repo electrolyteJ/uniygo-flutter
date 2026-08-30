@@ -27,6 +27,12 @@ class MsgUpdateData {
     required this.rawData,
   });
 
+  /// 是否固定槽位快照区域（MZONE/SZONE）：记录按槽位顺序书写，
+  /// 空槽 len=4、里侧卡为全零 payload 记录，槽位序号可安全对应 sequence。
+  /// 手牌/墓地等动态区域无空槽记录，不适用序号占位。
+  static bool _isFixedSlotSnapshotZone(int zone) =>
+      zone == CARD_ZONE_MZONE || zone == CARD_ZONE_SZONE;
+
   /// 原始协议中的区域数字值。
   int get rawZone => zone;
 
@@ -57,6 +63,8 @@ class MsgUpdateData {
 
     final actions = <MsgUpdateAction>[];
     final actionReader = BufferReader(rawData);
+    // 固定快照区域（MZONE/SZONE）的记录按槽位顺序书写，序号即槽位号。
+    var slotIndex = 0;
     while (actionReader.remaining >= 4) {
       final length = actionReader.readInt32();
       if (length < 4) {
@@ -66,6 +74,7 @@ class MsgUpdateData {
       if (length == 4) {
         // MZONE/SZONE 固定快照中的空槽位（len=4 无 payload）：
         // 跳过该槽位，继续解析后续槽位，而不是终止整个解析。
+        slotIndex++;
         continue;
       }
       if (length - 4 > actionReader.remaining) {
@@ -75,7 +84,26 @@ class MsgUpdateData {
       final action = MsgUpdateAction.decode(payload);
       if (action != null) {
         actions.add(action);
+      } else if (_isFixedSlotSnapshotZone(zone)) {
+        // ygopro 服务端向对方/观战隐藏里侧卡的方式：保留记录长度、
+        // 整个 payload 置零（flag=0，见 single_duel.cpp RefreshMzone/
+        // RefreshSzone 的 hidden_segments memset）。这不是空槽——
+        // 按槽位序号生成占位 action（code=null、里侧守备），让上层
+        // 占槽渲染卡背；否则整区重建会把里侧卡抹掉（攻击里侧怪兽时
+        // 选择目标在场上找不到卡，退化为模态弹窗）。
+        actions.add(
+          MsgUpdateAction(
+            flag: 0,
+            location: CardLocation(
+              controller: player,
+              location: zone,
+              sequence: slotIndex,
+              position: POS_FACEDOWN_DEFENSE,
+            ),
+          ),
+        );
       }
+      slotIndex++;
     }
 
     return MsgUpdateData(

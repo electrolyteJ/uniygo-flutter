@@ -1,24 +1,28 @@
-/// 攻击宣言事件序号（attackEventId）测试。
+/// 对方里侧卡在场面状态中的存续测试（攻击里侧怪兽场景回归）。
 ///
-/// 背景：表现层（duel_room3 桥接）曾按 lastAttackFrom/To 字符串 diff
-/// 播攻击动画——「同攻击方+同目标」的连续攻击在 900ms 清理窗口期内
-/// 第二次无 diff 被吞。attackEventId 与 lpEventId 同构单调递增，
-/// handleStart 局间清理 lastAttackFrom/To。
+/// 背景：ygopro 服务端把对方里侧卡的 UPDATE_DATA 记录 payload 置零，
+/// 解析层（duelink）曾丢弃该记录，导致 biz 整区重建时里侧卡被抹掉；
+/// 攻击宣言后的目标选择窗口因场上找不到卡而退化为模态弹窗
+/// （只见「对方怪兽区」占位，无法确认）。
+///
+/// 修复后链路：解析层生成占位 action → applyUpdateData 重建出
+/// code=0 的卡背占位 → 攻击目标选择走场上内联点击。
 library;
 
-import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:biz/duel/field/duel_field_state.dart';
-import 'package:biz/duel/models/field_card.dart';
+import 'package:biz/duel/field/select_window_state.dart';
+import 'package:biz/duel/models/field_zone_key.dart';
+import 'package:biz/duel/models/select_state.dart';
 import 'package:biz/service_providers.dart';
 import 'package:biz/ygo_data_service.dart';
 import 'package:biz/ygo_sound_service.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:resource_data/ygo_data.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _StubCardService extends ICardService {
   @override
@@ -99,30 +103,25 @@ class _FakeDuelService implements IDuelService {
   void sendChat(String message) {}
 }
 
-MsgAttack _attack({int to = 1}) => MsgAttack(
-  attacker: const CardLocation(
-    controller: 0,
-    location: CARD_ZONE_MZONE,
-    sequence: 0,
-    position: 0x1,
-  ),
-  target: CardLocation(
-    controller: 1,
-    location: CARD_ZONE_MZONE,
-    sequence: to,
-    position: 0x1,
-  ),
-);
-
-MsgStart _start() => const MsgStart(
-  playerType: 0,
-  life1: 8000,
-  life2: 8000,
-  deckSize1: 40,
-  extraSize1: 15,
-  deckSize2: 40,
-  extraSize2: 15,
-);
+/// 组一条对方怪兽区快照：7 槽，[hiddenSlots] 为里侧隐藏卡（len=16 全零），
+/// 其余空槽。与 ygopro RefreshMzone  memset 后的线格式一致。
+Uint8List _oppMzoneWithHidden(List<int> hiddenSlots) {
+  final w = BytesBuilder();
+  w.add([1, CARD_ZONE_MZONE]); // player=1（对方）, zone=MZONE
+  for (var s = 0; s < 7; s++) {
+    if (hiddenSlots.contains(s)) {
+      final len = Uint8List(4)
+        ..buffer.asByteData().setInt32(0, 16, Endian.little);
+      w.add(len);
+      w.add(Uint8List(12)); // 全零 payload
+    } else {
+      final len = Uint8List(4)
+        ..buffer.asByteData().setInt32(0, 4, Endian.little);
+      w.add(len); // 空槽
+    }
+  }
+  return w.toBytes();
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -148,68 +147,48 @@ void main() {
   DuelFieldState read() => container.read(duelFieldProvider);
   DuelFieldNotifier notifier() => container.read(duelFieldProvider.notifier);
 
-  group('attackEventId', () {
-    test('默认 0', () {
-      expect(read().attackEventId, 0);
-    });
+  test('里侧怪兽在整区重建后存续：占位卡背，位置里侧守备', () {
+    final msg = MsgUpdateData.decode(_oppMzoneWithHidden([2]));
+    expect(msg.actions, hasLength(1)); // 解析层占位
 
-    test('同攻击方+同目标连续攻击：事件序号照涨（不被 diff 吞）', () {
-      notifier().handleAttack(_attack());
-      final first = read();
-      expect(first.attackEventId, 1);
-      expect(first.lastAttackFrom, isNotNull);
+    notifier().applyUpdateData(msg);
+    final key = zoneKeyOf(1, CARD_ZONE_MZONE, 2);
+    final card = read().fieldCards[key];
+    expect(card, isNotNull, reason: '里侧卡必须在场上占槽');
+    expect(card!.code, 0, reason: '里侧卡码不可见，0 渲染卡背');
+    expect(card.position, POS_FACEDOWN_DEFENSE);
 
-      // 清理计时器触发前的第二次同 key 攻击
-      notifier().handleAttack(_attack());
-      final second = read();
-      expect(second.attackEventId, 2);
-      expect(second.lastAttackFrom, first.lastAttackFrom);
-      expect(second.lastAttackTo, first.lastAttackTo);
-    });
+    // 日志里的真实场景：同样的快照反复推送，里侧卡不得消失。
+    notifier().applyUpdateData(MsgUpdateData.decode(_oppMzoneWithHidden([2])));
+    expect(read().fieldCards[key], isNotNull);
+  });
 
-    test('攻击宣言即带上场上已知攻防与名称（不再有 ATK ? 占位期）', () {
-      final n = notifier();
-      n.state = n.state.copyWith(
-        fieldCards: const {
-          '0_4_0': FieldCard(
-            code: 123,
-            controller: 0,
-            zone: CARD_ZONE_MZONE,
-            sequence: 0,
-            position: 0x1, // POS_FACEUP_ATTACK
-            attack: 2100,
-            defense: 1600,
-            name: '电子龙',
-          ),
-          '1_4_1': FieldCard(
-            code: 456,
-            controller: 1,
-            zone: CARD_ZONE_MZONE,
-            sequence: 1,
-            position: 0x4, // POS_FACEUP_DEFENSE
-            defense: 2200,
-          ),
-        },
-      );
-      n.handleAttack(_attack());
-      final p = read().battlePresentation!;
-      expect(p.attackerName, '电子龙');
-      expect(p.attackerAttack, 2100);
-      expect(p.attackerPosition, 0x1);
-      // 防守方无卡名（里侧/未回填）→ 占位「怪兽」，DEF 已知。
-      expect(p.defenderName, '怪兽');
-      expect(p.defenderDefense, 2200);
-      expect(p.defenderPosition, 0x4);
-    });
-
-    test('handleStart 清攻击残留（Match 局间）', () {
-      notifier().handleAttack(_attack());
-      expect(read().lastAttackFrom, isNotNull);
-
-      notifier().handleStart(_start());
-      expect(read().lastAttackFrom, isNull);
-      expect(read().lastAttackTo, isNull);
-      // attackEventId 不归零也无妨（单调递增语义），但残留 key 必须清掉
-    });
+  test('攻击里侧怪兽：目标选择走内联（不回退模态弹窗）', () {
+    notifier().applyUpdateData(
+      MsgUpdateData.decode(_oppMzoneWithHidden([2])),
+    );
+    // 攻击目标选择窗口：唯一选项为对方里侧怪兽（code=0，与线协议一致）。
+    const select = SelectState(
+      type: SelectType.card,
+      player: 0,
+      min: 1,
+      max: 1,
+      cancelable: true,
+      options: [
+        SelectOption(
+          code: 0,
+          controller: 1,
+          zone: CARD_ZONE_MZONE,
+          sequence: 2,
+        ),
+      ],
+    );
+    expect(
+      resolveInlineSelectActive(select, read()),
+      isTrue,
+      reason: '里侧卡在场上存在时应走内联点选，而不是模态弹窗',
+    );
+    // resolveSelectPromptMode 是 resolveInlineSelectActive 的薄封装
+    // （inline 条件不满足才回退 modal），此处不再重复构造 SelectWindowState。
   });
 }

@@ -267,6 +267,11 @@ class SelectWindowNotifier extends _$SelectWindowNotifier {
   /// 最近一次 MSG_HINT selectMessage 的选择提示文案，待下一个选择窗口消费。
   String? _pendingSelectHint;
 
+  /// 最近一次 MSG_HINT selectMessage 解析出的待放置卡码（如连接召唤前
+  /// 服务端下发的被召唤卡码），待下一个选择窗口消费；用于自动选位时
+  /// 识别连接怪兽并优先放入额外怪兽区。
+  int? _pendingPlaceCardCode;
+
   @override
   SelectWindowState build() {
     _dataService = ref.watch(dataServiceProvider);
@@ -294,6 +299,13 @@ class SelectWindowNotifier extends _$SelectWindowNotifier {
     _pendingSelectHint = (hint == null || hint.isEmpty) ? null : hint;
   }
 
+  /// 缓存引擎下发的待放置卡码（MSG_HINT selectMessage 的 hintData 解析为
+  /// 卡码时），供紧随其后的 MSG_SELECT_PLACE 自动选位判断卡种（连接怪兽
+  /// 优先额外怪兽区）；非卡码提示传 null 以清掉残留。
+  void setPendingPlaceCardCode(int? code) {
+    _pendingPlaceCardCode = code;
+  }
+
   /// 打开一个新的选择窗口：分配递增的 generation、预热卡图缓存。
   /// 所有 apply* 一律经此入口（或 [_nextWindow]）开窗，
   /// 保证 generation 语义统一。
@@ -304,6 +316,9 @@ class SelectWindowNotifier extends _$SelectWindowNotifier {
   void _openWindow(SelectState select) {
     final pending = _pendingSelectHint;
     _pendingSelectHint = null;
+    // 待放置卡码与提示文案同为「下一个窗口消费」语义；非放置窗口消费不到，
+    // 在此统一清掉，避免陈旧卡码污染后续（可能跨回合的）放置窗口。
+    _pendingPlaceCardCode = null;
     final withHint = pending == null ? select : select.copyWith(hint: pending);
     if (_tryAutoAnswer(withHint)) {
       // 已自动应答：清掉可能残留的窗口，不占用 generation。
@@ -727,6 +742,18 @@ class SelectWindowNotifier extends _$SelectWindowNotifier {
         );
       }
     }
+    final attackDebug = actions
+        .where((action) => action.type == 1)
+        .map(
+          (action) =>
+              '#${action.sequence} code=${action.code} c=${action.attackerController} z=${action.attackerLocation} s=${action.attackerSequence} direct=${action.directAttack}',
+        )
+        .join(', ');
+    console.log(
+      'applyBattleCmd: player=${msg.player} activate=${actions.where((a) => a.type == 0).length} '
+      'attack=${actions.where((a) => a.type == 1).length} attackActions=[$attackDebug] '
+      'enableM2=${msg.enableM2} enableEp=${msg.enableEp}',
+    );
     state = state.copyWith(
       selectedBattleActions: actions,
       enableM2: msg.enableM2,
@@ -841,6 +868,9 @@ class SelectWindowNotifier extends _$SelectWindowNotifier {
   }
 
   void applySelectPlace(MsgSelectPlace msg) {
+    // 待放置卡码由前一个 MSG_HINT selectMessage 缓存（_openWindow 会统一
+    // 消费清空），先取出再开窗，供自动选位识别连接怪兽。
+    final placeCardCode = _pendingPlaceCardCode;
     final options = _placeOptionsFromFieldMask(
       msg.field,
       selectingPlayer: msg.player,
@@ -856,14 +886,26 @@ class SelectWindowNotifier extends _$SelectWindowNotifier {
         cancelable: false,
       ),
     );
-    _maybeAutoRespondPlace(options, msg.count);
+    _maybeAutoRespondPlace(options, msg.count, placeCardCode: placeCardCode);
   }
 
   /// 自动选择放置位置：仅当全局设置（自动选择怪兽/魔陷位置）开启、
   /// 且是「己方」的选位窗口时，替玩家选第一个可用空位。
   /// count==1 才自动回包；多位放置（如灵摆刻度）保持手动，
   /// 避免单格回包被服务端 MSG_RETRY。
-  void _maybeAutoRespondPlace(List<SelectOption> options, int count) {
+  ///
+  /// 连接怪兽例外：可选格含额外怪兽区（MZONE sequence 5/6）时优先放入
+  /// EMZ。mask 按 bit 升序展开，主怪兽区永远排在 EMZ 前，朴素地取第一个
+  /// 会把 Link 怪兽放进主区（占箭头位且导致「幻兽机 曙光女神百头龙」
+  /// 这类依赖 EMZ 起手的展开断链）；与引擎自带 SIMPLE_AI 的选位偏好
+  /// （playerop.cpp select_place：先 6 后 5）一致。是否连接怪兽由
+  /// [placeCardCode]（MSG_HINT selectMessage 携带的卡码）查询卡表判断，
+  /// 查不到时维持原行为。
+  void _maybeAutoRespondPlace(
+    List<SelectOption> options,
+    int count, {
+    int? placeCardCode,
+  }) {
     if (count != 1 || options.isEmpty) return;
     if (state.currentSelect?.player != _board.myController) return;
     final settings = ref.read(ygoSettingsProvider);
@@ -874,14 +916,30 @@ class SelectWindowNotifier extends _$SelectWindowNotifier {
         ? settings.autoSpellTrapPosition
         : false;
     if (!auto) return;
-    final controller = first.controller;
-    final zone = first.zone;
-    final sequence = first.sequence;
+    var chosen = first;
+    final isLinkSummon =
+        chosen.zone == CARD_ZONE_MZONE &&
+        placeCardCode != null &&
+        (_dataService.getCardCached(placeCardCode)?.isLink ?? false);
+    if (isLinkSummon) {
+      final emz = options.where(
+        (option) =>
+            option.zone == CARD_ZONE_MZONE &&
+            (option.sequence == 6 || option.sequence == 5),
+      );
+      if (emz.isNotEmpty) {
+        chosen = emz.firstWhere(
+          (option) => option.sequence == 6,
+          orElse: () => emz.first,
+        );
+      }
+    }
     console.log(
-      'applySelectPlace: auto place controller=$controller '
-      'zone=$zone sequence=$sequence',
+      'applySelectPlace: auto place controller=${chosen.controller} '
+      'zone=${chosen.zone} sequence=${chosen.sequence}'
+      '${isLinkSummon ? ' (link→EMZ)' : ''}',
     );
-    respondSelectPlace(controller, zone, sequence);
+    respondSelectPlace(chosen.controller, chosen.zone, chosen.sequence);
   }
 
   void applySelectPosition(MsgSelectPosition msg) {

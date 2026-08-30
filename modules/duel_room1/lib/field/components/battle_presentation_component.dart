@@ -140,36 +140,44 @@ class BattlePresentationComponent extends Component
       _drawImpact(canvas, end, presentation.isDirectAttack);
     }
 
-    _drawInfoPlate(
-      canvas,
-      anchor: start,
-      alignRight: _slotBelongsToSelf(presentation.attackerZoneKey),
-      title: presentation.attackerName,
-      value: _battleValueLabel(
-        presentation.attackerAttack,
-        presentation.attackerDefense,
-        presentation.attackerPosition,
-      ),
-      accent: const Color(0xFFFF7A59),
+    // 数值未知（里侧守备等只能显示「?」）时整块信息牌不画：
+    // 占位提示没有信息量，反而是视觉噪音。
+    final attackerValue = _battleValueLabel(
+      presentation.attackerAttack,
+      presentation.attackerDefense,
+      presentation.attackerPosition,
     );
+    if (attackerValue != null) {
+      _drawInfoPlate(
+        canvas,
+        anchor: start,
+        alignRight: _slotBelongsToSelf(presentation.attackerZoneKey),
+        title: presentation.attackerName,
+        value: attackerValue,
+        accent: const Color(0xFFFF7A59),
+      );
+    }
 
     if (presentation.isDirectAttack) {
       _drawDirectLabel(canvas, end);
       return;
     }
 
-    _drawInfoPlate(
-      canvas,
-      anchor: end,
-      alignRight: !_slotBelongsToSelf(presentation.defenderZoneKey!),
-      title: presentation.defenderName ?? '怪兽',
-      value: _battleValueLabel(
-        presentation.defenderAttack,
-        presentation.defenderDefense,
-        presentation.defenderPosition,
-      ),
-      accent: const Color(0xFF00F0FF),
+    final defenderValue = _battleValueLabel(
+      presentation.defenderAttack,
+      presentation.defenderDefense,
+      presentation.defenderPosition,
     );
+    if (defenderValue != null) {
+      _drawInfoPlate(
+        canvas,
+        anchor: end,
+        alignRight: !_slotBelongsToSelf(presentation.defenderZoneKey!),
+        title: presentation.defenderName ?? '怪兽',
+        value: defenderValue,
+        accent: const Color(0xFF00F0FF),
+      );
+    }
   }
 
   /// 直接攻击的目标点：攻击方的「棋盘坐标 x」+ 越过底/顶行的 y，再投影。
@@ -361,14 +369,15 @@ class BattlePresentationComponent extends Component
     );
   }
 
-  String _battleValueLabel(int? attack, int? defense, int? position) {
-    if (attack == null && defense == null) {
-      return 'ATK ?';
-    }
+  /// 信息牌的数值文案；应显示的数值未知时返回 null（调用方整块不画，
+  /// 不再输出「ATK ?」「DEF ?」占位）。
+  String? _battleValueLabel(int? attack, int? defense, int? position) {
     final isDefense = position != null && (position & POS_DEFENSE) != 0;
     if (isDefense) {
-      return 'DEF ${defense ?? '?'}';
+      final d = defense;
+      return d == null ? null : 'DEF $d';
     }
-    return 'ATK ${attack ?? '?'}';
+    final a = attack;
+    return a == null ? null : 'ATK $a';
   }
 }

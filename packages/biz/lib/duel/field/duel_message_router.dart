@@ -290,6 +290,12 @@ class DuelMessageRouter extends _$DuelMessageRouter {
           _selectN.setSelectHint(
             ref.read(stringsServiceProvider).systemString(hintMsg.hintData),
           );
+          // 召唤/放置前的 selectMessage 提示的 hintData 实为待放置卡码
+          // （如连接召唤百头龙前下发 44097050），缓存供 MSG_SELECT_PLACE
+          // 自动选位识别连接怪兽、优先放入额外怪兽区；非卡码则清空残留。
+          _selectN.setPendingPlaceCardCode(
+            cardCodeFromDescriptionValue(hintMsg.hintData),
+          );
         }
         break;
       case MSG_WIN: // 决出胜负

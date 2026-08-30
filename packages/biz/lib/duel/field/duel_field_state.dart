@@ -661,7 +661,10 @@ class DuelFieldNotifier extends _$DuelFieldNotifier {
     _pendingCardLoads++;
     try {
       final info = await _dataService.getCard(code);
-      if (info != null) _cardCacheDirty = true;
+      if (info != null) {
+        _cardCacheDirty = true;
+        _backfillFieldCardBattleStats(info);
+      }
     } catch (e) {
       console.log('Failed to load card info for $code: $e');
     }
@@ -674,6 +677,47 @@ class DuelFieldNotifier extends _$DuelFieldNotifier {
         // watch，拿到新卡名；无参 copyWith 对 select 订阅者不产生信号）。
         state = state.copyWith(cardInfoVersion: state.cardInfoVersion + 1);
       }
+    }
+  }
+
+  /// 用卡查库（CardInfo）基础攻守兜底场上怪兽缺失的攻守值。
+  ///
+  /// 协议现实：服务器并不为每张场上怪兽推送完整数据——MZONE 整区快照
+  /// 只带 code+position（flag=0x3），MSG_UPDATE_CARD 全量数据是
+  /// CTOS_UPDATE_CARD 查询的回包（本客户端不发该查询），攻守值仅在
+  /// 数值变化/战斗结算（MSG_BATTLE）时广播。因此「对方刚召唤、未战斗
+  /// 未变更」的怪兽 attack/defense 恒为 null，场地徽章只显示
+  /// "ATK"/"DEF" 字样没有数值（官方客户端此处读本地 cards.cdb 基础值）。
+  ///
+  /// 这里在卡信息入库后按 code 回退基础攻守：仅补 null 字段，
+  /// 服务器之后推送的当前值仍优先（_applyUpdateAction 的 ?? 链），
+  /// 不改变「服务器值 = 当前值」的语义优先级。负值（? 怪）不兜底。
+  void _backfillFieldCardBattleStats(pkg.CardInfo info) {
+    if (_disposed) return;
+    if (info.attack < 0 && info.defense < 0) return;
+    Map<String, FieldCard>? patched;
+    for (final entry in state.fieldCards.entries) {
+      final card = entry.value;
+      if (card.code != info.code || card.zone != CARD_ZONE_MZONE) continue;
+      final fillAttack = card.attack == null && info.attack >= 0;
+      final fillDefense = card.defense == null && info.defense >= 0;
+      if (!fillAttack && !fillDefense) continue;
+      patched ??= Map<String, FieldCard>.from(state.fieldCards);
+      patched[entry.key] = FieldCard(
+        code: card.code,
+        controller: card.controller,
+        zone: card.zone,
+        sequence: card.sequence,
+        position: card.position,
+        overlayCount: card.overlayCount,
+        disabled: card.disabled,
+        attack: card.attack ?? info.attack,
+        defense: card.defense ?? info.defense,
+        name: card.name,
+      );
+    }
+    if (patched != null) {
+      state = state.copyWith(fieldCards: patched);
     }
   }
 
@@ -1712,6 +1756,13 @@ class DuelFieldNotifier extends _$DuelFieldNotifier {
     addLog('等待对手操作。');
   }
 
+  /// 场上卡显示名：FieldCard.name 未回填（卡信息尚未异步入库）时
+  /// 同步查缓存兜底，均无则「怪兽」。
+  String _fieldCardName(String zoneKey) {
+    final card = state.fieldCards[zoneKey];
+    return card?.name ?? getCardInfo(card?.code ?? 0)?.name ?? '怪兽';
+  }
+
   void handleAttack(dynamic data) {
     final msg = data as MsgAttack;
     final from = zoneKeyOf(
@@ -1726,7 +1777,9 @@ class DuelFieldNotifier extends _$DuelFieldNotifier {
             msg.target!.sequence,
           )
         : null;
-    final attackerName = state.fieldCards[from]?.name ?? '怪兽';
+    final attackerCard = state.fieldCards[from];
+    final defenderCard = to == null ? null : state.fieldCards[to];
+    final attackerName = _fieldCardName(from);
     _battlePresentationTimer?.cancel();
     state = state.copyWith(
       lastAttackFrom: from,
@@ -1736,11 +1789,20 @@ class DuelFieldNotifier extends _$DuelFieldNotifier {
         attackerZoneKey: from,
         defenderZoneKey: to,
         attackerName: attackerName,
-        defenderName: to == null ? null : state.fieldCards[to]?.name ?? '怪兽',
+        defenderName: to == null ? null : _fieldCardName(to),
+        // 宣言阶段即带上场上已知攻防（MSG_BATTLE 到达后以服务端数值
+        // 覆盖）：信息牌不再经过「ATK ?」占位期；里侧守备攻防本身
+        // 未知（null），维持 '?' 语义。
+        attackerAttack: attackerCard?.attack,
+        attackerDefense: attackerCard?.defense,
+        attackerPosition: attackerCard?.position,
+        defenderAttack: defenderCard?.attack,
+        defenderDefense: defenderCard?.defense,
+        defenderPosition: defenderCard?.position,
       ),
     );
     if (to != null) {
-      final targetName = state.fieldCards[to]?.name ?? '怪兽';
+      final targetName = _fieldCardName(to);
       addLog('$attackerName 攻击 $targetName。', player: msg.attacker.controller);
     } else {
       addLog('$attackerName 发动直接攻击。', player: msg.attacker.controller);
@@ -2011,18 +2073,18 @@ class DuelFieldNotifier extends _$DuelFieldNotifier {
         BattlePresentation(
           attackerZoneKey: attackerZoneKey,
           defenderZoneKey: defenderZoneKey,
-          attackerName: state.fieldCards[attackerZoneKey]?.name ?? '怪兽',
+          attackerName: _fieldCardName(attackerZoneKey),
           defenderName: defenderZoneKey == null
               ? null
-              : state.fieldCards[defenderZoneKey]?.name ?? '怪兽',
+              : _fieldCardName(defenderZoneKey),
         );
     final presentation = base.copyWith(
       attackerZoneKey: attackerZoneKey,
       defenderZoneKey: defenderZoneKey,
-      attackerName: state.fieldCards[attackerZoneKey]?.name ?? '怪兽',
+      attackerName: _fieldCardName(attackerZoneKey),
       defenderName: defenderZoneKey == null
           ? null
-          : state.fieldCards[defenderZoneKey]?.name ?? '怪兽',
+          : _fieldCardName(defenderZoneKey),
       attackerAttack: msg.attackerAttack,
       attackerDefense: msg.attackerDefense,
       attackerPosition: msg.attackerPosition,
