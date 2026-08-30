@@ -967,6 +967,19 @@ Expected: 无新增 error/warning 级问题。
 
 ---
 
+## 实施偏差记录（2026-08-30 执行时补记）
+
+1. **音效服务测试的平台依赖**:`ygo_sound_service_test.dart` 改为 mock
+   audioplayers 平台通道(`xyz.luan/audioplayers.global` 与
+   `xyz.luan/audioplayers`)后断言播放器创建;直接构造会抛
+   MissingPluginException 且以游离 async 错误形式传播,无法 expectLater 捕获。
+2. **持久化测试的惰性构建陷阱**:ProviderContainer 的 provider 是惰性构建,
+   必须显式 `read` 触发 build 后再等异步读盘,否则读到的是默认值。
+3. **弹窗测试可见高度**:新增「观战」区块后内容超出默认 800x600 测试
+   surface,tap 落空;相关 widget 测试统一加高 `tester.view.physicalSize`。
+4. **lint 清理**:router 的 ygo_settings 导入与 test 同名导入系
+   service_providers 再导出导致冗余,已删;`(_, __)` 改 `(_, _)`。
+
 ## Self-Review 记录
 
 - Spec 覆盖：设置契约两字段 ✓（Task 2）、持久化 ✓（Task 4-3a）、弹窗区块 ✓（Task 4-3b）、泵 jump/speedFactor ✓（Task 1）、suppress 静音 ✓（Task 3-3a/3b）、观战身份门控 ✓（Task 3-3b）、运行时设置生效 ✓（build 内 ref.listen）。
