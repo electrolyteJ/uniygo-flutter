@@ -74,7 +74,9 @@ class HomePage extends StatelessWidget {
             tooltip: '卡组中心（市场/我的卡组/组卡）',
             onPressed: () {
               ServiceSingleton.instance.ygoSoundService.playPageTransition();
-              context.go('/deck-square');
+              // push 而非 go：保留 home 在栈下，DeckHubPage 的 AppBar
+              // 自动出现返回按钮（go 会替换栈，导致无返回入口）。
+              context.push('/deck-square');
             },
           ),
           IconButton(

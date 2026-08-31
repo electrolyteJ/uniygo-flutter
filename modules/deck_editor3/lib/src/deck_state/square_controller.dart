@@ -27,7 +27,7 @@ class SquareState {
   final bool loading;
   final String? error;
 
-  static const pageSize = 20;
+  static const pageSize = 150;
 
   bool get hasMore => page * pageSize < total;
 

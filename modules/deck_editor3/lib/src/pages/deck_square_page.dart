@@ -112,25 +112,32 @@ class _DeckList extends ConsumerWidget {
         }
         return false;
       },
-      child: GridView.builder(
-        padding: const EdgeInsets.all(12),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 300,
-          childAspectRatio: 2.6,
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-        ),
-        itemCount: state.decks.length + (state.hasMore ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index >= state.decks.length) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(8),
-                child: CircularProgressIndicator(),
-              ),
-            );
-          }
-          return _DeckSquareTile(deck: state.decks[index]);
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // 固定列数（宽屏 2 列 / 窄屏 1 列）：格子宽度随窗口自动缩放，
+          // 不用 maxCrossAxisExtent 的固定像素上限。
+          final columns = constraints.maxWidth >= 700 ? 2 : 1;
+          return GridView.builder(
+            padding: const EdgeInsets.all(12),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              childAspectRatio: 2.0,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+            ),
+            itemCount: state.decks.length + (state.hasMore ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (index >= state.decks.length) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(8),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+              return _DeckSquareTile(deck: state.decks[index]);
+            },
+          );
         },
       ),
     );
@@ -159,19 +166,24 @@ class _DeckSquareTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFF1E3A55)),
         ),
-        padding: const EdgeInsets.all(10),
-        child: Row(
-          children: [
+        padding: const EdgeInsets.all(12),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // 封面高度取格子可用高度，宽度按实卡比例 59:86 缩放。
+            final coverHeight = constraints.maxHeight;
+            final coverWidth = coverHeight * 59 / 86;
+            return Row(
+              children: [
             // 封面卡图
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
               child: CardImage(
                 code: deck.coverCode ?? 0,
-                width: 52,
-                height: 76,
+                width: coverWidth,
+                height: coverHeight,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,43 +195,43 @@ class _DeckSquareTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 14,
+                      fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     deck.contributor,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white54,
-                      fontSize: 11,
+                      fontSize: 12,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Row(
                     children: [
                       const Icon(Icons.favorite,
-                          size: 12, color: Color(0xFFFF5A5A)),
+                          size: 14, color: Color(0xFFFF5A5A)),
                       const SizedBox(width: 3),
                       Text(
                         '${deck.likeCount}',
                         style: const TextStyle(
                           color: Colors.white70,
-                          fontSize: 11,
+                          fontSize: 12,
                         ),
                       ),
                       if (deck.rank > 0) ...[
                         const SizedBox(width: 8),
                         const Icon(Icons.emoji_events,
-                            size: 12, color: Color(0xFFFFD75A)),
+                            size: 14, color: Color(0xFFFFD75A)),
                         const SizedBox(width: 3),
                         Text(
                           '${deck.rank}',
                           style: const TextStyle(
                             color: Colors.white70,
-                            fontSize: 11,
+                            fontSize: 12,
                           ),
                         ),
                       ],
@@ -229,8 +241,10 @@ class _DeckSquareTile extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
+        );
+      },
+    ),
+    ),
+  );
   }
 }
