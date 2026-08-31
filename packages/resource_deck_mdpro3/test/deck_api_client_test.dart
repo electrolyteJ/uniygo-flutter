@@ -119,8 +119,9 @@ void main() {
       expect(first.coverCode, 60145298);
       expect(first.updatedAt, isNotNull);
 
-      // deckCoverCard1 为 0 时封面退回卡套 deckCase
-      expect(page.decks[1].coverCode, 1080001);
+      // deckCoverCard1 为 0 且只有卡套 deckCase 时：卡套非卡牌编号，
+      // 不作为封面卡图使用，coverCode 为 null（展示层渲染占位图）。
+      expect(page.decks[1].coverCode, isNull);
     });
 
     test('fetchDeckDetail 解析 deckYdk 卡表', () async {

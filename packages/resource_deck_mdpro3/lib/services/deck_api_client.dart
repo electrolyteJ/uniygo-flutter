@@ -387,10 +387,13 @@ class DeckApiClient {
         'description': r['description'] ?? '',
       };
 
-  /// 封面卡：优先 deckCoverCard1，为 0 时退回卡套（deckCase），与
-  /// YGOMobile 客户端展示逻辑一致。
+  /// 封面卡：优先 coverCode / deckCoverCard1（都是卡牌编号）。
+  ///
+  /// 注意：deckCase 是「卡套」饰品编号（非卡牌），其图片走独立 CDN，
+  /// 不能当作卡图 URL 使用（会 404 导致封面空白）。这里刻意不退回
+  /// deckCase；无封面卡的卡组返回 null，由展示层渲染占位图。
   static int? _coverOf(Map<String, dynamic> r) {
-    for (final key in const ['coverCode', 'deckCoverCard1', 'deckCase']) {
+    for (final key in const ['coverCode', 'deckCoverCard1']) {
       final v = r[key];
       if (v is int && v > 0) return v;
     }

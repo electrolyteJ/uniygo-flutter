@@ -167,14 +167,12 @@ class _DeckSquareTile extends StatelessWidget {
             final coverWidth = coverHeight * 59 / 86;
             return Row(
               children: [
-            // 封面卡图
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: CardImage(
-                code: deck.coverCode ?? 0,
-                width: coverWidth,
-                height: coverHeight,
-              ),
+            // 封面卡图；无封面卡时显示占位（deckCase 卡套非卡牌，
+            // 不再被当作卡图 code 渲染，避免 404 空白）。
+            _DeckCover(
+              code: deck.coverCode,
+              width: coverWidth,
+              height: coverHeight,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -239,5 +237,41 @@ class _DeckSquareTile extends StatelessWidget {
     ),
     ),
   );
+  }
+}
+
+/// 封面缩略图：有封面卡时渲染卡图；无封面（coverCode == null，只有卡套）
+/// 时显示中性占位，避免把卡套编号当卡图 code 渲染出 404 空白。
+class _DeckCover extends StatelessWidget {
+  const _DeckCover({this.code, required this.width, required this.height});
+
+  final int? code;
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = code;
+    if (c == null) {
+      return Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1E3A55), Color(0xFF0E1626)],
+          ),
+        ),
+        child: const Center(
+          child: Icon(Icons.style, color: Colors.white24, size: 22),
+        ),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: CardImage(code: c, width: width, height: height),
+    );
   }
 }
