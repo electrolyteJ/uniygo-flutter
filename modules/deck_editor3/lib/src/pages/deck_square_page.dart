@@ -112,32 +112,25 @@ class _DeckList extends ConsumerWidget {
         }
         return false;
       },
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // 固定列数（宽屏 2 列 / 窄屏 1 列）：格子宽度随窗口自动缩放，
-          // 不用 maxCrossAxisExtent 的固定像素上限。
-          final columns = constraints.maxWidth >= 700 ? 2 : 1;
-          return GridView.builder(
-            padding: const EdgeInsets.all(12),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              childAspectRatio: 2.0,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-            ),
-            itemCount: state.decks.length + (state.hasMore ? 1 : 0),
-            itemBuilder: (context, index) {
-              if (index >= state.decks.length) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(8),
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-              }
-              return _DeckSquareTile(deck: state.decks[index]);
-            },
-          );
+      child: GridView.builder(
+        padding: const EdgeInsets.all(12),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 6,
+          childAspectRatio: 2.0,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+        ),
+        itemCount: state.decks.length + (state.hasMore ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index >= state.decks.length) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(8),
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+          return _DeckSquareTile(deck: state.decks[index]);
         },
       ),
     );

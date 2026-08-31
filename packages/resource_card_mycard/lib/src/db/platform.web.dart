@@ -19,7 +19,7 @@ Future<void> ensureDao(EnvType envType) async {
 
 Future<void> initDatabase(String dbPath) async {
   final _database = CardDatabase.instance;
-  console.log('Opening database at $dbPath ${_database.rawdb?.isOpen}');
+  // console.log('Opening database at $dbPath ${_database.rawdb?.isOpen}');
   if (_database.rawdb != null) return;
   databaseFactory = databaseFactoryFfiWeb;
   // 2. 检查并从 assets 复制数据库到虚拟文件系统

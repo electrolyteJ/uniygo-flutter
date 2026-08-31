@@ -9,7 +9,6 @@ import 'card_database.dart';
 import '../httper.dart';
 
 Future<File> _dbPath() async {
-  console.log('Getting database path...');
   final dir = await getApplicationDocumentsDirectory();
   final path = '${dir.path}/cards.cdb';
   return File(path);
@@ -55,7 +54,7 @@ Future<void> preDownloadDatabase() async {
 /// subsequent calls are a no-op.
 Future<void> initDatabase(String dbPath) async {
   final _database = CardDatabase.instance;
-  console.log('Opening database at $dbPath ${_database.rawdb?.isOpen}');
+  // console.log('Opening database at $dbPath ${_database.rawdb?.isOpen}');
   if (_database.rawdb != null) return;
   sqfliteFfiInit();
   databaseFactory = databaseFactoryFfi;
