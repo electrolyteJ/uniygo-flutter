@@ -22,11 +22,11 @@ import 'package:duel_room1/field/components/phase_rail/phase_rail_layout.dart';
 /// Flame 侧不订阅任何 Provider（渲染循环与状态管理解耦）。
 class DuelFlameGame extends FlameGame<DuelFieldWorld>
     with MouseMovementDetector {
-  /// 阶段轨道（右侧垂直阶段按钮列，含末端阶段菜单按钮）的组件尺寸，
-  /// 锚点上报用同一几何。
+  /// 阶段轨道（右侧垂直阶段按钮列，含顶端投降按钮、顶部回合徽章与
+  /// 末端阶段菜单按钮）的组件尺寸，锚点上报用同一几何。
   static final _phaseRailSize = Size(
     PhaseRailLayout.turnBadgeWidth + 20,
-    PhaseRailLayout.heightWithBadgeAndButton + 20,
+    PhaseRailLayout.heightWithSurrenderBadgeAndButton + 20,
   );
 
   /// 沉浸式布局参数：把卡槽阵列在「扣除 HUD 的可见区」内最大化铺满。
@@ -54,6 +54,12 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   final void Function(String zoneKey)? onZoneInspect;
   final VoidCallback? onPhaseLampTap;
   final bool Function()? isPhaseLampEnabled;
+
+  /// 阶段轨道顶端「投降」按钮的点击回调（页面侧弹确认框）。
+  final VoidCallback? onSurrenderTap;
+
+  /// 投降按钮可用性判定（对局中且非观战，页面注入）。
+  final bool Function()? isSurrenderEnabled;
 
   /// 点击可放置槽位（MSG_SELECT_PLACE）的回调（槽位 key 为
   /// `controller_zone_sequence`）。
@@ -91,6 +97,8 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     this.onZoneInspect,
     this.onPhaseLampTap,
     this.isPhaseLampEnabled,
+    this.onSurrenderTap,
+    this.isSurrenderEnabled,
     this.onPlaceSlotTap,
     this.onHandCardTap,
     this.onAnchorsChanged,

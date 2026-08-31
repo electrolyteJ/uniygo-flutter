@@ -54,6 +54,8 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
     _phaseRail = PhaseRailComponent(
       onTap: game.onPhaseLampTap,
       enabledGetter: game.isPhaseLampEnabled,
+      onSurrenderTap: game.onSurrenderTap,
+      surrenderEnabledGetter: game.isSurrenderEnabled,
     );
     add(_phaseRail!);
     // 场地中央计时器 + 左侧玩家状态卡：直读快照渲染，无需重建触发。

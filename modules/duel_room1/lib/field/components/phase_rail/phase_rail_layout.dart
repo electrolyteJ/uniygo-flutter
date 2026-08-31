@@ -72,6 +72,29 @@ class PhaseRailLayout {
   /// 徽章上沿（组件尺寸/底板覆盖范围用）。
   static double get turnBadgeTop => turnBadgeCenterY - turnBadgeHeight / 2;
 
+  // ── 投降按钮（回合徽章上方，轨道最顶端）──
+  // 位置语义：轨道上唯一的点击区是底部的 ≡ 菜单按钮；投降是危险操作，
+  // 放在离 ≡ 最远的轨道顶端，避免误触。
+  /// 按钮尺寸：与胶囊同宽，容纳「投降」二字。
+  static const surrenderButtonWidth = pillWidth;
+  static const surrenderButtonHeight = 22.0;
+
+  /// 投降按钮与回合徽章的纵向间距。
+  static const surrenderButtonGap = 8.0;
+
+  /// 投降按钮中心 y（胶囊区以 centerY 居中，徽章挂其上方，
+  /// 投降按钮再挂徽章上方）。
+  static double get surrenderButtonCenterY =>
+      turnBadgeTop - surrenderButtonGap - surrenderButtonHeight / 2;
+
+  /// 投降按钮上沿（组件尺寸/底板覆盖范围用）。
+  static double get surrenderButtonTop =>
+      surrenderButtonCenterY - surrenderButtonHeight / 2;
+
+  /// 含投降按钮、回合徽章与末端按钮的轨道总高（组件尺寸用）。
+  static double get heightWithSurrenderBadgeAndButton =>
+      surrenderButtonHeight + surrenderButtonGap + heightWithBadgeAndButton;
+
   // ── 阶段操作菜单按钮（EP 胶囊下方）──
   /// 按钮尺寸：与胶囊同宽，略高以容纳图标与呼吸辉光。
   static const actionButtonWidth = pillWidth;
@@ -92,13 +115,16 @@ class PhaseRailLayout {
   static double get heightWithBadgeAndButton =>
       turnBadgeHeight + turnBadgeGap + heightWithButton; // 22+8+180 = 210
 
-  /// 徽章块与按钮块引入的组件中心净下移量：胶囊区保持以 centerY 居中。
-  /// 徽章块（8+22=30）与按钮块（8+22=30）等大，净值为 0——
-  /// 组件几何中心即胶囊区中心。
+  /// 顶部附件（徽章块 + 投降块）与底部附件（按钮块）引入的组件中心
+  /// 净下移量：胶囊区保持以 centerY 居中。
+  /// 上方 30+30=60，下方 30，净上移 15（负值）。
   static double get actionButtonShift =>
       ((actionButtonGap + actionButtonHeight) -
-          (turnBadgeGap + turnBadgeHeight)) /
-      2; // 0
+          (turnBadgeGap +
+              turnBadgeHeight +
+              surrenderButtonGap +
+              surrenderButtonHeight)) /
+      2; // -15
 
   /// 轨道左/右端外沿取大者：右为轨道右沿，左为左侧玩家状态卡外沿
   /// （几何见 player_status_layout.dart）。

@@ -266,6 +266,18 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       _board.currentPlayer == _board.myController &&
       ref.read(phaseActionsProvider).isNotEmpty;
 
+  /// 投降按钮（阶段轨道顶端）可用性：对局进行中且非观战。
+  /// 用 ref.read：会被 Flame 侧 isSurrenderEnabled 回调在 build 外调用。
+  bool _canSurrender() =>
+      _board.duelResult == null &&
+      ref.read(duelRoomProvider).selfType.isDuelist;
+
+  /// 投降按钮点击：确认弹窗 → surrender()；不导航，结算由 MSG_WIN 接管。
+  void _handleSurrenderTap() {
+    if (!_canSurrender()) return;
+    showSurrenderConfirmDialog(context: context, ref: ref);
+  }
+
   DuelFlameGame _ensureFlameGame() {
     final existing = _flameGame;
     if (existing != null) return existing;
@@ -274,6 +286,8 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       onZoneInspect: handleZoneInspect,
       onPhaseLampTap: togglePhaseMenu,
       isPhaseLampEnabled: _canTapPhaseLamp,
+      onSurrenderTap: _handleSurrenderTap,
+      isSurrenderEnabled: _canSurrender,
       onPlaceSlotTap: (key) => _selectN.respondSelectPlaceKey(key),
       onHandCardTap: handleHandCardTap,
       onAnchorsChanged: _handleAnchorsChanged,

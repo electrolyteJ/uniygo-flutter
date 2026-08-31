@@ -10,15 +10,18 @@ import 'package:duel_room1/field/components/phase_rail/phase_rail_layout.dart';
 
 /// 阶段轨道：棋盘右侧的垂直阶段按钮列（DP/SP/M1/BP/M2/EP），
 /// 顶部（DP 上方）挂回合徽章（T{n} · 我方/对方），
-/// 末端（EP 下方）挂一个阶段操作菜单按钮（≡）。
+/// 末端（EP 下方）挂一个阶段操作菜单按钮（≡），
+/// 最顶端（回合徽章上方）挂投降按钮——危险操作远离 ≡ 点击区。
 ///
 /// 视觉语义：
 /// - 已过阶段：青色淡填充（本回合已走过的流程）；
 /// - 当前阶段：发光胶囊（纯展示，不可点击）；
 /// - 未到阶段：暗色空心；
 /// - idle（回合间隙）：全部按未到处理；
-/// - 末端按钮（≡）：阶段菜单的唯一点击入口，可点击时呼吸发光；
+/// - 末端按钮（≡）：阶段菜单入口，可点击时呼吸发光；
 ///   胶囊区域不响应点击。
+/// - 顶端投降按钮：红色系（危险操作），可用时红色呼吸辉光；
+///   观战/已结束暗色禁用。
 ///
 /// 几何全部来自 [PhaseRailLayout]（纯数据，单测锁定与相机内容宽度的
 /// 关系）；组件尺寸固定，duel_flame_game 的菜单锚点按同一几何上报。
@@ -26,6 +29,12 @@ class PhaseRailComponent extends PositionComponent
     with TapCallbacks, HasWorldReference<DuelFieldWorld> {
   final VoidCallback? onTap;
   final bool Function()? enabledGetter;
+
+  /// 投降按钮点击回调（页面侧弹确认框后 surrender）。
+  final VoidCallback? onSurrenderTap;
+
+  /// 投降按钮可用性（对局中且非观战，页面注入）。
+  final bool Function()? surrenderEnabledGetter;
 
   /// 当前阶段（经游戏快照读取，widget 层推送）。
   DuelPhase get _phase => world.game.snapshot.phase;
@@ -98,20 +107,26 @@ class PhaseRailComponent extends PositionComponent
   );
 
   bool _enabled = false;
+  bool _surrenderEnabled = false;
   double _time = 0;
 
   /// 上次投影位置标量：未变则不重新赋值（同 PhaseLamp 时代的优化）。
   double _lastAnchorX = double.nan;
   double _lastAnchorY = double.nan;
 
-  PhaseRailComponent({this.onTap, this.enabledGetter})
-    : super(
-        anchor: Anchor.center,
-        size: Vector2(
-          PhaseRailLayout.turnBadgeWidth + _haloMargin * 2,
-          PhaseRailLayout.heightWithBadgeAndButton + _haloMargin * 2,
-        ),
-      );
+  PhaseRailComponent({
+    this.onTap,
+    this.enabledGetter,
+    this.onSurrenderTap,
+    this.surrenderEnabledGetter,
+  }) : super(
+         anchor: Anchor.center,
+         size: Vector2(
+           PhaseRailLayout.turnBadgeWidth + _haloMargin * 2,
+           PhaseRailLayout.heightWithSurrenderBadgeAndButton +
+               _haloMargin * 2,
+         ),
+       );
 
   @override
   Future<void> onLoad() async {
@@ -129,6 +144,7 @@ class PhaseRailComponent extends PositionComponent
 
   void _refreshEnabled() {
     _enabled = enabledGetter?.call() ?? false;
+    _surrenderEnabled = surrenderEnabledGetter?.call() ?? false;
   }
 
   void _syncPosition() {
@@ -164,12 +180,13 @@ class PhaseRailComponent extends PositionComponent
     final count = PhaseRailLayout.phases.length;
     final currentIndex = PhaseRailLayout.orderIndex(_phase);
 
-    // 1. 整条轨道的底板（含顶部徽章与末端按钮区，提升在棋盘上的可读性）。
+    // 1. 整条轨道的底板（含顶端投降按钮/顶部徽章与末端按钮区，
+    // 提升在棋盘上的可读性）。
     final dockRect = RRect.fromRectAndRadius(
       Rect.fromCenter(
         center: Offset(0, PhaseRailLayout.actionButtonShift),
         width: PhaseRailLayout.turnBadgeWidth + 8,
-        height: PhaseRailLayout.heightWithBadgeAndButton + 8,
+        height: PhaseRailLayout.heightWithSurrenderBadgeAndButton + 8,
       ),
       const Radius.circular(14),
     );
@@ -223,7 +240,69 @@ class PhaseRailComponent extends PositionComponent
     // 5. 末端阶段操作菜单按钮（≡）。
     _renderActionButton(canvas);
 
+    // 6. 最顶端投降按钮（徽章上方，远离 ≡ 点击区）。
+    _renderSurrenderButton(canvas);
+
     canvas.restore();
+  }
+
+  // 危险操作红色系（与青色 chrome 区分）。
+  static const _danger = Color(0xFFFF4B5C);
+
+  static final _surrenderDisabledTextPaint = TextPaint(
+    style: TextStyle(
+      color: Colors.white.withValues(alpha: 0.30),
+      fontSize: 10,
+      fontWeight: FontWeight.w900,
+      fontFamily: 'Noto Sans SC',
+    ),
+  );
+  static final _surrenderEnabledTextPaint = TextPaint(
+    style: const TextStyle(
+      color: _danger,
+      fontSize: 10,
+      fontWeight: FontWeight.w900,
+      fontFamily: 'Noto Sans SC',
+    ),
+  );
+
+  /// 投降按钮：可用时红色呼吸辉光 + 红边红字；观战/已结束暗色降级。
+  void _renderSurrenderButton(Canvas canvas) {
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(0, PhaseRailLayout.surrenderButtonCenterY),
+        width: PhaseRailLayout.surrenderButtonWidth,
+        height: PhaseRailLayout.surrenderButtonHeight,
+      ),
+      const Radius.circular(PhaseRailLayout.surrenderButtonHeight / 2),
+    );
+    if (_surrenderEnabled) {
+      final pulse = 0.30 + 0.20 * sin(_time * 3.2);
+      canvas.drawRRect(
+        rect,
+        _currentGlowPaint..color = _danger.withValues(alpha: pulse),
+      );
+      canvas.drawRRect(rect, _currentFillPaint);
+      canvas.drawRRect(
+        rect,
+        Paint()
+          ..color = _danger
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6,
+      );
+    } else {
+      canvas.drawRRect(rect, _futureFillPaint);
+      canvas.drawRRect(rect, _futureBorderPaint);
+    }
+    (_surrenderEnabled
+            ? _surrenderEnabledTextPaint
+            : _surrenderDisabledTextPaint)
+        .render(
+      canvas,
+      '投降',
+      Vector2(0, PhaseRailLayout.surrenderButtonCenterY),
+      anchor: Anchor.center,
+    );
   }
 
   static final _turnTextSelfPaint = TextPaint(
@@ -361,22 +440,39 @@ class PhaseRailComponent extends PositionComponent
     );
   }
 
+  /// 把按钮的世界 y 中心换算成组件本地 y（渲染时反向平移了
+  /// actionButtonShift，命中区做同一换算）。
+  double _localCenterY(double worldCenterY) =>
+      size.y / 2 - PhaseRailLayout.actionButtonShift + worldCenterY;
+
+  bool _inRect(Vector2 p, double worldCenterY, double width, double height) {
+    return (p.x - size.x / 2).abs() <= width / 2 &&
+        (p.y - _localCenterY(worldCenterY)).abs() <= height / 2;
+  }
+
   @override
   void onTapDown(TapDownEvent event) {
-    // 仅末端「阶段菜单」按钮响应点击：阶段胶囊纯展示，不弹菜单。
-    if (!_enabled) return;
-    final buttonCenter = Vector2(
-      size.x / 2,
-      size.y / 2 -
-          PhaseRailLayout.actionButtonShift +
-          PhaseRailLayout.actionButtonCenterY,
-    );
+    // 仅两个按钮响应点击：末端「阶段菜单」（≡）与最顶端「投降」；
+    // 阶段胶囊纯展示，不弹菜单。两按钮命中区独立判定、各自有开关。
     final p = event.localPosition;
-    final inButton =
-        (p.x - buttonCenter.x).abs() <=
-            PhaseRailLayout.actionButtonWidth / 2 &&
-        (p.y - buttonCenter.y).abs() <=
-            PhaseRailLayout.actionButtonHeight / 2;
-    if (inButton) onTap?.call();
+    if (_enabled &&
+        _inRect(
+          p,
+          PhaseRailLayout.actionButtonCenterY,
+          PhaseRailLayout.actionButtonWidth,
+          PhaseRailLayout.actionButtonHeight,
+        )) {
+      onTap?.call();
+      return;
+    }
+    if (_surrenderEnabled &&
+        _inRect(
+          p,
+          PhaseRailLayout.surrenderButtonCenterY,
+          PhaseRailLayout.surrenderButtonWidth,
+          PhaseRailLayout.surrenderButtonHeight,
+        )) {
+      onSurrenderTap?.call();
+    }
   }
 }

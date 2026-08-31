@@ -85,15 +85,17 @@ void main() {
           1e-9,
         ),
       );
-      // 组件中心净下移量 = 按钮块与徽章块的差值（两者等大 → 0，
-      // 胶囊区保持居中棋盘中线）。
+      // 组件中心净偏移 =（底部按钮块 − 顶部徽章块 − 顶部投降块）/ 2：
+      // 上方 60、下方 30 → 净上移 15，胶囊区保持居中棋盘中线。
       expect(
         PhaseRailLayout.actionButtonShift,
         closeTo(
           ((PhaseRailLayout.actionButtonGap +
                       PhaseRailLayout.actionButtonHeight) -
                   (PhaseRailLayout.turnBadgeGap +
-                      PhaseRailLayout.turnBadgeHeight)) /
+                      PhaseRailLayout.turnBadgeHeight +
+                      PhaseRailLayout.surrenderButtonGap +
+                      PhaseRailLayout.surrenderButtonHeight)) /
               2,
           1e-9,
         ),
@@ -125,6 +127,36 @@ void main() {
       );
       // 徽章上沿不超出相机内容高度（510 的一半）。
       expect(-PhaseRailLayout.turnBadgeTop, lessThan(255));
+    });
+
+    test('投降按钮挂在回合徽章上方（轨道最顶端）且不越界', () {
+      // 投降按钮在徽章之上、互不重叠。
+      final surrenderBottom =
+          PhaseRailLayout.surrenderButtonCenterY +
+          PhaseRailLayout.surrenderButtonHeight / 2;
+      expect(surrenderBottom, lessThan(PhaseRailLayout.turnBadgeTop));
+      // 含投降按钮总高 = 投降块 + 徽章块 + 胶囊区与按钮。
+      expect(
+        PhaseRailLayout.heightWithSurrenderBadgeAndButton,
+        closeTo(
+          PhaseRailLayout.surrenderButtonHeight +
+              PhaseRailLayout.surrenderButtonGap +
+              PhaseRailLayout.heightWithBadgeAndButton,
+          1e-9,
+        ),
+      );
+      // 投降按钮上沿即轨道内容顶沿：-总高/2 + 组件净偏移
+      // （-240/2 + (-15) = -135）。
+      expect(
+        PhaseRailLayout.surrenderButtonTop,
+        closeTo(
+          -PhaseRailLayout.heightWithSurrenderBadgeAndButton / 2 +
+              PhaseRailLayout.actionButtonShift,
+          1e-9,
+        ),
+      );
+      // 投降按钮不超出相机内容高度（510 的一半）。
+      expect(-PhaseRailLayout.surrenderButtonTop, lessThan(255));
     });
 
     test('内容宽度同时覆盖右侧轨道与左侧状态卡', () {

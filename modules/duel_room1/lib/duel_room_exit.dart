@@ -39,6 +39,39 @@ void backHomeDialog({
   );
 }
 
+/// 投降确认弹窗（阶段轨道顶端「投降」按钮）。
+///
+/// 与 [backHomeDialog] 的区别：只发送 CTOS_SURRENDER，不做离房导航——
+/// 服务器回 MSG_WIN 后由结算弹窗接管展示，「返回首页」走结算弹窗的出口。
+void showSurrenderConfirmDialog({
+  required BuildContext context,
+  required WidgetRef ref,
+}) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('确认投降？'),
+      content: const Text('投降将立即判负并结束本局决斗。'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('取消'),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+            // 只认输不退出：surrender() 把 CTOS_SURRENDER 写入发送缓冲，
+            // 服务器判负后下发 MSG_WIN，结算弹窗按既有逻辑挂载。
+            ref.read(duelServiceProvider).surrender();
+          },
+          style: TextButton.styleFrom(foregroundColor: Colors.red),
+          child: const Text('投降'),
+        ),
+      ],
+    ),
+  );
+}
+
 /// 意外断连（服务器关闭/网络重置/被踢）时的页面内提醒弹窗。
 ///
 /// 与 [backHomeDialog] 的区别：这不是用户主动退出，不弹确认框——
