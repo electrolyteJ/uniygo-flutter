@@ -7,7 +7,6 @@ import 'package:provider/provider.dart' as provider;
 import 'package:resource_data/deck_info.dart';
 import 'package:resource_deck_mdpro3/services/deck_api_client.dart';
 
-import '../deck_state/editor_controller.dart';
 import '../deck_state/my_decks_controller.dart';
 import 'deck_editor_page.dart';
 
@@ -68,10 +67,9 @@ class MyDecksPage extends ConsumerWidget {
   Future<void> _newDeck(BuildContext context, WidgetRef ref) async {
     final name = await _askText(context, '新建卡组', '卡组名');
     if (name == null || name.trim().isEmpty) return;
-    final editor = ref.read(editorControllerProvider.notifier);
-    editor.newDeck();
-    editor.rename(name.trim());
-    if (context.mounted) _openEditor(context);
+    if (context.mounted) {
+      _openEditor(context, DeckInfo(deckName: name.trim()));
+    }
   }
 
   Future<void> _importYdk(BuildContext context, WidgetRef ref) async {
@@ -116,10 +114,10 @@ class MyDecksPage extends ConsumerWidget {
     }
   }
 
-  static void _openEditor(BuildContext context) {
+  static void _openEditor(BuildContext context, DeckInfo deck) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => const ProviderScope(child: DeckEditor3Page()),
+        builder: (_) => ProviderScope(child: DeckEditor3Page(initialDeck: deck)),
       ),
     );
   }
@@ -210,8 +208,7 @@ class _DeckListTile extends ConsumerWidget {
           ],
         ),
         onTap: () {
-          ref.read(editorControllerProvider.notifier).loadDeck(deck);
-          MyDecksPage._openEditor(context);
+          MyDecksPage._openEditor(context, deck);
         },
       ),
     );

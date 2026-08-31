@@ -14,11 +14,17 @@ class DeckZoneGrid extends StatelessWidget {
     this.onCardTap,
     this.onCardLongPress,
     this.cardBuilder,
+    this.cardWidth = 56,
+    this.cardHeight = 82,
   });
 
   final String title;
   final List<DeckCard> cards;
   final Color accent;
+
+  /// 卡片缩略图尺寸（详情页可传入更大尺寸以便看清）。
+  final double cardWidth;
+  final double cardHeight;
 
   /// 点卡回调（编辑器里 = 减卡；详情页 = 看详情）。
   final void Function(int code)? onCardTap;
@@ -62,6 +68,8 @@ class DeckZoneGrid extends StatelessWidget {
                   onTap: onCardTap,
                   onLongPress: onCardLongPress,
                   badge: cardBuilder?.call(card),
+                  width: cardWidth,
+                  height: cardHeight,
                 ),
             ],
           ),
@@ -76,12 +84,16 @@ class _ZoneCardTile extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.badge,
+    this.width = 56,
+    this.height = 82,
   });
 
   final DeckCard card;
   final void Function(int code)? onTap;
   final void Function(int code)? onLongPress;
   final Widget? badge;
+  final double width;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +106,7 @@ class _ZoneCardTile extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: CardImage(code: card.code, width: 56, height: 82),
+            child: CardImage(code: card.code, width: width, height: height),
           ),
           // 数量角标
           if (card.count > 1)

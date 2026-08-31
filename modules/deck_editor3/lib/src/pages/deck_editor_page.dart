@@ -3,6 +3,7 @@ import 'package:biz/widgets/card_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resource_data/card_info.dart';
+import 'package:resource_data/deck_info.dart';
 
 import '../deck_state/editor_controller.dart';
 import '../deck_state/editor_rules.dart';
@@ -14,7 +15,10 @@ import '../widgets/deck_zone_grid.dart';
 /// - 中栏卡组：主/额外/副三区网格，点卡减卡，计数与校验实时显示
 /// - 右栏详情：当前选中卡大图 + 效果文本（点任意卡更新）
 class DeckEditor3Page extends ConsumerStatefulWidget {
-  const DeckEditor3Page({super.key});
+  const DeckEditor3Page({super.key, this.initialDeck});
+
+  /// 进入编辑器时载入的卡组；为空表示新建空白卡组。
+  final DeckInfo? initialDeck;
 
   @override
   ConsumerState<DeckEditor3Page> createState() => _DeckEditor3PageState();
@@ -23,7 +27,20 @@ class DeckEditor3Page extends ConsumerStatefulWidget {
 class _DeckEditor3PageState extends ConsumerState<DeckEditor3Page> {
   final _searchController = TextEditingController();
   CardInfo? _focusedCard;
-  DeckZone _activeZone = DeckZone.main;
+
+  @override
+  void initState() {
+    super.initState();
+    final deck = widget.initialDeck;
+    if (deck != null) {
+      // 编辑器自带独立 ProviderScope，其 editorControllerProvider 与「我的卡组」
+      // 页不在同一作用域，因此通过构造参数传入卡组，并在首帧后载入。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(editorControllerProvider.notifier).loadDeck(deck);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -165,30 +182,6 @@ class _DeckEditor3PageState extends ConsumerState<DeckEditor3Page> {
     final deck = state.deck;
     return Column(
       children: [
-        // 分区 Tab
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: SegmentedButton<DeckZone>(
-            segments: [
-              ButtonSegment(
-                value: DeckZone.main,
-                label: Text('主 ${deck.zoneCount(DeckZone.main)}/60'),
-              ),
-              ButtonSegment(
-                value: DeckZone.extra,
-                label: Text('额外 ${deck.zoneCount(DeckZone.extra)}/15'),
-              ),
-              ButtonSegment(
-                value: DeckZone.side,
-                label: Text('副 ${deck.zoneCount(DeckZone.side)}/15'),
-              ),
-            ],
-            selected: {_activeZone},
-            showSelectedIcon: false,
-            onSelectionChanged: (s) =>
-                setState(() => _activeZone = s.first),
-          ),
-        ),
         // 校验错误条
         if (state.hasErrors)
           Container(
@@ -210,26 +203,30 @@ class _DeckEditor3PageState extends ConsumerState<DeckEditor3Page> {
           child: ListView(
             padding: const EdgeInsets.all(10),
             children: [
-              DeckZoneGrid(
-                title: switch (_activeZone) {
-                  DeckZone.main => '主卡组',
-                  DeckZone.extra => '额外卡组',
-                  DeckZone.side => '副卡组',
-                },
-                cards: deck.zoneOf(_activeZone),
-                onCardTap: (code) {
-                  controller.removeCard(code, _activeZone);
-                },
-                onCardLongPress: (code) {
-                  final info = ServiceSingleton.instance.dataService
-                      .getCardCached(code);
-                  if (info != null) setState(() => _focusedCard = info);
-                },
-              ),
+              _buildZone(controller, deck, DeckZone.main, '主卡组'),
+              _buildZone(controller, deck, DeckZone.extra, '额外卡组'),
+              _buildZone(controller, deck, DeckZone.side, '副卡组'),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildZone(
+    EditorController controller,
+    DeckEditState deck,
+    DeckZone zone,
+    String title,
+  ) {
+    return DeckZoneGrid(
+      title: title,
+      cards: deck.zoneOf(zone),
+      onCardTap: (code) => controller.removeCard(code, zone),
+      onCardLongPress: (code) {
+        final info = ServiceSingleton.instance.dataService.getCardCached(code);
+        if (info != null) setState(() => _focusedCard = info);
+      },
     );
   }
 
