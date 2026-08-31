@@ -184,13 +184,22 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     });
     ref.listen(duelRoomProvider.select((s) => s.stage), (prev, next) {
       if (prev is! RoomNotJoined && next is RoomNotJoined) {
+        // MSG_WIN 可能还排在节奏泵队列里（观战/爆发积压，服务器在关
+        // 连接前的最后一个 TCP 段才发结果）：hasPendingWin 把它算作
+        // 已有结果，否则正常结算会被误判成意外断连。
+        final router = ref.read(duelMessageRouterProvider.notifier);
+        final hasResult = ref.read(duelFieldProvider).duelResult != null ||
+            router.hasPendingWin;
         // 决斗刚结束就被断开（AI 对决的本地服务端在 MSG_WIN 后立即
         // 关连接）：停留展示结算 overlay，导航由其「返回首页」按钮触发。
         if (shouldHoldForDuelResult(
           prev: prev,
           next: next,
-          hasDuelResult: ref.read(duelFieldProvider).duelResult != null,
+          hasDuelResult: hasResult,
         )) {
+          // 同步静音排空泵积压：duelResult 立即落位，结算 overlay
+          // 直接展示终局，不再播断连后的「鬼魂动画」。
+          router.flushPendingMessages();
           return;
         }
         // 意外断连（对局中被服务器断开/网络重置）：停留并弹窗提醒，
@@ -199,7 +208,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
           prev: prev,
           next: next,
           isLeaving: ref.read(duelRoomProvider.notifier).isLeaving,
-          hasDuelResult: ref.read(duelFieldProvider).duelResult != null,
+          hasDuelResult: hasResult,
         )) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!context.mounted || _disconnectDialogOpen) return;

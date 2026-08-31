@@ -63,18 +63,26 @@ class MessagePump<T> {
     if (jumpToCurrent && _queue.length > kJumpBacklogThreshold) {
       // 跳到当前局面：取消节奏，同步静音清空积压；随后排一个冷却窗口，
       // 避免爆发中后续消息穿透直通（每条都带音效就乱了）。
-      _timer?.cancel();
-      while (_queue.isNotEmpty && !_disposed) {
-        _consumeOne(_queue.removeFirst(), silent: true);
-      }
-      if (_disposed) {
-        _queue.clear();
-        return;
-      }
+      flushSilent();
+      if (_disposed) return;
       _timer = Timer(intervalForBacklog(1), _drainOne);
       return;
     }
     if (_timer == null) _drainOne();
+  }
+
+  /// 同步静音排空全部积压：取消节奏定时器，队列逐条 silent 消费完。
+  ///
+  /// 两个用途：观战「跳到当前局面」的追平清场；断连结算收尾——
+  /// 服务器在关连接前的最后一个 TCP 段里发了 MSG_WIN 时，不等节奏
+  /// 泵慢慢排空，直接落位到终局状态（duelResult 立即可读）。
+  void flushSilent() {
+    _timer?.cancel();
+    _timer = null;
+    while (_queue.isNotEmpty && !_disposed) {
+      _consumeOne(_queue.removeFirst(), silent: true);
+    }
+    if (_disposed) _queue.clear();
   }
 
   /// 丢弃全部待消费消息并停止调度（MSG_START 局间切换清上局残留）。

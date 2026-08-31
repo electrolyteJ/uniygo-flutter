@@ -204,5 +204,40 @@ void main() {
         expect(consumed, [0], reason: 'dispose 后入队应被忽略');
       });
     });
+
+    test('flushSilent 同步静音排空积压，且不残留定时器', () {
+      fakeAsync((async) {
+        final consumed = <int>[];
+        final silents = <bool>[];
+        final pump = MessagePump<int>(
+          consume: (m, {required bool silent}) {
+            consumed.add(m);
+            silents.add(silent);
+          },
+        );
+
+        pump.enqueue(0); // 直通（有声）
+        for (var i = 1; i < 50; i++) {
+          pump.enqueue(i); // 冷却窗口内 → 排队
+        }
+        expect(consumed, [0]);
+
+        pump.flushSilent();
+        expect(consumed.length, 50, reason: '全部积压应同步消费完');
+        expect(silents.sublist(1).every((s) => s), isTrue,
+            reason: 'flush 消费一律静音');
+        expect(pump.pendingCount, 0);
+
+        // 无残留定时器：elapse 不应再消费，fakeAsync 收尾也不报 pending Timer。
+        async.elapse(const Duration(seconds: 10));
+        expect(consumed.length, 50);
+
+        // 排空后泵仍可用：新消息照常直通。
+        pump.enqueue(100);
+        expect(consumed.last, 100);
+        expect(silents.last, isFalse);
+        pump.dispose();
+      });
+    });
   });
 }

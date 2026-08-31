@@ -41,6 +41,25 @@ class DuelMessageRouter extends _$DuelMessageRouter {
   /// 「跳到当前局面」仅观战局生效，玩家对局的开局爆发不应被静默吞掉。
   bool _isObserverDuel = false;
 
+  /// 节奏泵队列里是否有尚未消费的 MSG_WIN。
+  ///
+  /// AI 服务端常在关连接前的最后一个 TCP 段里才发结果：stage 流
+  /// （不经过泵）已瞬时跳 RoomDuelEnded → RoomNotJoined，而 MSG_WIN
+  /// 还在泵里排队，duelResult 尚未写入。房间页的断连出口判定
+  /// （shouldHoldForDuelResult / shouldPromptDisconnect）必须把这个
+  /// 「已在途中」的结果算上，否则正常结算被误判成意外断连。
+  bool _hasPendingWin = false;
+
+  /// 泵队列中是否有待消费的 MSG_WIN（见 [_hasPendingWin]）。
+  bool get hasPendingWin => _hasPendingWin;
+
+  /// 断连结算收尾：把泵里排队的消息同步静音消费完（含 MSG_WIN），
+  /// 终局状态（duelResult 等）立即落位，结算弹窗不用等节奏泵排空，
+  /// 也不播断连后的「鬼魂动画」。
+  void flushPendingMessages() {
+    _pump?.flushSilent();
+  }
+
   DuelFieldState get _board => ref.read(duelFieldProvider);
   DuelFieldNotifier get _boardN => ref.read(duelFieldProvider.notifier);
   SelectWindowNotifier get _selectN => ref.read(selectWindowProvider.notifier);
@@ -75,6 +94,7 @@ class DuelMessageRouter extends _$DuelMessageRouter {
     _isObserverDuel = false;
     final service = ref.read(duelServiceProvider);
     _pump = MessagePump(consume: _handleServerMessage);
+    _hasPendingWin = false;
     _applyReplaySettings();
     _msgSub = service.onServerMessage.listen(_onServerMessage);
   }
@@ -105,6 +125,7 @@ class DuelMessageRouter extends _$DuelMessageRouter {
     // 最后一个 TCP 段里发了结果，日志可区分「服务端没发」与
     // 「发了但房间已退出、泵被销毁」两种断连无结算场景。
     if (gameMsg?.func == MSG_WIN) {
+      _hasPendingWin = true;
       console.log(
         'router: MSG_WIN enqueued (pump pending=${pump.pendingCount})',
       );
@@ -115,6 +136,7 @@ class DuelMessageRouter extends _$DuelMessageRouter {
         MsgStart m => m.isObserver,
         _ => false,
       };
+      _hasPendingWin = false;
       pump.clear();
       _applyReplaySettings();
     }
@@ -125,6 +147,7 @@ class DuelMessageRouter extends _$DuelMessageRouter {
   /// suppress 置位/复位在同一同步代码段内完成，无 await 交错，
   /// 不会影响共享实例上的其它音效。
   void _handleServerMessage(YgoStocMsg msg, {bool silent = false}) {
+    if (msg.gameMsg?.func == MSG_WIN) _hasPendingWin = false;
     if (!silent) return _dispatchServerMessage(msg);
     _sound.suppress = true;
     try {

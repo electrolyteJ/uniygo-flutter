@@ -178,6 +178,13 @@ YgoStocMsg _tossMsg() => YgoStocMsg.gameMsg(
       ),
     );
 
+YgoStocMsg _winMsg() => YgoStocMsg.gameMsg(
+      const StocGameMessage(
+        func: MSG_WIN,
+        innerMsg: MsgWin(winPlayer: 0, reason: 1),
+      ),
+    );
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   YgoSoundService.enabled = false;
@@ -303,6 +310,46 @@ void main() {
             reason: '玩家对局音效不 suppress');
 
         async.elapse(const Duration(seconds: 30));
+      });
+    });
+
+    test('MSG_WIN 排队未消费时 hasPendingWin=true，flushPendingMessages 静音落位终局', () {
+      container = makeContainer();
+      fakeAsync((async) {
+        final router = container.read(duelMessageRouterProvider.notifier);
+        router.start();
+
+        service.emit(_startMsg()); // 直通 + 120ms 冷却窗口
+        service.emit(_winMsg()); // 冷却窗口内 → 排队未消费
+
+        expect(field().duelResult, isNull, reason: '节奏未到，结果仍排在泵队列里');
+        expect(router.hasPendingWin, isTrue, reason: 'MSG_WIN 入队即置位');
+
+        // 断连结算收尾（房间页 RoomNotJoined 且 hold 命中时的调用）：
+        // 同步静音排空，终局立即落位，不等节奏泵慢慢播完。
+        router.flushPendingMessages();
+        expect(router.hasPendingWin, isFalse, reason: '消费后清除');
+        expect(field().duelResult, isNotNull, reason: 'flush 后 duelResult 立即可读');
+
+        async.elapse(const Duration(seconds: 5)); // 确认无残留定时器
+      });
+    });
+
+    test('MSG_START 局间重开复位 hasPendingWin（上局排队结果被清队丢弃）', () {
+      container = makeContainer();
+      fakeAsync((async) {
+        final router = container.read(duelMessageRouterProvider.notifier);
+        router.start();
+
+        service.emit(_startMsg()); // 第一局（直通 + 冷却）
+        service.emit(_winMsg()); // 上局结果排队未消费
+        expect(router.hasPendingWin, isTrue);
+
+        service.emit(_startMsg()); // Match 第二局：清队 + 复位
+        expect(router.hasPendingWin, isFalse, reason: '第二局不得带上局 pendingWin');
+        expect(field().duelResult, isNull, reason: '上局排队结果已被清队丢弃');
+
+        async.elapse(const Duration(seconds: 5));
       });
     });
 
