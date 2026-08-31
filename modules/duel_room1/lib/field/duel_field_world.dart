@@ -56,7 +56,7 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
       enabledGetter: game.isPhaseLampEnabled,
       onSurrenderTap: game.onSurrenderTap,
       surrenderEnabledGetter: game.isSurrenderEnabled,
-    );
+    )..compactMode = game.compactHud;
     add(_phaseRail!);
     // 场地中央计时器 + 左侧玩家状态卡：直读快照渲染，无需重建触发。
     add(CenterTimerComponent());
@@ -110,6 +110,16 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
 
   /// 快照变更后刷新阶段轨道（当前阶段/可点击态）。
   void refreshPhaseRail() => _phaseRail?.notifyStateChanged();
+
+  /// 阶段轨道组件（紧凑模式的锚点矩形换算用；未挂载时为 null）。
+  PhaseRailComponent? get phaseRailComponent => _phaseRail;
+
+  /// 紧凑 HUD 模式切换（由 [DuelFlameGame] 按视口高度驱动）：
+  /// 阶段轨道反缩放为固定屏幕尺寸；玩家状态卡/中央计时器在世界内
+  /// 直读 game.compactHud 自行隐藏（让位给 widget 层紧凑件）。
+  void setCompactHudMode(bool compact) {
+    _phaseRail?.compactMode = compact;
+  }
 
   Vector2? boardPositionForZoneKey(String zoneKey) {
     final parsed = parseZoneKey(zoneKey);

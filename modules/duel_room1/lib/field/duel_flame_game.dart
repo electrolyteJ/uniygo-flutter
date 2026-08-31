@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:biz/duel/models/playmat_anchor_data.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
@@ -12,6 +14,7 @@ import 'components/lp/lp_change_toast_component.dart';
 import 'duel_field_world.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:duel_room1/field/components/phase_rail/phase_rail_layout.dart';
+import 'package:duel_room1/field/util/ui_scale.dart';
 
 /// 决斗场地 FlameGame：只持有 [DuelFieldWorld] 与观察它的
 /// [CameraComponent]，负责鼠标视差输入与 Flutter 侧锚点上报。
@@ -21,7 +24,7 @@ import 'package:duel_room1/field/components/phase_rail/phase_rail_layout.dart';
 /// Provider 后，把 [FlameFieldSnapshot] 经 [applySnapshot] 推入本游戏；
 /// Flame 侧不订阅任何 Provider（渲染循环与状态管理解耦）。
 class DuelFlameGame extends FlameGame<DuelFieldWorld>
-    with MouseMovementDetector {
+    with MouseMovementDetector, ScaleDetector, ScrollDetector {
   /// 阶段轨道（右侧垂直阶段按钮列，含顶端投降按钮、顶部回合徽章与
   /// 末端阶段菜单按钮）的组件尺寸，锚点上报用同一几何。
   static final _phaseRailSize = Size(
@@ -45,6 +48,45 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   static const _horizontalReserved = 24.0;
   static const _topReserved = 230.0; // 顶部 HUD + 对手手牌预留
   static const _bottomReserved = 116.0; // 己方手牌栏 height:96 + 间隙
+
+  // ── 移动端适配：安全区 / HUD 缩放 / 用户缩放平移 ──
+
+  /// 设备安全区内边距（刘海/Home 指示条），由页面从 MediaQuery 推入。
+  /// 计入相机 HUD 预留，避免棋盘/手牌栏被圆角或指示条遮挡。
+  EdgeInsets viewPadding = EdgeInsets.zero;
+
+  /// 页面推入安全区内边距（变化才重算相机并上报锚点）。
+  void setViewPadding(EdgeInsets padding) {
+    if (viewPadding == padding) return;
+    viewPadding = padding;
+    _applyImmersiveCamera();
+    _emitAnchors();
+  }
+
+  /// 屏幕空间 HUD 的缩放系数（手机横屏矮视口收缩手牌栏/顶栏，
+  /// 把高度让给棋盘）。桌面视口恒为 1.0。
+  double get hudScale => hudScaleForHeight(size.y);
+
+  /// 紧凑 HUD 模式：世界内玩家状态卡/中央计时器让位给 widget 层
+  /// 紧凑件，阶段轨道反缩放为固定屏幕尺寸。
+  bool get compactHud => _compactHud;
+  bool _compactHud = false;
+
+  /// 用户缩放倍率（叠在自适应 fit zoom 之上）：双指捏合/滚轮调整。
+  double _userZoom = 1.0;
+
+  /// 相对适配位的屏幕平移量（px，手指/指针拖动方向与画面一致）。
+  final Vector2 _panScreen = Vector2.zero();
+
+  /// 最近一次自适应计算的 fit zoom 与棋盘中心 y（用户变换的基准）。
+  double _fitZoom = 1.0;
+  double _fitCenterY = 0.0;
+
+  /// 捏合手势内的累计缩放值（增量换算用），手势结束清空。
+  double? _lastPinchScale;
+
+  /// 用户缩放上限（fit zoom 的倍数）。
+  static const _maxUserZoom = 3.0;
   /// zoom 上下限。下限取很小的值：沉浸式相机的目的就是让卡槽阵列「恰好」
   /// 装进扣除 HUD 的可见区，不应被下限强行放大而溢出到上下手牌栏。
   static const _minZoom = 0.1;
@@ -193,6 +235,11 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   /// 阶段轨道末端「阶段菜单按钮」的屏幕矩形（阶段菜单的锚定，
   /// 拉式查询），与卡槽/手牌矩形同一几何口径（世界坐标 × zoom）。
   Rect phaseActionButtonRect() {
+    // 紧凑模式：轨道反缩放为固定屏幕尺寸，直接取组件屏幕矩形。
+    final rail = world.phaseRailComponent;
+    if (_compactHud && rail != null && rail.isLoaded) {
+      return rail.actionButtonCompactScreenRect();
+    }
     final zoom = camera.viewfinder.zoom;
     final center = worldToWidget(
       world.project3D(
@@ -274,6 +321,8 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   /// 新对局开始（MSG_START）：取消未播完的飞行并揭示全部手牌，
   /// 避免上一局残留的动画飞进新局。
   void cancelDrawFlights() {
+    // 用户缩放/平移一并复位：新对局从完整棋盘视图开始。
+    resetCameraTransform();
     for (final flight in _flights.toList()) {
       flight.removeFromParent();
     }
@@ -323,14 +372,24 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     final vh = size.y;
     if (vw <= 0 || vh <= 0) return;
 
+    // 紧凑 HUD 模式切换（视口高度越过基准线时）：阶段轨道反缩放、
+    // 世界内状态卡/计时器让位给 widget 层紧凑件。
+    final compact = isCompactHudHeight(vh);
+    if (compact != _compactHud) {
+      _compactHud = compact;
+      if (world.isLoaded) world.setCompactHudMode(compact);
+    }
+
     const res = _horizontalReserved;
     final availW = (vw - res * 2).clamp(1.0, vw);
-    // 预留量随视口高度收缩：横屏/矮视口下固定预留（230+116）可能
+    // HUD 预留随 hudScale 收缩（手机横屏手牌栏/顶栏更小）并叠加
+    // 设备安全区；预留量随视口高度收缩：横屏/矮视口下固定预留可能
     // 吃掉整个屏高，把 availH 钳到 1、zoom 锁死下限、棋盘缩成一条缝。
     // 预留总量超过半屏时等比压缩，保证至少留一半高度给棋盘；
-    // 竖屏高视口（vh ≳ 692）下总预留不超半屏，行为不变。
-    var topReserved = _topReserved;
-    var bottomReserved = _bottomReserved;
+    // 竖屏高视口下总预留不超半屏，行为不变。
+    final hs = hudScale;
+    var topReserved = viewPadding.top + _topReserved * hs;
+    var bottomReserved = viewPadding.bottom + _bottomReserved * hs;
     final maxReserved = vh * 0.5;
     final totalReserved = topReserved + bottomReserved;
     if (totalReserved > maxReserved) {
@@ -343,11 +402,109 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     final zoomH = availH / _boardContentHeight;
     final zoom = (zoomW < zoomH ? zoomW : zoomH).clamp(_minZoom, _maxZoom);
 
-    camera.viewfinder.zoom = zoom;
     // 可见区中心相对视口中心的像素偏移，换算成世界坐标（除以 zoom）。
     // 水平预留对称，centerX = 0；y = (bottom - top)/2。
-    final centerY = (bottomReserved - topReserved) / (2 * zoom);
-    camera.viewfinder.position = Vector2(0, centerY);
+    _fitZoom = zoom;
+    _fitCenterY = (bottomReserved - topReserved) / (2 * zoom);
+    _applyUserTransform();
+  }
+
+  /// 在自适应 fit 结果上叠加用户缩放/平移。
+  ///
+  /// viewfinder.position 是「屏幕中心对准的世界点」：画面随手指平移
+  /// 屏幕像素 p 等价于 position 减去 p/zoom。
+  void _applyUserTransform() {
+    final zoom = _fitZoom * _userZoom;
+    camera.viewfinder.zoom = zoom;
+    camera.viewfinder.position =
+        Vector2(0, _fitCenterY) - _panScreen / zoom;
+  }
+
+  // ── 双指捏合缩放/平移 与 滚轮缩放 ──
+  //
+  // 仅响应双指（pointerCount >= 2）：单指拖动保留给卡槽/手牌点按，
+  // 不与 tap 手势竞争；滚轮缩放面向桌面触控板/鼠标。
+
+  @override
+  void onScaleStart(ScaleStartInfo info) {
+    _lastPinchScale = null;
+  }
+
+  @override
+  void onScaleUpdate(ScaleUpdateInfo info) {
+    if (info.pointerCount < 2) {
+      _lastPinchScale = null;
+      return;
+    }
+    // Flutter 的 scale 是手势内累计值，换算成增量逐帧应用。
+    final scaleNow = info.scale.global.x;
+    final last = _lastPinchScale;
+    _lastPinchScale = scaleNow;
+    final factor = last == null || last <= 0 ? 1.0 : scaleNow / last;
+    _zoomAround(
+      focal: info.eventPosition.widget,
+      factor: factor,
+      panDelta: info.delta.global,
+    );
+  }
+
+  @override
+  void onScaleEnd(ScaleEndInfo info) {
+    _lastPinchScale = null;
+    // 缩回接近 1 时吸附归位（捏合到底即复位，无需双击手势——
+    // 双击识别会把卡槽 tap 延迟一个超时窗口，手感变差）。
+    if (_userZoom < 1.08) resetCameraTransform();
+  }
+
+  @override
+  void onScroll(PointerScrollInfo info) {
+    final dy = info.scrollDelta.global.y;
+    if (dy == 0) return;
+    _zoomAround(
+      focal: info.eventPosition.widget,
+      factor: math.pow(0.998, dy).toDouble(),
+    );
+  }
+
+  /// 以 [focal]（视口坐标）为不动点缩放，并叠加平移 [panDelta]。
+  void _zoomAround({
+    required Vector2 focal,
+    required double factor,
+    Vector2? panDelta,
+  }) {
+    final vf = camera.viewfinder;
+    final oldZoom = vf.zoom;
+    if (oldZoom <= 0) return;
+    _userZoom = (_userZoom * factor).clamp(1.0, _maxUserZoom);
+    final newZoom = _fitZoom * _userZoom;
+    final center = size / 2;
+    // 不动点换算：缩放前后 focal 下的世界点相同。
+    final worldAtFocal = vf.position + (focal - center) / oldZoom;
+    vf.zoom = newZoom;
+    vf.position = worldAtFocal - (focal - center) / newZoom;
+    if (panDelta != null) {
+      vf.position -= panDelta / newZoom;
+    }
+    // 存回相对适配位的屏幕平移（resize 重算 fit 后仍成立）。
+    _panScreen.setFrom((Vector2(0, _fitCenterY) - vf.position) * newZoom);
+    _clampPan();
+    vf.position = Vector2(0, _fitCenterY) - _panScreen / newZoom;
+    _emitAnchors();
+  }
+
+  /// 平移夹紧：棋盘中心最多偏到视口 45% 处，防止画面被拖丢。
+  void _clampPan() {
+    _panScreen.x = _panScreen.x.clamp(-size.x * 0.45, size.x * 0.45);
+    _panScreen.y = _panScreen.y.clamp(-size.y * 0.45, size.y * 0.45);
+  }
+
+  /// 复位用户缩放/平移（新对局与捏合收到底时调用）。
+  void resetCameraTransform() {
+    if (_userZoom == 1.0 && _panScreen.x == 0 && _panScreen.y == 0) return;
+    _userZoom = 1.0;
+    _panScreen.setZero();
+    _applyUserTransform();
+    _emitAnchors();
   }
 
   /// 世界坐标 → widget 坐标（经由 camera viewfinder 变换）。
@@ -440,17 +597,24 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     // 阶段轨道位置固定（PhaseRailLayout.centerX/centerY，棋盘中线右侧），
     // 不依赖卡槽锚点，直接由世界坐标换算。含末端按钮后几何中心较
     // 胶囊区中心下移 actionButtonShift（与组件 _syncPosition 同一偏移）。
-    final railCenter = worldToWidget(
-      world.project3D(
-        PhaseRailLayout.centerX,
-        PhaseRailLayout.centerY + PhaseRailLayout.actionButtonShift,
-      ),
-    );
-    final phaseLampRect = Rect.fromCenter(
-      center: railCenter,
-      width: _phaseRailSize.width * zoom,
-      height: _phaseRailSize.height * zoom,
-    );
+    // 紧凑模式：轨道反缩放为固定屏幕尺寸，直接取组件屏幕矩形。
+    final rail = _compactHud ? world.phaseRailComponent : null;
+    final Rect phaseLampRect;
+    if (rail != null && rail.isLoaded) {
+      phaseLampRect = rail.railCompactScreenRect();
+    } else {
+      final railCenter = worldToWidget(
+        world.project3D(
+          PhaseRailLayout.centerX,
+          PhaseRailLayout.centerY + PhaseRailLayout.actionButtonShift,
+        ),
+      );
+      phaseLampRect = Rect.fromCenter(
+        center: railCenter,
+        width: _phaseRailSize.width * zoom,
+        height: _phaseRailSize.height * zoom,
+      );
+    }
 
     return PlaymatAnchorData(
       slotRects: slotRects,

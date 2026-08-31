@@ -246,7 +246,12 @@ class CardSlotComponent extends PositionComponent
     this.onTap,
     this.activatable = false,
   }) : super(
-    size: Vector2(DuelFieldLayout.slotWidth, DuelFieldLayout.slotHeight),
+    // 命中热区比视觉槽位大（仅影响 hit test；渲染以槽位常量为中心
+    // 对称绘制，不受组件 size 影响），见 DuelFieldLayout 注释。
+    size: Vector2(
+      DuelFieldLayout.slotHitWidth,
+      DuelFieldLayout.slotHitHeight,
+    ),
     anchor: Anchor.center,
   );
 
@@ -659,6 +664,9 @@ class CardSlotComponent extends PositionComponent
     _animateHover(false);
   }
 
+  // 用 onTapUp 而非 onTapDown：引入双指捏合缩放（ScaleDetector）后，
+  // tap recognizer 在手势竞技场中输给 scale 时只收到 onTapCancel——
+  // 若按下即触发，双指操作的起始落点在卡槽上会误弹操作菜单。
   @override
-  void onTapDown(TapDownEvent event) => onTap?.call();
+  void onTapUp(TapUpEvent event) => onTap?.call();
 }

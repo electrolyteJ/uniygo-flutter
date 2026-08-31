@@ -26,6 +26,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:duel_room1/field/duel_flame_game.dart';
 import 'package:duel_room1/field/util/chain_order_map.dart';
 import 'package:duel_room1/field/util/duel_field_layout.dart';
+import 'package:duel_room1/field/util/ui_scale.dart';
+import 'package:duel_room1/field/widgets/player_status_chip.dart';
+import 'components/hand_card/hand_bar_component.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:duel_room1/field/components/phase_rail/phase_rail_layout.dart';
 import 'package:duel_room1/field/flame_playmat_field.dart';
@@ -77,6 +80,18 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   static const double _topHudBodyHeight = 52.0;
   static const double _opponentHandGap = 10.0;
   static const double _inspectorTop = 124.0;
+
+  /// 当前视口的 HUD 缩放系数（小屏收缩顶栏/手牌栏）。
+  double get _hudScale => hudScaleForHeight(MediaQuery.sizeOf(context).height);
+
+  /// 是否紧凑 HUD 模式（小屏：状态芯片 + 顶栏计时替代世界内组件）。
+  bool get _compactHud => isCompactHudHeight(MediaQuery.sizeOf(context).height);
+
+  /// 对方手牌栏顶边距（屏幕坐标）：状态栏 + 顶栏 + 间隙，随 HUD 缩放。
+  double _oppHandTopY(EdgeInsets padding) =>
+      padding.top +
+      _topHudBodyHeight * _hudScale +
+      _opponentHandGap * _hudScale;
 
   DuelFlameGame? _flameGame;
   PlaymatAnchorData? _fieldAnchors;
@@ -296,9 +311,9 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     // 手牌栏可见性与对方栏顶边距随页面状态初始化（后续变化分别由
     // didUpdateWidget 与 build 推送）。
     game.setHandBarsVisible(widget.hudVisible);
-    game.setOppHandTopY(
-      MediaQuery.of(context).padding.top + _topHudBodyHeight + _opponentHandGap,
-    );
+    final padding = MediaQuery.paddingOf(context);
+    game.setViewPadding(padding);
+    game.setOppHandTopY(_oppHandTopY(padding));
     // 初始快照推迟到首帧后推入（此时 Provider 已可读；
     // 后续变化由 listenManual 订阅驱动，不走 build）。
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -485,22 +500,24 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     );
   }
 
-  /// 顶部 HUD：只剩返回按钮。回合徽章（PhaseRailComponent 顶部）、
-  /// 中央计时（CenterTimerComponent）、双方状态卡
-  /// （PlayerStatusCardComponent，场地左侧竖排）已全部下沉为 Flame
-  /// 组件，不再由 widget 层承载。
+  /// 顶部 HUD：桌面只剩返回按钮（回合徽章/中央计时/双方状态卡
+  /// 已全部下沉为 Flame 组件）；紧凑模式（小屏）则由 widget 层承接
+  /// 对方状态芯片与中央计时（世界内组件在小屏上不可读）。
   Widget _buildTopHud() {
+    final hs = _hudScale;
+    final compact = _compactHud;
     return Positioned(
       top: 0,
       left: 0,
       right: 0,
       child: SafeArea(
         bottom: false,
-        minimum: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        minimum: EdgeInsets.fromLTRB(12 * hs, 8 * hs, 12 * hs, 0),
         child: Row(
           children: [
             _buildHudIconButton(
               icon: Icons.arrow_back,
+              scale: hs,
               onPressed: () {
                 backHomeDialog(
                   context: context,
@@ -510,16 +527,101 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
                 );
               },
             ),
+            if (compact) ...[
+              const SizedBox(width: 8),
+              _buildStatusChip(isSelf: false),
+              const Spacer(),
+              _buildCompactTimer(),
+              const SizedBox(width: 8),
+            ],
           ],
         ),
       ),
     );
   }
 
+  /// 紧凑模式的玩家状态芯片（对方挂顶栏；我方挂左下手牌栏上方）。
+  Widget _buildStatusChip({required bool isSelf}) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final s = ref.watch(
+          duelFieldProvider.select(
+            (s) => (
+              lp: isSelf ? s.selfLp : s.opponentLp,
+              hand: isSelf ? s.selfHand.length : s.opponentHand.length,
+              deck: isSelf ? s.selfDeck : s.oppDeck,
+              extra: isSelf ? s.selfExtra : s.oppExtra,
+              grave: isSelf ? s.selfGrave : s.oppGrave,
+              removed: isSelf ? s.selfRemoved : s.oppRemoved,
+              // 名字依赖 players 与 myController，一并订阅。
+              players: s.players,
+              myController: s.myController,
+            ),
+          ),
+        );
+        // s 仅驱动重建；名字经页面 getter（tag 模式合并显示名）。
+        return PlayerStatusChip(
+          name: isSelf ? _selfName : _oppName,
+          lp: s.lp,
+          handCount: s.hand,
+          deckCount: s.deck,
+          extraCount: s.extra,
+          graveCount: s.grave,
+          removedCount: s.removed,
+          isSelf: isSelf,
+          onZoneTap: openZoneBrowser,
+        );
+      },
+    );
+  }
+
+  /// 紧凑模式的中央计时（顶栏内）：当前回合方剩余时间 MM:SS，
+  /// ≤30s 变红，否则金色（对齐 CenterTimerComponent 语义）。
+  Widget _buildCompactTimer() {
+    return Consumer(
+      builder: (context, ref, _) {
+        final s = ref.watch(
+          duelFieldProvider.select(
+            (s) => (
+              selfTime: s.selfTimeLeft,
+              oppTime: s.opponentTimeLeft,
+              current: s.currentPlayer,
+              mine: s.myController,
+              turn: s.turnCount,
+            ),
+          ),
+        );
+        final seconds = s.current == s.mine ? s.selfTime : s.oppTime;
+        final active = s.turn > 0 && seconds > 0;
+        final urgent = active && seconds <= 30;
+        final color = !active
+            ? const Color(0xFF8B9BB4)
+            : urgent
+            ? const Color(0xFFFF4D4D)
+            : const Color(0xFFFFD700);
+        final m = (seconds ~/ 60).toString().padLeft(2, '0');
+        final sec = (seconds % 60).toString().padLeft(2, '0');
+        return Text(
+          active ? 'T${s.turn} · $m:$sec' : '--:--',
+          style: TextStyle(
+            color: color,
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            fontFamily: 'Orbitron',
+            letterSpacing: 1.0,
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildHudIconButton({
     required IconData icon,
     required VoidCallback onPressed,
+    double scale = 1.0,
   }) {
+    // 紧凑模式收缩按钮（仍保持 ≥34 的触控热区）。
+    final size = (44.0 * scale).clamp(34.0, 48.0);
     return ClipRRect(
       borderRadius: BorderRadius.circular(999),
       child: BackdropFilter(
@@ -533,10 +635,16 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
               BoxShadow(color: Color(0x1A00F0FF), blurRadius: 24),
             ],
           ),
-          child: IconButton(
-            icon: Icon(icon, color: Colors.white.withValues(alpha: 0.92)),
-            tooltip: '返回',
-            onPressed: onPressed,
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              iconSize: size * 0.55,
+              icon: Icon(icon, color: Colors.white.withValues(alpha: 0.92)),
+              tooltip: '返回',
+              onPressed: onPressed,
+            ),
           ),
         ),
       ),
@@ -629,9 +737,10 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     // 不再依赖宿主 App 提供全局 Portal；宿主已有 Portal 时嵌套安全。
     // 对方手牌栏顶边距推入 Flame（状态栏/顶部 HUD 高度决定其位置）；
     // 手牌栏可见性由 didUpdateWidget 与 _ensureFlameGame 推入。
-    _flameGame?.setOppHandTopY(
-      MediaQuery.of(context).padding.top + _topHudBodyHeight + _opponentHandGap,
-    );
+    // 安全区内边距同步推入（横屏刘海/Home 指示条 → 相机预留与手牌栏）。
+    final padding = MediaQuery.paddingOf(context);
+    _flameGame?.setViewPadding(padding);
+    _flameGame?.setOppHandTopY(_oppHandTopY(padding));
     return Portal(
       child: Scaffold(
         backgroundColor: const Color(0xFF010308),
@@ -772,6 +881,16 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
           },
         ),
         _buildTopHud(),
+        // 紧凑模式：我方状态芯片挂左下手牌栏上方（对方芯片在顶栏）。
+        if (_compactHud)
+          Positioned(
+            left: MediaQuery.paddingOf(context).left + 8,
+            bottom:
+                MediaQuery.paddingOf(context).bottom +
+                HandBarComponent.barHeight * _hudScale +
+                8,
+            child: _buildStatusChip(isSelf: true),
+          ),
         Consumer(
           builder: (context, ref, _) {
             final key = ref.watch(
@@ -849,10 +968,16 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     final inspectedCardInfo = inspectedCardCode == null
         ? inspector.info
         : _boardN.getCardInfo(inspectedCardCode) ?? inspector.info;
+    // 紧凑模式（小屏）：抽屉贴着顶栏与手牌栏之间排布，
+    // 桌面的 124/160 固定边距在矮视口会把抽屉压成一条缝。
+    final compact = _compactHud;
+    final padding = MediaQuery.paddingOf(context);
     return Positioned(
       left: 18,
-      top: _inspectorTop,
-      bottom: 160,
+      top: compact
+          ? padding.top + _topHudBodyHeight * _hudScale + 8
+          : _inspectorTop,
+      bottom: compact ? padding.bottom + 8 : 160,
       child: CardDetailDrawer(
         cardInfo: inspectedCardInfo,
         cardCode: inspectedCardCode,

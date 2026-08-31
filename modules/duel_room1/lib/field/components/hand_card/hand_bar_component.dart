@@ -58,16 +58,31 @@ class HandBarComponent extends PositionComponent
   /// 抽卡/发牌动画期间处于隐藏态的手牌下标（飞行落地逐张揭示）。
   final Set<int> _concealed = {};
 
-  /// 手牌栏高度（与原 Flutter 版一致）。
+  /// 手牌栏高度（与原 Flutter 版一致；虚拟坐标，屏显高度见
+  /// [visualBarHeight]——紧凑 HUD 模式下整栏按 hudScale 缩放）。
   static const double barHeight = 96;
 
   /// 卡底与屏边的间距。
   static const double bottomPadding = 4;
 
+  /// 手牌栏的屏幕像素高度（虚拟高度 × HUD 缩放）。
+  double get visualBarHeight => barHeight * game.hudScale;
+
+  /// 同步 HUD 缩放与虚拟尺寸。
+  ///
+  /// 整栏缩放经组件 transform 实现：布局在「虚拟视口」（屏寸 ÷ hudScale）
+  /// 内按原 64×90 卡尺寸排布，再按 hudScale 整体缩放到屏幕——卡图、
+  /// 扇形几何、上浮动效等全部沿用原数值，命中测试随变换自动适配。
+  void _syncHudScale() {
+    final hs = game.hudScale;
+    scale = Vector2.all(hs);
+    size.setFrom(game.size / hs);
+  }
+
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    size.setFrom(game.size);
+    _syncHudScale();
     // 可见性/挂载晚于首份快照时（页面监听注册早于游戏加载完成）补齐。
     barVisible = game.handBarsVisible;
     applySnapshot(
@@ -78,7 +93,7 @@ class HandBarComponent extends PositionComponent
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
-    this.size.setFrom(size);
+    _syncHudScale();
     _relayout();
   }
 
@@ -126,8 +141,15 @@ class HandBarComponent extends PositionComponent
   }
 
   /// 扇形排布：每卡基准中心 + 放射角；下标大的压在上面（priority）。
+  ///
+  /// 全部在虚拟坐标（屏寸 ÷ hudScale）内计算：size 已是虚拟尺寸，
+  /// 屏幕空间的 hudTopY / Home 指示条安全区按 hudScale 折算成虚拟值。
   void _relayout() {
     if (_cards.isEmpty) return;
+    // 未挂载（测试/构造期快照预填）时无 game 可取，按缩放 1、无安全区
+    // 兜底；挂载后 onLoad/onGameResize 会触发重排补齐。
+    final hs = isMounted ? game.hudScale : 1.0;
+    final bottomInset = isMounted ? game.viewPadding.bottom : 0.0;
     final layout = HandFanLayout(
       count: _cards.length,
       maxWidth: size.x - 16,
@@ -135,9 +157,16 @@ class HandBarComponent extends PositionComponent
     final centerX = size.x / 2;
     // 与原 Flutter 版一致：96 高条带内底对齐（bottom padding 4），
     // 凸弧向上（对方栏同样向上，与历史视觉一致）。
+    // 己方栏底让开 Home 指示条安全区（viewPadding.bottom）。
     final baseLineY = isSelfSide
-        ? size.y - bottomPadding - HandFanLayout.cardHeight / 2
-        : hudTopY + barHeight - bottomPadding - HandFanLayout.cardHeight / 2;
+        ? size.y -
+            bottomInset / hs -
+            bottomPadding -
+            HandFanLayout.cardHeight / 2
+        : hudTopY / hs +
+            barHeight -
+            bottomPadding -
+            HandFanLayout.cardHeight / 2;
     for (var i = 0; i < _cards.length; i++) {
       _cards[i].setBaseCenter(
         Vector2(centerX + layout.centerDx(i), baseLineY + layout.centerAt(i).dy),
@@ -203,21 +232,26 @@ class HandBarComponent extends PositionComponent
   }
 
   /// 第 [index] 张卡的基准卡位矩形（视口/屏幕坐标，不含上浮动效），
-  /// 抽卡/发牌飞行的终点。
+  /// 抽卡/发牌飞行的终点。卡中心/baseCenter 是虚拟坐标，×hudScale
+  /// 换算回屏幕。
   Rect cardSlotRect(int index) {
+    final hs = game.hudScale;
     if (index < 0 || index >= _cards.length) {
       // 兜底：栏中央（理论上调用方按下标闭合，不会触达）。
       return Rect.fromCenter(
-        center: Offset(size.x / 2, isSelfSide ? size.y - 50 : hudTopY + 50),
-        width: HandFanLayout.cardWidth,
-        height: HandFanLayout.cardHeight,
+        center: Offset(
+          size.x / 2 * hs,
+          (isSelfSide ? size.y - 50 : hudTopY / hs + 50) * hs,
+        ),
+        width: HandFanLayout.cardWidth * hs,
+        height: HandFanLayout.cardHeight * hs,
       );
     }
     final c = _cards[index].baseCenter;
     return Rect.fromCenter(
-      center: Offset(c.x, c.y),
-      width: HandFanLayout.cardWidth,
-      height: HandFanLayout.cardHeight,
+      center: Offset(c.x * hs, c.y * hs),
+      width: HandFanLayout.cardWidth * hs,
+      height: HandFanLayout.cardHeight * hs,
     );
   }
 
@@ -226,15 +260,16 @@ class HandBarComponent extends PositionComponent
   Rect? selectedCardRect() {
     final index = _snap.selectedIndex;
     if (index == null || index < 0 || index >= _cards.length) return null;
+    final hs = game.hudScale;
     final card = _cards[index];
     final lifted = Offset(
-      card.baseCenter.x + card.shuffleDx,
-      card.baseCenter.y - HandFanLayout.activeLift,
+      (card.baseCenter.x + card.shuffleDx) * hs,
+      (card.baseCenter.y - HandFanLayout.activeLift) * hs,
     );
     return Rect.fromCenter(
       center: lifted,
-      width: HandFanLayout.cardWidth * HandFanLayout.activeScale,
-      height: HandFanLayout.cardHeight * HandFanLayout.activeScale,
+      width: HandFanLayout.cardWidth * HandFanLayout.activeScale * hs,
+      height: HandFanLayout.cardHeight * HandFanLayout.activeScale * hs,
     );
   }
 

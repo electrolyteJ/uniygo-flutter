@@ -231,8 +231,10 @@ class HandCardComponent extends PositionComponent
 
   bool get _interactive => isSelfSide && !concealed && onTapCard != null;
 
+  // 用 onTapUp 而非 onTapDown：避免双指捏合缩放的起始落点误触发
+  // 手牌菜单（tap 输给 scale 手势时走 onTapCancel，不会到 onTapUp）。
   @override
-  void onTapDown(TapDownEvent event) {
+  void onTapUp(TapUpEvent event) {
     if (!_interactive) return;
     onTapCard?.call(index, _code);
   }

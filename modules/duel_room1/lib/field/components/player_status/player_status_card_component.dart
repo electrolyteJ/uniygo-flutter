@@ -92,6 +92,9 @@ class PlayerStatusCardComponent extends PositionComponent
 
   @override
   void render(Canvas canvas) {
+    // 紧凑 HUD 模式（小屏）：竖版状态卡让位给 widget 层的状态芯片
+    // （两张 224 高的竖卡在小屏上互相重叠且随 zoom 缩到不可读）。
+    if (world.game.compactHud) return;
     final snapshot = world.game.snapshot;
     final borderColor = isSelf
         ? _accent.withValues(alpha: 0.3)
@@ -223,8 +226,11 @@ class PlayerStatusCardComponent extends PositionComponent
     };
   }
 
+  // onTapUp 而非 onTapDown：与双指捏合缩放共存（见 slot.dart 注释）。
   @override
-  void onTapDown(TapDownEvent event) {
+  void onTapUp(TapUpEvent event) {
+    // 紧凑模式下由 widget 层状态芯片承担交互。
+    if (world.game.compactHud) return;
     final y = event.localPosition.y;
     for (var i = 0; i < PlayerStatusLayout.rowLabels.length; i++) {
       final key = _zoneKeyForRow(i);

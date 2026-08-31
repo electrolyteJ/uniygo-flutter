@@ -22,6 +22,14 @@ class DuelFieldLayout {
   static const slotWidth = 68.0;
   static const slotHeight = 96.0;
 
+  /// 卡槽触控热区尺寸（仅命中测试，不影响渲染）。
+  ///
+  /// 比视觉槽位（68×96）大：横向 80（列距 84，相邻热区留 4px 间隙）、
+  /// 纵向 100（行距 100，与上下行相切不重叠）。手机横屏 zoom ≈0.4 时
+  /// 视觉槽位仅 ~27×38，放大后的热区（~32×40）更接近 44pt 触控标准。
+  static const slotHitWidth = 80.0;
+  static const slotHitHeight = 100.0;
+
   /// 主卡组槽位棋盘坐标：己方底排最右（colX[6], stY），对方顶排最左。
   ///
   /// 洗牌动效等一次性表现组件从这里取落点，与 zone_slot_spec 的

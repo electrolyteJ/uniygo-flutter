@@ -41,16 +41,20 @@ class LpChangeToastComponent extends PositionComponent
   double _zoom = 1.0;
 
   void _syncPosition() {
-    // 我方：手牌栏（高 96，贴底）正上方；对方：手牌栏正下方。
+    // 我方：手牌栏（屏显高度 = 96 × hudScale，贴底并让开 Home 指示条）
+    // 正上方；对方：手牌栏正下方。
     final halfH = size.y / 2;
+    final barVisualH =
+        HandBarComponent.barHeight * game.hudScale;
     final y = isSelf
         ? game.size.y -
-            HandBarComponent.barHeight -
+            game.viewPadding.bottom -
+            barVisualH -
             HandBarComponent.bottomPadding -
             _gap -
             halfH
         : (game.oppHandBar?.hudTopY ?? 0) +
-            HandBarComponent.barHeight +
+            barVisualH +
             _gap +
             halfH;
     position = Vector2(game.size.x / 2, y);
@@ -72,7 +76,9 @@ class LpChangeToastComponent extends PositionComponent
   void update(double dt) {
     super.update(dt);
     _syncPosition();
-    _zoom = game.camera.viewfinder.zoom;
+    // toast 尺寸跟随场地 zoom（对齐世界层时代的观感），但夹紧下限——
+    // 手机横屏 zoom ≈0.4 时不缩到不可读。
+    _zoom = game.camera.viewfinder.zoom.clamp(0.85, 1.3);
     final snapshot = game.snapshot;
     final tick = snapshot.lpChangeTick;
     if (tick < _lastTick) {

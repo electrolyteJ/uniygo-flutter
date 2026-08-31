@@ -46,6 +46,10 @@ class PhaseRailLayout {
   /// 轨道中心 y：棋盘中线（双方回合中立位）。
   static const centerY = 0.0;
 
+  /// 紧凑 HUD 模式（小屏）下轨道在屏幕上的固定缩放比：
+  /// 不随场地相机 zoom 缩放，保证阶段胶囊/按钮可读可点。
+  static const compactScreenScale = 0.85;
+
   /// 轨道总高（含首尾胶囊）。
   static double get height =>
       phases.length * pillHeight + (phases.length - 1) * pillSpacing; // 150

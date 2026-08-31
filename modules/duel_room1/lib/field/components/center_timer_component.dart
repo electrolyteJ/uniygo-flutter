@@ -43,6 +43,9 @@ class CenterTimerComponent extends PositionComponent
 
   @override
   void render(Canvas canvas) {
+    // 紧凑 HUD 模式（小屏）：棋盘中线位置被双方 EMZ 占满，计时器
+    // 让位给 widget 层顶栏的紧凑计时文本。
+    if (world.game.compactHud) return;
     final snapshot = world.game.snapshot;
     final seconds = snapshot.currentPlayer == snapshot.myController
         ? snapshot.selfTimeLeft
