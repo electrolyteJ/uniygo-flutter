@@ -25,7 +25,7 @@ class YgoStorage {
     try {
       final file = io.File(await _fullPath(path));
       if (!file.existsSync()) return null;
-      return file.readAsString();
+      return await file.readAsString();
     } catch (_) {
       return null;
     }

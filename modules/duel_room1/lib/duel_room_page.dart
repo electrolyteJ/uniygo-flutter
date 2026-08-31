@@ -9,6 +9,7 @@ import 'package:biz/duel/field/duel_message_router.dart';
 import 'package:biz/duel/field/field_overlay_state.dart';
 import 'package:biz/duel/field/select_window_state.dart';
 import 'package:biz/duel/models/select_state.dart';
+import 'package:biz/widgets/duel_log_drawer.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,7 +17,6 @@ import 'package:go_router/go_router.dart';
 
 import 'package:duel_room1/constants.dart';
 import 'package:duel_room1/field/duel_field_page.dart';
-import 'widgets/duel_log_drawer.dart';
 import 'duel_result_page.dart';
 import 'duel_room_exit.dart';
 import 'package:duel_room1/waiting/waiting_room_page.dart';
