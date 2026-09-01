@@ -1,7 +1,7 @@
 import 'package:cardlive/cardlive.dart' show CardLivePage;
 import 'package:duel_room1/duel_room_page.dart';
 import 'package:duel_room3/duel_room_page.dart';
-import 'package:duel_room3/field/duel_3d_preview_page.dart';
+import 'package:debug/duel_3d_preview_page.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import '../pages/home_page.dart';

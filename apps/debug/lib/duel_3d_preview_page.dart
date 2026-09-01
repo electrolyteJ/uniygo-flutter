@@ -1,15 +1,14 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:duel_room3/hud/hud_theme.dart';
+import 'package:duel_room3/scene3d/duel_3d_game.dart';
+import 'package:duel_room3/scene3d/field_3d_layout.dart';
 import 'package:duel_room3/scene3d/fx/effects_manager.dart';
+import 'package:duel_room3/scene3d/standee_diff.dart';
 import 'package:vector_math/vector_math.dart' hide Colors;
 import 'package:flame/game.dart' show GameWidget;
 import 'package:flutter/material.dart';
-
-import '../hud/hud_theme.dart';
-import '../scene3d/duel_3d_game.dart';
-import '../scene3d/field_3d_layout.dart';
-import '../scene3d/standee_diff.dart';
 
 /// 3D 场景调试预览页：不连服务器，直接摆 mock 立牌 + 触发全套效果。
 ///

@@ -3,7 +3,7 @@
 import 'package:biz/card_image_loader.dart';
 import 'package:biz/service_providers.dart';
 import 'package:biz/service_singleton.dart';
-import 'package:duel_room3/field/duel_3d_preview_page.dart';
+import 'package:debug/duel_3d_preview_page.dart';
 import 'package:flutter/material.dart';
 import 'package:biz/service_loader.registrations.g.dart';
 import 'package:ygo_settings/ygo_settings.dart';
