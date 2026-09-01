@@ -1,4 +1,4 @@
-name: uniygopro
+name: debug
 description: "A Yu-Gi-Oh! Pro game client."
 publish_to: 'none'
 version: 1.0.0+1
@@ -11,6 +11,8 @@ resolution: workspace
 dependencies:
   applog:
     path: ../../packages/applog
+  account_mycard:
+    path: ../../packages/account_mycard
   flutter:
     sdk: flutter
   flutter_localizations:
@@ -50,6 +52,7 @@ dependencies:
   http: ^1.2.1
   flutter_portal: ^1.1.4
   web_socket_channel: ^3.0.0
+  vector_math: ^2.1.4
 dev_dependencies:
   flutter_test:
     sdk: flutter

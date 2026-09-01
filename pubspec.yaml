@@ -30,6 +30,7 @@ workspace:
   - packages/duelink_ai_ygo_agent_tflite
   - packages/duelink_ai_ygo_agent_http
   - packages/biz
+  - apps/debug
   - apps/uniygopro
   - modules/deck_editor1
   - modules/deck_editor3
