@@ -10,6 +10,7 @@ import 'package:duel_room1/field/widgets/selector/card_selector.dart';
 import 'package:duel_room1/field/widgets/selector/counter_select_dialog.dart';
 import 'package:duel_room1/field/widgets/selector/position_selector.dart';
 import 'package:duel_room1/field/widgets/selector/yes_no_dialog.dart';
+import 'package:duel_room1/field/util/ui_scale.dart';
 
 /// 选择提示弹层：订阅 select 子状态、决定呈现方式（放置提示横幅 /
 /// 就地选择操作栏 / 模态弹窗，三者互斥）并组装具体选择组件。
@@ -63,19 +64,19 @@ class DuelSelectPrompt extends ConsumerWidget {
     if (mode == SelectPromptMode.none) {
       return const SizedBox.shrink();
     }
-    return Positioned.fill(child: _buildLayer(ref, mode));
+    return Positioned.fill(child: _buildLayer(context, ref, mode));
   }
 
-  Widget _buildLayer(WidgetRef ref, SelectPromptMode mode) {
+  Widget _buildLayer(BuildContext context, WidgetRef ref, SelectPromptMode mode) {
     final state = ref.read(selectWindowProvider);
     final selectN = ref.read(selectWindowProvider.notifier);
     switch (mode) {
       case SelectPromptMode.none:
         return const SizedBox.shrink();
       case SelectPromptMode.place:
-        return _buildPlaceHint(state.placeTargetFieldKeys.length);
+        return _buildPlaceHint(context, state.placeTargetFieldKeys.length);
       case SelectPromptMode.inline:
-        return _buildInlineBar(state, selectN);
+        return _buildInlineBar(context, state, selectN);
       case SelectPromptMode.modal:
         final select = state.currentSelect;
         // 模态弹窗：遮罩全屏并居中展示选择组件。
@@ -99,11 +100,11 @@ class DuelSelectPrompt extends ConsumerWidget {
 
   /// 放置选择（MSG_SELECT_PLACE）的提示横幅；可放置槽位的高亮与点击
   /// 已下沉到场地槽位组件本身，此处仅保留文案提示，不拦截点击。
-  Widget _buildPlaceHint(int placeTargetCount) {
+  Widget _buildPlaceHint(BuildContext context, int placeTargetCount) {
     return Stack(
       children: [
         Positioned(
-          top: _placeHintTop,
+          top: _placeHintTop * context.hudScale,
           left: 0,
           right: 0,
           child: IgnorePointer(
@@ -134,6 +135,7 @@ class DuelSelectPrompt extends ConsumerWidget {
 
   /// 就地选择的操作栏：提示文案 + 取消/确认/完成，置于手牌栏上方。
   Widget _buildInlineBar(
+    BuildContext context,
     SelectWindowState state,
     SelectWindowNotifier selectN,
   ) {
@@ -154,7 +156,7 @@ class DuelSelectPrompt extends ConsumerWidget {
         Positioned(
           left: 0,
           right: 0,
-          bottom: 126,
+          bottom: 126 * context.hudScale,
           child: Center(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

@@ -18,6 +18,26 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 /// 3. **L3 HTTP**：CacheManager 内置（支持 ETag/Cache-Control），外加轻量重试。
 ///
 /// 同一 code 的并发请求只发一次加载，结果共享给所有等待者。
+/// 卡图专用 HTTP 文件服务：
+/// - 提高并发上限（默认 10 → 20），加快大批量缩略图的下行吞吐；
+/// - 对「连接 + 响应头」加 20s 超时，避免偶发挂起长期占用并发槽位，
+///   拖慢排队中的其它卡图（表现为「加载慢/加载不出来」）。
+class _CardImageFileService extends HttpFileService {
+  _CardImageFileService() {
+    concurrentFetches = 20;
+  }
+
+  @override
+  Future<FileServiceResponse> get(
+    String url, {
+    Map<String, String>? headers,
+  }) {
+    return super
+        .get(url, headers: headers)
+        .timeout(const Duration(seconds: 20));
+  }
+}
+
 class CardImageLoader {
   static final CardImageLoader I = CardImageLoader._();
   CardImageLoader._();
@@ -31,6 +51,7 @@ class CardImageLoader {
       'ygo_card_images',
       stalePeriod: const Duration(days: 30),
       maxNrOfCacheObjects: 10000,
+      fileService: _CardImageFileService(),
     ),
   );
 
@@ -42,7 +63,8 @@ class CardImageLoader {
   static const int _maxMemoryImages = 200;
 
   /// 解码失败/URL 非法的 code 短期不再重试（负面缓存，避免高频重建时反复请求）。
-  static const Duration _negativeCacheTtl = Duration(seconds: 30);
+  /// 缩短到 5s：瞬时超时/网络抖动后快速恢复，减少「一直加载不出来」。
+  static const Duration _negativeCacheTtl = Duration(seconds: 5);
   final Map<int, DateTime> _failedCodes = {};
 
   final LinkedHashMap<int, ui.Image> _images = LinkedHashMap();
@@ -137,7 +159,9 @@ class CardImageLoader {
   }) async {
     for (var i = 0; i < attempts; i++) {
       try {
-        final file = await _cacheManager.getSingleFile(url);
+        final file = await _cacheManager
+            .getSingleFile(url)
+            .timeout(const Duration(seconds: 20));
         final bytes = await file.readAsBytes();
         return bytes;
       } catch (_) {

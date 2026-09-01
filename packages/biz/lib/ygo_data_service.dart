@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:resource_card_mycard/ygo_card_mycard.dart';
+import 'package:resource_data/env_config.dart';
 import 'package:service_loader/service_loader.dart';
 import 'package:resource_data/ygo_data.dart';
 
@@ -34,6 +36,11 @@ class YgoDataService implements IService,IDeckService, ICardService, IBanlistSer
   @override
   Future<LfTable?> getLfTable(int code) {
     return _banlistService.getLfTable(code);
+  }
+
+  @override
+  Future<Map<int, LfTable>> fetchBanlists(EnvConfig config) {
+    return _banlistService.fetchBanlists(config);
   }
 
   @override

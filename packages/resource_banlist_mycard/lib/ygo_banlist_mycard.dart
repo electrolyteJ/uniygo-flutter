@@ -4,7 +4,6 @@ import 'package:service_loader/service_loader.dart';
 import 'package:resource_data/ygo_data.dart';
 import 'src/banlist_service.dart';
 
-export 'src/parse_lf_table.dart';
 export 'src/deck_validator.dart';
 export 'src/banlist_service.dart';
 

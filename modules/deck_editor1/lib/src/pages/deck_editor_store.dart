@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:biz/service_singleton.dart';
 import 'package:resource_data/card_info.dart';
+import 'package:resource_data/env_config.dart';
 import 'package:resource_data/lf_table.dart';
 import 'package:resource_card_mycard/ygo_card_mycard.dart';
 import 'package:resource_data/ygo_data.dart';
@@ -613,12 +614,9 @@ class DeckEditorStore extends ChangeNotifier {
       final envConfig = currentEnvironmentCode == 1
           ? EnvConfig.env408
           : EnvConfig.production;
-      final response = await http.get(Uri.parse(envConfig.lflistUrl));
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception('HTTP ${response.statusCode}');
-      }
-      parseLflistConf(utf8.decode(response.bodyBytes));
-      _availableBanlists = lflistHashToTable.values.toList()
+
+      final tables = await _dataService.fetchBanlists(envConfig);
+      _availableBanlists = tables.values.toList()
         ..sort(_compareBanlistsByDateDesc);
       final targetHash = preferredHash ?? _selectedBanlistHash;
       if (targetHash != null &&

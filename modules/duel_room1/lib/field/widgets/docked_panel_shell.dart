@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:duel_room1/field/util/ui_scale.dart';
+
 /// 停靠面板骨架：右侧停靠几何 + 面板 chrome（深色底/青色描边/圆角）
 /// + 标题栏（可选图标 + 标题 + 张数）+ 右上角 44px 命中区关闭按钮。
 ///
@@ -49,11 +51,23 @@ class DockedPanelShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 响应式停靠几何：桌面视口（≥760 高）保持 136/126/18/440 不变；
+    // 小屏按 HUD 缩放收缩上下留白（把更多高度让给面板内容，否则面板
+    // 体在手机横屏上只剩一条缝），宽度夹紧到不超出屏幕（窄 web 窗口不溢出）。
+    final viewport = MediaQuery.sizeOf(context);
+    final s = hudScaleForHeight(viewport.height);
+    final top = panelTop * s;
+    final bottom = panelBottom * s;
+    final maxWidth = (viewport.width - panelRight * 2).clamp(
+      0.0,
+      double.infinity,
+    );
+    final width = panelWidth.clamp(0.0, maxWidth);
     return Positioned(
-      top: panelTop,
-      bottom: panelBottom,
+      top: top,
+      bottom: bottom,
       right: panelRight,
-      width: panelWidth,
+      width: width,
       // 进场动画必须在 Positioned 之内（Positioned 要求直接挂在 Stack 下）。
       // TweenAnimationBuilder 只在挂载时播放，同实例 rebuild 不重播；
       // 需要重播时由父级换 key（如确认面板按 ConfirmPanel 实例 key）。

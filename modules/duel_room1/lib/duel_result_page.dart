@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'duel_room_exit.dart';
+import 'package:duel_room1/field/util/ui_scale.dart';
 
 /// 全屏居中模态半弹窗：决斗结果展示。
 ///
@@ -111,7 +112,7 @@ class _DuelResultPageState extends ConsumerState<DuelResultPage> {
                     title,
                     style: TextStyle(
                       color: accent,
-                      fontSize: 34,
+                      fontSize: 34 * hudScaleForHeight(MediaQuery.sizeOf(context).height),
                       fontWeight: FontWeight.w900,
                       letterSpacing: 2,
                     ),

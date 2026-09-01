@@ -35,7 +35,6 @@ class CardImage extends StatefulWidget {
 }
 
 class _CardImageState extends State<CardImage> {
-  ui.Image? _cachedImage;
   bool _warmed = false;
 
   @override
@@ -48,17 +47,12 @@ class _CardImageState extends State<CardImage> {
   void didUpdateWidget(covariant CardImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.code != widget.code) {
-      _cachedImage = null;
       _warmed = false;
       _checkCache();
     }
   }
 
   void _checkCache() {
-    final img = CardImageLoader.I.get(widget.code);
-    if (img != null) {
-      _cachedImage = img;
-    }
     _warmUnifiedCache();
   }
 
@@ -73,7 +67,7 @@ class _CardImageState extends State<CardImage> {
       targetWidth: _decodeWidth(widget.width),
     ).then((img) {
       if (!mounted || img == null) return;
-      setState(() => _cachedImage = img);
+      setState(() {});
     });
   }
 
@@ -86,7 +80,9 @@ class _CardImageState extends State<CardImage> {
   Widget build(BuildContext context) {
     final w = widget.width;
     final h = widget.height;
-    final cached = _cachedImage;
+    // 每次 build 都从 LRU 重新取：淘汰会 dispose 旧 ui.Image，而 Widget
+    // 状态里若缓存其引用，重建时 RawImage.clone() 会因 disposed image 崩溃。
+    final cached = CardImageLoader.I.get(widget.code);
 
     Widget content;
     if (cached != null) {

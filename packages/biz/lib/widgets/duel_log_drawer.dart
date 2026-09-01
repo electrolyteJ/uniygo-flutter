@@ -21,8 +21,15 @@ class DuelLogDrawer extends ConsumerStatefulWidget {
 
   const DuelLogDrawer({super.key, required this.onClose});
 
-  /// 面板宽度（沿用旧聊天停靠宽）。
+  /// 面板宽度（沿用旧聊天停靠宽；桌面参考值）。
   static const double panelWidth = 320.0;
+
+  /// 响应式面板宽度：窄屏收缩到不占满屏幕（桌面/宽窗口保持 320 不变）。
+  static double widthFor(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    final byFraction = w * 0.42;
+    return byFraction < panelWidth ? byFraction : panelWidth;
+  }
 
   @override
   ConsumerState<DuelLogDrawer> createState() => _DuelLogDrawerState();
@@ -81,7 +88,7 @@ class _DuelLogDrawerState extends ConsumerState<DuelLogDrawer> {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
-            width: DuelLogDrawer.panelWidth,
+            width: DuelLogDrawer.widthFor(context),
             decoration: const BoxDecoration(
               color: panelDark,
               border: Border(left: BorderSide(color: Color(0x4D00F0FF))),

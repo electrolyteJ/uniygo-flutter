@@ -8,7 +8,7 @@ import 'package:resource_storage/ygo_storage.dart';
 /// 本地卡组服务 — 实现 [IDeckService]
 ///
 /// 使用 [YgoStorage] 做平台自适应持久化（原生文件系统 / Web SharedPreferences），
-/// 内置卡组从 `packages/ygo_deck_mycard/assets/decks/*.ydk` 加载。
+/// 内置卡组从 `packages/resource_deck_mycard/assets/decks/*.ydk` 加载。
 class DeckService implements IDeckService {
   static const String _deckDir = 'decks';
 
@@ -179,10 +179,10 @@ class DeckService implements IDeckService {
     return null;
   }
 
-  /// 从 ygo_deck_mycard 包的 assets 中加载单个内置卡组
+  /// 从 resource_deck_mycard 包的 assets 中加载单个内置卡组
   Future<DeckInfo?> _loadBuiltinDeck(String key, String displayName) async {
     try {
-      final path = 'packages/ygo_deck_mycard/assets/decks/$key.ydk';
+      final path = 'packages/resource_deck_mycard/assets/decks/$key.ydk';
       final content = await rootBundle.loadString(path);
       final deck = _parseYdk(content, displayName);
       deck.isBuiltin = true;

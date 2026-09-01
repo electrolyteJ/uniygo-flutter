@@ -360,7 +360,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
         //（旧常驻聊天面板的位置；等待室不再占用 AppBar actions）。
         // 抽屉展开时按钮随动左移，让出面板（不遮挡抽屉底部输入区）。
         AnimatedPositioned(
-          right: _logDrawerOpen ? DuelLogDrawer.panelWidth + 8 : 16,
+          right: _logDrawerOpen ? DuelLogDrawer.widthFor(context) + 8 : 16,
           bottom: 16,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,

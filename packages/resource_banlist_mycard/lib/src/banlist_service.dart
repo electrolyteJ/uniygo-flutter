@@ -1,6 +1,7 @@
 import 'package:applog/console.dart' as console;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:resource_data/env_config.dart';
 import 'package:resource_data/ygo_data.dart';
 import 'parse_lf_table.dart';
 import 'deck_validator.dart';
@@ -56,5 +57,16 @@ class BanlistService extends IBanlistService {
       throw Exception('Banlist not loaded. Call preloadBanlist() first.');
     }
     return getLflist(code);
+  }
+
+  @override
+  Future<Map<int, LfTable>> fetchBanlists(EnvConfig config) async {
+    final response = await http.get(Uri.parse(config.lflistUrl));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('HTTP ${response.statusCode}');
+    }
+    parseLflistConf(utf8.decode(response.bodyBytes));
+    _banlistLoaded = true;
+    return lflistHashToTable;
   }
 }

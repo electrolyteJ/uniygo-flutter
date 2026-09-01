@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:service_loader/service_loader.dart';
 import 'card_info.dart';
 import 'deck_info.dart';
+import 'env_config.dart';
 import 'lf_table.dart';
 
 export 'card_info.dart';
@@ -81,6 +82,13 @@ abstract class IBanlistService implements IService {
   Future<LfTable?> getLfTable(int hash) async {
     throw UnimplementedError(
       'getLfTable is not implemented in IBanlistService',
+    );
+  }
+
+  /// 加载指定环境的禁限卡表（lflist.conf），返回 hash → LfTable。
+  Future<Map<int, LfTable>> fetchBanlists(EnvConfig config) async {
+    throw UnimplementedError(
+      'fetchBanlists is not implemented in IBanlistService',
     );
   }
 }

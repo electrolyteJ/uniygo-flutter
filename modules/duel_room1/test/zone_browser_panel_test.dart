@@ -118,10 +118,15 @@ void main() {
     expect(find.text('该区域当前没有卡片'), findsOneWidget);
   });
 
-  testWidgets('面板停靠右侧：上 136、下 126、右 18、宽 440', (tester) async {
+  testWidgets('桌面视口下停靠几何不变（上136/下126/右18/宽440）', (tester) async {
+    // 桌面尺寸（≥760 高）：HUD 缩放恒 1.0，停靠几何保持设计值。
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final s = buildSubject();
     await tester.pumpWidget(s.widget);
-    // 面板进场动画（220ms）播完后再断言/点击。
     await tester.pumpAndSettle();
 
     final pos = tester.widget<Positioned>(
@@ -134,6 +139,28 @@ void main() {
     expect(pos.right, 18);
     expect(pos.width, 440);
     expect(pos.left, isNull);
+  });
+
+  testWidgets('手机横屏视口下面板收缩上下留白', (tester) async {
+    tester.view.physicalSize = const Size(800, 390);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final s = buildSubject();
+    await tester.pumpWidget(s.widget);
+    await tester.pumpAndSettle();
+
+    final pos = tester.widget<Positioned>(
+      find
+          .ancestor(of: find.text('己方墓地'), matching: find.byType(Positioned))
+          .first,
+    );
+    // 390 高 → hudScale clamp 到 0.60：136→81.6、126→75.6；宽度不受缩放。
+    expect(pos.top, closeTo(81.6, 0.001));
+    expect(pos.bottom, closeTo(75.6, 0.001));
+    expect(pos.right, 18);
+    expect(pos.width, 440);
   });
 
   testWidgets('可发动的卡显示角标，未命中集合的不显示', (tester) async {

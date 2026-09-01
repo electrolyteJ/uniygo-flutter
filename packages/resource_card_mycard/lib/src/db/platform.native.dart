@@ -2,6 +2,7 @@ import 'package:applog/console.dart' as console;
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
+import 'package:resource_data/env_config.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../../ygo_card_mycard.dart';
 import '../card_dao.dart';

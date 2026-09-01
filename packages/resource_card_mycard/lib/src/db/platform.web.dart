@@ -1,6 +1,7 @@
 import 'package:applog/console.dart' as console;
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
+import 'package:resource_data/env_config.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../ygo_card_mycard.dart';

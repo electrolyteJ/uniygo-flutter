@@ -1,9 +1,9 @@
 import 'package:applog/console.dart' as console;
+import 'package:resource_data/env_config.dart';
 import 'dart:typed_data';
 import 'package:resource_data/ygo_data.dart';
 import 'package:resource_card_mycard/src/card_dao.dart';
 import 'db/card_database.dart';
-import 'env_config.dart';
 import 'dart:convert';
 import 'httper.dart';
 

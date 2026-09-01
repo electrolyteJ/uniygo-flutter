@@ -6,6 +6,13 @@
 /// 压到 0.4 以下），故按视口高度线性收缩 HUD，下限 0.60 保证可读性。
 library;
 
+import 'package:flutter/widgets.dart';
+
+/// 从 [BuildContext] 读取当前视口 HUD 缩放系数（桌面 ≥760 恒 1.0，小屏收缩）。
+extension DuelHudScaleX on BuildContext {
+  double get hudScale => hudScaleForHeight(MediaQuery.sizeOf(this).height);
+}
+
 /// HUD 缩放的基准视口高度（达到该高度时 HUD 不缩放）。
 const double kHudReferenceHeight = 760.0;
 

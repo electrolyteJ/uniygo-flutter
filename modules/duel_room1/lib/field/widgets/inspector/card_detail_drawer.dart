@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:resource_data/card_info.dart';
 import 'package:biz/widgets/card_image.dart';
+import 'package:duel_room1/field/util/ui_scale.dart';
 
 class CardDetailDrawer extends StatelessWidget {
   final CardInfo? cardInfo;
@@ -22,12 +23,19 @@ class CardDetailDrawer extends StatelessWidget {
     const panelDark = Color(0xF1080C14);
     // 高度由父级 Positioned(top/bottom) 约束决定，自适应屏幕。
     final resolvedCode = cardInfo?.code ?? cardCode ?? 0;
+    // 响应式：宽度夹紧不溢出窄屏；卡图随 HUD 缩放（小屏不再 206×294）。
+    final viewport = MediaQuery.sizeOf(context);
+    final hs = hudScaleForHeight(viewport.height);
+    final panelWidth =
+        viewport.width - 24.0 < 324.0 ? viewport.width - 24.0 : 324.0;
+    final cardW = 206.0 * hs;
+    final cardH = 294.0 * hs;
 
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
-          width: 324,
+          width: panelWidth,
           decoration: BoxDecoration(
             color: panelDark,
             borderRadius: BorderRadius.circular(26),
@@ -82,15 +90,15 @@ class CardDetailDrawer extends StatelessWidget {
               ),
 
               Expanded(
-                child: Padding(
+                child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Center(
                         child: Container(
-                          width: 206,
-                          height: 294,
+                          width: cardW,
+                          height: cardH,
                           decoration: BoxDecoration(
                             color: const Color(0xFF0D1624),
                             borderRadius: BorderRadius.circular(14),
@@ -107,8 +115,8 @@ class CardDetailDrawer extends StatelessWidget {
                           child: resolvedCode > 0
                               ? CardImage(
                                   code: resolvedCode,
-                                  width: 206,
-                                  height: 294,
+                                  width: cardW,
+                                  height: cardH,
                                 )
                               : const Center(
                                   child: Icon(
@@ -190,27 +198,24 @@ class CardDetailDrawer extends StatelessWidget {
                           ),
                         const SizedBox(height: 14),
 
-                        // 描述区域：Expanded 填满剩余空间，内部可滚动
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.4),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.08),
-                              ),
+                        // 描述区域：随抽屉整体滚动（小屏不再内嵌滚动，
+                        // 避免卡图+徽章+攻防固定高度把描述挤没）。
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.08),
                             ),
-                            child: SingleChildScrollView(
-                              child: Text(
-                                cardInfo!.desc,
-                                style: const TextStyle(
-                                  color: Color(0xFF8B9BB4),
-                                  fontSize: 12,
-                                  height: 1.5,
-                                  fontFamily: 'Noto Sans SC',
-                                ),
-                              ),
+                          ),
+                          child: Text(
+                            cardInfo!.desc,
+                            style: const TextStyle(
+                              color: Color(0xFF8B9BB4),
+                              fontSize: 12,
+                              height: 1.5,
+                              fontFamily: 'Noto Sans SC',
                             ),
                           ),
                         ),
