@@ -5,6 +5,8 @@ import 'package:resource_data/deck_info.dart';
 import 'package:resource_data/deck_list_page.dart';
 import 'package:resource_data/ygo_card_deck_exception.dart';
 
+import 'http_client_factory.dart';
+
 /// 卡组广场 Deck API 客户端
 ///
 /// 负责与卡组广场服务通信，获取/管理卡组。
@@ -29,7 +31,7 @@ class DeckApiClient {
     http.Client? client,
     String? baseUrl,
     this.timeout = const Duration(seconds: 30),
-  })  : _client = client ?? http.Client(),
+  })  : _client = client ?? createDeckHttpClient(),
         baseUrl = baseUrl ?? const String.fromEnvironment(
           'DECK_SQUARE_URL',
           defaultValue: 'https://zgai.tech:38443',
