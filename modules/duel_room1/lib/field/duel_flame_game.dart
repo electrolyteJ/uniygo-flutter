@@ -59,6 +59,10 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   void setViewPadding(EdgeInsets padding) {
     if (viewPadding == padding) return;
     viewPadding = padding;
+    // Game 尚未挂载（build 阶段经 _ensureFlameGame 推入）时 size 不可用
+    // （Flame 1.38 的 size 带 hasLayout 断言）；跳过相机计算，onGameResize
+    // 在挂载后读取已存的 viewPadding 重新应用沉浸式相机。
+    if (!hasLayout) return;
     _applyImmersiveCamera();
     _emitAnchors();
   }
