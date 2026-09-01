@@ -6,6 +6,10 @@
         android:label="uniygopro"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- flame_3d / Flutter GPU 召唤 3D 演出需要 Flutter GPU（对齐 macOS FLTEnableFlutterGPU） -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableFlutterGPU"
+            android:value="true" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
