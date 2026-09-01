@@ -773,18 +773,27 @@ class SelectWindowNotifier extends _$SelectWindowNotifier {
   void applySelectCard(MsgSelectCard msg) {
     final options = <SelectOption>[];
     for (int i = 0; i < msg.count; i++) {
+      final loc = msg.locations[i];
       options.add(
         SelectOption(
-          code: msg.codes[i],
-          controller: msg.locations[i].controller,
-          zone: msg.locations[i].location,
-          sequence: msg.locations[i].sequence,
+          // 服务端选卡载荷对候选卡可能下发 code=0；公开区域（墓地/除外/额外）
+          // 用本地已同步卡密回查，否则 CardSelector 会渲染成空白占位卡。
+          code: resolveSelectOptionCode(
+            msg.codes[i],
+            loc.controller,
+            loc.location,
+            loc.sequence,
+            _board,
+          ),
+          controller: loc.controller,
+          zone: loc.location,
+          sequence: loc.sequence,
         ),
       );
     }
     console.log(
       'applySelectCard: min=${msg.min} max=${msg.max} count=${msg.count} options='
-      '${List.generate(msg.count, (i) => "#$i code=${msg.codes[i]} c=${msg.locations[i].controller} z=${msg.locations[i].location} s=${msg.locations[i].sequence}")}',
+      '${List.generate(msg.count, (i) => "#$i code=${options[i].code} c=${options[i].controller} z=${options[i].zone} s=${options[i].sequence}")}',
     );
     _openWindow(
       SelectState(
@@ -1752,6 +1761,26 @@ bool resolveInlineSelectActive(SelectState? select, DuelFieldState board) {
   return select.options.every(
     (option) => _isInlineVisibleOptionIn(option, board),
   );
+}
+
+/// 选卡选项卡密回查：服务端 MSG_SELECT_CARD 载荷对候选卡可能下发 code=0，
+/// 客户端需按位置回查本地已同步的公开区域卡密（墓地/除外/额外）。
+///
+/// - code>0 直接返回原值；
+/// - 卡组/手牌（[DuelFieldState.zoneCodeListFor] 返回 null）保持 0：卡背占位；
+/// - 场上卡不在此回查（由内联点选承载）。
+int resolveSelectOptionCode(
+  int code,
+  int controller,
+  int zone,
+  int sequence,
+  DuelFieldState board,
+) {
+  if (code > 0) return code;
+  final list = board.zoneCodeListFor(controller, zone);
+  if (list == null || sequence < 0 || sequence >= list.length) return code;
+  final resolved = list[sequence];
+  return resolved > 0 ? resolved : code;
 }
 
 bool _isInlineVisibleOptionIn(SelectOption option, DuelFieldState board) {
