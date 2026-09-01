@@ -1,3 +1,5 @@
+import 'dart:developer' as console;
+
 import 'package:biz/widgets/card_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -81,6 +83,7 @@ class _DeckList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (state.error != null && state.decks.isEmpty) {
+      console.log('Error: ${state.error}');
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -112,25 +115,39 @@ class _DeckList extends ConsumerWidget {
         }
         return false;
       },
-      child: GridView.builder(
-        padding: const EdgeInsets.all(12),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 6,
-          childAspectRatio: 2.0,
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-        ),
-        itemCount: state.decks.length + (state.hasMore ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index >= state.decks.length) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(8),
-                child: CircularProgressIndicator(),
-              ),
-            );
-          }
-          return _DeckSquareTile(deck: state.decks[index]);
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // 动态列数：横屏手机视口较窄，固定 6 列会导致 tile 过小、
+          // 文字列溢出（RenderFlex overflow）；按可用宽度降列。
+          final width = constraints.maxWidth;
+          final crossAxisCount = width >= 1200
+              ? 6
+              : width >= 900
+                  ? 5
+                  : width >= 600
+                      ? 4
+                      : 3;
+          return GridView.builder(
+            padding: const EdgeInsets.all(12),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              childAspectRatio: 1.6,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+            ),
+            itemCount: state.decks.length + (state.hasMore ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (index >= state.decks.length) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(8),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+              return _DeckSquareTile(deck: state.decks[index]);
+            },
+          );
         },
       ),
     );
