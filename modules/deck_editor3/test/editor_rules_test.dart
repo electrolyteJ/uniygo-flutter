@@ -1,4 +1,4 @@
-import 'package:deck_editor3/src/deck_state/editor_rules.dart';
+import 'package:deck_editor3/src/my_decks/editor_rules.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:resource_data/card_info.dart';
 

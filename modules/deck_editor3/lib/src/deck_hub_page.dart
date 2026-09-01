@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'deck_square_page.dart';
-import 'my_decks_page.dart';
+import 'deck_square/deck_square_page.dart';
+import 'my_decks/my_decks_controller.dart';
+import 'my_decks/my_decks_page.dart';
 
 /// 卡组中心壳页：市场 / 我的卡组 两个分区。
 ///
@@ -16,15 +17,23 @@ class DeckHubPage extends StatelessWidget {
   }
 }
 
-class _DeckHubView extends StatefulWidget {
+class _DeckHubView extends ConsumerStatefulWidget {
   const _DeckHubView();
 
   @override
-  State<_DeckHubView> createState() => _DeckHubViewState();
+  ConsumerState<_DeckHubView> createState() => _DeckHubViewState();
 }
 
-class _DeckHubViewState extends State<_DeckHubView> {
+class _DeckHubViewState extends ConsumerState<_DeckHubView> {
   int _tab = 0;
+
+  void _selectTab(int i) {
+    setState(() => _tab = i);
+    // 切到「我的卡组」时刷新列表，确保刚使用/新建/导入的卡组立即显示。
+    if (i == 1) {
+      ref.read(myDecksControllerProvider.notifier).refresh();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +54,7 @@ class _DeckHubViewState extends State<_DeckHubView> {
       bottomNavigationBar: NavigationBar(
         backgroundColor: const Color(0xFF0E1626),
         selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
+        onDestinationSelected: _selectTab,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.storefront_outlined),

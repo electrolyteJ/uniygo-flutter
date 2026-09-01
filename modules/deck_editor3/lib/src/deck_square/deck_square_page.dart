@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:resource_data/deck_info.dart' show DeckSummary;
 
-import '../deck_state/square_controller.dart';
+import 'square_controller.dart';
 import 'deck_detail_page.dart';
 
 /// 卡组市场页：MDPro3 卡组广场（搜索 + 排序 + 分页卡片流）。
@@ -166,7 +166,11 @@ class _DeckSquareTile extends StatelessWidget {
       onTap: () {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => DeckDetailPage(deckId: deck.deckId),
+            // 详情页用了 ref.read（copyToLocal），而根 Navigator 位于 ProviderScope
+            // 之上，push 出的路由不在 Scope 内，需像编辑器页一样自带一个 Scope。
+            builder: (_) => ProviderScope(
+              child: DeckDetailPage(deckId: deck.deckId),
+            ),
           ),
         );
       },

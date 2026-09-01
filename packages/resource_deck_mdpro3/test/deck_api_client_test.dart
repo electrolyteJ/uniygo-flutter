@@ -143,6 +143,24 @@ void main() {
       expect(side.count, 2);
     });
 
+    test('fetchDeckDetail 还原二次转义的 deckYdk 换行（字面量反斜杠+r/n）', () async {
+      // 服务端把 YDK 换行二次转义：jsonDecode 后仍是字面量 \r\n，
+      // 而非真实换行。直接按换行切会把整段当成一行、以 # 开头被跳过。
+      final deck = await _clientWith({
+        'code': 0,
+        'data': {
+          'deckId': 'escaped',
+          'deckYdk':
+              r'#main\r\n12345678\r\n12345678\r\n#extra\r\n87654321\r\n!side\r\n11111111\r\n',
+        },
+      }).fetchDeckDetail('escaped');
+      expect(deck.mainCount, 2);
+      expect(deck.extraCount, 1);
+      expect(deck.sideCount, 1);
+      expect(deck.mainDeck.single.code, 12345678);
+      expect(deck.mainDeck.single.count, 2);
+    });
+
     test('generateDeckId 解包字符串 data', () async {
       final id = await _clientWith({
         'code': 0,

@@ -439,7 +439,10 @@ class DeckApiClient {
     final extraMap = <int, int>{};
     final sideMap = <int, int>{};
     var section = 0;
-    for (final raw in ydk.split('\n')) {
+    // 服务端把 YDK 换行二次转义成了字面量反斜杠序列（JSON 里再转义一层），
+    // jsonDecode 后仍是「反斜杠 + r/n」文本而非真实换行；直接按换行切会把
+    // 整段当成一行、以 # 开头被 continue 跳过 → 卡表全空。先还原再解析。
+    for (final raw in _normalizeYdkLines(ydk).split('\n')) {
       final line = raw.trim();
       if (line.isEmpty) continue;
       if (line.startsWith('#') || line.startsWith('!')) {
@@ -469,6 +472,15 @@ class DeckApiClient {
         m.entries.map((e) => DeckCard(code: e.key, count: e.value)).toList();
     return (toList(mainMap), toList(extraMap), toList(sideMap));
   }
+
+  /// 还原 YDK 中可能被转义成字面量的换行（兼容真实 CRLF/LF 与
+  /// 字面量反斜杠+r/n 序列）。
+  static String _normalizeYdkLines(String s) => s
+      .replaceAll(r'\r\n', '\n')
+      .replaceAll(r'\n', '\n')
+      .replaceAll(r'\r', '\n')
+      .replaceAll('\r\n', '\n')
+      .replaceAll('\r', '\n');
 
   void _ensureSuccess(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) return;

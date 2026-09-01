@@ -2,4 +2,4 @@
 /// 我的卡组 + 全新组卡编辑器。库模块，由宿主路由挂载。
 library;
 
-export 'src/pages/deck_hub_page.dart';
+export 'src/deck_hub_page.dart';

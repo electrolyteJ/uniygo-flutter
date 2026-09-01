@@ -1,4 +1,5 @@
 import 'package:biz/service_singleton.dart';
+import 'package:biz/widgets/card_detail_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,7 +7,7 @@ import 'package:resource_data/card_info.dart';
 import 'package:resource_data/deck_info.dart';
 import 'package:resource_deck_mdpro3/services/deck_api_client.dart';
 
-import '../deck_state/my_decks_controller.dart';
+import '../my_decks/my_decks_controller.dart';
 import '../widgets/deck_zone_grid.dart';
 
 /// 市场卡组详情页：构成展示 + 统计 + 点赞 + 复制到我的卡组 + YDK 导出。
@@ -89,15 +90,15 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> {
           ? null
           : FloatingActionButton.extended(
               backgroundColor: const Color(0xFF1B7FA8),
-              onPressed: _copying ? null : _copyToLocal,
+              onPressed: _copying ? null : _useDeck,
               icon: _copying
                   ? const SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.download),
-              label: Text(_copying ? '复制中…' : '复制到我的卡组'),
+                  : const Icon(Icons.play_arrow),
+              label: Text(_copying ? '使用中…' : '使用该卡组'),
             ),
     );
   }
@@ -181,35 +182,14 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> {
   }
 
   void _showCardInfo(int code) {
-    final info = ServiceSingleton.instance.dataService.getCardCached(code);
+    final data = ServiceSingleton.instance.dataService;
+    final info = data.getCardCached(code);
     if (info == null) return;
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: const Color(0xFF14203A),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(info.name,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Text(info.desc,
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 12, height: 1.5)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    CardDetailDialog.show(
+      context,
+      card: info,
+      showAddButton: false,
+      imageUrl: data.getCardImageUrl(code),
     );
   }
 
@@ -233,7 +213,8 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> {
     }
   }
 
-  Future<void> _copyToLocal() async {
+  /// 使用该卡组：复制到本地，成为「我的卡组」里的自建卡组。
+  Future<void> _useDeck() async {
     final deck = _deck;
     if (deck == null) return;
     setState(() => _copying = true);
@@ -247,12 +228,16 @@ class _DeckDetailPageState extends ConsumerState<DeckDetailPage> {
       final ok = await ref
           .read(myDecksControllerProvider.notifier)
           .copyToLocal(local, rename: deck.name);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ok ? '已复制到我的卡组' : '复制失败')),
-        );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ok ? '已加入我的卡组' : '加入失败')),
+      );
+      if (ok) {
+        Navigator.of(context).pop();
+      } else {
+        setState(() => _copying = false);
       }
-    } finally {
+    } catch (_) {
       if (mounted) setState(() => _copying = false);
     }
   }

@@ -7,7 +7,7 @@ import 'package:provider/provider.dart' as provider;
 import 'package:resource_data/deck_info.dart';
 import 'package:resource_deck_mdpro3/services/deck_api_client.dart';
 
-import '../deck_state/my_decks_controller.dart';
+import 'my_decks_controller.dart';
 import 'deck_editor_page.dart';
 
 /// 我的卡组页：本地卡组 CRUD + YDK 导入导出 + 发布到市场。
@@ -53,11 +53,32 @@ class MyDecksPage extends ConsumerWidget {
                   style: TextStyle(color: Colors.white54)),
             );
           }
-          return ListView.builder(
+          final builtin = decks.where((d) => d.isBuiltin).toList();
+          final user = decks.where((d) => !d.isBuiltin).toList();
+          return ListView(
             padding: const EdgeInsets.all(12),
-            itemCount: decks.length,
-            itemBuilder: (context, index) =>
-                _DeckListTile(deck: decks[index]),
+            children: [
+              // 自建卡组在前，内置卡组在后，用分组标题 + 图标区分。
+              if (user.isNotEmpty) ...[
+                _SectionHeader(
+                  icon: Icons.edit,
+                  title: '自建卡组',
+                  count: user.length,
+                  color: const Color(0xFF1B7FA8),
+                ),
+                for (final deck in user) _DeckListTile(deck: deck),
+              ],
+              if (builtin.isNotEmpty) ...[
+                if (user.isNotEmpty) const SizedBox(height: 10),
+                _SectionHeader(
+                  icon: Icons.book,
+                  title: '内置卡组',
+                  count: builtin.length,
+                  color: const Color(0xFF37E2FF),
+                ),
+                for (final deck in builtin) _DeckListTile(deck: deck),
+              ],
+            ],
           );
         },
       ),
@@ -68,7 +89,7 @@ class MyDecksPage extends ConsumerWidget {
     final name = await _askText(context, '新建卡组', '卡组名');
     if (name == null || name.trim().isEmpty) return;
     if (context.mounted) {
-      _openEditor(context, DeckInfo(deckName: name.trim()));
+      await _openEditor(context, ref, DeckInfo(deckName: name.trim()));
     }
   }
 
@@ -114,12 +135,19 @@ class MyDecksPage extends ConsumerWidget {
     }
   }
 
-  static void _openEditor(BuildContext context, DeckInfo deck) {
-    Navigator.of(context).push(
+  static Future<void> _openEditor(
+    BuildContext context,
+    WidgetRef ref,
+    DeckInfo deck,
+  ) async {
+    final notifier = ref.read(myDecksControllerProvider.notifier);
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ProviderScope(child: DeckEditor3Page(initialDeck: deck)),
       ),
     );
+    // 编辑器可能保存/改名了卡组，返回后刷新列表以显示最新。
+    await notifier.refresh();
   }
 
   static Future<String?> _askText(
@@ -168,13 +196,42 @@ class _DeckListTile extends ConsumerWidget {
       color: const Color(0xFF14203A),
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        leading: const Icon(Icons.style, color: Color(0xFF37E2FF)),
-        title: Text(
-          deck.deckName,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
+        leading: Icon(
+          deck.isBuiltin ? Icons.book : Icons.edit,
+          color: deck.isBuiltin
+              ? const Color(0xFF37E2FF)
+              : const Color(0xFF1B7FA8),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                deck.deckName,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (deck.isBuiltin)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF37E2FF).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  '内置',
+                  style: TextStyle(
+                    color: Color(0xFF37E2FF),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+          ],
         ),
         subtitle: Text(
           '主 ${deck.mainCount} · 额外 ${deck.extraCount} · 副 ${deck.sideCount}',
@@ -207,9 +264,7 @@ class _DeckListTile extends ConsumerWidget {
             ),
           ],
         ),
-        onTap: () {
-          MyDecksPage._openEditor(context, deck);
-        },
+        onTap: () => MyDecksPage._openEditor(context, ref, deck),
       ),
     );
   }
@@ -307,5 +362,57 @@ class _DeckListTile extends ConsumerWidget {
         );
       }
     }
+  }
+}
+
+/// 分组标题：自建卡组 / 内置卡组，带图标 + 数量。
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.icon,
+    required this.title,
+    required this.count,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final int count;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 2, 2, 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            title,
+            style: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '$count',
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -1,10 +1,10 @@
-import 'package:biz/service_singleton.dart';
 import 'package:biz/widgets/card_image.dart';
 import 'package:flutter/material.dart';
-import 'package:resource_data/card_info.dart';
 import 'package:resource_data/deck_info.dart';
 
-/// 卡组分区网格：主/额外/副三个分区展示卡片，支持减卡回调。
+import 'banlist_badge.dart';
+
+/// 卡组分区网格：主/额外/副三个分区展示卡片，支持移除/详情回调与禁限角标。
 class DeckZoneGrid extends StatelessWidget {
   const DeckZoneGrid({
     super.key,
@@ -13,6 +13,8 @@ class DeckZoneGrid extends StatelessWidget {
     this.accent = const Color(0xFF37E2FF),
     this.onCardTap,
     this.onCardLongPress,
+    this.onRemove,
+    this.banlistStatusOf,
     this.cardBuilder,
     this.cardWidth = 56,
     this.cardHeight = 82,
@@ -26,11 +28,17 @@ class DeckZoneGrid extends StatelessWidget {
   final double cardWidth;
   final double cardHeight;
 
-  /// 点卡回调（编辑器里 = 减卡；详情页 = 看详情）。
+  /// 点卡回调（编辑器/详情页 = 看详情）。
   final void Function(int code)? onCardTap;
   final void Function(int code)? onCardLongPress;
 
-  /// 自定义卡片右上角角标（如数量徽标）。
+  /// 右上角「×」移除按钮回调（编辑器 = 减卡）。
+  final void Function(int code)? onRemove;
+
+  /// 禁限状态查询（禁止/限制/准限制），null 表示无限制或未加载禁限表。
+  final String? Function(int code)? banlistStatusOf;
+
+  /// 自定义卡片角标。
   final Widget Function(DeckCard card)? cardBuilder;
 
   int get total => cards.fold(0, (sum, c) => sum + c.count);
@@ -67,6 +75,8 @@ class DeckZoneGrid extends StatelessWidget {
                   card: card,
                   onTap: onCardTap,
                   onLongPress: onCardLongPress,
+                  onRemove: onRemove,
+                  banlistStatusOf: banlistStatusOf,
                   badge: cardBuilder?.call(card),
                   width: cardWidth,
                   height: cardHeight,
@@ -83,6 +93,8 @@ class _ZoneCardTile extends StatelessWidget {
     required this.card,
     this.onTap,
     this.onLongPress,
+    this.onRemove,
+    this.banlistStatusOf,
     this.badge,
     this.width = 56,
     this.height = 82,
@@ -91,13 +103,15 @@ class _ZoneCardTile extends StatelessWidget {
   final DeckCard card;
   final void Function(int code)? onTap;
   final void Function(int code)? onLongPress;
+  final void Function(int code)? onRemove;
+  final String? Function(int code)? banlistStatusOf;
   final Widget? badge;
   final double width;
   final double height;
 
   @override
   Widget build(BuildContext context) {
-    final info = ServiceSingleton.instance.dataService.getCardCached(card.code);
+    final banlistStatus = banlistStatusOf?.call(card.code);
     return GestureDetector(
       onTap: onTap == null ? null : () => onTap!(card.code),
       onLongPress:
@@ -108,7 +122,7 @@ class _ZoneCardTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
             child: CardImage(code: card.code, width: width, height: height),
           ),
-          // 数量角标
+          // 数量角标（右下）
           if (card.count > 1)
             Positioned(
               right: 2,
@@ -130,15 +144,47 @@ class _ZoneCardTile extends StatelessWidget {
                 ),
               ),
             ),
-          if (badge != null) Positioned(right: 0, top: 0, child: badge!),
-          if (info != null) _banlistCorner(info),
+          // 禁限角标（左上）
+          if (banlistStatus != null)
+            Positioned(
+              top: 2,
+              left: 2,
+              child: BanlistCornerBadge(status: banlistStatus),
+            ),
+          // 移除按钮（右上）
+          if (onRemove != null)
+            Positioned(
+              top: 2,
+              right: 2,
+              child: _RemoveButton(onTap: () => onRemove!(card.code)),
+            ),
+          // 自定义角标（左下，避免与移除/禁限角标重叠）
+          if (badge != null) Positioned(left: 0, bottom: 0, child: badge!),
         ],
       ),
     );
   }
+}
 
-  /// 禁限角标（0=禁 1=限一 2=限二）。
-  Widget _banlistCorner(CardInfo info) {
-    return const SizedBox.shrink();
+/// 右上角圆形「×」移除按钮。
+class _RemoveButton extends StatelessWidget {
+  const _RemoveButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 18,
+        height: 18,
+        decoration: const BoxDecoration(
+          color: Color(0xFFEF5350),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.close, size: 12, color: Colors.white),
+      ),
+    );
   }
 }

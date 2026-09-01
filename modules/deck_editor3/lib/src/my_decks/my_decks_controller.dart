@@ -33,7 +33,7 @@ class MyDecksController extends _$MyDecksController {
     return ok;
   }
 
-  /// 复制一套卡组到本地（市场详情「复制到我的卡组」）。
+  /// 把市场卡组落到本地成为自建卡组（市场详情「使用该卡组」）。
   Future<bool> copyToLocal(DeckInfo deck, {String? rename}) async {
     final copy = deck.toDeckInfoCopy(rename: rename);
     return saveDeck(copy);
