@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:biz/duel/models/playmat_anchor_data.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
+import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 import 'package:biz/duel/models/draw_animation_event.dart';
@@ -14,7 +15,9 @@ import 'components/lp/lp_change_toast_component.dart';
 import 'duel_field_world.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:duel_room1/field/components/phase_rail/phase_rail_layout.dart';
+import 'package:duel_room1/field/util/camera_viewport_layout.dart';
 import 'package:duel_room1/field/util/ui_scale.dart';
+import 'package:duel_room1/layout/duel_room_layout.dart';
 
 /// 决斗场地 FlameGame：只持有 [DuelFieldWorld] 与观察它的
 /// [CameraComponent]，负责鼠标视差输入与 Flutter 侧锚点上报。
@@ -53,23 +56,44 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
 
   /// 设备安全区内边距（刘海/Home 指示条），由页面从 MediaQuery 推入。
   /// 计入相机 HUD 预留，避免棋盘/手牌栏被圆角或指示条遮挡。
-  EdgeInsets viewPadding = EdgeInsets.zero;
+  DuelRoomLayoutSpec? _layoutSpec;
+  EdgeInsets? _pendingViewPadding;
+
+  EdgeInsets get viewPadding =>
+      _layoutSpec?.safePadding ?? _pendingViewPadding ?? EdgeInsets.zero;
+
+  set viewPadding(EdgeInsets value) => setViewPadding(value);
+
+  Rect get safeRect => CameraViewportLayout.resolve(
+    Size(size.x, size.y),
+    safePadding: viewPadding,
+  ).safeRect;
+
+  void setLayoutSpec(DuelRoomLayoutSpec spec) {
+    if (_layoutSpec == spec) return;
+    _pendingViewPadding = null;
+    _layoutSpec = spec;
+    if (!hasLayout) return;
+    _applyImmersiveCamera();
+    selfHandBar?.relayout();
+    oppHandBar?.relayout();
+    _emitAnchors();
+  }
 
   /// 页面推入安全区内边距（变化才重算相机并上报锚点）。
   void setViewPadding(EdgeInsets padding) {
-    if (viewPadding == padding) return;
-    viewPadding = padding;
-    // Game 尚未挂载（build 阶段经 _ensureFlameGame 推入）时 size 不可用
-    // （Flame 1.38 的 size 带 hasLayout 断言）；跳过相机计算，onGameResize
-    // 在挂载后读取已存的 viewPadding 重新应用沉浸式相机。
-    if (!hasLayout) return;
-    _applyImmersiveCamera();
-    _emitAnchors();
+    if (!hasLayout) {
+      _pendingViewPadding = padding;
+      return;
+    }
+    setLayoutSpec(
+      DuelRoomLayoutSpec.resolve(Size(size.x, size.y), safePadding: padding),
+    );
   }
 
   /// 屏幕空间 HUD 的缩放系数（手机横屏矮视口收缩手牌栏/顶栏，
   /// 把高度让给棋盘）。桌面视口恒为 1.0。
-  double get hudScale => hudScaleForHeight(size.y);
+  double get hudScale => _layoutSpec?.hudScale ?? hudScaleForHeight(size.y);
 
   /// 紧凑 HUD 模式：世界内玩家状态卡/中央计时器让位给 widget 层
   /// 紧凑件，阶段轨道反缩放为固定屏幕尺寸。
@@ -84,14 +108,12 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
 
   /// 最近一次自适应计算的 fit zoom 与棋盘中心 y（用户变换的基准）。
   double _fitZoom = 1.0;
-  double _fitCenterY = 0.0;
+  final Vector2 _fitCenter = Vector2.zero();
 
   /// 捏合手势内的累计缩放值（增量换算用），手势结束清空。
   double? _lastPinchScale;
 
-  /// 用户缩放上限（fit zoom 的倍数）。
-  static const _maxUserZoom = 3.0;
-  /// zoom 上下限。下限取很小的值：沉浸式相机的目的就是让卡槽阵列「恰好」
+  /// 最终相机 zoom 的绝对上下限。下限取很小的值：沉浸式相机的目的就是让卡槽阵列「恰好」
   /// 装进扣除 HUD 的可见区，不应被下限强行放大而溢出到上下手牌栏。
   static const _minZoom = 0.1;
   static const _maxZoom = 2.6;
@@ -113,6 +135,19 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
 
   /// 点击己方手牌的回调（下标, 卡码）。
   final void Function(int index, int code)? onHandCardTap;
+
+  /// 右键（辅助点击）己方手牌的回调（下标, 卡码）。
+  /// 仅在桌面/Web 启用，用于弹出上下文菜单。
+  final void Function(int index, int code)? onHandCardSecondaryTap;
+
+  /// 右键（辅助点击）场上卡的回调（卡片, 卡码）。
+  /// 仅在桌面/Web 启用，用于弹出上下文菜单。
+  final void Function(FieldCard card, int code)? onFieldCardSecondaryTap;
+
+  /// 是否启用上下文菜单（右键/辅助点击）。
+  /// 由页面按 [PlatformAdaptive.supportsContextMenu] 在构造时决定。
+  final bool contextMenuEnabled;
+
   ValueChanged<PlaymatAnchorData>? onAnchorsChanged;
 
   /// 己方（底部）/对方（顶部）手牌栏：viewport 层组件，屏幕空间固定尺寸。
@@ -147,6 +182,9 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     this.isSurrenderEnabled,
     this.onPlaceSlotTap,
     this.onHandCardTap,
+    this.onHandCardSecondaryTap,
+    this.onFieldCardSecondaryTap,
+    this.contextMenuEnabled = false,
     this.onAnchorsChanged,
   }) : super(world: DuelFieldWorld());
 
@@ -166,11 +204,11 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     await super.onLoad();
     // 手牌栏挂 viewport（屏幕空间 HUD 层）：不随场地相机缩放。
     // 双方在首帧即常驻挂载，可见性由 setHudVisible 控制。
-    oppHandBar = HandBarComponent(isSelfSide: false)
-      ..hudTopY = _oppHandTopY;
+    oppHandBar = HandBarComponent(isSelfSide: false)..hudTopY = _oppHandTopY;
     selfHandBar = HandBarComponent(
       isSelfSide: true,
       onCardTap: onHandCardTap,
+      onCardSecondaryTap: onHandCardSecondaryTap,
     );
     camera.viewport.addAll([oppHandBar!, selfHandBar!]);
     // LP 变动 toast：与手牌栏同层（viewport 屏幕空间），
@@ -178,6 +216,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     camera.viewport.addAll([
       LpChangeToastComponent(isSelf: false),
       LpChangeToastComponent(isSelf: true),
+      _HandTapRouter(),
     ]);
     _applyImmersiveCamera();
     _emitAnchors();
@@ -358,6 +397,14 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
+    final pendingPadding = _pendingViewPadding;
+    if (pendingPadding != null) {
+      _layoutSpec = DuelRoomLayoutSpec.resolve(
+        Size(size.x, size.y),
+        safePadding: pendingPadding,
+      );
+      _pendingViewPadding = null;
+    }
     // 自适应 zoom：视口尺寸变化时重算，让卡槽阵列始终铺满可见区。
     _applyImmersiveCamera();
     if (isLoaded) {
@@ -378,38 +425,33 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
 
     // 紧凑 HUD 模式切换（视口高度越过基准线时）：阶段轨道反缩放、
     // 世界内状态卡/计时器让位给 widget 层紧凑件。
-    final compact = isCompactHudHeight(vh);
+    final compact = _layoutSpec?.isCompact ?? isCompactHudHeight(vh);
     if (compact != _compactHud) {
       _compactHud = compact;
       if (world.isLoaded) world.setCompactHudMode(compact);
     }
 
-    const res = _horizontalReserved;
-    final availW = (vw - res * 2).clamp(1.0, vw);
-    // HUD 预留随 hudScale 收缩（手机横屏手牌栏/顶栏更小）并叠加
-    // 设备安全区；预留量随视口高度收缩：横屏/矮视口下固定预留可能
-    // 吃掉整个屏高，把 availH 钳到 1、zoom 锁死下限、棋盘缩成一条缝。
-    // 预留总量超过半屏时等比压缩，保证至少留一半高度给棋盘；
-    // 竖屏高视口下总预留不超半屏，行为不变。
     final hs = hudScale;
-    var topReserved = viewPadding.top + _topReserved * hs;
-    var bottomReserved = viewPadding.bottom + _bottomReserved * hs;
-    final maxReserved = vh * 0.5;
-    final totalReserved = topReserved + bottomReserved;
-    if (totalReserved > maxReserved) {
-      final scale = maxReserved / totalReserved;
-      topReserved *= scale;
-      bottomReserved *= scale;
-    }
-    final availH = (vh - topReserved - bottomReserved).clamp(1.0, vh);
-    final zoomW = availW / _boardContentWidth;
-    final zoomH = availH / _boardContentHeight;
-    final zoom = (zoomW < zoomH ? zoomW : zoomH).clamp(_minZoom, _maxZoom);
+    final layout = CameraViewportLayout.resolve(
+      Size(vw, vh),
+      safePadding: viewPadding,
+      hudInsets: EdgeInsets.fromLTRB(
+        _horizontalReserved,
+        _topReserved * hs,
+        _horizontalReserved,
+        _bottomReserved * hs,
+      ),
+    );
+    final fit = CameraViewportFit.resolve(
+      layout: layout,
+      contentSize: Size(_boardContentWidth, _boardContentHeight),
+      minZoom: _minZoom,
+      maxZoom: _maxZoom,
+    );
 
-    // 可见区中心相对视口中心的像素偏移，换算成世界坐标（除以 zoom）。
-    // 水平预留对称，centerX = 0；y = (bottom - top)/2。
-    _fitZoom = zoom;
-    _fitCenterY = (bottomReserved - topReserved) / (2 * zoom);
+    // 非对称安全区/HUD 的可见中心相对视口中心偏移，换算成世界坐标。
+    _fitZoom = fit.zoom;
+    _fitCenter.setValues(fit.worldCenter.dx, fit.worldCenter.dy);
     _applyUserTransform();
   }
 
@@ -418,10 +460,14 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   /// viewfinder.position 是「屏幕中心对准的世界点」：画面随手指平移
   /// 屏幕像素 p 等价于 position 减去 p/zoom。
   void _applyUserTransform() {
-    final zoom = _fitZoom * _userZoom;
+    final zoom = clampCameraZoom(
+      _fitZoom,
+      _userZoom,
+      minZoom: _minZoom,
+      maxZoom: _maxZoom,
+    );
     camera.viewfinder.zoom = zoom;
-    camera.viewfinder.position =
-        Vector2(0, _fitCenterY) - _panScreen / zoom;
+    camera.viewfinder.position = _fitCenter - _panScreen / zoom;
   }
 
   // ── 双指捏合缩放/平移 与 滚轮缩放 ──
@@ -479,8 +525,19 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     final vf = camera.viewfinder;
     final oldZoom = vf.zoom;
     if (oldZoom <= 0) return;
-    _userZoom = (_userZoom * factor).clamp(1.0, _maxUserZoom);
-    final newZoom = _fitZoom * _userZoom;
+    final desiredZoom = clampCameraZoom(
+      _fitZoom,
+      _userZoom * factor,
+      minZoom: _minZoom,
+      maxZoom: _maxZoom,
+    );
+    _userZoom = (desiredZoom / _fitZoom).clamp(1.0, double.infinity);
+    final newZoom = clampCameraZoom(
+      _fitZoom,
+      _userZoom,
+      minZoom: _minZoom,
+      maxZoom: _maxZoom,
+    );
     final center = size / 2;
     // 不动点换算：缩放前后 focal 下的世界点相同。
     final worldAtFocal = vf.position + (focal - center) / oldZoom;
@@ -490,9 +547,9 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
       vf.position -= panDelta / newZoom;
     }
     // 存回相对适配位的屏幕平移（resize 重算 fit 后仍成立）。
-    _panScreen.setFrom((Vector2(0, _fitCenterY) - vf.position) * newZoom);
+    _panScreen.setFrom((_fitCenter - vf.position) * newZoom);
     _clampPan();
-    vf.position = Vector2(0, _fitCenterY) - _panScreen / newZoom;
+    vf.position = _fitCenter - _panScreen / newZoom;
     _emitAnchors();
   }
 
@@ -518,6 +575,14 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
       (point.x - viewfinder.position.x) * viewfinder.zoom + size.x / 2,
       (point.y - viewfinder.position.y) * viewfinder.zoom + size.y / 2,
     );
+  }
+
+  bool dispatchPrimaryTap(Vector2 screenPoint) {
+    return selfHandBar?.dispatchPrimaryTap(screenPoint) ?? false;
+  }
+
+  bool canDispatchPrimaryTap(Vector2 screenPoint) {
+    return selfHandBar?.canDispatchPrimaryTap(screenPoint) ?? false;
   }
 
   void _emitAnchors() {
@@ -625,4 +690,26 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
       phaseLampRect: phaseLampRect,
     );
   }
+}
+
+class _HandTapRouter extends PositionComponent
+    with TapCallbacks, HasGameReference<DuelFlameGame> {
+  @override
+  void onMount() {
+    super.onMount();
+    size.setFrom(game.size);
+  }
+
+  @override
+  void onGameResize(Vector2 size) {
+    super.onGameResize(size);
+    this.size.setFrom(size);
+  }
+
+  @override
+  bool containsLocalPoint(Vector2 point) => game.canDispatchPrimaryTap(point);
+
+  @override
+  void onTapUp(TapUpEvent event) =>
+      game.dispatchPrimaryTap(event.localPosition);
 }

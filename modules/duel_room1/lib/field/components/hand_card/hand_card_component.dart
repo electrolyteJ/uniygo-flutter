@@ -20,7 +20,10 @@ import '../card_paint.dart';
 /// 交互与动效（hover/选中上浮 + 放大回弹）由本组件承担；
 /// 位置由 HandBarComponent 经 [baseCenter] 布设。
 class HandCardComponent extends PositionComponent
-    with TapCallbacks, HoverCallbacks, HasGameReference<DuelFlameGame> {
+    with
+        HoverCallbacks,
+        SecondaryTapCallbacks,
+        HasGameReference<DuelFlameGame> {
   HandCardComponent({required this.index, required this.isSelfSide})
     : super(
         size: Vector2(HandFanLayout.cardWidth, HandFanLayout.cardHeight),
@@ -63,6 +66,7 @@ class HandCardComponent extends PositionComponent
   // ── 交互 ──
   bool _hovered = false;
   void Function(int index, int code)? onTapCard;
+  void Function(int index, int code)? onSecondaryTapCard;
 
   // ── 动效 ──
   double _liftPx = 0;
@@ -231,13 +235,9 @@ class HandCardComponent extends PositionComponent
 
   bool get _interactive => isSelfSide && !concealed && onTapCard != null;
 
-  // 用 onTapUp 而非 onTapDown：避免双指捏合缩放的起始落点误触发
-  // 手牌菜单（tap 输给 scale 手势时走 onTapCancel，不会到 onTapUp）。
-  @override
-  void onTapUp(TapUpEvent event) {
-    if (!_interactive) return;
-    onTapCard?.call(index, _code);
-  }
+  bool get primaryInteractive => _interactive;
+
+  void dispatchPrimaryTap() => onTapCard?.call(index, _code);
 
   @override
   void onHoverEnter() {
@@ -253,7 +253,14 @@ class HandCardComponent extends PositionComponent
     _animateState();
   }
 
-  // ── 渲染（先于子节点：只画垫底发光） ──
+  /// 右键/辅助点击：桌面/Web 下打开手牌上下文菜单（检视/可用动作）。
+  @override
+  void onSecondaryTapUp(SecondaryTapUpEvent event) {
+    if (!_interactive || !game.contextMenuEnabled) return;
+    onSecondaryTapCard?.call(index, _code);
+  }
+
+  // ── 渲染（先于子节点：只画垫底发光）──
 
   @override
   void render(Canvas canvas) {

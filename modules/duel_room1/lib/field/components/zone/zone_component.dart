@@ -1,11 +1,5 @@
-import 'dart:math';
-import 'dart:ui' as ui;
 import 'package:duel_room1/field/components/zone/slot.dart';
-import 'package:duelink/duelink.dart';
 import 'package:flame/components.dart';
-import 'package:flame/effects.dart';
-import 'package:flame/events.dart';
-import 'package:flame/text.dart';
 import 'package:flutter/material.dart';
 import 'package:biz/duel/models/field_card.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
@@ -47,6 +41,37 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
   FlameFieldSnapshot get _snapshot => world.game.snapshot;
 
   ZonesComponent({this.onCardSelect, this.onZoneInspect, this.onPlaceSlotTap});
+
+  CardSlotComponent? _slotAt(Vector2 point) {
+    final zoom = world.game.camera.viewfinder.zoom;
+    if (zoom <= 0) return null;
+    final minWorldExtent = 44 / zoom;
+    CardSlotComponent? nearest;
+    var nearestDistance = double.infinity;
+    for (final slot in _slots) {
+      if (slot.onTap == null) continue;
+      final dx = point.x - slot.position.x;
+      final dy = point.y - slot.position.y;
+      final halfWidth = (84.0 > minWorldExtent ? 84.0 : minWorldExtent) / 2;
+      final halfHeight = (100.0 > minWorldExtent ? 100.0 : minWorldExtent) / 2;
+      if (dx.abs() > halfWidth || dy.abs() > halfHeight) continue;
+      final distance = dx * dx + dy * dy;
+      if (distance < nearestDistance) {
+        nearest = slot;
+        nearestDistance = distance;
+      }
+    }
+    return nearest;
+  }
+
+  bool dispatchPrimaryTap(Vector2 worldPoint) {
+    final slot = _slotAt(worldPoint);
+    if (slot == null) return false;
+    slot.onTap?.call();
+    return true;
+  }
+
+  bool canDispatchPrimaryTap(Vector2 worldPoint) => _slotAt(worldPoint) != null;
 
   @override
   void onMount() {
@@ -157,11 +182,11 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
     FlameFieldSnapshot snapshot,
   ) {
     final interaction = resolveSlotInteraction(snapshot, spec.slotKeys);
-    final VoidCallback onTap = switch (spec.tapBehavior) {
+    final VoidCallback? onTap = switch (spec.tapBehavior) {
       ZoneSlotTapBehavior.inspect => () => onZoneInspect?.call(
         spec.inspectZoneKey!,
       ),
-      ZoneSlotTapBehavior.none => () {},
+      ZoneSlotTapBehavior.none => null,
       // 放置目标优先；默认点卡分发读取 slot.card 当前值，
       // 避免闭包捕获过期卡片。
       ZoneSlotTapBehavior.select =>
@@ -177,10 +202,10 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
           : spec.resolveCard(snapshot),
       highlight: interaction.highlight,
       onTap: onTap,
-      activatable: spec.inspectZoneKey != null &&
+      activatable:
+          spec.inspectZoneKey != null &&
           snapshot.activatableZoneKeys.contains(spec.inspectZoneKey),
       chainOrder: spec.chainOrderOf(snapshot.chainOrderBySlotKey),
     );
   }
 }
-

@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'package:biz/duel/models/duel_menu.dart';
+import 'package:duel_room1/layout/duel_room_layout.dart';
 import 'hand_action_menu.dart';
 
 class HandActionPopover extends StatelessWidget {
-  static const double menuWidth = 220;
-
   final List<ActionMenuEntry> actions;
 
   /// 锚点在 popover 坐标系内的 x 位置（用于对齐底部箭头）。
@@ -16,10 +15,18 @@ class HandActionPopover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (actions.isEmpty) return const SizedBox.shrink();
+
+    final menuWidth = menuWidthFor(DuelRoomLayout.of(context));
+    if (menuWidth <= 0) return const SizedBox.shrink();
+
+    final arrowWidth = menuWidth.clamp(0.0, 26.0).toDouble();
     final arrowDx = this.arrowDx;
     final arrowLeft = arrowDx == null
-        ? (menuWidth - 26) / 2
-        : (arrowDx - 13).clamp(8.0, menuWidth - 34);
+        ? (menuWidth - arrowWidth) / 2
+        : (arrowDx - arrowWidth / 2)
+              .clamp(0.0, menuWidth - arrowWidth)
+              .toDouble();
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -28,7 +35,7 @@ class HandActionPopover extends StatelessWidget {
         Transform.translate(
           offset: Offset(arrowLeft.toDouble(), -1),
           child: CustomPaint(
-            size: const Size(26, 16),
+            size: Size(arrowWidth, 16),
             painter: _PopoverArrowPainter(),
           ),
         ),

@@ -6,6 +6,7 @@ library;
 
 import 'package:duel_room1/field/util/hand_fan_layout.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/widgets.dart';
 
 void main() {
   group('HandFanLayout', () {
@@ -59,5 +60,17 @@ void main() {
       expect(layout.centerDx(0), -layout.centerDx(3));
       expect(layout.centerDx(1), -layout.centerDx(2));
     });
+  });
+
+  test('HandBarViewportGeometry uses safe horizontal width and center', () {
+    final geometry = HandBarViewportGeometry.resolve(
+      viewport: const Size(844, 390),
+      safeRect: const Rect.fromLTRB(44, 0, 823, 374),
+      hudScale: 0.6,
+    );
+
+    expect(geometry.centerX, 722.5);
+    expect(geometry.maxWidth, closeTo(1282.3333333333333, 1e-9));
+    expect(geometry.selfBottomInset, closeTo(26.666666666666668, 1e-9));
   });
 }

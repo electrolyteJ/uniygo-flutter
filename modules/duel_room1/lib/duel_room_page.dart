@@ -17,11 +17,23 @@ import 'package:go_router/go_router.dart';
 
 import 'package:duel_room1/constants.dart';
 import 'package:duel_room1/field/duel_field_page.dart';
+import 'package:duel_room1/layout/duel_room_layout.dart';
+import 'package:duel_room1/platform/duel_shortcuts.dart';
 import 'duel_result_page.dart';
 import 'duel_room_exit.dart';
 import 'package:duel_room1/waiting/waiting_room_page.dart';
 import 'package:duel_room1/waiting/widgets/hand_select_panel.dart';
+import 'package:duel_room1/waiting/widgets/stage_selection_panel_host.dart';
 import 'package:duel_room1/waiting/widgets/turn_select_panel.dart';
+
+class DuelResultDismissal {
+  Object? _dismissedResult;
+
+  Map<String, Object?>? effective(Map<String, Object?>? result) =>
+      identical(result, _dismissedResult) ? null : result;
+
+  void dismiss(Map<String, Object?> result) => _dismissedResult = result;
+}
 
 /// 决斗房间入口：每次进房创建独立的 [ProviderScope]，
 /// 房间/对局/聊天状态随页面销毁自动回收（替代旧版的全局单例 +
@@ -43,26 +55,48 @@ class DuelRoomPage extends StatelessWidget {
     // UncontrolledProviderScope 把应用级容器暴露到 widget 树，内层
     // ProviderScope 自动沿树向上链接它作为 parent——服务 provider
     // 保持应用级单例，房间/对局状态仍在房间 scope 内重建。
-    return UncontrolledProviderScope(
-      container: duelRoomServiceContainer,
-      child: ProviderScope(
-        overrides: [
-          duelRoomProvider.overrideWith(DuelRoomNotifier.new),
-          duelChatProvider.overrideWith(DuelChatNotifier.new),
-          // 四个子状态在房间 scope 内重建（不 override 会解析到 parent
-          // 容器变成跨房间单例）；协调器读取子状态并负责流订阅回收。
-          duelFieldProvider.overrideWith(DuelFieldNotifier.new),
-          selectWindowProvider.overrideWith(SelectWindowNotifier.new),
-          cardConfirmProvider.overrideWith(CardConfirmNotifier.new),
-          fieldOverlayProvider.overrideWith(FieldOverlayNotifier.new),
-          duelMessageRouterProvider.overrideWith(DuelMessageRouter.new),
-          // 连接生命周期钩子必须在房间 scope 内实例化：它只 watch 应用级
-          // duelServiceProvider，不 override 会解析到根容器，onDispose 只在
-          // 应用退出时触发，房间 scope 销毁时断连兜底失效。
-          roomConnectionLifetimeProvider.overrideWith(roomConnectionLifetime),
-        ],
-        child: _DuelRoomView(args: args),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mediaQuery = MediaQuery.of(context);
+        final viewport = Size(
+          constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : mediaQuery.size.width,
+          constraints.maxHeight.isFinite
+              ? constraints.maxHeight
+              : mediaQuery.size.height,
+        );
+        final spec = DuelRoomLayoutSpec.resolve(
+          viewport,
+          safePadding: mediaQuery.viewPadding,
+        );
+        return DuelRoomLayout(
+          spec: spec,
+          child: UncontrolledProviderScope(
+            container: duelRoomServiceContainer,
+            child: ProviderScope(
+              overrides: [
+                duelRoomProvider.overrideWith(DuelRoomNotifier.new),
+                duelChatProvider.overrideWith(DuelChatNotifier.new),
+                // 四个子状态在房间 scope 内重建（不 override 会解析到 parent
+                // 容器变成跨房间单例）；协调器读取子状态并负责流订阅回收。
+                duelFieldProvider.overrideWith(DuelFieldNotifier.new),
+                selectWindowProvider.overrideWith(SelectWindowNotifier.new),
+                cardConfirmProvider.overrideWith(CardConfirmNotifier.new),
+                fieldOverlayProvider.overrideWith(FieldOverlayNotifier.new),
+                duelMessageRouterProvider.overrideWith(DuelMessageRouter.new),
+                // 连接生命周期钩子必须在房间 scope 内实例化：它只 watch 应用级
+                // duelServiceProvider，不 override 会解析到根容器，onDispose 只在
+                // 应用退出时触发，房间 scope 销毁时断连兜底失效。
+                roomConnectionLifetimeProvider.overrideWith(
+                  roomConnectionLifetime,
+                ),
+              ],
+              child: _DuelRoomView(args: args),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -77,6 +111,7 @@ class _DuelRoomView extends ConsumerStatefulWidget {
 }
 
 class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
+  final DuelResultDismissal _resultDismissal = DuelResultDismissal();
   /// 已读聊天消息计数：打开/关闭抽屉时对齐到最新；关闭期间的新消息
   /// 在抽屉开关按钮上显示未读角标（弥补旧常驻聊天面板的可见性）。
   int _seenChatCount = 0;
@@ -111,31 +146,10 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     final unread = _logDrawerOpen
         ? 0
         : (chatCount - _seenChatCount).clamp(0, 999);
-    return Tooltip(
-      message: _logDrawerOpen ? '收起日志 / 聊天' : '日志 / 聊天',
-      child: InkWell(
-        onTap: _toggleLogDrawer,
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          width: 36,
-          height: 36,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: const Color(0xE6080E18),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0x4D00F0FF)),
-          ),
-          child: Badge(
-            isLabelVisible: unread > 0,
-            label: Text('$unread'),
-            child: const Icon(
-              Icons.forum_outlined,
-              color: Color(0xFF00F0FF),
-              size: 18,
-            ),
-          ),
-        ),
-      ),
+    return _DuelRoomLogButton(
+      open: _logDrawerOpen,
+      unread: unread,
+      onTap: _toggleLogDrawer,
     );
   }
 
@@ -251,7 +265,8 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
         // 连接前的最后一个 TCP 段才发结果）：hasPendingWin 把它算作
         // 已有结果，否则正常结算会被误判成意外断连。
         final router = ref.read(duelMessageRouterProvider.notifier);
-        final hasResult = ref.read(duelFieldProvider).duelResult != null ||
+        final hasResult =
+            ref.read(duelFieldProvider).duelResult != null ||
             router.hasPendingWin;
         // 决斗刚结束就被断开（AI 对决的本地服务端在 MSG_WIN 后立即
         // 关连接）：停留展示结算弹窗，导航由其「返回首页」按钮触发。
@@ -299,6 +314,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     final roundResult = ref.watch(
       duelFieldProvider.select((s) => s.duelResult),
     );
+    final effectiveRoundResult = _resultDismissal.effective(roundResult);
 
     final stage = room.stage;
     final isInDuel = stage is RoomInDuel;
@@ -319,28 +335,19 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
         // 猜拳（含结果展示）：直接挂在页面层，不经等待室弹窗。
         // 面板包容内容、屏幕居中，不为右侧聊天浮窗让位。
         if (isSelectingHand || isHandResult)
-          Center(
-            child: HandSelectPanel(
-              isResult: isHandResult,
-              myHand: room.myHandResult,
-              opponentHand: room.opponentHandResult,
-              enabled: !room.autoHandEnabled,
-              onSendHand: roomCtl.sendHand,
-            ),
+          HandSelectPanel(
+            isResult: isHandResult,
+            myHand: room.myHandResult,
+            opponentHand: room.opponentHandResult,
+            enabled: !room.autoHandEnabled,
+            onSendHand: roomCtl.sendHand,
           ),
         // 选先后攻（仅猜拳胜者进入该阶段）。
         if (isSelectingTurn)
-          Center(
-            child: TurnSelectPanel(
-              enabled: !room.autoTurnOrderEnabled,
-              onSendTp: roomCtl.sendTp,
-            ),
+          TurnSelectPanel(
+            enabled: !room.autoTurnOrderEnabled,
+            onSendTp: roomCtl.sendTp,
           ),
-        // 全屏居中模态半弹窗：仅服务端下发 MSG_WIN（duelResult 非空）时
-        // 挂载；遮罩（ModalBarrier，点遮罩不关闭）与「已关闭」状态收敛在
-        // DuelResultPage 内部，父页只管按结果是否存在挂载。
-        if (roundResult != null)
-          Positioned.fill(child: DuelResultPage(result: roundResult)),
         // 日志/聊天合并抽屉：非模态常驻面板（右侧贴边、全高），
         // 无遮罩、不拦截面板外点击（场地/等待室照常可交互）、
         // 点外部不关闭；AnimatedSlide 滑入滑出，常驻挂载保住
@@ -349,54 +356,72 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
           right: 0,
           top: 0,
           bottom: 0,
-          child: AnimatedSlide(
-            offset: _logDrawerOpen ? Offset.zero : const Offset(1, 0),
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            child: DuelLogDrawer(onClose: _toggleLogDrawer),
+          child: InteractionIsolation(
+            active: _logDrawerOpen && effectiveRoundResult == null,
+            excludeSemantics: true,
+            child: AnimatedSlide(
+              offset: _logDrawerOpen ? Offset.zero : const Offset(1, 0),
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              child: DuelLogDrawer(onClose: _toggleLogDrawer),
+            ),
           ),
         ),
         // 日志/聊天合并抽屉开关：所有阶段统一浮动在右下角
         //（旧常驻聊天面板的位置；等待室不再占用 AppBar actions）。
         // 抽屉展开时按钮随动左移，让出面板（不遮挡抽屉底部输入区）。
-        AnimatedPositioned(
-          right: _logDrawerOpen ? DuelLogDrawer.widthFor(context) + 8 : 16,
-          bottom: 16,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          child: SafeArea(child: _buildLogDrawerButton()),
-        ),
+        if (effectiveRoundResult == null)
+          AnimatedPositioned(
+            right: _logDrawerOpen ? DuelLogDrawer.widthFor(context) + 8 : 16,
+            bottom: 16,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            child: SafeArea(child: _buildLogDrawerButton()),
+          ),
+        // 结算必须是 Stack 最上层，完整拦截场地及阶段面板交互。
+        if (effectiveRoundResult != null)
+          Positioned.fill(
+            child: DuelResultPage(
+              result: effectiveRoundResult,
+              onDismissed: () => setState(
+                () => _resultDismissal.dismiss(effectiveRoundResult),
+              ),
+            ),
+          ),
       ],
     );
-    return PopScope(
-      // 系统返回不直接弹出房间路由：先弹确认框，避免误触返回
-      // 直接离房（服务器仍占座）。确认退出走 backHomeDialog → backHome。
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        // 对局中若正有模态选择窗口，返回键由模态自己处理（取消选择），
-        // 这里不再叠加房间退出确认。
-        final modalActive =
-            ref.read(selectWindowProvider.notifier).selectPromptMode ==
-            SelectPromptMode.modal;
-        if (modalActive) return;
-        backHomeDialog(
-          context: context,
-          ref: ref,
-          title: '退出房间',
-          content: '是否确认退出当前房间？',
-        );
-      },
-      child: Scaffold(
-        key: const ValueKey('duel-room-page'),
-        // 场地页自带 Scaffold 背景覆盖全屏，这里仅在 Flame 首帧前短暂可见。
-        backgroundColor: Colors.brown.shade900,
-        // AppBar 透明 + body 延伸到 AppBar 之下：等待室遮罩与背后场地贯通
-        // 整个屏幕（对齐 godot 全屏覆盖层）。非对局阶段保留 AppBar 提供
-        // 退出入口；仅对局进行中（场地页自带 HUD）隐藏。
-        extendBodyBehindAppBar: true,
-        appBar: isInDuel ? null : _buildAppBar(room),
-        body: content,
+    return DuelShortcuts(
+      child: PopScope(
+        // 系统返回不直接弹出房间路由：先弹确认框，避免误触返回
+        // 直接离房（服务器仍占座）。确认退出走 backHomeDialog → backHome。
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          if (effectiveRoundResult != null) return;
+          // 对局中若正有模态选择窗口，返回键由模态自己处理（取消选择），
+          // 这里不再叠加房间退出确认。
+          final modalActive =
+              ref.read(selectWindowProvider.notifier).selectPromptMode ==
+              SelectPromptMode.modal;
+          if (modalActive) return;
+          backHomeDialog(
+            context: context,
+            ref: ref,
+            title: '退出房间',
+            content: '是否确认退出当前房间？',
+          );
+        },
+        child: Scaffold(
+          key: const ValueKey('duel-room-page'),
+          // 场地页自带 Scaffold 背景覆盖全屏，这里仅在 Flame 首帧前短暂可见。
+          backgroundColor: Colors.brown.shade900,
+          // AppBar 透明 + body 延伸到 AppBar 之下：等待室遮罩与背后场地贯通
+          // 整个屏幕（对齐 godot 全屏覆盖层）。非对局阶段保留 AppBar 提供
+          // 退出入口；仅对局进行中（场地页自带 HUD）隐藏。
+          extendBodyBehindAppBar: true,
+          appBar: isInDuel ? null : _buildAppBar(room),
+          body: content,
+        ),
       ),
     );
   }
@@ -419,6 +444,58 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
       backgroundColor: Colors.transparent,
       elevation: 0,
       foregroundColor: Colors.white,
+    );
+  }
+}
+
+class _DuelRoomLogButton extends StatelessWidget {
+  const _DuelRoomLogButton({
+    required this.open,
+    required this.unread,
+    required this.onTap,
+  });
+
+  final bool open;
+  final int unread;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: open ? '收起日志 / 聊天' : '日志 / 聊天',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: const ValueKey('duel-log-button'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(22),
+          child: SizedBox.square(
+            dimension: 44,
+            child: Center(
+              child: Container(
+                key: const ValueKey('duel-log-button-visual'),
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xE6080E18),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0x4D00F0FF)),
+                ),
+                child: Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text('$unread'),
+                  child: const Icon(
+                    Icons.forum_outlined,
+                    color: Color(0xFF00F0FF),
+                    size: 18,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

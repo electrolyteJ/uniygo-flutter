@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'package:duel_room1/field/util/ui_scale.dart';
+import 'package:duel_room1/layout/duel_room_layout.dart';
+import 'package:duel_room1/platform/platform_adaptive.dart';
 
 /// 停靠面板骨架：右侧停靠几何 + 面板 chrome（深色底/青色描边/圆角）
 /// + 标题栏（可选图标 + 标题 + 张数）+ 右上角 44px 命中区关闭按钮。
@@ -36,9 +37,14 @@ class DockedPanelShell extends StatelessWidget {
   static const double panelBottom = 126;
   static const double panelRight = 18;
 
+  /// 面板最小宽度：再窄列数/字号就不可用。
+  static const double minPanelWidth = 300.0;
+
+  /// 面板内容区最小高度：极端矮视口下优先保证内容可读。
+  static const double minContentHeight = 160.0;
+
   // ---- 面板与网格样式 ----
   static const double padding = 20;
-  static const int gridColumns = 4;
   static const double gridSpacing = 12;
   static const double gridAspect = 0.72;
 
@@ -51,22 +57,36 @@ class DockedPanelShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 响应式停靠几何：桌面视口（≥760 高）保持 136/126/18/440 不变；
-    // 小屏按 HUD 缩放收缩上下留白（把更多高度让给面板内容，否则面板
-    // 体在手机横屏上只剩一条缝），宽度夹紧到不超出屏幕（窄 web 窗口不溢出）。
-    final viewport = MediaQuery.sizeOf(context);
-    final s = hudScaleForHeight(viewport.height);
-    final top = panelTop * s;
-    final bottom = panelBottom * s;
-    final maxWidth = (viewport.width - panelRight * 2).clamp(
-      0.0,
-      double.infinity,
-    );
-    final width = panelWidth.clamp(0.0, maxWidth);
+    final spec = DuelRoomLayout.of(context);
+    final viewport = spec.viewport;
+    final legacyScale = spec.isCompact ? spec.hudScale : 1.0;
+    final desiredTop = panelTop * legacyScale;
+    final desiredBottom = panelBottom * legacyScale;
+    final top = desiredTop
+        .clamp(
+          spec.safeRect.top + spec.topHudHeight + spec.panelGap,
+          spec.safeRect.bottom,
+        )
+        .toDouble();
+    final desiredBottomEdge =
+        viewport.height -
+        (desiredBottom >
+                spec.safePadding.bottom + spec.handBarHeight + spec.panelGap
+            ? desiredBottom
+            : spec.safePadding.bottom + spec.handBarHeight + spec.panelGap);
+    final bottomEdge = desiredBottomEdge
+        .clamp(top, spec.safeRect.bottom)
+        .toDouble();
+    final bottom = viewport.height - bottomEdge;
+    final right = spec.safePadding.right + spec.panelGap;
+    final availableWidth = (spec.safeRect.width - spec.panelGap * 2)
+        .clamp(0.0, double.infinity)
+        .toDouble();
+    final width = spec.dockedPanelWidth.clamp(0.0, availableWidth).toDouble();
     return Positioned(
       top: top,
       bottom: bottom,
-      right: panelRight,
+      right: right,
       width: width,
       // 进场动画必须在 Positioned 之内（Positioned 要求直接挂在 Stack 下）。
       // TweenAnimationBuilder 只在挂载时播放，同实例 rebuild 不重播；
@@ -85,9 +105,10 @@ class DockedPanelShell extends StatelessWidget {
         child: Stack(
           children: [
             Container(
+              key: const ValueKey('docked-panel'),
               width: double.infinity,
               height: double.infinity,
-              padding: const EdgeInsets.all(padding),
+              padding: EdgeInsets.all(spec.isCompact ? 12 : padding),
               decoration: BoxDecoration(
                 color: panelColor,
                 borderRadius: BorderRadius.circular(14),
@@ -157,10 +178,7 @@ class _DockedPanelHeader extends StatelessWidget {
             ),
           ),
         ),
-        if (titleSuffix != null) ...[
-          titleSuffix!,
-          const SizedBox(width: 8),
-        ],
+        if (titleSuffix != null) ...[titleSuffix!, const SizedBox(width: 8)],
         Text(
           '$count 张',
           style: const TextStyle(
@@ -184,14 +202,25 @@ class _DockedPanelCloseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: const SizedBox(
-        width: 44,
-        height: 44,
-        child: Center(
-          child: Icon(Icons.close, color: DockedPanelShell.accent, size: 20),
+    return ClickableCursor(
+      child: Tooltip(
+        message: '关闭',
+        child: Semantics(
+          label: '关闭',
+          button: true,
+          enabled: onTap != null,
+          excludeSemantics: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: const SizedBox(
+              width: 44,
+              height: 44,
+              child: Center(
+                child: Icon(Icons.close, color: DockedPanelShell.accent, size: 20),
+              ),
+            ),
+          ),
         ),
       ),
     );

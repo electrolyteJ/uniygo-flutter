@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:biz/duel/models/select_state.dart';
 import 'package:biz/widgets/card_image.dart';
+import 'package:duel_room1/layout/duel_room_layout.dart';
+import 'package:duel_room1/layout/responsive_panel.dart';
 import 'package:duelink/duelink.dart'
     show
         CARD_ZONE_DECK,
@@ -65,7 +67,7 @@ class _CardSelectorState extends State<CardSelector> {
   @override
   void didUpdateWidget(covariant CardSelector oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.select, widget.select)) {
+    if (oldWidget.select.generation != widget.select.generation) {
       _resetSelectionFromWidget();
     }
   }
@@ -73,105 +75,78 @@ class _CardSelectorState extends State<CardSelector> {
   @override
   Widget build(BuildContext context) {
     final select = widget.select;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 640, maxHeight: 620),
-        child: Container(
-          margin: const EdgeInsets.all(24),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF09111A),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0x5500F0FF)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0xAA000000),
-                blurRadius: 28,
-                offset: Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _title(select),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 14),
-              // 网格布局（参考 CardGridSelectDialog）：多行自适应排列，
-              // 替代旧的单行横滚——卡多时一目了然。
-              Flexible(
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 104,
-                    childAspectRatio: 100 / 150,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                  ),
-                  itemCount: select.options.length,
-                  itemBuilder: (context, index) =>
-                      _buildCardItem(index, select),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                alignment: WrapAlignment.center,
-                children: [
-                  if (select.cancelable)
-                    TextButton(
-                      onPressed: widget.onCancel,
-                      child: const Text(
-                        '取消',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  if (!select.immediateSingleToggle) ...[
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: _canConfirm ? _confirmSelection : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _canConfirm
-                            ? const Color(0xFF00F0FF)
-                            : Colors.grey.shade800,
-                        foregroundColor: _canConfirm
-                            ? Colors.black
-                            : Colors.grey.shade500,
-                        disabledBackgroundColor: Colors.grey.shade800,
-                        disabledForegroundColor: Colors.grey.shade500,
-                      ),
-                      child: const Text('确认'),
-                    ),
-                  ],
-                  if (select.immediateSingleToggle && select.finishable) ...[
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: _selectedIndices.length >= select.min
-                          ? _finishImmediateSelection
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _selectedIndices.length >= select.min
-                            ? const Color(0xFF00F0FF)
-                            : Colors.grey.shade800,
-                        foregroundColor: _selectedIndices.length >= select.min
-                            ? Colors.black
-                            : Colors.grey.shade500,
-                        disabledBackgroundColor: Colors.grey.shade800,
-                        disabledForegroundColor: Colors.grey.shade500,
-                      ),
-                      child: const Text('完成'),
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ),
+    final spec = DuelRoomLayout.of(context);
+    return ResponsivePanel(
+      maxWidth: 640,
+      header: Text(
+        _title(select),
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
         ),
+      ),
+      body: GridView.builder(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: spec.gridColumns,
+          childAspectRatio: 59 / 86,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+        ),
+        itemCount: select.options.length,
+        itemBuilder: (context, index) => _buildCardItem(index, select),
+      ),
+      actions: Wrap(
+        alignment: WrapAlignment.center,
+        runAlignment: WrapAlignment.center,
+        spacing: 12,
+        children: [
+          if (select.cancelable)
+            TextButton(
+              onPressed: widget.onCancel,
+              style: TextButton.styleFrom(minimumSize: const Size(44, 44)),
+              child: const Text('取消', style: TextStyle(color: Colors.red)),
+            ),
+          if (!select.immediateSingleToggle) ...[
+            ElevatedButton(
+              onPressed: _canConfirm ? _confirmSelection : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _canConfirm
+                    ? const Color(0xFF00F0FF)
+                    : Colors.grey.shade800,
+                foregroundColor: _canConfirm
+                    ? Colors.black
+                    : Colors.grey.shade500,
+                disabledBackgroundColor: Colors.grey.shade800,
+                disabledForegroundColor: Colors.grey.shade500,
+                minimumSize: const Size(44, 44),
+              ),
+              child: const Text('确认'),
+            ),
+          ],
+          if (select.immediateSingleToggle && select.finishable) ...[
+            ElevatedButton(
+              onPressed: _selectedIndices.length >= select.min
+                  ? _finishImmediateSelection
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _selectedIndices.length >= select.min
+                    ? const Color(0xFF00F0FF)
+                    : Colors.grey.shade800,
+                foregroundColor: _selectedIndices.length >= select.min
+                    ? Colors.black
+                    : Colors.grey.shade500,
+                disabledBackgroundColor: Colors.grey.shade800,
+                disabledForegroundColor: Colors.grey.shade500,
+                minimumSize: const Size(44, 44),
+              ),
+              child: const Text('完成'),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -179,103 +154,128 @@ class _CardSelectorState extends State<CardSelector> {
   Widget _buildCardItem(int index, SelectState select) {
     final option = select.options[index];
     final selected = _selectedIndices.contains(index);
-    return GestureDetector(
-      onTap: () {
-        widget.onInspectCard(option.code);
-        if (select.immediateSingleToggle) {
-          widget.onSelect([index]);
-          return;
-        }
-        _toggleSelection(index, select);
-      },
-      child: Container(
-        width: 100,
-        height: 144,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Stack(
-          children: [
-            if (option.code > 0)
-              CardImage(code: option.code, width: 92, height: 132)
-            else
-              _buildEmptySlotPlaceholder(),
-            // 卡片来源徽标（墓地/卡组/场上…）：选卡弹窗里多张同名/陌生卡
-            // 并列时，玩家无法分辨每张卡来自哪里（如「活死人的呼声」选墓地、
-            // 「增援」选卡组）。option 的 zone/controller 即线格式位置。
-            if (select.type != SelectType.option)
-              Positioned(
-                top: 2,
-                left: 2,
-                child: _buildSourceBadge(option, select),
-              ),
-            if (!selected)
+    final source = _sourceLabel(option, select);
+    final optionLabel = option.label?.isNotEmpty == true
+        ? option.label!
+        : option.code > 0
+        ? '卡片 ${option.code}'
+        : '未知卡片';
+    return Semantics(
+      key: ValueKey('card-selector-option-$index'),
+      button: true,
+      enabled: true,
+      selected: selected,
+      label: '选择并查看 $optionLabel${source == null ? '' : '，来源$source'}',
+      excludeSemantics: true,
+      child: InkWell(
+        excludeFromSemantics: true,
+        borderRadius: BorderRadius.circular(4),
+        onTap: () {
+          widget.onInspectCard(option.code);
+          if (select.immediateSingleToggle) {
+            widget.onSelect([index]);
+            return;
+          }
+          _toggleSelection(index, select);
+        },
+        child: Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Stack(
+            children: [
               Positioned.fill(
-                child: IgnorePointer(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                      color: Colors.black.withValues(alpha: 0.45),
-                    ),
+                child: Center(
+                  child: AspectRatio(
+                    aspectRatio: 59 / 86,
+                    child: option.code > 0
+                        ? LayoutBuilder(
+                            builder: (context, constraints) => CardImage(
+                              code: option.code,
+                              width: constraints.maxWidth,
+                              height: constraints.maxHeight,
+                            ),
+                          )
+                        : _buildEmptySlotPlaceholder(),
                   ),
                 ),
               ),
-            if (selected)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: const Color(0xFF00F0FF),
-                        width: 3,
+              // 卡片来源徽标（墓地/卡组/场上…）：选卡弹窗里多张同名/陌生卡
+              // 并列时，玩家无法分辨每张卡来自哪里（如「活死人的呼声」选墓地、
+              // 「增援」选卡组）。option 的 zone/controller 即线格式位置。
+              if (select.type != SelectType.option)
+                Positioned(
+                  top: 2,
+                  left: 2,
+                  child: _buildSourceBadge(option, select),
+                ),
+              if (!selected)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(4),
+                        color: Colors.black.withValues(alpha: 0.45),
                       ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x6600F0FF),
-                          blurRadius: 12,
-                          spreadRadius: 1,
+                    ),
+                  ),
+                ),
+              if (selected)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: const Color(0xFF00F0FF),
+                          width: 3,
                         ),
-                      ],
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x6600F0FF),
+                            blurRadius: 12,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            if (option.label != null &&
-                option.label!.isNotEmpty &&
-                select.type == SelectType.option)
-              Positioned(
-                bottom: 4,
-                left: 4,
-                right: 4,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black87,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    '${index + 1}. ${option.label}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      height: 1.25,
+              if (option.label != null &&
+                  option.label!.isNotEmpty &&
+                  select.type == SelectType.option)
+                Positioned(
+                  bottom: 4,
+                  left: 4,
+                  right: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
                     ),
-                    // 效果选项文案来自 cards.cdb 的 str1~16，可能较长，
-                    // 放宽行数保证完整可读。
-                    maxLines: 6,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
+                    decoration: BoxDecoration(
+                      color: Colors.black87,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '${index + 1}. ${option.label}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        height: 1.25,
+                      ),
+                      // 效果选项文案来自 cards.cdb 的 str1~16，可能较长，
+                      // 放宽行数保证完整可读。
+                      maxLines: 6,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:duelink/duelink.dart' show DuelPhase;
+import 'package:flutter/widgets.dart';
 
 import '../../util/duel_field_layout.dart';
 import '../player_status/player_status_layout.dart';
@@ -49,6 +50,27 @@ class PhaseRailLayout {
   /// 紧凑 HUD 模式（小屏）下轨道在屏幕上的固定缩放比：
   /// 不随场地相机 zoom 缩放，保证阶段胶囊/按钮可读可点。
   static const compactScreenScale = 0.85;
+
+  /// Compact 模式按钮的屏幕命中边长，视觉尺寸保持不变。
+  static const compactHitExtent = 44.0;
+
+  static double hitScreenScale({
+    required double cameraZoom,
+    required bool compact,
+  }) => compact ? compactScreenScale : cameraZoom;
+
+  static Rect hitRectForVisual(Rect visualRect, {double screenScale = 1}) {
+    final scale = screenScale.isFinite && screenScale > 0 ? screenScale : 1.0;
+    final minimum = compactHitExtent / scale;
+    final width = visualRect.width < minimum ? minimum : visualRect.width;
+    final height = visualRect.height < minimum ? minimum : visualRect.height;
+    return Rect.fromLTWH(
+      visualRect.left,
+      visualRect.center.dy - height / 2,
+      width,
+      height,
+    );
+  }
 
   /// 轨道总高（含首尾胶囊）。
   static double get height =>

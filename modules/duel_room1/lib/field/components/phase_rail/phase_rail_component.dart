@@ -132,8 +132,7 @@ class PhaseRailComponent extends PositionComponent
          anchor: Anchor.center,
          size: Vector2(
            PhaseRailLayout.turnBadgeWidth + _haloMargin * 2,
-           PhaseRailLayout.heightWithSurrenderBadgeAndButton +
-               _haloMargin * 2,
+           PhaseRailLayout.heightWithSurrenderBadgeAndButton + _haloMargin * 2,
          ),
        );
 
@@ -192,7 +191,10 @@ class PhaseRailComponent extends PositionComponent
     final targetX = game.size.x - pad.right - 6 - halfW;
     final boardCenterScreenY = game
         .worldToWidget(
-          Vector2(0, PhaseRailLayout.centerY + PhaseRailLayout.actionButtonShift),
+          Vector2(
+            0,
+            PhaseRailLayout.centerY + PhaseRailLayout.actionButtonShift,
+          ),
         )
         .dy;
     final targetY = boardCenterScreenY.clamp(
@@ -202,9 +204,7 @@ class PhaseRailComponent extends PositionComponent
           : game.size.y - pad.bottom - halfH - 4,
     );
     _screenAnchor.setValues(targetX, targetY);
-    position =
-        vf.position +
-        (Vector2(targetX, targetY) - game.size / 2) / zoom;
+    position = vf.position + (Vector2(targetX, targetY) - game.size / 2) / zoom;
     scale = Vector2.all(rs / zoom);
   }
 
@@ -374,11 +374,11 @@ class PhaseRailComponent extends PositionComponent
             ? _surrenderEnabledTextPaint
             : _surrenderDisabledTextPaint)
         .render(
-      canvas,
-      '投降',
-      Vector2(0, PhaseRailLayout.surrenderButtonCenterY),
-      anchor: Anchor.center,
-    );
+          canvas,
+          '投降',
+          Vector2(0, PhaseRailLayout.surrenderButtonCenterY),
+          anchor: Anchor.center,
+        );
   }
 
   static final _turnTextSelfPaint = TextPaint(
@@ -460,9 +460,7 @@ class PhaseRailComponent extends PositionComponent
       canvas.drawRRect(rect, _futureFillPaint);
       canvas.drawRRect(rect, _futureBorderPaint);
     }
-    final iconColor = _enabled
-        ? _accent
-        : Colors.white.withValues(alpha: 0.30);
+    final iconColor = _enabled ? _accent : Colors.white.withValues(alpha: 0.30);
     final iconPaint = Paint()
       ..color = iconColor
       ..strokeWidth = 1.6
@@ -522,17 +520,35 @@ class PhaseRailComponent extends PositionComponent
       size.y / 2 - PhaseRailLayout.actionButtonShift + worldCenterY;
 
   bool _inRect(Vector2 p, double worldCenterY, double width, double height) {
-    // 紧凑模式放大触控热区：按钮渲染仅 22 高（×0.85 屏比后 ~19px），
-    // 低于 44pt 触控标准，纵向热区扩到 ~36 屏px（局部坐标按屏比折算，
-    // 上限受组件自身高度约束，两端按钮相距很远不会互相侵吞）。
-    final minHit = compactMode
-        ? 36 / PhaseRailLayout.compactScreenScale
-        : 0.0;
-    final hitW = width > minHit ? width : minHit;
-    final hitH = height > minHit ? height : minHit;
-    return (p.x - size.x / 2).abs() <= hitW / 2 &&
-        (p.y - _localCenterY(worldCenterY)).abs() <= hitH / 2;
+    final visualRect = Rect.fromCenter(
+      center: Offset(size.x / 2, _localCenterY(worldCenterY)),
+      width: width,
+      height: height,
+    );
+    final hitRect = PhaseRailLayout.hitRectForVisual(
+      visualRect,
+      screenScale: PhaseRailLayout.hitScreenScale(
+        cameraZoom: world.game.camera.viewfinder.zoom,
+        compact: compactMode,
+      ),
+    );
+    return hitRect.contains(Offset(p.x, p.y));
   }
+
+  @override
+  bool containsLocalPoint(Vector2 point) =>
+      _inRect(
+        point,
+        PhaseRailLayout.actionButtonCenterY,
+        PhaseRailLayout.actionButtonWidth,
+        PhaseRailLayout.actionButtonHeight,
+      ) ||
+      _inRect(
+        point,
+        PhaseRailLayout.surrenderButtonCenterY,
+        PhaseRailLayout.surrenderButtonWidth,
+        PhaseRailLayout.surrenderButtonHeight,
+      );
 
   // onTapUp 而非 onTapDown：与双指捏合缩放共存（见 slot.dart 注释）。
   @override

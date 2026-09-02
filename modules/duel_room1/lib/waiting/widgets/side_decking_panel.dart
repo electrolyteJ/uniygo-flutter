@@ -104,10 +104,7 @@ class _SideDeckingPanelState extends State<SideDeckingPanel> {
               const SizedBox(width: 6),
               Text(
                 '换备',
-                style: TextStyle(
-                  color: Colors.blueGrey.shade300,
-                  fontSize: 13,
-                ),
+                style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 13),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -134,10 +131,7 @@ class _SideDeckingPanelState extends State<SideDeckingPanel> {
                 ? Row(
                     children: [
                       Expanded(
-                        child: _statusRow(
-                          Icons.error_outline,
-                          '换备数据初始化失败',
-                        ),
+                        child: _statusRow(Icons.error_outline, '换备数据初始化失败'),
                       ),
                       TextButton(
                         onPressed: widget.onRetryInit,
@@ -167,10 +161,10 @@ class _SideDeckingPanelState extends State<SideDeckingPanel> {
             const SizedBox(height: 8),
             _sideSection(),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  onPressed: widget.onReset,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final reset = OutlinedButton.icon(
+                  onPressed: _submitting ? null : widget.onReset,
                   icon: const Icon(Icons.restart_alt, size: 16),
                   label: const Text('重置'),
                   style: OutlinedButton.styleFrom(
@@ -181,29 +175,37 @@ class _SideDeckingPanelState extends State<SideDeckingPanel> {
                       vertical: 8,
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FilledButton.icon(
-                    key: const ValueKey('side-decking-confirm'),
-                    onPressed: _countsValid && !_submitting ? _confirm : null,
-                    icon: _submitting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.check_circle, size: 16),
-                    label: Text(_submitting ? '提交中…' : '确认换备'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.green.shade700,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.blueGrey.shade700,
-                      disabledForegroundColor: Colors.blueGrey.shade500,
-                    ),
+                );
+                final confirm = FilledButton.icon(
+                  key: const ValueKey('side-decking-confirm'),
+                  onPressed: _countsValid && !_submitting ? _confirm : null,
+                  icon: _submitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check_circle, size: 16),
+                  label: Text(_submitting ? '提交中…' : '确认换备'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.green.shade700,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.blueGrey.shade700,
+                    disabledForegroundColor: Colors.blueGrey.shade500,
                   ),
-                ),
-              ],
+                );
+                final actionWidth = constraints.maxWidth < 240
+                    ? constraints.maxWidth
+                    : null;
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    SizedBox(width: actionWidth, child: reset),
+                    SizedBox(width: actionWidth, child: confirm),
+                  ],
+                );
+              },
             ),
           ],
         ],
@@ -219,9 +221,11 @@ class _SideDeckingPanelState extends State<SideDeckingPanel> {
         children: [
           Icon(icon, size: 14, color: Colors.blueGrey.shade400),
           const SizedBox(width: 6),
-          Text(
-            text,
-            style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 12),
+            ),
           ),
         ],
       ),
@@ -248,16 +252,23 @@ class _SideDeckingPanelState extends State<SideDeckingPanel> {
             style: TextStyle(color: Colors.blueGrey.shade500, fontSize: 11),
           )
         else
-          Wrap(
-            spacing: 4,
-            runSpacing: 4,
-            children: [
-              for (var i = 0; i < cards.length; i++)
-                _cardChip(
-                  cards[i],
-                  onTap: () => widget.onMoveCard(zone, SidingZone.side, i),
-                ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) => Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: [
+                for (var i = 0; i < cards.length; i++)
+                  _cardChip(
+                    cards[i],
+                    maxWidth: constraints.maxWidth,
+                    semanticsLabel:
+                        '将 ${cards[i].name.isNotEmpty ? cards[i].name : cards[i].code} 移入副卡组',
+                    onTap: _submitting
+                        ? null
+                        : () => widget.onMoveCard(zone, SidingZone.side, i),
+                  ),
+              ],
+            ),
           ),
       ],
     );
@@ -299,6 +310,7 @@ class _SideDeckingPanelState extends State<SideDeckingPanel> {
                             color: Colors.blueGrey.shade200,
                             fontSize: 11,
                           ),
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -309,21 +321,29 @@ class _SideDeckingPanelState extends State<SideDeckingPanel> {
                       if (!_isExtraDeckCard(cards[i]))
                         _moveButton(
                           '→主',
-                          () => widget.onMoveCard(
-                            SidingZone.side,
-                            SidingZone.main,
-                            i,
-                          ),
+                          semanticsLabel:
+                              '将 ${cards[i].name.isNotEmpty ? cards[i].name : cards[i].code} 移回主卡组',
+                          onTap: _submitting
+                              ? null
+                              : () => widget.onMoveCard(
+                                  SidingZone.side,
+                                  SidingZone.main,
+                                  i,
+                                ),
                         ),
                       if (_isExtraDeckCard(cards[i])) ...[
                         const SizedBox(width: 4),
                         _moveButton(
                           '→额',
-                          () => widget.onMoveCard(
-                            SidingZone.side,
-                            SidingZone.extra,
-                            i,
-                          ),
+                          semanticsLabel:
+                              '将 ${cards[i].name.isNotEmpty ? cards[i].name : cards[i].code} 移回额外卡组',
+                          onTap: _submitting
+                              ? null
+                              : () => widget.onMoveCard(
+                                  SidingZone.side,
+                                  SidingZone.extra,
+                                  i,
+                                ),
                         ),
                       ],
                     ],
@@ -348,16 +368,20 @@ class _SideDeckingPanelState extends State<SideDeckingPanel> {
       children: [
         Icon(icon, size: 14, color: Colors.blueGrey.shade400),
         const SizedBox(width: 6),
-        Text(
-          '$title $count/基准$baselineCount',
-          style: TextStyle(
-            color: matched ? Colors.green.shade400 : Colors.amber.shade400,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
+        Expanded(
+          child: Text(
+            '$title $count/基准$baselineCount',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: matched ? Colors.green.shade400 : Colors.amber.shade400,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
         const SizedBox(width: 8),
-        Expanded(
+        Flexible(
           child: Text(
             hint,
             style: TextStyle(color: Colors.blueGrey.shade500, fontSize: 10),
@@ -374,24 +398,53 @@ class _SideDeckingPanelState extends State<SideDeckingPanel> {
       card.isFusion || card.isSynchro || card.isXyz || card.isLink;
 
   /// 可点击卡片 chip（主/额外分区）。
-  Widget _cardChip(CardInfo card, {required VoidCallback onTap}) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
-        splashColor: Colors.blueGrey.shade600,
-        highlightColor: Colors.blueGrey.shade700,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: Colors.blueGrey.shade800,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: Colors.blueGrey.shade600),
-          ),
-          child: Text(
-            card.name.isNotEmpty ? card.name : '${card.code}',
-            style: TextStyle(color: Colors.blueGrey.shade200, fontSize: 11),
+  Widget _cardChip(
+    CardInfo card, {
+    required double maxWidth,
+    required String semanticsLabel,
+    required VoidCallback? onTap,
+  }) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minWidth: 44,
+        minHeight: 44,
+        maxWidth: maxWidth,
+      ),
+      child: Semantics(
+        button: true,
+        enabled: onTap != null,
+        label: semanticsLabel,
+        child: ExcludeSemantics(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(4),
+              splashColor: Colors.blueGrey.shade600,
+              highlightColor: Colors.blueGrey.shade700,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.blueGrey.shade800,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.blueGrey.shade600),
+                  ),
+                  child: Text(
+                    card.name.isNotEmpty ? card.name : '${card.code}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.blueGrey.shade200,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -399,23 +452,45 @@ class _SideDeckingPanelState extends State<SideDeckingPanel> {
   }
 
   /// 副卡组卡片去向小按钮。
-  Widget _moveButton(String label, VoidCallback onTap) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
-        splashColor: Colors.blueGrey.shade600,
-        highlightColor: Colors.blueGrey.shade700,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
+  Widget _moveButton(
+    String label, {
+    required String semanticsLabel,
+    required VoidCallback? onTap,
+  }) {
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      label: semanticsLabel,
+      child: ExcludeSemantics(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: Colors.blueGrey.shade600),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 10),
+            splashColor: Colors.blueGrey.shade600,
+            highlightColor: Colors.blueGrey.shade700,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.blueGrey.shade600),
+                  ),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: Colors.blueGrey.shade300,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -429,23 +504,21 @@ class _SideDeckingPanelState extends State<SideDeckingPanel> {
   brightness: Brightness.dark,
 )
 Widget previewSideDeckingPanel() => SideDeckingPanel(
-      isDuelist: true,
-      sidingMain: const [
-        CardInfo(code: 89631139, type: 0x11, name: '青眼白龙'),
-        CardInfo(code: 89631140, type: 0x11, name: '青眼白龙'),
-        CardInfo(code: 46986414, type: 0x21, name: '黑魔术师'),
-      ],
-      sidingExtra: const [
-        CardInfo(code: 12345678, type: 0x41, name: '青眼究极龙'),
-      ],
-      sidingSide: const [
-        CardInfo(code: 11111111, type: 0x2, name: '旋风'),
-        CardInfo(code: 22222222, type: 0x4, name: '圣防护罩'),
-      ],
-      baselineMainCount: 3,
-      baselineExtraCount: 2,
-      baselineSideCount: 1,
-      onMoveCard: (_, _, _) {},
-      onReset: () {},
-      onConfirm: () async {},
-    );
+  isDuelist: true,
+  sidingMain: const [
+    CardInfo(code: 89631139, type: 0x11, name: '青眼白龙'),
+    CardInfo(code: 89631140, type: 0x11, name: '青眼白龙'),
+    CardInfo(code: 46986414, type: 0x21, name: '黑魔术师'),
+  ],
+  sidingExtra: const [CardInfo(code: 12345678, type: 0x41, name: '青眼究极龙')],
+  sidingSide: const [
+    CardInfo(code: 11111111, type: 0x2, name: '旋风'),
+    CardInfo(code: 22222222, type: 0x4, name: '圣防护罩'),
+  ],
+  baselineMainCount: 3,
+  baselineExtraCount: 2,
+  baselineSideCount: 1,
+  onMoveCard: (_, _, _) {},
+  onReset: () {},
+  onConfirm: () async {},
+);

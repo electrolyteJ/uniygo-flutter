@@ -85,7 +85,11 @@ class DeckSelector extends StatelessWidget {
                 items: decks.map((d) {
                   return DropdownMenuItem(
                     value: d.deckName,
-                    child: Text(d.deckName),
+                    child: Text(
+                      d.deckName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   );
                 }).toList(),
                 onChanged: enabled ? onSelectDeck : null,
@@ -109,10 +113,8 @@ class DeckSelector extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
+                child: OutlinedButton(
                   onPressed: onEditDeck,
-                  icon: const Icon(Icons.edit_note, size: 16),
-                  label: const Text('编辑当前卡组'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.amber.shade200,
                     side: BorderSide(color: Colors.amber.shade700),
@@ -120,6 +122,12 @@ class DeckSelector extends StatelessWidget {
                       horizontal: 12,
                       vertical: 8,
                     ),
+                  ),
+                  child: const Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    children: [Icon(Icons.edit_note, size: 16), Text('编辑当前卡组')],
                   ),
                 ),
               ),
@@ -145,12 +153,14 @@ class DeckSelector extends StatelessWidget {
                           color: Colors.red.shade400,
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          '卡组不合规',
-                          style: TextStyle(
-                            color: Colors.red.shade400,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                        Flexible(
+                          child: Text(
+                            '卡组不合规',
+                            style: TextStyle(
+                              color: Colors.red.shade400,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
@@ -160,6 +170,8 @@ class DeckSelector extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 2, left: 18),
                         child: Text(
                           '• $e',
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: Colors.red.shade300,
                             fontSize: 11,
@@ -185,11 +197,15 @@ class DeckSelector extends StatelessWidget {
                     color: Colors.green.shade400,
                   ),
                   const SizedBox(width: 4),
-                  Text(
-                    '卡组合规',
-                    style: TextStyle(
-                      color: Colors.green.shade400,
-                      fontSize: 12,
+                  Expanded(
+                    child: Text(
+                      '卡组合规',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.green.shade400,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],
@@ -206,11 +222,15 @@ class DeckSelector extends StatelessWidget {
                     color: Colors.blueGrey.shade400,
                   ),
                   const SizedBox(width: 4),
-                  Text(
-                    '卡组未校验',
-                    style: TextStyle(
-                      color: Colors.blueGrey.shade400,
-                      fontSize: 12,
+                  Expanded(
+                    child: Text(
+                      '卡组未校验',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.blueGrey.shade400,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],

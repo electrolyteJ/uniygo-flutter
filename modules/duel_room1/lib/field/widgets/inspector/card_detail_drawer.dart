@@ -2,7 +2,29 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:resource_data/card_info.dart';
 import 'package:biz/widgets/card_image.dart';
-import 'package:duel_room1/field/util/ui_scale.dart';
+import 'package:duel_room1/layout/duel_room_layout.dart';
+
+Rect cardDetailDrawerRect(DuelRoomLayoutSpec spec) {
+  final left = (spec.safeRect.left + spec.panelGap)
+      .clamp(spec.safeRect.left, spec.safeRect.right)
+      .toDouble();
+  final top = spec.isCompact
+      ? spec.safeRect.top + spec.topHudHeight + 8
+      : (124.0 > spec.safeRect.top + spec.topHudHeight + 8
+            ? 124.0
+            : spec.safeRect.top + spec.topHudHeight + 8);
+  final bottomInset = spec.isCompact
+      ? spec.safePadding.bottom + spec.handBarHeight + 8
+      : (160.0 > spec.safePadding.bottom + spec.panelGap
+            ? 160.0
+            : spec.safePadding.bottom + spec.panelGap);
+  final rightEdge =
+      left + (spec.safeRect.right - left).clamp(0.0, 324.0).toDouble();
+  final bottom = (spec.viewport.height - bottomInset)
+      .clamp(top, spec.safeRect.bottom)
+      .toDouble();
+  return Rect.fromLTRB(left, top, rightEdge, bottom);
+}
 
 class CardDetailDrawer extends StatelessWidget {
   final CardInfo? cardInfo;
@@ -24,10 +46,11 @@ class CardDetailDrawer extends StatelessWidget {
     // 高度由父级 Positioned(top/bottom) 约束决定，自适应屏幕。
     final resolvedCode = cardInfo?.code ?? cardCode ?? 0;
     // 响应式：宽度夹紧不溢出窄屏；卡图随 HUD 缩放（小屏不再 206×294）。
-    final viewport = MediaQuery.sizeOf(context);
-    final hs = hudScaleForHeight(viewport.height);
-    final panelWidth =
-        viewport.width - 24.0 < 324.0 ? viewport.width - 24.0 : 324.0;
+    final spec = DuelRoomLayout.of(context);
+    final hs = spec.hudScale;
+    final panelWidth = (spec.safeRect.width - spec.panelGap * 2)
+        .clamp(0.0, 324.0)
+        .toDouble();
     final cardW = 206.0 * hs;
     final cardH = 294.0 * hs;
 
@@ -77,12 +100,28 @@ class CardDetailDrawer extends StatelessWidget {
                       ),
                     ),
                     if (onClose != null)
-                      GestureDetector(
-                        onTap: onClose,
-                        child: const Icon(
-                          Icons.close,
-                          color: cyanGlow,
-                          size: 18,
+                      Tooltip(
+                        message: '关闭',
+                        child: Semantics(
+                          label: '关闭',
+                          button: true,
+                          enabled: true,
+                          excludeSemantics: true,
+                          child: GestureDetector(
+                            key: const ValueKey('card-detail-close'),
+                            behavior: HitTestBehavior.opaque,
+                            onTap: onClose,
+                            child: const SizedBox.square(
+                              dimension: 44,
+                              child: Center(
+                                child: Icon(
+                                  Icons.close,
+                                  color: cyanGlow,
+                                  size: 18,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                   ],

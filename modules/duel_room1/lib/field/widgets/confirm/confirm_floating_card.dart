@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:biz/widgets/card_image.dart';
+import 'package:duel_room1/layout/duel_room_layout.dart';
 
 /// 卡组顶部 / 额外卡组顶部 确认展示的浮动卡片。
 ///
@@ -60,7 +61,7 @@ class _ConfirmFloatingCardState extends State<ConfirmFloatingCard>
     _scaleAnim = Tween<double>(
       begin: 0.6,
       end: 1.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
     _opacityAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: const Interval(0, 0.3)),
     );
@@ -90,6 +91,10 @@ class _ConfirmFloatingCardState extends State<ConfirmFloatingCard>
     final index = widget.currentIndex.clamp(0, widget.codes.length - 1);
     final code = widget.codes[index];
     final name = widget.cardNameBuilder(code);
+    final compact = DuelRoomLayout.of(context).isCompact;
+    final width = compact ? 126.0 : 150.0;
+    final imageWidth = compact ? 106.0 : 130.0;
+    final imageHeight = compact ? 152.0 : 186.0;
 
     return AnimatedBuilder(
       animation: _controller,
@@ -100,6 +105,7 @@ class _ConfirmFloatingCardState extends State<ConfirmFloatingCard>
         );
       },
       child: MouseRegion(
+        key: const ValueKey('confirm-floating-card'),
         cursor: widget.onInspectCard != null
             ? SystemMouseCursors.click
             : MouseCursor.defer,
@@ -110,7 +116,7 @@ class _ConfirmFloatingCardState extends State<ConfirmFloatingCard>
           child: Stack(
             children: [
               Container(
-                width: 150,
+                width: width,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: const Color(0xF2080C14),
@@ -133,8 +139,8 @@ class _ConfirmFloatingCardState extends State<ConfirmFloatingCard>
                       borderRadius: BorderRadius.circular(8),
                       child: CardImage(
                         code: code,
-                        width: 130,
-                        height: 186,
+                        width: imageWidth,
+                        height: imageHeight,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -173,15 +179,27 @@ class _ConfirmFloatingCardState extends State<ConfirmFloatingCard>
                 Positioned(
                   top: 2,
                   right: 2,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: widget.onDismiss,
-                    child: const Padding(
-                      padding: EdgeInsets.all(6),
-                      child: Icon(
-                        Icons.close,
-                        color: Color(0xFF8B9BB4),
-                        size: 14,
+                  child: Tooltip(
+                    message: '关闭',
+                    child: Semantics(
+                      label: '关闭',
+                      button: true,
+                      enabled: true,
+                      excludeSemantics: true,
+                      child: GestureDetector(
+                        key: const ValueKey('confirm-floating-close'),
+                        behavior: HitTestBehavior.opaque,
+                        onTap: widget.onDismiss,
+                        child: const SizedBox.square(
+                          dimension: 44,
+                          child: Center(
+                            child: Icon(
+                              Icons.close,
+                              color: Color(0xFF8B9BB4),
+                              size: 14,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),

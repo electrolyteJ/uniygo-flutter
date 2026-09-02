@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:biz/card_image_loader.dart';
 import 'package:flame/components.dart';
+import 'package:flame/events.dart';
 import 'package:biz/duel/models/field_zone_key.dart';
 import 'package:cardlive/cardlive.dart';
 import 'components/battle_presentation_component.dart';
@@ -46,6 +47,7 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
       onPlaceSlotTap: game.onPlaceSlotTap,
     );
     add(_zones!);
+    add(_ZoneTapRouter(_zones!));
     _zones!.rebuild();
     add(BattlePresentationComponent());
     add(_summonDriver);
@@ -113,6 +115,12 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
 
   /// 阶段轨道组件（紧凑模式的锚点矩形换算用；未挂载时为 null）。
   PhaseRailComponent? get phaseRailComponent => _phaseRail;
+
+  bool dispatchZonePrimaryTap(Vector2 worldPoint) =>
+      _zones?.dispatchPrimaryTap(worldPoint) ?? false;
+
+  bool canDispatchZonePrimaryTap(Vector2 worldPoint) =>
+      _zones?.canDispatchPrimaryTap(worldPoint) ?? false;
 
   /// 紧凑 HUD 模式切换（由 [DuelFlameGame] 按视口高度驱动）：
   /// 阶段轨道反缩放为固定屏幕尺寸；玩家状态卡/中央计时器在世界内
@@ -183,4 +191,25 @@ class DuelFieldWorld extends World with HasGameReference<DuelFlameGame> {
   static const int _fieldCardDecodeWidth = 256;
 
   // _fetchNetworkImage 已移除——网络请求统一由 CardImageLoader 负责。
+}
+
+class _ZoneTapRouter extends PositionComponent with TapCallbacks {
+  _ZoneTapRouter(this.zones)
+    : super(
+        position: Vector2(-1000, -1000),
+        size: Vector2.all(2000),
+        priority: -100,
+      );
+
+  final ZonesComponent zones;
+
+  Vector2 _worldPoint(Vector2 localPoint) => localPoint + position;
+
+  @override
+  bool containsLocalPoint(Vector2 point) =>
+      zones.canDispatchPrimaryTap(_worldPoint(point));
+
+  @override
+  void onTapUp(TapUpEvent event) =>
+      zones.dispatchPrimaryTap(_worldPoint(event.localPosition));
 }

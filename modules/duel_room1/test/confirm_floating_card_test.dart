@@ -45,6 +45,25 @@ void main() {
     await tester.tap(find.byIcon(Icons.close));
     expect(s.dismissTaps.length, 1);
     expect(s.inspected, isEmpty);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('confirm-floating-close'))),
+      const Size.square(44),
+    );
+  });
+
+  testWidgets('关闭按钮提供单一明确的 button 语义', (tester) async {
+    final semantics = tester.ensureSemantics();
+    final s = buildSubject();
+    await tester.pumpWidget(s.widget);
+    await tester.pumpAndSettle();
+
+    final closeSemantics = tester
+        .widgetList<Semantics>(find.byType(Semantics))
+        .where((widget) => widget.properties.label == '关闭');
+    expect(closeSemantics, hasLength(1));
+    expect(closeSemantics.single.properties.button, isTrue);
+    expect(closeSemantics.single.properties.enabled, isTrue);
+    semantics.dispose();
   });
 
   testWidgets('onInspectCard 为 null 时点卡片无效果', (tester) async {

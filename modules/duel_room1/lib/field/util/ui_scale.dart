@@ -25,8 +25,12 @@ const double kHudMinScale = 0.60;
 /// 手机横屏（~390）约 0.60。
 double hudScaleForHeight(double viewportHeight) {
   if (viewportHeight <= 0) return 1.0;
-  return (viewportHeight / kHudReferenceHeight).clamp(kHudMinScale, 1.0);
+  return hudScaleForAvailableHeight(viewportHeight);
 }
+
+/// 已经扣除安全区的可用高度对应的 HUD 缩放系数。
+double hudScaleForAvailableHeight(double availableHeight) =>
+    (availableHeight / kHudReferenceHeight).clamp(kHudMinScale, 1.0);
 
 /// 是否进入紧凑 HUD 模式：世界内的玩家状态卡/中央计时器让位给
 /// widget 层紧凑件（状态芯片 + 顶栏计时），阶段轨道反缩放为固定

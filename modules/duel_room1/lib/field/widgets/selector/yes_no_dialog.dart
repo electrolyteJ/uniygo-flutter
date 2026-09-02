@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import 'package:biz/widgets/card_image.dart';
+import 'package:duel_room1/layout/responsive_panel.dart';
 
 class YesNoDialog extends StatelessWidget {
   final String message;
@@ -20,60 +21,68 @@ class YesNoDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final code = cardCode;
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 320),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade900,
-        borderRadius: BorderRadius.circular(12),
+    return ResponsivePanel(
+      maxWidth: 320,
+      maxHeight: 480,
+      header: const Text(
+        '确认',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+        ),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            '确认',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (code != null && code > 0) ...[
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: onInspectCard == null ? null : () => onInspectCard!(code),
-              child: CardImage(
-                code: code,
-                width: 120,
-                height: 172,
-                showCodeFallback: false,
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            if (code != null && code > 0) ...[
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 172),
+                child: AspectRatio(
+                  aspectRatio: 59 / 86,
+                  child: InkWell(
+                    onTap: onInspectCard == null
+                        ? null
+                        : () => onInspectCard!(code),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => CardImage(
+                        code: code,
+                        width: constraints.maxWidth,
+                        height: constraints.maxHeight,
+                        showCodeFallback: false,
+                      ),
+                    ),
+                  ),
+                ),
               ),
+              const SizedBox(height: 12),
+            ],
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white),
             ),
           ],
-          const SizedBox(height: 12),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white),
+        ),
+      ),
+      actions: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          TextButton(
+            onPressed: onNo,
+            style: TextButton.styleFrom(minimumSize: const Size(44, 44)),
+            child: const Text('否', style: TextStyle(color: Colors.red)),
           ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextButton(
-                onPressed: onNo,
-                child: const Text('否', style: TextStyle(color: Colors.red)),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: onYes,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00F0FF),
-                  foregroundColor: Colors.black,
-                ),
-                child: const Text('是'),
-              ),
-            ],
+          const SizedBox(width: 12),
+          ElevatedButton(
+            onPressed: onYes,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00F0FF),
+              foregroundColor: Colors.black,
+              minimumSize: const Size(44, 44),
+            ),
+            child: const Text('是'),
           ),
         ],
       ),

@@ -5,7 +5,6 @@ import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
 
 import '../../duel_flame_game.dart';
-import '../../models/flame_field_snapshot.dart';
 import '../../util/hand_fan_layout.dart';
 import 'hand.dart';
 import 'hand_card_component.dart';
@@ -24,13 +23,20 @@ import 'hand_card_component.dart';
 /// 子卡坐标 = 视口/屏幕坐标，与 DuelFlameGame.worldToWidget 同一空间。
 class HandBarComponent extends PositionComponent
     with HasGameReference<DuelFlameGame> {
-  HandBarComponent({required this.isSelfSide, this.onCardTap});
+  HandBarComponent({
+    required this.isSelfSide,
+    this.onCardTap,
+    this.onCardSecondaryTap,
+  });
 
   /// 是否为己方（底部）手牌栏；false 为对方（顶部，不响应交互）。
   final bool isSelfSide;
 
   /// 点击手牌回调（index, code）；对方手牌栏为 null（不可交互）。
   final void Function(int index, int code)? onCardTap;
+
+  /// 右键（辅助点击）手牌回调（index, code）；对方手牌栏为 null。
+  final void Function(int index, int code)? onCardSecondaryTap;
 
   /// 对方手牌栏顶部 y（页面按 HUD 高度推入，见 [setHudTopY]）。
   double hudTopY = 0;
@@ -42,6 +48,8 @@ class HandBarComponent extends PositionComponent
     hudTopY = y;
     _relayout();
   }
+
+  void relayout() => _relayout();
 
   /// 手牌栏整体是否可见（HUD 可见性跟随对局阶段：
   /// 猜拳/等待阶段场地页作背景时隐藏）。
@@ -57,6 +65,46 @@ class HandBarComponent extends PositionComponent
 
   /// 抽卡/发牌动画期间处于隐藏态的手牌下标（飞行落地逐张揭示）。
   final Set<int> _concealed = {};
+
+  HandCardComponent? _cardAt(Vector2 point) {
+    if (!barVisible || !isSelfSide) return null;
+    final minLocalExtent = 44 / game.hudScale;
+    HandCardComponent? nearest;
+    var nearestDistance = double.infinity;
+    for (final card in _cards) {
+      if (!card.primaryInteractive) continue;
+      final dx = point.x - card.position.x;
+      final dy = point.y - card.position.y;
+      final distance = dx * dx + dy * dy;
+      final visualRadius =
+          math.sqrt(
+            HandFanLayout.cardWidth * HandFanLayout.cardWidth +
+                HandFanLayout.cardHeight * HandFanLayout.cardHeight,
+          ) /
+          2;
+      final hitRadius = visualRadius > minLocalExtent / 2
+          ? visualRadius
+          : minLocalExtent / 2;
+      if (distance > hitRadius * hitRadius) continue;
+      if (distance < nearestDistance ||
+          (distance == nearestDistance &&
+              (nearest == null || card.priority > nearest.priority))) {
+        nearest = card;
+        nearestDistance = distance;
+      }
+    }
+    return nearest;
+  }
+
+  bool dispatchPrimaryTap(Vector2 screenPoint) {
+    final card = _cardAt(screenPoint / game.hudScale);
+    if (card == null) return false;
+    card.dispatchPrimaryTap();
+    return true;
+  }
+
+  bool canDispatchPrimaryTap(Vector2 screenPoint) =>
+      _cardAt(screenPoint / game.hudScale) != null;
 
   /// 手牌栏高度（与原 Flutter 版一致；虚拟坐标，屏显高度见
   /// [visualBarHeight]——紧凑 HUD 模式下整栏按 hudScale 缩放）。
@@ -85,9 +133,7 @@ class HandBarComponent extends PositionComponent
     _syncHudScale();
     // 可见性/挂载晚于首份快照时（页面监听注册早于游戏加载完成）补齐。
     barVisible = game.handBarsVisible;
-    applySnapshot(
-      isSelfSide ? game.snapshot.selfHand : game.snapshot.oppHand,
-    );
+    applySnapshot(isSelfSide ? game.snapshot.selfHand : game.snapshot.oppHand);
   }
 
   @override
@@ -102,10 +148,10 @@ class HandBarComponent extends PositionComponent
     _snap = snap;
     // 张数对齐：多退少补（抽/丢/回收都会改变张数）。
     while (_cards.length < snap.codes.length) {
-      final card = HandCardComponent(
-        index: _cards.length,
-        isSelfSide: isSelfSide,
-      )..onTapCard = onCardTap;
+      final card =
+          HandCardComponent(index: _cards.length, isSelfSide: isSelfSide)
+            ..onTapCard = onCardTap
+            ..onSecondaryTapCard = onCardSecondaryTap;
       _cards.add(card);
       add(card);
     }
@@ -149,27 +195,36 @@ class HandBarComponent extends PositionComponent
     // 未挂载（测试/构造期快照预填）时无 game 可取，按缩放 1、无安全区
     // 兜底；挂载后 onLoad/onGameResize 会触发重排补齐。
     final hs = isMounted ? game.hudScale : 1.0;
-    final bottomInset = isMounted ? game.viewPadding.bottom : 0.0;
+    final safeRect = isMounted
+        ? game.safeRect
+        : Rect.fromLTWH(0, 0, size.x * hs, size.y * hs);
+    final geometry = HandBarViewportGeometry.resolve(
+      viewport: Size(size.x * hs, size.y * hs),
+      safeRect: safeRect,
+      hudScale: hs,
+    );
     final layout = HandFanLayout(
       count: _cards.length,
-      maxWidth: size.x - 16,
+      maxWidth: geometry.maxWidth,
     );
-    final centerX = size.x / 2;
     // 与原 Flutter 版一致：96 高条带内底对齐（bottom padding 4），
     // 凸弧向上（对方栏同样向上，与历史视觉一致）。
     // 己方栏底让开 Home 指示条安全区（viewPadding.bottom）。
     final baseLineY = isSelfSide
         ? size.y -
-            bottomInset / hs -
-            bottomPadding -
-            HandFanLayout.cardHeight / 2
+              geometry.selfBottomInset -
+              bottomPadding -
+              HandFanLayout.cardHeight / 2
         : hudTopY / hs +
-            barHeight -
-            bottomPadding -
-            HandFanLayout.cardHeight / 2;
+              barHeight -
+              bottomPadding -
+              HandFanLayout.cardHeight / 2;
     for (var i = 0; i < _cards.length; i++) {
       _cards[i].setBaseCenter(
-        Vector2(centerX + layout.centerDx(i), baseLineY + layout.centerAt(i).dy),
+        Vector2(
+          geometry.centerX + layout.centerDx(i),
+          baseLineY + layout.centerAt(i).dy,
+        ),
         layout.angleAt(i),
       );
     }
@@ -184,18 +239,16 @@ class HandBarComponent extends PositionComponent
       (_) => (rnd.nextDouble() * 2 - 1) * 108.0,
     );
     _shuffleFx?.removeFromParent();
-    _shuffleFx = FunctionEffect<HandBarComponent>(
-      (target, progress) {
-        // 0 → 1 → 0：先换位再回位。
-        final s = math.sin(progress * math.pi);
-        for (var i = 0; i < _cards.length; i++) {
-          _cards[i].shuffleDx =
-              i < _shuffleOffsets.length ? _shuffleOffsets[i] * s : 0.0;
-          _cards[i].syncPosition();
-        }
-      },
-      CurvedEffectController(0.5, Curves.linear),
-    );
+    _shuffleFx = FunctionEffect<HandBarComponent>((target, progress) {
+      // 0 → 1 → 0：先换位再回位。
+      final s = math.sin(progress * math.pi);
+      for (var i = 0; i < _cards.length; i++) {
+        _cards[i].shuffleDx = i < _shuffleOffsets.length
+            ? _shuffleOffsets[i] * s
+            : 0.0;
+        _cards[i].syncPosition();
+      }
+    }, CurvedEffectController(0.5, Curves.linear));
     add(_shuffleFx!);
   }
 

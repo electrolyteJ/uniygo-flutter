@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:resource_data/ygo_data.dart' as pkg;
 
 import 'package:biz/widgets/card_image.dart';
+import 'package:duel_room1/layout/duel_room_layout.dart';
+import 'package:duel_room1/layout/responsive_panel.dart';
 
 /// 宣言卡名弹窗。
 ///
@@ -13,6 +15,7 @@ import 'package:biz/widgets/card_image.dart';
 /// - **自由宣言**（[declarableCodes] 为 null）：可宣言任意卡名，无有限列表，
 ///   提供搜索框按关键字检索。
 class AnnounceCardDialog extends StatefulWidget {
+  final int generation;
   final Future<List<pkg.CardInfo>> Function(String query) onSearch;
   final void Function(int code) onSelect;
   final void Function(int code)? onInspectCard;
@@ -25,6 +28,7 @@ class AnnounceCardDialog extends StatefulWidget {
 
   const AnnounceCardDialog({
     super.key,
+    this.generation = 0,
     required this.onSearch,
     required this.onSelect,
     this.onInspectCard,
@@ -60,10 +64,31 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
     }
   }
 
+  @override
+  void didUpdateWidget(covariant AnnounceCardDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final modeChanged = (oldWidget.declarableCodes == null) != _restricted;
+    if (oldWidget.generation == widget.generation && !modeChanged) return;
+    _debounce?.cancel();
+    _debounce = null;
+    _searchToken++;
+    _controller.clear();
+    _results = const <pkg.CardInfo>[];
+    _declarableCards = const <pkg.CardInfo>[];
+    _isSearching = false;
+    _searchFailed = false;
+    _activeQuery = '';
+    _loadingDeclarable = _restricted;
+    if (_restricted) _loadDeclarable();
+  }
+
   Future<void> _loadDeclarable() async {
+    final token = ++_searchToken;
     final load = widget.onLoadDeclarable;
     if (load == null) {
-      if (mounted) setState(() => _loadingDeclarable = false);
+      if (mounted && token == _searchToken) {
+        setState(() => _loadingDeclarable = false);
+      }
       return;
     }
     List<pkg.CardInfo> cards;
@@ -72,7 +97,7 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
     } catch (_) {
       cards = const <pkg.CardInfo>[];
     }
-    if (!mounted) return;
+    if (!mounted || token != _searchToken) return;
     setState(() {
       _loadingDeclarable = false;
       _declarableCards = cards;
@@ -82,6 +107,7 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _searchToken++;
     _controller.dispose();
     super.dispose();
   }
@@ -132,110 +158,88 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 860, maxHeight: 680),
-        child: Container(
-          margin: const EdgeInsets.all(24),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF09111A),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0x5500F0FF)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0xAA000000),
-                blurRadius: 28,
-                offset: Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                '宣言卡名',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                _restricted
-                    ? '从下方可宣言的卡片中选择要宣言的卡片。'
-                    : '输入卡名关键字，然后从搜索结果中选择要宣言的卡片。',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF9FB5C7),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 18),
-              // 受限宣言候选已直接罗列，不再提供搜索框。
-              if (!_restricted) ...[
-                TextField(
-                  controller: _controller,
-                  autofocus: true,
-                  onChanged: _onQueryChanged,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: '例如：电子龙、青眼、禁发令',
-                    hintStyle: const TextStyle(color: Color(0x668FA6BA)),
-                    filled: true,
-                    fillColor: const Color(0xFF111D2A),
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      color: Color(0xFF00F0FF),
-                    ),
-                    suffixIcon: _isSearching
-                        ? const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          )
-                        : (_controller.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  onPressed: () {
-                                    // 先取消挂起的搜索防抖，避免清空后
-                                    // 旧查询的延迟搜索又被触发。
-                                    _debounce?.cancel();
-                                    _debounce = null;
-                                    _controller.clear();
-                                    _performSearch('');
-                                  },
-                                  icon: const Icon(
-                                    Icons.close,
-                                    color: Color(0xFF8FA6BA),
-                                  ),
-                                )),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              Expanded(
-                child: _restricted
-                    ? _buildDeclarableBody()
-                    : _buildSearchBody(),
-              ),
-            ],
-          ),
+    final compact = DuelRoomLayout.of(context).isCompact;
+    return ResponsivePanel(
+      maxWidth: 860,
+      maxHeight: 680,
+      header: const Text(
+        '宣言卡名',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 22,
+          fontWeight: FontWeight.w900,
         ),
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!compact) ...[
+            Text(
+              _restricted ? '从下方可宣言的卡片中选择要宣言的卡片。' : '输入卡名关键字，然后从搜索结果中选择要宣言的卡片。',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF9FB5C7),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (!_restricted) ...[
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              onChanged: _onQueryChanged,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+              decoration: InputDecoration(
+                isDense: compact,
+                hintText: '例如：电子龙、青眼、禁发令',
+                hintStyle: const TextStyle(color: Color(0x668FA6BA)),
+                filled: true,
+                fillColor: const Color(0xFF111D2A),
+                prefixIcon: const Icon(Icons.search, color: Color(0xFF00F0FF)),
+                suffixIcon: _isSearching
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : (_controller.text.isEmpty
+                          ? null
+                          : IconButton(
+                              onPressed: () {
+                                // 先取消挂起的搜索防抖，避免清空后
+                                // 旧查询的延迟搜索又被触发。
+                                _debounce?.cancel();
+                                _debounce = null;
+                                _controller.clear();
+                                _performSearch('');
+                              },
+                              icon: const Icon(
+                                Icons.close,
+                                color: Color(0xFF8FA6BA),
+                              ),
+                            )),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            SizedBox(height: compact ? 4 : 12),
+          ],
+          Expanded(
+            child: _restricted ? _buildDeclarableBody() : _buildSearchBody(),
+          ),
+        ],
       ),
     );
   }
@@ -313,64 +317,90 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
   }
 
   Widget _buildCardTile(pkg.CardInfo card) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () => widget.onSelect(card.code),
-      child: Ink(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0F1822),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0x2AFFFFFF)),
-        ),
-        child: Row(
-          children: [
-            GestureDetector(
-              onTap: () => widget.onInspectCard?.call(card.code),
-              child: CardImage(
-                code: card.code,
-                width: 74,
-                height: 102,
-                showCodeFallback: false,
+    return Semantics(
+      key: ValueKey('announce-card-select-${card.code}'),
+      container: true,
+      explicitChildNodes: true,
+      button: true,
+      label: '宣言卡片：${card.name}',
+      child: InkWell(
+        excludeFromSemantics: true,
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => widget.onSelect(card.code),
+        child: Ink(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F1822),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0x2AFFFFFF)),
+          ),
+          child: Row(
+            children: [
+              Semantics(
+                key: ValueKey('announce-card-inspect-${card.code}'),
+                container: true,
+                button: true,
+                enabled: widget.onInspectCard != null,
+                label: '查看卡片：${card.name}',
+                excludeSemantics: true,
+                onTap: widget.onInspectCard == null
+                    ? null
+                    : () => widget.onInspectCard!(card.code),
+                child: InkWell(
+                  excludeFromSemantics: true,
+                  onTap: widget.onInspectCard == null
+                      ? null
+                      : () => widget.onInspectCard!(card.code),
+                  child: CardImage(
+                    code: card.code,
+                    width: 74,
+                    height: 102,
+                    showCodeFallback: false,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    card.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                    ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: ExcludeSemantics(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        card.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        card.typeText,
+                        style: const TextStyle(
+                          color: Color(0xFF8FA6BA),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '宣言这张卡',
+                        style: TextStyle(
+                          color: const Color(
+                            0xFF00F0FF,
+                          ).withValues(alpha: 0.92),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    card.typeText,
-                    style: const TextStyle(
-                      color: Color(0xFF8FA6BA),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '宣言这张卡',
-                    style: TextStyle(
-                      color: const Color(0xFF00F0FF).withValues(alpha: 0.92),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

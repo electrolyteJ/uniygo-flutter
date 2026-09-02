@@ -1,10 +1,4 @@
-import 'package:biz/duel/models/battle_presentation.dart';
-import 'package:biz/duel/models/card_move_event.dart';
-import 'package:biz/duel/models/summon_effect_event.dart';
-import 'package:biz/duel/models/field_card.dart';
-import 'package:biz/duel/models/lp_change_event.dart';
 import 'package:collection/collection.dart';
-import 'package:duelink/duelink.dart' show DuelPhase;
 
 /// 一侧手牌的不可变快照（己方底部 / 对方顶部手牌栏共用）。
 ///

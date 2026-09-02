@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
 import 'package:biz/duel/models/select_state.dart';
+import 'package:duel_room1/layout/responsive_panel.dart';
 
 /// 宣言数值/属性/种族的通用选择弹窗：从给定选项列表中选一项。
 ///
@@ -21,69 +22,51 @@ class AnnounceChoiceDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 560),
-        child: Container(
-          margin: const EdgeInsets.all(24),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF09111A),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0x5500F0FF)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0xAA000000),
-                blurRadius: 28,
-                offset: Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    return ResponsivePanel(
+      maxWidth: 520,
+      maxHeight: 560,
+      header: Text(
+        title,
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      body: SingleChildScrollView(
+        child: LayoutBuilder(
+          builder: (context, constraints) => Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
             children: [
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    alignment: WrapAlignment.center,
-                    children: [
-                      for (var i = 0; i < options.length; i++)
-                        FilledButton(
-                          onPressed: () => onSelect(i),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF111D2A),
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(88, 48),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: const BorderSide(color: Color(0x5500F0FF)),
-                            ),
-                          ),
-                          child: Text(
-                            options[i].label ?? '${options[i].code}',
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                    ],
+              for (var i = 0; i < options.length; i++)
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                  child: FilledButton(
+                    onPressed: () => onSelect(i),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF111D2A),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(88, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: const BorderSide(color: Color(0x5500F0FF)),
+                      ),
+                    ),
+                    child: Text(
+                      options[i].label ?? '${options[i].code}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

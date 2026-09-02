@@ -17,29 +17,29 @@ class TpSelect extends StatelessWidget {
       ),
       // 标题由宿主面板（TurnSelectPanel）提供，这里只保留先攻/后攻按钮。
       // Column/Row 均包容内容（min）：宿主面板居中展示，不撑满屏幕。
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        runAlignment: WrapAlignment.center,
+        spacing: 16,
+        runSpacing: 8,
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              FilledButton(
-                key: const ValueKey('tp-select-first'),
-                onPressed: enabled ? () => onSendTp(true) : null,
-                style: FilledButton.styleFrom(backgroundColor: Colors.teal),
-                child: const Text('先攻'),
-              ),
-              const SizedBox(width: 16),
-              FilledButton(
-                key: const ValueKey('tp-select-second'),
-                onPressed: enabled ? () => onSendTp(false) : null,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.deepOrange,
-                ),
-                child: const Text('后攻'),
-              ),
-            ],
+          FilledButton(
+            key: const ValueKey('tp-select-first'),
+            onPressed: enabled ? () => onSendTp(true) : null,
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.teal,
+              minimumSize: const Size(64, 44),
+            ),
+            child: const Text('先攻'),
+          ),
+          FilledButton(
+            key: const ValueKey('tp-select-second'),
+            onPressed: enabled ? () => onSendTp(false) : null,
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.deepOrange,
+              minimumSize: const Size(64, 44),
+            ),
+            child: const Text('后攻'),
           ),
         ],
       ),

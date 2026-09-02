@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'overlay_panel.dart';
 import 'select_turn.dart';
+import 'stage_selection_panel_host.dart';
 
 /// 选先后攻面板：猜拳胜者选择先攻/后攻，直接由 DuelRoomPage 挂载在
 /// 场地上（不经过等待室弹窗）。
@@ -39,7 +39,7 @@ class _TurnSelectPanelState extends State<TurnSelectPanel> {
   @override
   Widget build(BuildContext context) {
     final goFirst = _goFirst;
-    return OverlayPanel(
+    return StageSelectionPanelHost(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
         child: Column(
@@ -47,6 +47,8 @@ class _TurnSelectPanelState extends State<TurnSelectPanel> {
           children: [
             const Text(
               '猜拳获胜！选择先后攻',
+              maxLines: 2,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 color: Color(0xFF66FFB2),
                 fontSize: 20,
@@ -67,6 +69,8 @@ class _TurnSelectPanelState extends State<TurnSelectPanel> {
                   : widget.enabled
                   ? '请选择行动顺序'
                   : '自动选择先后攻中…',
+              maxLines: 2,
+              textAlign: TextAlign.center,
               style: const TextStyle(color: Color(0xFF8CA6C4), fontSize: 13),
             ),
           ],

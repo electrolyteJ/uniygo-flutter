@@ -9,9 +9,11 @@ import 'package:flutter/material.dart';
 import 'package:biz/duel/models/field_card.dart';
 import 'package:duel_room1/field/components/zone/zone_slot_spec.dart';
 import 'package:duel_room1/field/duel_field_world.dart';
-import '../deck_shuffle_effect.dart';
 class CardSlotComponent extends PositionComponent
-    with TapCallbacks, HoverCallbacks, HasWorldReference<DuelFieldWorld> {
+    with
+        HoverCallbacks,
+        SecondaryTapCallbacks,
+        HasWorldReference<DuelFieldWorld> {
   /// hover 动画曲线，与 HTML transition: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) 一致。
   static const _hoverCurve = Cubic(0.34, 1.56, 0.64, 1);
   static const _hoverScale = 1.12;
@@ -664,9 +666,13 @@ class CardSlotComponent extends PositionComponent
     _animateHover(false);
   }
 
-  // 用 onTapUp 而非 onTapDown：引入双指捏合缩放（ScaleDetector）后，
-  // tap recognizer 在手势竞技场中输给 scale 时只收到 onTapCancel——
-  // 若按下即触发，双指操作的起始落点在卡槽上会误弹操作菜单。
+  /// 右键/辅助点击：桌面/Web 下打开上下文菜单（检视 + 可用动作）。
+  /// 空槽位与未启用上下文菜单时不处理。
   @override
-  void onTapUp(TapUpEvent event) => onTap?.call();
+  void onSecondaryTapUp(SecondaryTapUpEvent event) {
+    if (!world.game.contextMenuEnabled) return;
+    final c = card;
+    if (c == null) return;
+    world.game.onFieldCardSecondaryTap?.call(c, c.code);
+  }
 }

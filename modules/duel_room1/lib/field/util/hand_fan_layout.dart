@@ -51,9 +51,7 @@ class HandFanLayout {
   double get spacing {
     if (count <= 1) return baseSpacing;
     final compressed = (maxWidth - cardWidth) / (count - 1);
-    return compressed
-        .clamp(minSpacing, baseSpacing)
-        .toDouble();
+    return compressed.clamp(minSpacing, baseSpacing).toDouble();
   }
 
   /// 第 [index] 张卡的卡心相对扇形中心的水平偏移。
@@ -71,12 +69,36 @@ class HandFanLayout {
   double angleAt(int index) => (index - centerIndex) * rotationStep;
 
   /// 扇形整体宽度（首张到末张卡心的距离 + 一张卡宽）。
-  double get totalWidth =>
-      count <= 0 ? 0 : (count - 1) * spacing + cardWidth;
+  double get totalWidth => count <= 0 ? 0 : (count - 1) * spacing + cardWidth;
 
   /// 第 [index] 张卡的卡心（相对扇形锚点的局部坐标）。
   ///
   /// y 轴向上为正：返回的 dy 是「应向负 y 方向移动」的升起量，
   /// 调用方按自身锚点方向换算。
   Offset centerAt(int index) => Offset(centerDx(index), -arcLiftAt(index));
+}
+
+class HandBarViewportGeometry {
+  const HandBarViewportGeometry({
+    required this.centerX,
+    required this.maxWidth,
+    required this.selfBottomInset,
+  });
+
+  final double centerX;
+  final double maxWidth;
+  final double selfBottomInset;
+
+  factory HandBarViewportGeometry.resolve({
+    required Size viewport,
+    required Rect safeRect,
+    required double hudScale,
+  }) {
+    final scale = hudScale.isFinite && hudScale > 0 ? hudScale : 1.0;
+    return HandBarViewportGeometry(
+      centerX: safeRect.center.dx / scale,
+      maxWidth: math.max(1, safeRect.width / scale - 16),
+      selfBottomInset: math.max(0, viewport.height - safeRect.bottom) / scale,
+    );
+  }
 }

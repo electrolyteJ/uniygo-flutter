@@ -5,6 +5,7 @@ import 'package:flutter/widget_previews.dart';
 
 import 'package:biz/duel/models/select_state.dart';
 import 'package:biz/widgets/card_image.dart';
+import 'package:duel_room1/layout/responsive_panel.dart';
 
 /// 表示形式选择弹窗（MSG_SELECT_POSITION）。
 ///
@@ -20,109 +21,93 @@ class PositionSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final options = select?.options ?? const [];
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const itemWidth = 108.0;
-        const horizontalPadding = 32.0;
-        const minCardCount = 3;
-        final count = options.isEmpty ? 3 : options.length;
-        final contentWidth = itemWidth * count;
-        final wrapsContent =
-            contentWidth <= constraints.maxWidth - horizontalPadding;
-        final minWidth = itemWidth * minCardCount + horizontalPadding;
-        final panelWidth = wrapsContent
-            ? (contentWidth + horizontalPadding).clamp(
-                minWidth,
-                constraints.maxWidth,
-              )
-            : constraints.maxWidth;
-        return Container(
-          width: panelWidth,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade900,
-            borderRadius: BorderRadius.circular(12),
+    final options = select?.options ?? const <SelectOption>[];
+    return ResponsivePanel(
+      maxWidth: 520,
+      maxHeight: 250,
+      header: const Text(
+        '选择表示形式',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Colors.white),
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (final option in options)
+                  _buildPositionItem(option, constraints.maxHeight),
+              ],
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('选择表示形式', style: TextStyle(color: Colors.white)),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 174,
-                child: wrapsContent
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          for (final option in options)
-                            _buildPositionItem(option),
-                        ],
-                      )
-                    : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            for (final option in options)
-                              _buildPositionItem(option),
-                          ],
-                        ),
-                      ),
-              ),
-            ],
-          ),
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Widget _buildPositionItem(SelectOption option) {
+  Widget _buildPositionItem(SelectOption option, double availableHeight) {
     final position = option.position ?? 0;
-    return GestureDetector(
+    final itemHeight = math.max(44.0, math.min(184.0, availableHeight));
+    return InkWell(
       onTap: () => onSelect(position),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         width: 100,
-        height: 168,
+        height: itemHeight,
         margin: const EdgeInsets.symmetric(horizontal: 4),
         child: Column(
           children: [
-            Container(
-              width: 100,
-              height: 144,
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: const Color(0xFF00F0FF).withValues(alpha: 0.55),
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x3300F0FF),
-                    blurRadius: 10,
-                    spreadRadius: 1,
+            Expanded(
+              child: Container(
+                width: 100,
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFF00F0FF).withValues(alpha: 0.55),
                   ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: Center(
-                      child: _buildPreviewCard(option.code, position),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x3300F0FF),
+                      blurRadius: 10,
+                      spreadRadius: 1,
                     ),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Center(
+                        child: FittedBox(
+                          fit: BoxFit.contain,
+                          child: _buildPreviewCard(option.code, position),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (itemHeight >= 88) ...[
+              const SizedBox(height: 4),
+              SizedBox(
+                height: 32,
+                child: Text(
+                  option.label ?? '',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                   ),
-                ],
+                ),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              option.label ?? '',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            ],
           ],
         ),
       ),

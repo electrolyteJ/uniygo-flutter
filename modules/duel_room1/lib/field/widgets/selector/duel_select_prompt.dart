@@ -10,7 +10,7 @@ import 'package:duel_room1/field/widgets/selector/card_selector.dart';
 import 'package:duel_room1/field/widgets/selector/counter_select_dialog.dart';
 import 'package:duel_room1/field/widgets/selector/position_selector.dart';
 import 'package:duel_room1/field/widgets/selector/yes_no_dialog.dart';
-import 'package:duel_room1/field/util/ui_scale.dart';
+import 'package:duel_room1/layout/duel_room_layout.dart';
 
 /// 选择提示弹层：订阅 select 子状态、决定呈现方式（放置提示横幅 /
 /// 就地选择操作栏 / 模态弹窗，三者互斥）并组装具体选择组件。
@@ -30,9 +30,6 @@ class DuelSelectPrompt extends ConsumerWidget {
 
   /// 检视卡片回调（页面注入：播音效 + 打开详情抽屉）。
   final void Function(int code) onInspectCard;
-
-  /// 放置提示横幅的顶部偏移。
-  static const double _placeHintTop = 136.0;
 
   static final _panelDecoration = BoxDecoration(
     color: const Color(0xE6111722),
@@ -67,8 +64,15 @@ class DuelSelectPrompt extends ConsumerWidget {
     return Positioned.fill(child: _buildLayer(context, ref, mode));
   }
 
-  Widget _buildLayer(BuildContext context, WidgetRef ref, SelectPromptMode mode) {
+  Widget _buildLayer(
+    BuildContext context,
+    WidgetRef ref,
+    SelectPromptMode mode,
+  ) {
     final state = ref.read(selectWindowProvider);
+    if (mode == SelectPromptMode.modal && state.currentSelect == null) {
+      return const IgnorePointer(child: SizedBox.expand());
+    }
     final selectN = ref.read(selectWindowProvider.notifier);
     switch (mode) {
       case SelectPromptMode.none:
@@ -78,21 +82,15 @@ class DuelSelectPrompt extends ConsumerWidget {
       case SelectPromptMode.inline:
         return _buildInlineBar(context, state, selectN);
       case SelectPromptMode.modal:
-        final select = state.currentSelect;
+        final select = state.currentSelect!;
         // 模态弹窗：遮罩全屏并居中展示选择组件。
         return Container(
+          key: const ValueKey('select-modal-barrier'),
           color: Colors.black.withValues(alpha: 0.65),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: select == null
-                  ? null
-                  : _buildSelectModal(
-                      selectN,
-                      select,
-                      state.announceCardDeclarableCodes,
-                    ),
-            ),
+          child: _buildSelectModal(
+            selectN,
+            select,
+            state.announceCardDeclarableCodes,
           ),
         );
     }
@@ -101,15 +99,17 @@ class DuelSelectPrompt extends ConsumerWidget {
   /// 放置选择（MSG_SELECT_PLACE）的提示横幅；可放置槽位的高亮与点击
   /// 已下沉到场地槽位组件本身，此处仅保留文案提示，不拦截点击。
   Widget _buildPlaceHint(BuildContext context, int placeTargetCount) {
+    final spec = DuelRoomLayout.of(context);
     return Stack(
       children: [
         Positioned(
-          top: _placeHintTop * context.hudScale,
-          left: 0,
-          right: 0,
+          top: spec.safeRect.top + spec.topHudHeight + spec.panelGap,
+          left: spec.safeRect.left + spec.panelGap,
+          right: spec.viewport.width - spec.safeRect.right + spec.panelGap,
           child: IgnorePointer(
             child: Center(
               child: Container(
+                key: const ValueKey('select-place-hint'),
                 constraints: const BoxConstraints(maxWidth: 420),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -139,6 +139,7 @@ class DuelSelectPrompt extends ConsumerWidget {
     SelectWindowState state,
     SelectWindowNotifier selectN,
   ) {
+    final spec = DuelRoomLayout.of(context);
     final select = state.currentSelect;
     // 多选（非单张、非连锁、非解除选择）才需要本地确认按钮。
     final showConfirm =
@@ -154,52 +155,66 @@ class DuelSelectPrompt extends ConsumerWidget {
     return Stack(
       children: [
         Positioned(
-          left: 0,
-          right: 0,
-          bottom: 126 * context.hudScale,
+          left: spec.safeRect.left + spec.panelGap,
+          right: spec.viewport.width - spec.safeRect.right + spec.panelGap,
+          bottom: spec.safePadding.bottom + spec.handBarHeight + spec.panelGap,
           child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: _panelDecoration,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    state.inlineSelectHint,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (cancelLabel != null) ...[
-                    const SizedBox(width: 4),
-                    TextButton(
-                      onPressed: selectN.cancelInlineSelect,
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.redAccent,
-                        minimumSize: const Size(0, 34),
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: spec.dialogMaxSize.width),
+              child: Container(
+                key: const ValueKey('select-inline-bar'),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: _panelDecoration,
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: spec.isCompact ? 260 : 420,
                       ),
-                      child: Text(cancelLabel),
+                      child: Text(
+                        state.inlineSelectHint,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
+                    if (cancelLabel != null) ...[
+                      const SizedBox(width: 4),
+                      TextButton(
+                        onPressed: selectN.cancelInlineSelect,
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          minimumSize: const Size(44, 44),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                        ),
+                        child: Text(cancelLabel),
+                      ),
+                    ],
+                    if (showFinish) ...[
+                      const SizedBox(width: 4),
+                      _actionButton(
+                        label: '完成',
+                        enabled: state.inlineSelectCanConfirm,
+                        onPressed: selectN.finishInlineUnselect,
+                      ),
+                    ] else if (showConfirm) ...[
+                      const SizedBox(width: 4),
+                      _actionButton(
+                        label: '确认',
+                        enabled: state.inlineSelectCanConfirm,
+                        onPressed: selectN.confirmInlineSelect,
+                      ),
+                    ],
                   ],
-                  if (showFinish) ...[
-                    const SizedBox(width: 4),
-                    _actionButton(
-                      label: '完成',
-                      enabled: state.inlineSelectCanConfirm,
-                      onPressed: selectN.finishInlineUnselect,
-                    ),
-                  ] else if (showConfirm) ...[
-                    const SizedBox(width: 4),
-                    _actionButton(
-                      label: '确认',
-                      enabled: state.inlineSelectCanConfirm,
-                      onPressed: selectN.confirmInlineSelect,
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
           ),
@@ -220,7 +235,7 @@ class DuelSelectPrompt extends ConsumerWidget {
         foregroundColor: Colors.black,
         disabledBackgroundColor: Colors.grey.shade800,
         disabledForegroundColor: Colors.grey.shade500,
-        minimumSize: const Size(0, 34),
+        minimumSize: const Size(44, 44),
         padding: const EdgeInsets.symmetric(horizontal: 14),
       ),
       child: Text(label),
@@ -311,6 +326,7 @@ class DuelSelectPrompt extends ConsumerWidget {
         );
       case SelectType.announceCard:
         return AnnounceCardDialog(
+          generation: generation,
           // 受限宣言（抹杀之指名者等）：把引擎下发的可宣言卡集合
           // 传给弹窗直接罗列候选；null 时退回自由宣言搜索。
           declarableCodes: declarableCodes,

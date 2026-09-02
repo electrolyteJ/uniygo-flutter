@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:resource_data/lf_table.dart';
 
+import 'package:duel_room1/layout/duel_room_layout.dart';
 import 'package:duel_room1/waiting/widgets/control_bar.dart';
 import 'package:duel_room1/waiting/widgets/overlay_panel.dart';
 import 'package:duel_room1/waiting/widgets/player_panel.dart';
@@ -148,152 +149,207 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
     final mySlotVal = room.selfType.slot;
     final stage = room.stage;
     final isSideDecking = stage is RoomSideDecking;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // 屏幕居中，不为右侧聊天浮窗让位。
-        // 下界 280 是「够用宽度」偏好：窗口过窄时不能超过可用宽度，
-        // 否则弹窗溢出（约束不允许负值，先归一到 >=0）。
-        final available = (constraints.maxWidth - 32).clamp(
-          0.0,
-          double.infinity,
-        );
-        final dialogMaxWidth = available.clamp(
-          available < 280.0 ? available : 280.0,
-          640.0,
-        );
-        // 弹窗之外不绘制任何东西（透明、不挡指针），场地直接透出。
-        return Center(
+    final spec = DuelRoomLayout.of(context);
+    return _WaitingRoomPanelFrame(
+      child: Padding(
+        padding: EdgeInsets.all(spec.pagePadding),
+        child: _WaitingRoomPanelLayout(
+          compact: spec.isCompact,
+          content: _buildRoomContent(
+            room: room,
+            roomCtl: roomCtl,
+            dataService: dataService,
+            opts: opts,
+            mySlotVal: mySlotVal,
+            isSideDecking: isSideDecking,
+          ),
+          controlBar: isSideDecking
+              ? null
+              : KeyedSubtree(
+                  key: const ValueKey('waiting-room-controls'),
+                  child: _buildControlBar(room, roomCtl),
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoomContent({
+    required DuelRoomState room,
+    required DuelRoomNotifier roomCtl,
+    required dynamic dataService,
+    required RoomOptions? opts,
+    required int mySlotVal,
+    required bool isSideDecking,
+  }) {
+    return Column(
+      key: const ValueKey('waiting-room-content'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PlayerPanel(
+          mySlot: mySlotVal,
+          selfType: room.selfType,
+          players: room.players,
+          isHost: room.isHost,
+          onKick: roomCtl.kickPlayer,
+          // 换备阶段隐藏卡组选择（换备走专用面板）。
+          deckSelectionEnabled: !room.isSelfReady && !isSideDecking,
+          decks: room.availableDecks,
+          deckListLoading: !_deckListLoadFinished,
+          selectedDeckName: room.selectedDeckName,
+          onSelectDeck: (value) {
+            if (value == null) return;
+            // selectDeck 的失败（卡组加载失败/不存在）
+            // 不回写 invalidationDeckResult，不经
+            // errorMessage 渠道就会静默丢弃。
+            unawaited(() async {
+              final r = await roomCtl.selectDeck(value);
+              final error = r.error;
+              if (error != null) {
+                roomCtl.setErrorText(error);
+              }
+            }());
+          },
+          onEditDeck: room.selectedDeckName == null
+              ? null
+              : () => _onEditDeck(context, ref),
+          deckInvalidationResult: room.invalidationDeckResult,
+          observerCount: room.observerCount,
+        ),
+        // match 模式局间换备面板（提交后自动 ready）。
+        if (isSideDecking)
+          SideDeckingPanel(
+            // tag 模式座位 2/3（player3/player4）
+            // 同样是决斗者，需要参与换备。
+            isDuelist: room.selfType.isDuelist,
+            sidingMain: room.sidingMain,
+            sidingExtra: room.sidingExtra,
+            sidingSide: room.sidingSide,
+            sidingInitFailed: room.sidingInitFailed,
+            onRetryInit: roomCtl.retrySidingInit,
+            baselineMainCount: room.sidingBaseline?.main.length ?? 0,
+            baselineExtraCount: room.sidingBaseline?.extra.length ?? 0,
+            baselineSideCount: room.sidingBaseline?.side.length ?? 0,
+            onMoveCard: roomCtl.moveSidingCard,
+            onReset: roomCtl.resetSiding,
+            onConfirm: () => _onConfirmSiding(context, ref),
+          ),
+        if (opts != null)
+          FutureBuilder<LfTable?>(
+            future: roomCtl.getLfTable(opts.lfTableHash),
+            builder: (context, snapshot) {
+              // 三态区分：加载中 / 失败 / 数据
+              // （数据为 null 才是「不限制」），避免
+              // 加载失败被渲染成误导性的「不限制」。
+              return RoomInfoPanel(
+                opts: opts,
+                lfTable: snapshot.data,
+                lfTableLoading:
+                    snapshot.connectionState != ConnectionState.done &&
+                    !snapshot.hasError,
+                lfTableFailed: snapshot.hasError,
+                cardLoader: dataService.getCard,
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildControlBar(DuelRoomState room, DuelRoomNotifier roomCtl) {
+    return ControlBar(
+      isHost: room.isHost,
+      selfType: room.selfType,
+      isSelfReady: room.isSelfReady,
+      isAllReady: room.isAllReady,
+      autoHandEnabled: room.autoHandEnabled,
+      autoTurnOrderEnabled: room.autoTurnOrderEnabled,
+      autoDuelEnabled: room.autoDuelEnabled,
+      toggleReady: (context) => _onToggleReady(context, ref),
+      onToggleAutoHand: (v) =>
+          unawaited(_onToggleAutomation(ref, v, roomCtl.setAutoHandEnabled)),
+      onToggleAutoTurnOrder: (v) => unawaited(
+        _onToggleAutomation(ref, v, roomCtl.setAutoTurnOrderEnabled),
+      ),
+      onToggleAutoDuel: (v) =>
+          unawaited(_onToggleAutomation(ref, v, roomCtl.setAutoDuelEnabled)),
+      onStartDuel: roomCtl.startDuel,
+      onBecomeDuelist: roomCtl.becomeDuelist,
+      onBecomeObserver: roomCtl.becomeObserver,
+    );
+  }
+}
+
+class _WaitingRoomPanelLayout extends StatelessWidget {
+  const _WaitingRoomPanelLayout({
+    required this.compact,
+    required this.content,
+    this.controlBar,
+  });
+
+  final bool compact;
+  final Widget content;
+  final Widget? controlBar;
+
+  @override
+  Widget build(BuildContext context) {
+    if (compact) {
+      return SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [content, ?controlBar],
+        ),
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(child: SingleChildScrollView(child: content)),
+        ?controlBar,
+      ],
+    );
+  }
+}
+
+class _WaitingRoomPanelFrame extends StatelessWidget {
+  const _WaitingRoomPanelFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final spec = DuelRoomLayout.of(context);
+    final double width = spec.isCompact
+        ? spec.safeRect.width - spec.pagePadding * 2
+        : spec.safeRect.width.clamp(0.0, 560.0);
+    final height = spec.safeRect.height - spec.pagePadding * 2;
+    final legacyMaxWidth = (spec.viewport.width - 32).clamp(0.0, 560.0);
+    final legacyMaxHeight = (spec.viewport.height - 32).clamp(
+      0.0,
+      double.infinity,
+    );
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.all(spec.pagePadding),
+        child: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxWidth: dialogMaxWidth,
-              // 极小窗口兜底：约束不允许负值。
-              maxHeight: (constraints.maxHeight - 24).clamp(
-                0.0,
-                double.infinity,
-              ),
+              maxWidth: legacyMaxWidth,
+              maxHeight: legacyMaxHeight,
             ),
-            child: OverlayPanel(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          PlayerPanel(
-                            mySlot: mySlotVal,
-                            selfType: room.selfType,
-                            players: room.players,
-                            isHost: room.isHost,
-                            onKick: roomCtl.kickPlayer,
-                            // 换备阶段隐藏卡组选择（换备走专用面板）。
-                            deckSelectionEnabled:
-                                !room.isSelfReady && !isSideDecking,
-                            decks: room.availableDecks,
-                            deckListLoading: !_deckListLoadFinished,
-                            selectedDeckName: room.selectedDeckName,
-                            onSelectDeck: (value) {
-                              if (value == null) return;
-                              // selectDeck 的失败（卡组加载失败/不存在）
-                              // 不回写 invalidationDeckResult，不经
-                              // errorMessage 渠道就会静默丢弃。
-                              unawaited(() async {
-                                final r = await roomCtl.selectDeck(value);
-                                final error = r.error;
-                                if (error != null) {
-                                  roomCtl.setErrorText(error);
-                                }
-                              }());
-                            },
-                            onEditDeck: room.selectedDeckName == null
-                                ? null
-                                : () => _onEditDeck(context, ref),
-                            deckInvalidationResult: room.invalidationDeckResult,
-                            observerCount: room.observerCount,
-                          ),
-                          // match 模式局间换备面板（提交后自动 ready）。
-                          if (isSideDecking)
-                            SideDeckingPanel(
-                              // tag 模式座位 2/3（player3/player4）
-                              // 同样是决斗者，需要参与换备。
-                              isDuelist: room.selfType.isDuelist,
-                              sidingMain: room.sidingMain,
-                              sidingExtra: room.sidingExtra,
-                              sidingSide: room.sidingSide,
-                              sidingInitFailed: room.sidingInitFailed,
-                              onRetryInit: roomCtl.retrySidingInit,
-                              baselineMainCount:
-                                  room.sidingBaseline?.main.length ?? 0,
-                              baselineExtraCount:
-                                  room.sidingBaseline?.extra.length ?? 0,
-                              baselineSideCount:
-                                  room.sidingBaseline?.side.length ?? 0,
-                              onMoveCard: roomCtl.moveSidingCard,
-                              onReset: roomCtl.resetSiding,
-                              onConfirm: () => _onConfirmSiding(context, ref),
-                            ),
-                          if (opts != null)
-                            FutureBuilder<LfTable?>(
-                              future: roomCtl.getLfTable(opts.lfTableHash),
-                              builder: (context, snapshot) {
-                                // 三态区分：加载中 / 失败 / 数据
-                                // （数据为 null 才是「不限制」），避免
-                                // 加载失败被渲染成误导性的「不限制」。
-                                return RoomInfoPanel(
-                                  opts: opts,
-                                  lfTable: snapshot.data,
-                                  lfTableLoading:
-                                      snapshot.connectionState !=
-                                          ConnectionState.done &&
-                                      !snapshot.hasError,
-                                  lfTableFailed: snapshot.hasError,
-                                  cardLoader: dataService.getCard,
-                                );
-                              },
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // 换备阶段隐藏底部控制条：其「准备」按钮走 toggleReady，
-                  // 会重新提交原始卡组（而非换备后的构成），与换备面板的
-                  // 「确认换备」冲突、导致按原卡组开局或提交混乱；换备提交
-                  // 统一走 SideDeckingPanel 的 confirmSiding。
-                  if (!isSideDecking)
-                  ControlBar(
-                    isHost: room.isHost,
-                    selfType: room.selfType,
-                    isSelfReady: room.isSelfReady,
-                    isAllReady: room.isAllReady,
-                    autoHandEnabled: room.autoHandEnabled,
-                    autoTurnOrderEnabled: room.autoTurnOrderEnabled,
-                    autoDuelEnabled: room.autoDuelEnabled,
-                    toggleReady: (context) => _onToggleReady(context, ref),
-                    onToggleAutoHand: (v) => unawaited(
-                      _onToggleAutomation(ref, v, roomCtl.setAutoHandEnabled),
-                    ),
-                    onToggleAutoTurnOrder: (v) => unawaited(
-                      _onToggleAutomation(
-                        ref,
-                        v,
-                        roomCtl.setAutoTurnOrderEnabled,
-                      ),
-                    ),
-                    onToggleAutoDuel: (v) => unawaited(
-                      _onToggleAutomation(ref, v, roomCtl.setAutoDuelEnabled),
-                    ),
-                    onStartDuel: roomCtl.startDuel,
-                    onBecomeDuelist: roomCtl.becomeDuelist,
-                    onBecomeObserver: roomCtl.becomeObserver,
-                  ),
-                ],
+            child: OverflowBox(
+              maxWidth: width.clamp(0.0, double.infinity),
+              maxHeight: height.clamp(0.0, double.infinity),
+              child: SizedBox(
+                width: width.clamp(0.0, double.infinity),
+                height: height.clamp(0.0, double.infinity),
+                child: OverlayPanel(child: child),
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

@@ -83,47 +83,53 @@ class ControlBar extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                if (isPlayer)
-                  _roomButton(
-                    key: const ValueKey('waiting-room-ready'),
-                    // 自动开局只在房主端生效（notifier 内按 isHost
-                    // 门控），非房主即使开过偏好也不会自动开始，
-                    // 标签同步隐藏避免误导。
-                    label: isSelfReady
-                        ? '取消准备'
-                        : (isHost && autoDuelEnabled ? '准备&决斗' : '准备'),
-                    icon: isSelfReady ? Icons.cancel : Icons.check_circle,
-                    accent: _accentReady,
-                    active: isSelfReady,
-                    onPressed: () => toggleReady(context),
-                  ),
-                if (isPlayer)
-                  _roomButton(
-                    label: '观战',
-                    icon: Icons.visibility,
-                    accent: const Color(0xFF8CA6C4),
-                    onPressed: onBecomeObserver,
-                  ),
-                if (selfType == PlayerType.observer)
-                  _roomButton(
-                    label: '加入对战',
-                    icon: Icons.person_add,
-                    accent: Colors.amber,
-                    onPressed: onBecomeDuelist,
-                  ),
-                if (isHost && !autoDuelEnabled)
-                  _roomButton(
-                    label: '开始决斗',
-                    icon: Icons.play_arrow,
-                    accent: _accentStart,
-                    onPressed: isAllReady ? onStartDuel : null,
-                  ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) => Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  if (isPlayer)
+                    _roomButton(
+                      key: const ValueKey('waiting-room-ready'),
+                      maxWidth: constraints.maxWidth,
+                      // 自动开局只在房主端生效（notifier 内按 isHost
+                      // 门控），非房主即使开过偏好也不会自动开始，
+                      // 标签同步隐藏避免误导。
+                      label: isSelfReady
+                          ? '取消准备'
+                          : (isHost && autoDuelEnabled ? '准备&决斗' : '准备'),
+                      icon: isSelfReady ? Icons.cancel : Icons.check_circle,
+                      accent: _accentReady,
+                      active: isSelfReady,
+                      onPressed: () => toggleReady(context),
+                    ),
+                  if (isPlayer)
+                    _roomButton(
+                      maxWidth: constraints.maxWidth,
+                      label: '观战',
+                      icon: Icons.visibility,
+                      accent: const Color(0xFF8CA6C4),
+                      onPressed: onBecomeObserver,
+                    ),
+                  if (selfType == PlayerType.observer)
+                    _roomButton(
+                      maxWidth: constraints.maxWidth,
+                      label: '加入对战',
+                      icon: Icons.person_add,
+                      accent: Colors.amber,
+                      onPressed: onBecomeDuelist,
+                    ),
+                  if (isHost && !autoDuelEnabled)
+                    _roomButton(
+                      maxWidth: constraints.maxWidth,
+                      label: '开始决斗',
+                      icon: Icons.play_arrow,
+                      accent: _accentStart,
+                      onPressed: isAllReady ? onStartDuel : null,
+                    ),
+                ],
+              ),
             ),
           ],
         ),
@@ -136,6 +142,7 @@ class ControlBar extends StatelessWidget {
   /// accent.darkened(0.55) 底色表达「已准备」等激活态。
   Widget _roomButton({
     Key? key,
+    required double maxWidth,
     required String label,
     required IconData icon,
     required Color accent,
@@ -145,35 +152,48 @@ class ControlBar extends StatelessWidget {
     final bg = active
         ? Color.lerp(accent, Colors.black, 0.55)!
         : const Color(0xF20A1221);
-    return OutlinedButton.icon(
-      key: key,
-      onPressed: onPressed,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
-      style: ButtonStyle(
-        backgroundColor: WidgetStatePropertyAll(bg),
-        foregroundColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.disabled)
-              ? Colors.blueGrey.shade500
-              : Colors.white,
-        ),
-        overlayColor: WidgetStatePropertyAll(accent.withValues(alpha: 0.2)),
-        side: WidgetStateProperty.resolveWith(
-          (states) => BorderSide(
-            color: states.contains(WidgetState.disabled)
-                ? Colors.blueGrey.shade700
-                : accent,
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: OutlinedButton(
+        key: key,
+        onPressed: onPressed,
+        style: ButtonStyle(
+          backgroundColor: WidgetStatePropertyAll(bg),
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.disabled)
+                ? Colors.blueGrey.shade500
+                : Colors.white,
+          ),
+          overlayColor: WidgetStatePropertyAll(accent.withValues(alpha: 0.2)),
+          side: WidgetStateProperty.resolveWith(
+            (states) => BorderSide(
+              color: states.contains(WidgetState.disabled)
+                  ? Colors.blueGrey.shade700
+                  : accent,
+            ),
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          ),
+          minimumSize: WidgetStatePropertyAll(
+            Size(maxWidth < 120 ? maxWidth : 120, 44),
+          ),
+          padding: WidgetStatePropertyAll(
+            EdgeInsets.symmetric(horizontal: maxWidth < 120 ? 4 : 16),
+          ),
+          textStyle: const WidgetStatePropertyAll(
+            TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
         ),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-        ),
-        minimumSize: const WidgetStatePropertyAll(Size(120, 44)),
-        padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(horizontal: 16),
-        ),
-        textStyle: const WidgetStatePropertyAll(
-          TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ],
         ),
       ),
     );

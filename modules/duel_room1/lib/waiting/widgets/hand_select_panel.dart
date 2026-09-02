@@ -1,8 +1,8 @@
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 
-import 'overlay_panel.dart';
 import 'select_hand.dart';
+import 'stage_selection_panel_host.dart';
 
 /// 猜拳阶段面板：直接由 DuelRoomPage 挂载在场地上（不经过等待室弹窗）。
 ///
@@ -77,7 +77,7 @@ class _HandSelectPanelState extends State<HandSelectPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return OverlayPanel(
+    return StageSelectionPanelHost(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
         child: Column(
@@ -85,6 +85,8 @@ class _HandSelectPanelState extends State<HandSelectPanel> {
           children: [
             const Text(
               '猜拳定先攻',
+              maxLines: 2,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 color: Color(0xFFFFD700),
                 fontSize: 20,
@@ -113,6 +115,8 @@ class _HandSelectPanelState extends State<HandSelectPanel> {
               ? '请出拳！'
               : '自动猜拳中…',
           style: const TextStyle(color: Color(0xFF8CA6C4), fontSize: 13),
+          maxLines: 2,
+          textAlign: TextAlign.center,
         ),
       ],
     );
@@ -140,10 +144,10 @@ class _HandSelectPanelState extends State<HandSelectPanel> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
+        Wrap(
           // 包容内容：面板居中展示，不撑满屏幕宽度。
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             _handSide('我方', my),
             const Padding(
@@ -163,6 +167,8 @@ class _HandSelectPanelState extends State<HandSelectPanel> {
         const SizedBox(height: 10),
         Text(
           outcome,
+          maxLines: 2,
+          textAlign: TextAlign.center,
           style: TextStyle(
             color: outcomeColor,
             fontSize: 15,
@@ -173,6 +179,8 @@ class _HandSelectPanelState extends State<HandSelectPanel> {
           const SizedBox(height: 6),
           const Text(
             '等待对方选择先后攻…',
+            maxLines: 2,
+            textAlign: TextAlign.center,
             style: TextStyle(color: Color(0xFF8CA6C4), fontSize: 13),
           ),
         ],

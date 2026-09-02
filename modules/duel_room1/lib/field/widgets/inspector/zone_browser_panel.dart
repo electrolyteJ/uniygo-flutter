@@ -4,6 +4,8 @@ import 'package:biz/duel/models/duel_menu.dart';
 import 'package:biz/widgets/cyber_button.dart';
 import 'package:biz/widgets/card_image.dart';
 import 'package:duel_room1/field/widgets/docked_panel_shell.dart';
+import 'package:duel_room1/layout/duel_room_layout.dart';
+import 'package:duel_room1/platform/platform_adaptive.dart';
 
 /// 区域标题查表（zoneKey → 显示名）。
 const _zoneTitles = <String, String>{
@@ -113,25 +115,30 @@ class _ZoneBrowserPanelState extends State<ZoneBrowserPanel>
       titleSuffix: widget.activatableSequences.isEmpty
           ? null
           : _ActivatableCountChip(count: widget.activatableSequences.length),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: _CardsGrid(
-              cards: widget.cards,
-              hiddenCount: widget.hiddenCount,
-              selectedCardSequence: widget.selectedCardSequence,
-              onCardTap: widget.onCardTap,
-              cardNameBuilder: widget.cardNameBuilder,
-              activatableSequences: widget.activatableSequences,
-              glowPulse: _glowController,
+      child: LayoutBuilder(
+        builder: (context, constraints) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: _CardsGrid(
+                cards: widget.cards,
+                hiddenCount: widget.hiddenCount,
+                selectedCardSequence: widget.selectedCardSequence,
+                onCardTap: widget.onCardTap,
+                cardNameBuilder: widget.cardNameBuilder,
+                activatableSequences: widget.activatableSequences,
+                glowPulse: _glowController,
+              ),
             ),
-          ),
-          if (widget.selectedActions.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _ActionsSection(actions: widget.selectedActions),
+            if (widget.selectedActions.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                height: constraints.maxHeight * 0.48,
+                child: _ActionsSection(actions: widget.selectedActions),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -140,11 +147,11 @@ class _ZoneBrowserPanelState extends State<ZoneBrowserPanel>
 /// 卡片网格（或空态文案）。tile 以 sequence 为 key：区域内容变化时
 /// 选中动画状态跟随卡走，不随下标错位。
 ///
-/// 网格参数本面板自定（3 列，比共用壳 [DockedPanelShell] 的 4 列更大图）：
+/// 网格列数统一消费 [DuelRoomLayoutSpec.gridColumns]：compact 为 2/3 列，
+/// regular/wide 为 4 列，不以无限缩小 tile 换取固定列数。
 /// tile 宽高比按「卡图实卡比例 59:86 + 8 间距 + 两行卡名 + 8 padding」
 /// 反推 ≈ 0.59，保证卡图按宽度完整展示、不被 BoxFit.cover 裁剪。
 class _CardsGrid extends StatelessWidget {
-  static const int _gridColumns = 3;
   static const double _gridAspect = 0.59;
   final List<ZoneBrowserCardEntry> cards;
   final int hiddenCount;
@@ -181,9 +188,11 @@ class _CardsGrid extends StatelessWidget {
         ),
       );
     }
+    final spec = DuelRoomLayout.of(context);
     return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: _gridColumns,
+      key: const ValueKey('zone-browser-grid'),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: spec.gridColumns,
         mainAxisSpacing: DockedPanelShell.gridSpacing,
         crossAxisSpacing: DockedPanelShell.gridSpacing,
         childAspectRatio: _gridAspect,
@@ -222,7 +231,6 @@ class _ActionsSection extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
             '可直接执行的动作',
@@ -235,14 +243,18 @@ class _ActionsSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          for (final (index, action) in actions.indexed) ...[
-            if (index > 0) const SizedBox(height: 8),
-            CyberButton(
-              label: action.label,
-              width: double.infinity,
-              onTap: action.onTap,
+          Expanded(
+            child: ListView.separated(
+              key: const ValueKey('zone-browser-actions-scroll'),
+              itemCount: actions.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (context, index) => CyberButton(
+                label: actions[index].label,
+                width: double.infinity,
+                onTap: actions[index].onTap,
+              ),
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -283,100 +295,109 @@ class _ZoneBrowserCardTile extends StatelessWidget {
   }
 
   Widget _buildTile({required double glow}) {
-    return GestureDetector(
-      onTap: onTap,
-      // 外层容器承载金色呼吸光环：不进 AnimatedContainer，
-      // 避免 180ms 隐式动画把脉冲追平成滞后的平滑跟随。
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: isActivatable
-              ? [
-                  BoxShadow(
-                    color: activatableGold.withValues(
-                      alpha: 0.30 + 0.40 * glow,
-                    ),
-                    blurRadius: 10 + 16 * glow,
-                    spreadRadius: 0.5 + 0.5 * glow,
-                  ),
-                ]
-              : null,
-        ),
-        child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: isSelected ? 0.09 : 0.04),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            // 选中优先青色（交互反馈一致）；非选中的可发动卡金描边。
-            color: isSelected
-                ? DockedPanelShell.accent
-                : isActivatable
-                    ? activatableGold
-                    : Colors.white.withValues(alpha: 0.1),
-            width: isSelected
-                ? 1.6
-                : isActivatable
-                    ? 1.5
-                    : 1,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: DockedPanelShell.accent.withValues(alpha: 0.32),
-                    blurRadius: 24,
-                  ),
-                ]
-              : null,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 卡图按游戏王实卡比例 59:86 撑满 tile 宽度，BoxFit.contain
-            // 完整展示不裁剪（不再用 Expanded + cover 的居中裁剪）。
-            // width/height 仅作 CardImage 解码降采样目标，实际尺寸由
-            // AspectRatio 的紧约束决定。
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: AspectRatio(
-                aspectRatio: 59 / 86,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CardImage(
-                      code: code,
-                      width: 160,
-                      height: 233,
-                      fit: BoxFit.contain,
-                    ),
-                    // 可发动标记：左上角小胶囊（与选中态的整框
-                    // 描边区分，非选中也可辨识）。
-                    if (isActivatable)
-                      const Positioned(
-                        left: 3,
-                        top: 3,
-                        child: _ActivatableBadge(),
+    return ClickableCursor(
+      child: HoverHighlight(
+        hoverColor: Colors.white.withValues(alpha: 0.06),
+        child: GestureDetector(
+          onTap: onTap,
+          // 外层容器承载金色呼吸光环：不进 AnimatedContainer，
+          // 避免 180ms 隐式动画把脉冲追平成滞后的平滑跟随。
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: isActivatable
+                  ? [
+                      BoxShadow(
+                        color: activatableGold.withValues(
+                          alpha: 0.30 + 0.40 * glow,
+                        ),
+                        blurRadius: 10 + 16 * glow,
+                        spreadRadius: 0.5 + 0.5 * glow,
                       ),
-                  ],
+                    ]
+                  : null,
+            ),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: isSelected ? 0.09 : 0.04),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  // 选中优先青色（交互反馈一致）；非选中的可发动卡金描边。
+                  color: isSelected
+                      ? DockedPanelShell.accent
+                      : isActivatable
+                      ? activatableGold
+                      : Colors.white.withValues(alpha: 0.1),
+                  width: isSelected
+                      ? 1.6
+                      : isActivatable
+                      ? 1.5
+                      : 1,
                 ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: DockedPanelShell.accent.withValues(
+                            alpha: 0.32,
+                          ),
+                          blurRadius: 24,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 卡图按游戏王实卡比例 59:86 撑满 tile 宽度，BoxFit.contain
+                  // 完整展示不裁剪（不再用 Expanded + cover 的居中裁剪）。
+                  // width/height 仅作 CardImage 解码降采样目标，实际尺寸由
+                  // AspectRatio 的紧约束决定。
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: AspectRatio(
+                      aspectRatio: 59 / 86,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CardImage(
+                            code: code,
+                            width: 160,
+                            height: 233,
+                            fit: BoxFit.contain,
+                          ),
+                          // 可发动标记：左上角小胶囊（与选中态的整框
+                          // 描边区分，非选中也可辨识）。
+                          if (isActivatable)
+                            const Positioned(
+                              left: 3,
+                              top: 3,
+                              child: _ActivatableBadge(),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isSelected
+                          ? Colors.white
+                          : const Color(0xFFD7E3F2),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Noto Sans SC',
+                      height: 1.25,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFFD7E3F2),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                fontFamily: 'Noto Sans SC',
-                height: 1.25,
-              ),
-            ),
-          ],
-        ),
+          ),
         ),
       ),
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:biz/widgets/card_image.dart';
 import 'package:duel_room1/field/widgets/docked_panel_shell.dart';
+import 'package:duel_room1/layout/duel_room_layout.dart';
 
 /// 确认卡列表面板（MSG_CONFIRM_CARDS 多张非场上卡）。
 ///
@@ -34,6 +35,7 @@ class ConfirmCardsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final spec = DuelRoomLayout.of(context);
     // 进场动画（右滑入+淡入）由 DockedPanelShell 统一提供；
     // 父级按 ConfirmPanel 实例换 key，每次新确认重播进场。
     return DockedPanelShell(
@@ -61,8 +63,9 @@ class ConfirmCardsPanel extends StatelessWidget {
               ),
             )
           : GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: DockedPanelShell.gridColumns,
+              key: const ValueKey('confirm-cards-grid'),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: spec.gridColumns,
                 mainAxisSpacing: DockedPanelShell.gridSpacing,
                 crossAxisSpacing: DockedPanelShell.gridSpacing,
                 childAspectRatio: DockedPanelShell.gridAspect,

@@ -26,22 +26,44 @@ Widget buildAutomationSwitch({
     }
     return Colors.transparent;
   });
-  return Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Text(
-        label,
-        style: TextStyle(color: Colors.blueGrey.shade200, fontSize: 12),
+  return Semantics(
+    container: true,
+    label: label,
+    enabled: enabled,
+    toggled: value,
+    onTap: enabled ? () => onChanged(!value) : null,
+    child: ExcludeSemantics(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? () => onChanged(!value) : null,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44, maxWidth: 190),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.blueGrey.shade200,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Switch(
+                value: value,
+                onChanged: enabled ? onChanged : null,
+                thumbColor: thumbColor,
+                trackColor: trackColor,
+                overlayColor: overlayColor,
+              ),
+            ],
+          ),
+        ),
       ),
-      const SizedBox(width: 4),
-      Switch(
-        value: value,
-        onChanged: enabled ? onChanged : null,
-        thumbColor: thumbColor,
-        trackColor: trackColor,
-        overlayColor: overlayColor,
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-    ],
+    ),
   );
 }

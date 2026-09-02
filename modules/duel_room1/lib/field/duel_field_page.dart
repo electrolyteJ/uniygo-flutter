@@ -26,9 +26,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:duel_room1/field/duel_flame_game.dart';
 import 'package:duel_room1/field/util/chain_order_map.dart';
 import 'package:duel_room1/field/util/duel_field_layout.dart';
-import 'package:duel_room1/field/util/ui_scale.dart';
 import 'package:duel_room1/field/widgets/player_status_chip.dart';
-import 'components/hand_card/hand_bar_component.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:duel_room1/field/components/phase_rail/phase_rail_layout.dart';
 import 'package:duel_room1/field/flame_playmat_field.dart';
@@ -36,10 +34,13 @@ import 'package:duel_room1/field/widgets/inspector/card_detail_drawer.dart';
 import 'package:duel_room1/field/widgets/inspector/zone_browser_panel.dart';
 import 'package:duel_room1/field/widgets/menus/duel_field_popover_layout.dart';
 import 'package:duel_room1/field/widgets/menus/field_action_popover.dart';
+import 'package:duel_room1/field/widgets/menus/hand_action_menu.dart';
 import 'package:duel_room1/field/widgets/menus/hand_action_popover.dart';
 import 'package:duel_room1/field/widgets/menus/phase_action_menu.dart';
 import 'package:duel_room1/field/widgets/turn_order_hint.dart';
+import 'package:duel_room1/platform/platform_adaptive.dart';
 import 'package:duel_room1/duel_room_exit.dart';
+import 'package:duel_room1/layout/duel_room_layout.dart';
 
 import 'components/hand_card/hand.dart';
 
@@ -76,22 +77,113 @@ class DuelFieldPage extends ConsumerStatefulWidget {
   ConsumerState<DuelFieldPage> createState() => _DuelFieldPageState();
 }
 
+Widget buildDuelHudIconButton({
+  required IconData icon,
+  required VoidCallback onPressed,
+  double scale = 1.0,
+}) {
+  final visualSize = (44.0 * scale).clamp(34.0, 44.0);
+  return SizedBox.square(
+    key: const ValueKey('duel-hud-icon-hit-target'),
+    dimension: 44,
+    child: Center(
+      child: SizedBox.square(
+        key: const ValueKey('duel-hud-icon-visual'),
+        dimension: visualSize,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xB8060B14),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: const Color(0x3300F0FF), width: 1.2),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x1A00F0FF), blurRadius: 24),
+                ],
+              ),
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                iconSize: visualSize * 0.55,
+                icon: Icon(icon, color: Colors.white.withValues(alpha: 0.92)),
+                tooltip: '返回',
+                onPressed: onPressed,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+enum DuelPrimaryPanel { none, zone, confirm, inspector }
+
+DuelPrimaryPanel selectDuelPrimaryPanel({
+  required bool isCompact,
+  required bool hasInspector,
+  required bool hasConfirmPanel,
+  required bool hasZoneBrowser,
+}) {
+  if (!isCompact) return DuelPrimaryPanel.none;
+  if (hasInspector) return DuelPrimaryPanel.inspector;
+  if (hasConfirmPanel) return DuelPrimaryPanel.confirm;
+  if (hasZoneBrowser) return DuelPrimaryPanel.zone;
+  return DuelPrimaryPanel.none;
+}
+
+class DuelPrimaryPanelHost extends StatelessWidget {
+  const DuelPrimaryPanelHost({
+    super.key,
+    required this.selectedPanel,
+    required this.zoneBuilder,
+    required this.confirmBuilder,
+    required this.inspectorBuilder,
+  });
+
+  final DuelPrimaryPanel selectedPanel;
+  final WidgetBuilder zoneBuilder;
+  final Widget Function(BuildContext context, bool showPanel) confirmBuilder;
+  final WidgetBuilder inspectorBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          if (selectedPanel == DuelPrimaryPanel.none ||
+              selectedPanel == DuelPrimaryPanel.zone)
+            zoneBuilder(context),
+          confirmBuilder(
+            context,
+            selectedPanel != DuelPrimaryPanel.inspector &&
+                selectedPanel != DuelPrimaryPanel.zone,
+          ),
+          if (selectedPanel == DuelPrimaryPanel.none ||
+              selectedPanel == DuelPrimaryPanel.inspector)
+            inspectorBuilder(context),
+        ],
+      ),
+    );
+  }
+}
+
 class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
-  static const double _topHudBodyHeight = 52.0;
   static const double _opponentHandGap = 10.0;
-  static const double _inspectorTop = 124.0;
+  DuelRoomLayoutSpec? _layoutSpec;
 
-  /// 当前视口的 HUD 缩放系数（小屏收缩顶栏/手牌栏）。
-  double get _hudScale => hudScaleForHeight(MediaQuery.sizeOf(context).height);
+  DuelRoomLayoutSpec get _layout => _layoutSpec ?? DuelRoomLayout.of(context);
 
-  /// 是否紧凑 HUD 模式（小屏：状态芯片 + 顶栏计时替代世界内组件）。
-  bool get _compactHud => isCompactHudHeight(MediaQuery.sizeOf(context).height);
+  double get _hudScale => _layout.hudScale;
+
+  bool get _compactHud => _layout.isCompact;
 
   /// 对方手牌栏顶边距（屏幕坐标）：状态栏 + 顶栏 + 间隙，随 HUD 缩放。
-  double _oppHandTopY(EdgeInsets padding) =>
-      padding.top +
-      _topHudBodyHeight * _hudScale +
-      _opponentHandGap * _hudScale;
+  double _oppHandTopY(DuelRoomLayoutSpec spec) =>
+      spec.safePadding.top +
+      spec.topHudHeight +
+      _opponentHandGap * spec.hudScale;
 
   DuelFlameGame? _flameGame;
   PlaymatAnchorData? _fieldAnchors;
@@ -172,6 +264,17 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       fieldOverlayProvider,
       (_, _) => _pushSnapshot(),
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final spec = DuelRoomLayout.of(context);
+    if (_layoutSpec == spec) return;
+    _layoutSpec = spec;
+    _flameGame
+      ?..setLayoutSpec(spec)
+      ..setOppHandTopY(_oppHandTopY(spec));
   }
 
   @override
@@ -305,15 +408,18 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       isSurrenderEnabled: _canSurrender,
       onPlaceSlotTap: (key) => _selectN.respondSelectPlaceKey(key),
       onHandCardTap: handleHandCardTap,
+      onHandCardSecondaryTap: handleHandCardSecondaryTap,
+      onFieldCardSecondaryTap: handleFieldCardSecondaryTap,
+      contextMenuEnabled: PlatformAdaptive.of(context).supportsContextMenu,
       onAnchorsChanged: _handleAnchorsChanged,
     );
     _flameGame = game;
     // 手牌栏可见性与对方栏顶边距随页面状态初始化（后续变化分别由
     // didUpdateWidget 与 build 推送）。
     game.setHandBarsVisible(widget.hudVisible);
-    final padding = MediaQuery.paddingOf(context);
-    game.setViewPadding(padding);
-    game.setOppHandTopY(_oppHandTopY(padding));
+    final spec = _layout;
+    game.setLayoutSpec(spec);
+    game.setOppHandTopY(_oppHandTopY(spec));
     // 初始快照推迟到首帧后推入（此时 Provider 已可读；
     // 后续变化由 listenManual 订阅驱动，不走 build）。
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -492,7 +598,12 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     if (anchoredRect != null) {
       return anchoredRect;
     }
-    final fallback = fieldCardAnchor(viewport, fieldCard, _board.myController);
+    final fallback = fieldCardAnchor(
+      viewport,
+      fieldCard,
+      _board.myController,
+      safeRect: DuelRoomLayout.of(context).safeRect,
+    );
     return Rect.fromCenter(
       center: fallback,
       width: DuelFieldLayout.slotWidth,
@@ -515,7 +626,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
         minimum: EdgeInsets.fromLTRB(12 * hs, 8 * hs, 12 * hs, 0),
         child: Row(
           children: [
-            _buildHudIconButton(
+            buildDuelHudIconButton(
               icon: Icons.arrow_back,
               scale: hs,
               onPressed: () {
@@ -615,42 +726,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     );
   }
 
-  Widget _buildHudIconButton({
-    required IconData icon,
-    required VoidCallback onPressed,
-    double scale = 1.0,
-  }) {
-    // 紧凑模式收缩按钮（仍保持 ≥34 的触控热区）。
-    final size = (44.0 * scale).clamp(34.0, 48.0);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(999),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xB8060B14),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: const Color(0x3300F0FF), width: 1.2),
-            boxShadow: const [
-              BoxShadow(color: Color(0x1A00F0FF), blurRadius: 24),
-            ],
-          ),
-          child: SizedBox(
-            width: size,
-            height: size,
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              iconSize: size * 0.55,
-              icon: Icon(icon, color: Colors.white.withValues(alpha: 0.92)),
-              tooltip: '返回',
-              onPressed: onPressed,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     // 先后攻提示：随 stage 进入 RoomInDuel 触发（isFirstTurn 与 stage 由
@@ -737,10 +812,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     // 不再依赖宿主 App 提供全局 Portal；宿主已有 Portal 时嵌套安全。
     // 对方手牌栏顶边距推入 Flame（状态栏/顶部 HUD 高度决定其位置）；
     // 手牌栏可见性由 didUpdateWidget 与 _ensureFlameGame 推入。
-    // 安全区内边距同步推入（横屏刘海/Home 指示条 → 相机预留与手牌栏）。
-    final padding = MediaQuery.paddingOf(context);
-    _flameGame?.setViewPadding(padding);
-    _flameGame?.setOppHandTopY(_oppHandTopY(padding));
     return Portal(
       child: Scaffold(
         backgroundColor: const Color(0xFF010308),
@@ -763,16 +834,16 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   Widget _buildHudOverlay() {
     // viewport 仅用于 anchors 缺失时的 fallback 比例估算；
     // 弹层定位与避让统一由 Portal 的 Aligned 锚点负责。
-    final viewport = MediaQuery.sizeOf(context);
+    final viewport = _layout.viewport;
     final hasFieldAnchors = _fieldAnchors != null;
     final phaseRect = _phaseLampRect(viewport);
     // 弹层统一通过 Portal 渲染：底边对齐锚点矩形顶部，
     // 由 flutter_portal 自动避让屏幕边界。
-    const overlayAnchor = Aligned(
+    final overlayAnchor = SafeAligned(
       follower: Alignment.bottomCenter,
       target: Alignment.topCenter,
-      offset: Offset(0, -8),
-      shiftToWithinBound: AxisFlag(x: true, y: true),
+      offset: const Offset(0, -8),
+      safePadding: _layout.safePadding,
     );
     return Stack(
       fit: StackFit.expand,
@@ -825,11 +896,11 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
               rect: buttonRect,
               child: PortalTarget(
                 visible: true,
-                anchor: const Aligned(
+                anchor: SafeAligned(
                   follower: Alignment.centerRight,
                   target: Alignment.centerLeft,
-                  offset: Offset(-8, 0),
-                  shiftToWithinBound: AxisFlag(x: true, y: true),
+                  offset: const Offset(-8, 0),
+                  safePadding: _layout.safePadding,
                 ),
                 portalFollower: PhaseActionMenu(actions: entries),
                 child: const SizedBox.shrink(),
@@ -845,12 +916,20 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
             final entries = ref.watch(fieldActionMenuProvider);
             final rect = card == null ? null : _fieldCardRect(viewport, card);
             if (rect == null) return const SizedBox.shrink();
+            final menuWidth = menuWidthFor(_layout);
             return Positioned.fromRect(
               rect: rect,
               child: PortalTarget(
                 visible: entries.isNotEmpty,
                 anchor: overlayAnchor,
-                portalFollower: FieldActionPopover(actions: entries),
+                portalFollower: FieldActionPopover(
+                  actions: entries,
+                  arrowDx: popoverArrowDx(
+                    anchorRect: rect,
+                    safeRect: _layout.safeRect,
+                    menuWidth: menuWidth,
+                  ),
+                ),
                 child: const SizedBox.shrink(),
               ),
             );
@@ -869,12 +948,20 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
             }
             final rect = _flameGame?.selectedHandCardRect();
             if (rect == null) return const SizedBox.shrink();
+            final menuWidth = menuWidthFor(_layout);
             return Positioned.fromRect(
               rect: rect,
               child: PortalTarget(
                 visible: true,
                 anchor: overlayAnchor,
-                portalFollower: HandActionPopover(actions: entries),
+                portalFollower: HandActionPopover(
+                  actions: entries,
+                  arrowDx: popoverArrowDx(
+                    anchorRect: rect,
+                    safeRect: _layout.safeRect,
+                    menuWidth: menuWidth,
+                  ),
+                ),
                 child: const SizedBox.shrink(),
               ),
             );
@@ -884,64 +971,83 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
         // 紧凑模式：我方状态芯片挂左下手牌栏上方（对方芯片在顶栏）。
         if (_compactHud)
           Positioned(
-            left: MediaQuery.paddingOf(context).left + 8,
-            bottom:
-                MediaQuery.paddingOf(context).bottom +
-                HandBarComponent.barHeight * _hudScale +
-                8,
+            left: _layout.safePadding.left + 8,
+            bottom: _layout.safePadding.bottom + _layout.handBarHeight + 8,
             child: _buildStatusChip(isSelf: true),
           ),
         Consumer(
           builder: (context, ref, _) {
-            final key = ref.watch(
-              fieldOverlayProvider.select((s) => s.openZoneBrowserKey),
+            final hasConfirmPanel = ref.watch(
+              cardConfirmProvider.select((s) => s.confirmPanel != null),
             );
-            if (key == null) return const SizedBox.shrink();
-            final selectedSeq = ref.watch(
-              fieldOverlayProvider.select((s) => s.selectedZoneBrowserSequence),
-            );
-            return ZoneBrowserPanel(
-              zoneBrowserKey: key,
-              cards: ref.watch(zoneBrowserEntriesProvider(key)),
-              selectedCardSequence: selectedSeq,
-              onCardTap: inspectZoneBrowserCard,
-              onClose: closeZoneBrowser,
-              selectedActions: ref.watch(zoneBrowserActionsProvider(key)),
-              activatableSequences: ref.watch(
-                zoneBrowserActivatableSequencesProvider(key),
+            final overlayPanels = ref.watch(
+              fieldOverlayProvider.select(
+                (s) => (
+                  hasInspector: s.showInspector,
+                  hasZoneBrowser: s.openZoneBrowserKey != null,
+                  inspectorCode: s.inspectedCardCode,
+                  inspectorInfo: s.inspectedCardInfo,
+                ),
               ),
-              hiddenCount: ref.watch(zoneHiddenCountProvider(key)),
-              cardNameBuilder: (code) =>
-                  _boardN.getCardInfo(code)?.name ?? 'Card #$code',
+            );
+            final selectedPanel = selectDuelPrimaryPanel(
+              isCompact: _layout.isCompact,
+              hasInspector: overlayPanels.hasInspector,
+              hasConfirmPanel: hasConfirmPanel,
+              hasZoneBrowser: overlayPanels.hasZoneBrowser,
+            );
+            return DuelPrimaryPanelHost(
+              selectedPanel: selectedPanel,
+              zoneBuilder: (context) => Consumer(
+                builder: (context, ref, _) {
+                  final key = ref.watch(
+                    fieldOverlayProvider.select((s) => s.openZoneBrowserKey),
+                  );
+                  if (key == null) return const SizedBox.shrink();
+                  final selectedSeq = ref.watch(
+                    fieldOverlayProvider.select(
+                      (s) => s.selectedZoneBrowserSequence,
+                    ),
+                  );
+                  return ZoneBrowserPanel(
+                    zoneBrowserKey: key,
+                    cards: ref.watch(zoneBrowserEntriesProvider(key)),
+                    selectedCardSequence: selectedSeq,
+                    onCardTap: inspectZoneBrowserCard,
+                    onClose: closeZoneBrowser,
+                    selectedActions: ref.watch(zoneBrowserActionsProvider(key)),
+                    activatableSequences: ref.watch(
+                      zoneBrowserActivatableSequencesProvider(key),
+                    ),
+                    hiddenCount: ref.watch(zoneHiddenCountProvider(key)),
+                    cardNameBuilder: (code) =>
+                        _boardN.getCardInfo(code)?.name ?? 'Card #$code',
+                  );
+                },
+              ),
+              confirmBuilder: (context, showPanel) => DuelConfirmDialog(
+                slotRectOf: (key) => _fieldAnchors?.slotRects[key],
+                onInspectCard: inspectCard,
+                onInspectPanelCard: inspectPanelCard,
+                showConfirmPanel: showPanel,
+              ),
+              inspectorBuilder: (context) {
+                if (!overlayPanels.hasInspector) {
+                  return const SizedBox.shrink();
+                }
+                ref.watch(duelFieldProvider.select((s) => s.cardInfoVersion));
+                return _buildInspector((
+                  show: true,
+                  code: overlayPanels.inspectorCode,
+                  info: overlayPanels.inspectorInfo,
+                ));
+              },
             );
           },
         ),
         // 选择提示弹层：模式判定、呈现与 respondXxx 分发
         // 全部收口在 DuelSelectPrompt。
         DuelSelectPrompt(onInspectCard: inspectCard),
-        // 确认展示弹层：模态面板/浮动卡片的呈现与 dismiss 分发
-        // 全部收口在 DuelConfirmDialog。
-        DuelConfirmDialog(
-          slotRectOf: (key) => _fieldAnchors?.slotRects[key],
-          onInspectCard: inspectCard,
-        ),
-        Consumer(
-          builder: (context, ref, _) {
-            final inspector = ref.watch(
-              fieldOverlayProvider.select(
-                (s) => (
-                  show: s.showInspector,
-                  code: s.inspectedCardCode,
-                  info: s.inspectedCardInfo,
-                ),
-              ),
-            );
-            if (!inspector.show) return const SizedBox.shrink();
-            // 卡信息异步到达（ensureCardInfo 批次完成）时刷新卡名。
-            ref.watch(duelFieldProvider.select((s) => s.cardInfoVersion));
-            return _buildInspector(inspector);
-          },
-        ),
         if (_showTurnOrderHint)
           Positioned.fill(
             child: IgnorePointer(
@@ -970,14 +1076,10 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
         : _boardN.getCardInfo(inspectedCardCode) ?? inspector.info;
     // 紧凑模式（小屏）：抽屉贴着顶栏与手牌栏之间排布，
     // 桌面的 124/160 固定边距在矮视口会把抽屉压成一条缝。
-    final compact = _compactHud;
-    final padding = MediaQuery.paddingOf(context);
-    return Positioned(
-      left: 18,
-      top: compact
-          ? padding.top + _topHudBodyHeight * _hudScale + 8
-          : _inspectorTop,
-      bottom: compact ? padding.bottom + 8 : 160,
+    final spec = _layout;
+    final rect = cardDetailDrawerRect(spec);
+    return Positioned.fromRect(
+      rect: rect,
       child: CardDetailDrawer(
         cardInfo: inspectedCardInfo,
         cardCode: inspectedCardCode,
@@ -1010,6 +1112,12 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     if (code <= 0) return;
     _sound.playDialogOpen();
     _inspectCardMut(code);
+  }
+
+  void inspectPanelCard(int code) {
+    if (code <= 0) return;
+    _sound.playDialogOpen();
+    _inspectCardMut(code, preserveZoneBrowser: true);
   }
 
   /// 就地选择模式下点击手牌：可选中则按当前选择语义处理，
@@ -1060,6 +1168,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
 
   // ---- 手牌 ----
 
+  /// 手牌单击：选中该手牌并检视（清掉浏览器/场上选中与阶段菜单）。
   void handleHandCardTap(int sequence, int code) {
     // HUD 隐藏（猜拳/等待阶段场地页仅作背景）时不响应手牌点击：
     // HandBarComponent 靠 renderTree 早退隐藏，但 Flame 点击分发不
@@ -1070,6 +1179,18 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       handleInlineHandCardTap(sequence, code);
       return;
     }
+    _showHandCardMenu(sequence, code);
+  }
+
+  /// 右键/辅助点击手牌：始终打开检视与手牌动作菜单，
+  /// 不受就地选择窗口影响。
+  void handleHandCardSecondaryTap(int sequence, int code) {
+    if (!widget.hudVisible) return;
+    _sound.playDialogOpen();
+    _showHandCardMenu(sequence, code);
+  }
+
+  void _showHandCardMenu(int sequence, int code) {
     unawaited(_boardN.ensureCardInfo(code));
     _overlayN.applyHandCardTap(sequence, code, _boardN.getCardInfo(code));
   }
@@ -1082,6 +1203,18 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       handleInlineFieldCardTap(fieldCard);
       return;
     }
+    _showFieldCardMenu(fieldCard, code);
+  }
+
+  /// 右键/辅助点击场上卡：始终打开检视与动作菜单，
+  /// 不受就地选择窗口影响。
+  void handleFieldCardSecondaryTap(FieldCard fieldCard, int code) {
+    if (!widget.hudVisible) return;
+    _sound.playDialogOpen();
+    _showFieldCardMenu(fieldCard, code);
+  }
+
+  void _showFieldCardMenu(FieldCard? fieldCard, int? code) {
     final effectiveCode = code ?? fieldCard?.code;
     if (effectiveCode != null) {
       _inspectCardMut(effectiveCode);

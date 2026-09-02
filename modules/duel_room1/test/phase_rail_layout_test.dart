@@ -6,6 +6,7 @@ import 'package:duel_room1/field/components/phase_rail/phase_rail_layout.dart';
 import 'package:duel_room1/field/components/player_status/player_status_layout.dart';
 import 'package:duelink/duelink.dart' show DuelPhase;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/widgets.dart';
 
 void main() {
   group('PhaseRailLayout', () {
@@ -66,6 +67,83 @@ void main() {
       expect(PhaseRailLayout.height, lessThan(510));
     });
 
+    test('紧凑屏幕按钮命中边长至少为 44', () {
+      expect(PhaseRailLayout.compactHitExtent, 44);
+      expect(
+        PhaseRailLayout.compactHitExtent,
+        greaterThan(PhaseRailLayout.actionButtonHeight),
+      );
+    });
+
+    test('普通与 compact 的所有可操作按钮命中至少 44x44', () {
+      for (final scale in [0.4, 0.8, 1.5]) {
+        final effectiveScale = PhaseRailLayout.hitScreenScale(
+          cameraZoom: scale,
+          compact: false,
+        );
+        expect(effectiveScale, scale);
+        for (final visualRect in [
+          Rect.fromCenter(
+            center: Offset.zero,
+            width: PhaseRailLayout.actionButtonWidth,
+            height: PhaseRailLayout.actionButtonHeight,
+          ),
+          Rect.fromCenter(
+            center: Offset.zero,
+            width: PhaseRailLayout.surrenderButtonWidth,
+            height: PhaseRailLayout.surrenderButtonHeight,
+          ),
+        ]) {
+          final hitRect = PhaseRailLayout.hitRectForVisual(
+            visualRect,
+            screenScale: effectiveScale,
+          );
+          expect(hitRect.width * scale, greaterThanOrEqualTo(44));
+          expect(hitRect.height * scale, greaterThanOrEqualTo(44));
+          expect(hitRect.left, visualRect.left);
+          expect(hitRect.center.dy, visualRect.center.dy);
+          expect(visualRect.size, const Size(44, 22));
+        }
+      }
+
+      final compactVisual = Rect.fromCenter(
+        center: Offset.zero,
+        width: PhaseRailLayout.actionButtonWidth,
+        height: PhaseRailLayout.actionButtonHeight,
+      );
+      final compactHit = PhaseRailLayout.hitRectForVisual(
+        compactVisual,
+        screenScale: PhaseRailLayout.hitScreenScale(
+          cameraZoom: 0.4,
+          compact: true,
+        ),
+      );
+      expect(
+        compactHit.size * PhaseRailLayout.compactScreenScale,
+        const Size(44, 44),
+      );
+      expect(compactVisual.size, const Size(44, 22));
+    });
+
+    test('低 zoom 热区不侵入最右卡槽边界', () {
+      const zoom = 0.4;
+      final visualRect = Rect.fromCenter(
+        center: const Offset(PhaseRailLayout.centerX, 0),
+        width: PhaseRailLayout.actionButtonWidth,
+        height: PhaseRailLayout.actionButtonHeight,
+      );
+      final hitRect = PhaseRailLayout.hitRectForVisual(
+        visualRect,
+        screenScale: zoom,
+      );
+      const boardRight =
+          DuelFieldLayout.lastColX + DuelFieldLayout.slotWidth / 2;
+
+      expect(hitRect.left, visualRect.left);
+      expect(hitRect.left, greaterThan(boardRight));
+      expect(hitRect.width * zoom, 44);
+    });
+
     test('阶段菜单按钮挂在 EP 胶囊下方且不越界', () {
       // 按钮在末位胶囊之下、互不重叠。
       final lastPillBottom =
@@ -113,7 +191,8 @@ void main() {
       final firstPillTop =
           PhaseRailLayout.pillCenterY(0) - PhaseRailLayout.pillHeight / 2;
       final badgeBottom =
-          PhaseRailLayout.turnBadgeCenterY + PhaseRailLayout.turnBadgeHeight / 2;
+          PhaseRailLayout.turnBadgeCenterY +
+          PhaseRailLayout.turnBadgeHeight / 2;
       expect(badgeBottom, lessThan(firstPillTop));
       // 含徽章总高 = 徽章 + 间距 + 胶囊区与按钮。
       expect(

@@ -67,14 +67,18 @@ class PlayerSlot extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          player == null ? placeholder : (player?.name ?? ''),
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: isMe
-                                ? FontWeight.bold
-                                : FontWeight.normal,
+                        Expanded(
+                          child: Text(
+                            player == null ? placeholder : (player?.name ?? ''),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: isMe
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
                           ),
                         ),
                         if (isHostSlot) ...[
@@ -122,6 +126,7 @@ class PlayerSlot extends StatelessWidget {
                 ),
               if (canKick)
                 IconButton(
+                  tooltip: '踢出玩家',
                   icon: Icon(
                     Icons.person_remove,
                     color: Colors.redAccent.withValues(alpha: 0.7),
@@ -129,7 +134,10 @@ class PlayerSlot extends StatelessWidget {
                   ),
                   onPressed: onKick,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                  constraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 44,
+                  ),
                 ),
             ],
           ),
