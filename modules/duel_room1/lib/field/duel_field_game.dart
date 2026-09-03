@@ -253,9 +253,13 @@ class DuelFieldGame extends FlameGame<DuelFieldWorld>
 
   /// 手牌栏当前是否应可见（HandBarComponent.onLoad 读取）。
   bool get handBarsVisible => _handBarsVisible;
+  void setFieldVisible(bool visible) {
+    if (_handBarsVisible == visible) return;
 
+  }
   /// HUD（手牌栏）可见性：等待室/猜拳等阶段场地页仅作背景时隐藏。
-  /// 相机只在 HUD 可见时为上下栏预留空间。
+  /// 相机始终为上下栏预留空间（见 _applyImmersiveCamera），此处只切换
+  /// 手牌栏组件的显示/隐藏，不改变场地适配尺寸。
   void setHandBarsVisible(bool visible) {
     if (_handBarsVisible == visible) return;
     _handBarsVisible = visible;
@@ -434,11 +438,14 @@ class DuelFieldGame extends FlameGame<DuelFieldWorld>
       if (world.isLoaded) world.setCompactHudMode(compact);
     }
 
+    // 始终按 HUD 可见预留上下栏空间（hudVisible: true），让场地尺寸
+    // 进房（仅作背景、手牌栏隐藏）与进对局保持一致，避免进入对局瞬间
+    // 场地缩放跳变。手牌栏组件本身仍由 setHandBarsVisible 控制显示/隐藏。
     final verticalHudInsets = cameraHudInsetsFor(
       spec:
           _layoutSpec ??
           DuelRoomLayoutSpec.resolve(Size(vw, vh), safePadding: viewPadding),
-      hudVisible: _handBarsVisible,
+      hudVisible: true,
     );
     final layout = CameraViewportLayout.resolve(
       Size(vw, vh),

@@ -5,6 +5,13 @@ import 'package:resource_data/card_info.dart';
 import 'package:biz/widgets/card_image.dart';
 import 'package:duel_room1/layout/duel_room_layout.dart';
 
+/// 卡详情抽屉宽度：以卡图宽度为上限（不再固定 440），
+/// 只留卡图 + 左右内边距(14×2) + 描边(1.6×2) 的宽度。
+double cardDetailDrawerWidth(DuelRoomLayoutSpec spec) {
+  final desiredCardWidth = spec.isCompact ? 160.0 : 206.0 * spec.hudScale;
+  return desiredCardWidth + 14.0 * 2 + 1.6 * 2;
+}
+
 Rect cardDetailDrawerRect(DuelRoomLayoutSpec spec) {
   final left = (spec.safeRect.left + spec.panelGap)
       .clamp(spec.safeRect.left, spec.safeRect.right)
@@ -19,7 +26,7 @@ Rect cardDetailDrawerRect(DuelRoomLayoutSpec spec) {
       : (160.0 > spec.safePadding.bottom + spec.panelGap
             ? 160.0
             : spec.safePadding.bottom + spec.panelGap);
-  final rightEdge = (left + spec.dockedPanelWidth)
+  final rightEdge = (left + cardDetailDrawerWidth(spec))
       .clamp(left, spec.safeRect.right)
       .toDouble();
   final bottom = (spec.viewport.height - bottomInset)
@@ -50,7 +57,7 @@ class CardDetailDrawer extends StatelessWidget {
     // 响应式：宽度夹紧不溢出窄屏；卡图尺寸由实际内容宽度决定。
     final spec = DuelRoomLayout.of(context);
     final hs = spec.hudScale;
-    final panelWidth = spec.dockedPanelWidth;
+    final panelWidth = cardDetailDrawerWidth(spec);
 
     return ClipRect(
       child: BackdropFilter(
@@ -77,10 +84,7 @@ class CardDetailDrawer extends StatelessWidget {
           child: Column(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16,vertical: 3),
                 decoration: const BoxDecoration(
                   border: Border(bottom: BorderSide(color: Color(0x2200F0FF))),
                 ),
@@ -88,7 +92,7 @@ class CardDetailDrawer extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'CARD DATA',
+                      '卡片详情',
                       style: TextStyle(
                         color: cyanGlow,
                         fontSize: 13,

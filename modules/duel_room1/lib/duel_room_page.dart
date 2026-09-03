@@ -427,9 +427,8 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     final content = Stack(
       fit: StackFit.expand,
       children: [
-        DuelFieldPage(room.players, hudVisible: isInDuel),
-        if (stage is RoomInLobby || stage is RoomSideDecking)
-          const WaitingRoomPage(),
+        DuelFieldPage(room.players, isInDuel: isInDuel),
+        if (stage is RoomInLobby || stage is RoomSideDecking)const WaitingRoomPage(),
         // 猜拳（含结果展示）：直接挂在页面层，不经等待室弹窗。
         // 面板包容内容、屏幕居中，不为右侧聊天浮窗让位。
         if (isSelectingHand || isHandResult)

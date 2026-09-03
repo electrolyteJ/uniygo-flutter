@@ -2,15 +2,15 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 import '../../duel_field_game.dart';
-import '../hand_card/hand_bar_component.dart';
+import '../../util/duel_field_layout.dart';
+import 'player_status_layout.dart';
 
-/// 玩家状态卡（LP 芯片，viewport 屏幕空间）：头像 + 名字 + LP 大数字。
+/// 玩家状态卡（LP 芯片，viewport 屏幕空间）：头像 + 名字 + LP，竖排。
 ///
-/// 普通与紧凑模式统一挂 viewport（与 HandBarComponent/LpChangeToastComponent
-/// 同层），不随场地相机缩放；尺寸按 [DuelFieldGame.hudScale] 等比适配，
-/// 手牌栏隐藏（等待室/猜拳等）时一并隐藏。
-///
-/// 定位：我方贴底居左（己方手牌左侧），对方贴顶居右（对方手牌右侧）。
+/// 两张竖排芯片紧贴场地左侧：对方在上、我方在下。尺寸按
+/// [DuelFieldGame.hudScale] 等比适配；横/纵位置经
+/// [DuelFieldGame.worldToWidget] 对齐棋盘左沿与各自半场中心，
+/// 随相机缩放/平移同步。手牌栏隐藏（等待室/猜拳等）时一并隐藏。
 class PlayerStatusCardComponent extends PositionComponent
     with HasGameReference<DuelFieldGame> {
   PlayerStatusCardComponent({required this.isSelf})
@@ -18,9 +18,10 @@ class PlayerStatusCardComponent extends PositionComponent
 
   final bool isSelf;
 
-  static const _baseWidth = 120.0;
-  static const _baseHeight = 34.0;
-  static const _margin = 8.0;
+  static const _baseWidth = 150.0;
+  static const _baseHeight = 104.0;
+  /// 芯片右缘与棋盘左沿的间隙（随 hudScale 缩放）。
+  static const _boardGap = 8.0;
 
   static const _accent = Color(0xFF00F0FF);
   static const _oppBorder = Color(0xFFFF4B82);
@@ -31,7 +32,7 @@ class PlayerStatusCardComponent extends PositionComponent
   static final _namePaint = TextPaint(
     style: const TextStyle(
       color: Colors.white,
-      fontSize: 10,
+      fontSize: 11,
       fontWeight: FontWeight.w800,
       fontFamily: 'Orbitron',
     ),
@@ -40,7 +41,7 @@ class PlayerStatusCardComponent extends PositionComponent
   static final _avatarTextPaint = TextPaint(
     style: const TextStyle(
       color: Colors.white,
-      fontSize: 10,
+      fontSize: 12,
       fontWeight: FontWeight.w800,
       fontFamily: 'Orbitron',
     ),
@@ -58,22 +59,27 @@ class PlayerStatusCardComponent extends PositionComponent
     _syncLayout();
   }
 
-  /// 按 hudScale 等比缩放并定位到对应手牌栏侧方（屏幕坐标）。
+  /// 棋盘左沿的世界 x（最左卡槽列左缘）。
+  static double get _boardLeftWorldX =>
+      -(DuelFieldLayout.lastColX + DuelFieldLayout.slotWidth / 2); // -286
+
+  /// 按 hudScale 等比缩放，并贴到棋盘左沿（屏幕坐标），对方上我方下。
   void _syncLayout() {
     final hs = game.hudScale;
     scale = Vector2.all(hs);
-    final barVisualH = HandBarComponent.barHeight * hs;
     final halfW = _baseWidth * hs / 2;
-    final oppTopY = game.oppHandBar?.hudTopY ?? 0;
-    final y = isSelf
-        ? game.size.y -
-              game.viewPadding.bottom -
-              HandBarComponent.bottomPadding -
-              barVisualH / 2
-        : oppTopY + barVisualH / 2;
-    final x = isSelf
-        ? game.viewPadding.left + _margin * hs + halfW
-        : game.size.x - game.viewPadding.right - _margin * hs - halfW;
+    final boardLeftScreen = game.worldToWidget(Vector2(_boardLeftWorldX, 0)).dx;
+    final x = boardLeftScreen - _boardGap * hs - halfW;
+    final y = game
+        .worldToWidget(
+          Vector2(
+            0,
+            isSelf
+                ? PlayerStatusLayout.selfCenterY
+                : PlayerStatusLayout.oppCenterY,
+          ),
+        )
+        .dy;
     position = Vector2(x, y);
   }
 
@@ -102,10 +108,13 @@ class PlayerStatusCardComponent extends PositionComponent
         ..strokeWidth = 1.0,
     );
 
-    final h = size.y;
-    final avatarRadius = h * 0.32;
-    final avatarCenter = Offset(avatarRadius + 6, h / 2);
-    final avatarRect = Rect.fromCircle(center: avatarCenter, radius: avatarRadius);
+    final cx = size.x / 2;
+    const avatarRadius = 16.0;
+    final avatarCenter = Offset(cx, 24.0);
+    final avatarRect = Rect.fromCircle(
+      center: avatarCenter,
+      radius: avatarRadius,
+    );
 
     // 头像圆：渐变底 + 描边 + 首字母。
     canvas.drawCircle(
@@ -135,28 +144,27 @@ class PlayerStatusCardComponent extends PositionComponent
       anchor: Anchor.center,
     );
 
-    // 名字（过长截断）。
-    final displayName = name.length > 5 ? '${name.substring(0, 4)}…' : name;
+    // 名字（完整显示，竖排居中）。
     _namePaint.render(
       canvas,
-      displayName,
-      Vector2(avatarCenter.dx + avatarRadius + 6, h / 2),
-      anchor: Anchor.centerLeft,
+      name,
+      Vector2(cx, 56.0),
+      anchor: Anchor.center,
     );
 
-    // LP 大数字（右对齐）。
+    // LP 大数字。
     TextPaint(
       style: TextStyle(
         color: lpColor,
-        fontSize: 15,
+        fontSize: 18,
         fontWeight: FontWeight.w900,
         fontFamily: 'Orbitron',
       ),
     ).render(
       canvas,
       '$lp',
-      Vector2(size.x - 8, h / 2),
-      anchor: Anchor.centerRight,
+      Vector2(cx, 84.0),
+      anchor: Anchor.center,
     );
   }
 }

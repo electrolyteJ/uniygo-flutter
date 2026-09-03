@@ -350,14 +350,13 @@ class _ZoneBrowserCardTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 卡图按游戏王实卡比例 59:86 撑满 tile 宽度，BoxFit.contain
-                  // 完整展示不裁剪（不再用 Expanded + cover 的居中裁剪）。
-                  // width/height 仅作 CardImage 解码降采样目标，实际尺寸由
-                  // AspectRatio 的紧约束决定。
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: AspectRatio(
-                      aspectRatio: 59 / 86,
+                  // 卡图区：占据扣除卡名与间距后的剩余高度，BoxFit.contain
+                  // 完整展示不裁剪（不再用固定 AspectRatio 撑高，避免 tile
+                  // 高度不足时 Column 底部溢出）。width/height 仅作 CardImage
+                  // 解码降采样目标，实际尺寸由 Expanded 的紧约束决定。
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
                       child: Stack(
                         fit: StackFit.expand,
                         children: [

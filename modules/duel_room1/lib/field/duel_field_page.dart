@@ -67,9 +67,9 @@ class DuelFieldPage extends ConsumerStatefulWidget {
   /// 场地页自进房起常驻挂载作为全屏背景（见 duel_room_page.dart）；
   /// 非对局阶段传 false，仅渲染 Flame 场地、隐藏全部 HUD
   /// （对齐 godot：duel_ui 决斗开始才显示）。
-  final bool hudVisible;
+  final bool isInDuel;
 
-  const DuelFieldPage(this.players, {super.key, this.hudVisible = true});
+  const DuelFieldPage(this.players, {super.key, this.isInDuel = true});
 
   @override
   ConsumerState<DuelFieldPage> createState() => _DuelFieldPageState();
@@ -282,7 +282,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   /// 速度到达，若此时开播动画会在手牌栏隐藏下白白播完（开局发牌
   /// 玩家完全看不到）；事件留在队列里等 HUD 可见后由 didUpdateWidget 补播。
   void _playActiveDrawFlight(bool isSelf) {
-    if (!mounted || !widget.hudVisible) return;
+    if (!mounted || !widget.isInDuel) return;
     final queue = isSelf ? _drawQueueSelf : _drawQueueOpp;
     if (isSelf ? _drawPlayingSelf : _drawPlayingOpp) return;
     final active = queue.active;
@@ -320,12 +320,12 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   @override
   void didUpdateWidget(covariant DuelFieldPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.hudVisible == widget.hudVisible) return;
+    if (oldWidget.isInDuel == widget.isInDuel) return;
     // 手牌栏可见性跟随 HUD（猜拳/等待阶段场地页仅作背景）。
-    _flameGame?.setHandBarsVisible(widget.hudVisible);
+    _flameGame?.setHandBarsVisible(widget.isInDuel);
     // HUD 由隐藏转为可见（如猜拳结果最短停留结束进入对局）时，
     // 补播停留期间排队但未能播放的抽卡/发牌动画（双方各自补播）。
-    if (widget.hudVisible) {
+    if (widget.isInDuel) {
       _playActiveDrawFlight(true);
       _playActiveDrawFlight(false);
     }
@@ -403,7 +403,8 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     _flameGame = game;
     // 手牌栏可见性与对方栏顶边距随页面状态初始化（后续变化分别由
     // didUpdateWidget 与 build 推送）。
-    game.setHandBarsVisible(widget.hudVisible);
+    game.setFieldVisible(widget.isInDuel);
+    game.setHandBarsVisible(widget.isInDuel);
     final spec = _layout;
     game.setLayoutSpec(spec);
     game.setOppHandTopY(_oppHandTopY(spec));
@@ -737,7 +738,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
             Positioned.fill(child: GameWidget(game: _ensureFlameGame())),
             // HUD 层仅对局进行中展示；非对局阶段本页作为半透明等待弹窗
             // 背后的场地背景常驻挂载（对齐 godot：duel_ui 决斗开始才显示）。
-            if (widget.hudVisible) Positioned.fill(child: _buildHudOverlay()),
+            if (widget.isInDuel) Positioned.fill(child: _buildHudOverlay()),
           ],
         ),
       ),
@@ -1081,7 +1082,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     // HUD 隐藏（猜拳/等待阶段场地页仅作背景）时不响应手牌点击：
     // HandBarComponent 靠 renderTree 早退隐藏，但 Flame 点击分发不
     // 随渲染关闭，隐形卡仍可被点中。
-    if (!widget.hudVisible) return;
+    if (!widget.isInDuel) return;
     // 就地选择窗口优先：高亮卡点击即选择/连锁，其余卡仅检视。
     if (_selectN.inlineSelectActive) {
       handleInlineHandCardTap(sequence, code);
@@ -1093,7 +1094,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   /// 右键/辅助点击手牌：始终打开检视与手牌动作菜单，
   /// 不受就地选择窗口影响。
   void handleHandCardSecondaryTap(int sequence, int code) {
-    if (!widget.hudVisible) return;
+    if (!widget.isInDuel) return;
     _sound.playDialogOpen();
     _showHandCardMenu(sequence, code);
   }
@@ -1105,7 +1106,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
 
   void handleFieldCardTap(FieldCard? fieldCard, int? code) {
     // 与 handleHandCardTap 同理：HUD 隐藏阶段不响应场上点击。
-    if (!widget.hudVisible) return;
+    if (!widget.isInDuel) return;
     // 就地选择窗口优先：高亮卡点击即选择/连锁，其余卡仅检视。
     if (fieldCard != null && _selectN.inlineSelectActive) {
       handleInlineFieldCardTap(fieldCard);
@@ -1117,7 +1118,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
   /// 右键/辅助点击场上卡：始终打开检视与动作菜单，
   /// 不受就地选择窗口影响。
   void handleFieldCardSecondaryTap(FieldCard fieldCard, int code) {
-    if (!widget.hudVisible) return;
+    if (!widget.isInDuel) return;
     _sound.playDialogOpen();
     _showFieldCardMenu(fieldCard, code);
   }
