@@ -78,6 +78,51 @@ String _resolvedActionLabel(
   }
 }
 
+/// 「坏兽」系列的卡组代码（setcode 低 16 位），用于区分往双方场上的特召。
+const int _kaijuSetcode = 0xd3;
+
+/// 是否为「坏兽」系列卡（如坏星坏兽 基兹基尔）。
+bool _isKaiju(pkg.CardInfo? cardInfo) => cardInfo != null &&
+    cardInfo.setcode.any((sc) => (sc & 0xffff) == _kaijuSetcode);
+
+/// 当一张卡有多个特殊召唤动作时，为其生成可区分的展示标签。
+String _disambiguatedSpLabel(int ordinal, bool kaiju) {
+  // 坏兽的顺序约定：脚本里「往对方场上特召（解放对方怪兽）」先注册、
+  // 「往自己场上特召（对方场上有坏兽时）」后注册，引擎按效果注册顺序下发。
+  if (kaiju) {
+    if (ordinal == 0) return '特殊召唤（到对方场上）';
+    if (ordinal == 1) return '特殊召唤（到自己场上）';
+  }
+  return '特殊召唤（方式${ordinal + 1}）';
+}
+
+/// 为同一张卡的一组动作生成展示标签。
+///
+/// 引擎（ocgcore）对一张卡注册了多个特召规则时（如坏兽可同时「解放对方怪兽
+/// 往对方场上特召」与「对方场上有坏兽时往自己场上特召」），会下发多个同为
+/// 「特殊召唤」的选项，且协议里不带特召去向。这里按去向/序号区分，避免菜单里
+/// 出现多个一模一样、无法区分的条目。
+List<String> disambiguateActionLabels(
+  List<PlaymatResolvedAction> actions,
+  pkg.CardInfo? cardInfo,
+) {
+  final labels = actions
+      .map((action) => _resolvedActionLabel(action, cardInfo))
+      .toList();
+
+  final spIndexes = <int>[
+    for (var i = 0; i < actions.length; i++)
+      if (actions[i].kind == PlaymatResolvedActionKind.specialSummon) i,
+  ];
+  if (spIndexes.length <= 1) return labels;
+
+  final kaiju = _isKaiju(cardInfo);
+  for (var k = 0; k < spIndexes.length; k++) {
+    labels[spIndexes[k]] = _disambiguatedSpLabel(k, kaiju);
+  }
+  return labels;
+}
+
 PlaymatResolvedAction _resolveIdleAction(IdleAction action, int myController) {
   return PlaymatResolvedAction(
     label: action.label(myController),
@@ -465,17 +510,18 @@ List<ActionMenuEntry> _handActionMenu(Ref ref) {
     return const [];
   }
   final cardInfo = _cardInfoForHandSequence(selectedSequence, board, boardN);
-  return _handActionsForSequence(selectedSequence, select, board)
-      .map(
-        (action) => ActionMenuEntry(
-          label: _resolvedActionLabel(action, cardInfo),
-          onTap: () {
-            overlayN.clearHandSelectionAndClosePhaseMenu();
-            selectN.respondCurrentCommand(action.response);
-          },
-        ),
-      )
-      .toList();
+  final actions = _handActionsForSequence(selectedSequence, select, board);
+  final labels = disambiguateActionLabels(actions, cardInfo);
+  return [
+    for (var i = 0; i < actions.length; i++)
+      ActionMenuEntry(
+        label: labels[i],
+        onTap: () {
+          overlayN.clearHandSelectionAndClosePhaseMenu();
+          selectN.respondCurrentCommand(actions[i].response);
+        },
+      ),
+  ];
 }
 
 List<ActionMenuEntry> _phaseActionMenu(Ref ref) {
@@ -514,18 +560,19 @@ List<ActionMenuEntry> _fieldActionMenu(Ref ref) {
       'cardInfo=${cardInfo?.name ?? cardInfo}',
     );
   }
-  return resolveFieldActions(fieldCard, select, board)
-      .map(
-        (action) => ActionMenuEntry(
-          label: _resolvedActionLabel(action, cardInfo),
-          onTap: () => _dispatchResolvedAction(
-            action,
-            selectN: selectN,
-            overlayN: overlayN,
-          ),
+  final actions = resolveFieldActions(fieldCard, select, board);
+  final labels = disambiguateActionLabels(actions, cardInfo);
+  return [
+    for (var i = 0; i < actions.length; i++)
+      ActionMenuEntry(
+        label: labels[i],
+        onTap: () => _dispatchResolvedAction(
+          actions[i],
+          selectN: selectN,
+          overlayN: overlayN,
         ),
-      )
-      .toList(growable: false);
+      ),
+  ];
 }
 
 List<ZoneBrowserCardEntry> _zoneBrowserEntries(Ref ref, String zoneKey) {
@@ -598,27 +645,28 @@ List<ActionMenuEntry> _zoneBrowserActions(Ref ref, String zoneKey) {
     return const [];
   }
 
-  return _resolveZoneActions(
-        controller,
-        location,
-        entry.code,
-        selectedSequence,
-        select,
-        board,
-      )
-      .map((action) {
-        final cardInfo = boardN.getCardInfo(entry.code);
-        return ActionMenuEntry(
-          label: _resolvedActionLabel(action, cardInfo),
-          onTap: () => _dispatchResolvedAction(
-            action,
-            selectN: selectN,
-            overlayN: overlayN,
-            closeZoneBrowser: true,
-          ),
-        );
-      })
-      .toList(growable: false);
+  final cardInfo = boardN.getCardInfo(entry.code);
+  final actions = _resolveZoneActions(
+    controller,
+    location,
+    entry.code,
+    selectedSequence,
+    select,
+    board,
+  );
+  final labels = disambiguateActionLabels(actions, cardInfo);
+  return [
+    for (var i = 0; i < actions.length; i++)
+      ActionMenuEntry(
+        label: labels[i],
+        onTap: () => _dispatchResolvedAction(
+          actions[i],
+          selectN: selectN,
+          overlayN: overlayN,
+          closeZoneBrowser: true,
+        ),
+      ),
+  ];
 }
 
 Set<int> _zoneBrowserActivatableSequences(Ref ref, String zoneKey) {
