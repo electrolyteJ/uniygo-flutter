@@ -5,7 +5,7 @@ import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
 import 'package:flutter/material.dart';
 
-import '../../duel_flame_game.dart';
+import '../../duel_field_game.dart';
 import '../../util/hand_fan_layout.dart';
 import '../card_paint.dart';
 
@@ -23,7 +23,7 @@ class HandCardComponent extends PositionComponent
     with
         HoverCallbacks,
         SecondaryTapCallbacks,
-        HasGameReference<DuelFlameGame> {
+        HasGameReference<DuelFieldGame> {
   HandCardComponent({required this.index, required this.isSelfSide})
     : super(
         size: Vector2(HandFanLayout.cardWidth, HandFanLayout.cardHeight),

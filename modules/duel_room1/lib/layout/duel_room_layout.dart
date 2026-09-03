@@ -60,6 +60,7 @@ class DuelRoomLayoutSpec {
     final pagePadding = sizeClass == DuelRoomSizeClass.compact ? 8.0 : 18.0;
     final contentWidth = math.max(0.0, safeWidth - pagePadding * 2);
     final contentHeight = math.max(0.0, safeHeight - pagePadding * 2);
+    final compactPanelWidth = (safeWidth * 0.35).clamp(220.0, 300.0);
 
     return DuelRoomLayoutSpec._(
       viewport: viewport,
@@ -70,7 +71,7 @@ class DuelRoomLayoutSpec {
       pagePadding: pagePadding,
       dialogMaxSize: Size(math.min(860, contentWidth), contentHeight),
       dockedPanelWidth: math.min(
-        sizeClass == DuelRoomSizeClass.compact ? 360 : 440,
+        sizeClass == DuelRoomSizeClass.compact ? compactPanelWidth : 440,
         contentWidth,
       ),
       gridColumns: safeWidth < 720

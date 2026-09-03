@@ -1,5 +1,5 @@
 import 'package:biz/duel/models/field_card.dart';
-import 'package:duel_room1/field/duel_flame_game.dart';
+import 'package:duel_room1/field/duel_field_game.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -58,7 +58,7 @@ void main() {
       int? capturedHandIndex;
       int? capturedHandCode;
 
-      final game = DuelFlameGame(
+      final game = DuelFieldGame(
         contextMenuEnabled: true,
         onFieldCardSecondaryTap: (card, code) {
           capturedCard = card;
@@ -89,7 +89,7 @@ void main() {
     });
 
     test('默认不启用上下文菜单', () {
-      final game = DuelFlameGame();
+      final game = DuelFieldGame();
       expect(game.contextMenuEnabled, isFalse);
       expect(game.onFieldCardSecondaryTap, isNull);
       expect(game.onHandCardSecondaryTap, isNull);

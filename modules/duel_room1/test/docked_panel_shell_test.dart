@@ -95,7 +95,7 @@ void main() {
       expect(pos.width, 440);
     });
 
-    testWidgets('手机横屏视口下按 HUD 缩放收缩上下留白', (tester) async {
+    testWidgets('手机横屏视口下按 HUD 缩放收缩上下留白和侧栏', (tester) async {
       tester.view.physicalSize = const Size(800, 390);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -113,7 +113,7 @@ void main() {
       expect(pos.top, closeTo(81.6, 0.001));
       expect(pos.bottom, closeTo(75.6, 0.001));
       expect(pos.right, 8);
-      expect(pos.width, 360);
+      expect(pos.width, 280);
     });
 
     testWidgets('极端矮视口仍返回非负几何', (tester) async {
@@ -149,7 +149,7 @@ void main() {
             .ancestor(of: find.text('测试面板'), matching: find.byType(Positioned))
             .first,
       );
-      expect(pos.width, 344);
+      expect(pos.width, 220);
       expect(pos.right, 8);
     });
 
@@ -168,6 +168,42 @@ void main() {
             .first,
       );
       expect(pos.width, 8.0);
+    });
+
+    testWidgets('compact 标题栏在长内容下无 overflow 且关闭命中区为 44', (tester) async {
+      tester.view
+        ..physicalSize = const Size(640, 360)
+        ..devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view
+          ..resetPhysicalSize()
+          ..resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Stack(
+              children: [
+                DockedPanelShell(
+                  title: '非常长的测试面板标题',
+                  count: 999,
+                  onClose: () {},
+                  titleSuffix: const Text('长状态'),
+                  child: const Placeholder(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.getSize(find.bySemanticsLabel('关闭')),
+        const Size.square(44),
+      );
     });
 
     for (final size in const [

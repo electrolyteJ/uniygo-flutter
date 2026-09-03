@@ -117,10 +117,15 @@ void main() {
 
     test('provides responsive geometry and grid columns', () {
       final compact = DuelRoomLayoutSpec.resolve(const Size(640, 360));
+      final mediumCompact = DuelRoomLayoutSpec.resolve(const Size(800, 450));
+      final safeCompact = DuelRoomLayoutSpec.resolve(
+        const Size(844, 390),
+        safePadding: const EdgeInsets.fromLTRB(44, 0, 21, 16),
+      );
       final regular = DuelRoomLayoutSpec.resolve(const Size(1280, 720));
 
       expect(compact.gridColumns, 2);
-      expect(DuelRoomLayoutSpec.resolve(const Size(800, 450)).gridColumns, 3);
+      expect(mediumCompact.gridColumns, 3);
       expect(regular.gridColumns, 4);
       expect(compact.isCompact, isTrue);
       expect(compact.minimumTapExtent, 44);
@@ -131,6 +136,9 @@ void main() {
       expect(regular.pagePadding, 18);
       expect(regular.panelGap, 18);
       expect(regular.dialogMaxSize, const Size(860, 684));
+      expect(compact.dockedPanelWidth, 224);
+      expect(mediumCompact.dockedPanelWidth, 280);
+      expect(safeCompact.dockedPanelWidth, closeTo(272.65, 1e-9));
       expect(regular.dockedPanelWidth, 440);
     });
 

@@ -6,7 +6,7 @@ import 'package:biz/duel/models/field_card.dart';
 import 'package:biz/duel/models/lp_change_event.dart';
 import 'package:biz/duel/models/summon_effect_event.dart';
 import 'package:duel_room1/field/components/hand_card/hand.dart';
-import 'package:duel_room1/field/duel_flame_game.dart';
+import 'package:duel_room1/field/duel_field_game.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:duelink/duelink.dart' show DuelPhase;
 import 'package:flame/game.dart' show GameWidget;
@@ -21,7 +21,7 @@ class Duel1PreviewPage extends StatefulWidget {
 }
 
 class _Duel1PreviewPageState extends State<Duel1PreviewPage> {
-  late final DuelFlameGame _game;
+  late final DuelFieldGame _game;
 
   // 一些有代表性的卡号（青眼白龙/黑魔导/电子龙/黑魔术少女等）。
   static const _demoCodes = [89631139, 46986414, 70095154, 70781052, 23995346];
@@ -96,7 +96,7 @@ class _Duel1PreviewPageState extends State<Duel1PreviewPage> {
   @override
   void initState() {
     super.initState();
-    _game = DuelFlameGame();
+    _game = DuelFieldGame();
     // 等 FlameGame onLoad 完成（场地组件挂载）后摆牌。
     _game.loaded.then((_) {
       if (!mounted) return;

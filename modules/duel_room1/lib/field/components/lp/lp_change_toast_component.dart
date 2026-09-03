@@ -4,7 +4,7 @@ import 'package:biz/duel/models/lp_change_event.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
-import '../../duel_flame_game.dart';
+import '../../duel_field_game.dart';
 import 'lp_toast_feed.dart';
 import '../hand_card/hand_bar_component.dart';
 
@@ -12,14 +12,14 @@ import '../hand_card/hand_bar_component.dart';
 /// 在受影响玩家的手牌栏附近弹出大字号变动数字 + 类型标签——
 /// 我方 toast 在我方手牌栏正上方居中，对方 toast 在对方手牌栏正下方居中。
 ///
-/// 每帧直读 [DuelFlameGame.snapshot] 的 lpChangeTick/lpChangeEvent 做
+/// 每帧直读 [DuelFieldGame.snapshot] 的 lpChangeTick/lpChangeEvent 做
 /// tick diff；同侧同 kind 0.8s 内的连续变动由 [LpToastFeed] 合并累加。
 /// 动画：缩放弹入（150ms）→ 停留 → 上飘淡出（末 350ms），全程 1.4s。
 ///
 /// 挂 viewport（与 HandBarComponent 同层）：不随场地相机缩放，
 /// 位置只依赖屏幕尺寸与对方手牌栏 hudTopY。
 class LpChangeToastComponent extends PositionComponent
-    with HasGameReference<DuelFlameGame> {
+    with HasGameReference<DuelFieldGame> {
   LpChangeToastComponent({required this.isSelf})
     : super(anchor: Anchor.center, size: Vector2(116, 46));
 

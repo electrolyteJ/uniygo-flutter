@@ -142,7 +142,7 @@ class CardMoveAnimator extends Component
   ///
   /// - 手牌：手牌栏卡位矩形（下标钳到当前手牌范围）；
   /// - 卡组：deckSlotWidgetRect；
-  /// - 场上/墓地/除外/额外：棋盘板面坐标 → 投影 → widget 矩形；
+  /// - 场上/墓地/除外/额外：棋盘板面坐标 → widget 矩形；
   /// - 其它：null（跳过动画）。
   Rect? _rectFor(int controller, int location, int sequence) {
     final game = world.game;
@@ -168,7 +168,7 @@ class CardMoveAnimator extends Component
         if (boardPos == null) return null;
         final zoom = game.camera.viewfinder.zoom;
         final center = game.worldToWidget(
-          world.project3D(boardPos.dx, boardPos.dy),
+          Vector2(boardPos.dx, boardPos.dy),
         );
         return Rect.fromCenter(
           center: center,

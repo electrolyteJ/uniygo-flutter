@@ -12,6 +12,7 @@ import 'package:biz/duel/models/field_card.dart';
 import 'components/card_flight_component.dart';
 import 'components/hand_card/hand_bar_component.dart';
 import 'components/lp/lp_change_toast_component.dart';
+import 'components/player_status/player_status_card_component.dart';
 import 'duel_field_world.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:duel_room1/field/components/phase_rail/phase_rail_layout.dart';
@@ -26,8 +27,8 @@ import 'package:duel_room1/layout/duel_room_layout.dart';
 /// 数据来源：widget 层（DuelFieldPage）watch biz/duel 的 Riverpod
 /// Provider 后，把 [FlameFieldSnapshot] 经 [applySnapshot] 推入本游戏；
 /// Flame 侧不订阅任何 Provider（渲染循环与状态管理解耦）。
-class DuelFlameGame extends FlameGame<DuelFieldWorld>
-    with MouseMovementDetector, ScaleDetector, ScrollDetector {
+class DuelFieldGame extends FlameGame<DuelFieldWorld>
+    with ScaleDetector, ScrollDetector {
   /// 阶段轨道（右侧垂直阶段按钮列，含顶端投降按钮、顶部回合徽章与
   /// 末端阶段菜单按钮）的组件尺寸，锚点上报用同一几何。
   static final _phaseRailSize = Size(
@@ -36,7 +37,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   );
 
   /// 沉浸式布局参数：把卡槽阵列在「扣除 HUD 的可见区」内最大化铺满。
-  /// 所有数值均为世界/像素坐标（project3D 恒等时两者相等）。
+  /// 所有数值均为世界/像素坐标。
   //
   /// 卡槽阵列内容尺寸（含 hover 中心缩放的小幅溢出与边距余量）。
   /// 注：场地卡槽的 hover 上浮(lift)当前已关闭，仅 1.12 中心缩放，
@@ -51,6 +52,9 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   static const _horizontalReserved = 24.0;
   static const _topReserved = 230.0; // 顶部 HUD + 对手手牌预留
   static const _bottomReserved = 116.0; // 己方手牌栏 height:96 + 间隙
+
+  static const _compactOpponentGap = 10.0;
+  static const _compactBottomGap = 8.0;
 
   // ── 移动端适配：安全区 / HUD 缩放 / 用户缩放平移 ──
 
@@ -173,7 +177,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   /// 当前状态快照；world 与各 component 经 `game.snapshot` 读取。
   FlameFieldSnapshot snapshot = FlameFieldSnapshot.empty();
 
-  DuelFlameGame({
+  DuelFieldGame({
     this.onCardSelect,
     this.onZoneInspect,
     this.onPhaseLampTap,
@@ -187,14 +191,6 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     this.contextMenuEnabled = false,
     this.onAnchorsChanged,
   }) : super(world: DuelFieldWorld());
-
-  /// 鼠标位置（widget 坐标），驱动 world 的 3D 视差投影。
-  Vector2 mousePos = Vector2.zero();
-
-  @override
-  void onMouseMove(PointerHoverInfo info) {
-    mousePos = info.eventPosition.widget;
-  }
 
   @override
   Color backgroundColor() => Colors.transparent;
@@ -214,6 +210,8 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     // LP 变动 toast：与手牌栏同层（viewport 屏幕空间），
     // 锚定受影响玩家手牌栏附近。
     camera.viewport.addAll([
+      PlayerStatusCardComponent(isSelf: false),
+      PlayerStatusCardComponent(isSelf: true),
       LpChangeToastComponent(isSelf: false),
       LpChangeToastComponent(isSelf: true),
       _HandTapRouter(),
@@ -257,10 +255,15 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   bool get handBarsVisible => _handBarsVisible;
 
   /// HUD（手牌栏）可见性：等待室/猜拳等阶段场地页仅作背景时隐藏。
+  /// 相机只在 HUD 可见时为上下栏预留空间。
   void setHandBarsVisible(bool visible) {
+    if (_handBarsVisible == visible) return;
     _handBarsVisible = visible;
     selfHandBar?.barVisible = visible;
     oppHandBar?.barVisible = visible;
+    if (!hasLayout) return;
+    _applyImmersiveCamera();
+    _emitAnchors();
   }
 
   /// 页面推入对方手牌栏顶部 y（含状态栏/顶部 HUD 高度的视口坐标）。
@@ -285,7 +288,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     }
     final zoom = camera.viewfinder.zoom;
     final center = worldToWidget(
-      world.project3D(
+      Vector2(
         PhaseRailLayout.centerX,
         PhaseRailLayout.centerY + PhaseRailLayout.actionButtonCenterY,
       ),
@@ -301,7 +304,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   Rect deckSlotWidgetRect(bool isSelf) {
     final zoom = camera.viewfinder.zoom;
     final boardPos = DuelFieldLayout.deckSlotPos(isSelf: isSelf);
-    final center = worldToWidget(world.project3D(boardPos.dx, boardPos.dy));
+    final center = worldToWidget(Vector2(boardPos.dx, boardPos.dy));
     return Rect.fromCenter(
       center: center,
       width: DuelFieldLayout.slotWidth * zoom,
@@ -431,15 +434,20 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
       if (world.isLoaded) world.setCompactHudMode(compact);
     }
 
-    final hs = hudScale;
+    final verticalHudInsets = cameraHudInsetsFor(
+      spec:
+          _layoutSpec ??
+          DuelRoomLayoutSpec.resolve(Size(vw, vh), safePadding: viewPadding),
+      hudVisible: _handBarsVisible,
+    );
     final layout = CameraViewportLayout.resolve(
       Size(vw, vh),
       safePadding: viewPadding,
       hudInsets: EdgeInsets.fromLTRB(
         _horizontalReserved,
-        _topReserved * hs,
+        verticalHudInsets.top,
         _horizontalReserved,
-        _bottomReserved * hs,
+        verticalHudInsets.bottom,
       ),
     );
     final fit = CameraViewportFit.resolve(
@@ -610,7 +618,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     final slotH = DuelFieldLayout.slotHeight * zoom;
 
     void addRect(String zoneKey, double boardX, double boardY) {
-      final center = worldToWidget(world.project3D(boardX, boardY));
+      final center = worldToWidget(Vector2(boardX, boardY));
       slotRects[zoneKey] = Rect.fromCenter(
         center: center,
         width: slotW,
@@ -648,12 +656,12 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
     }
 
     final emz1Rect = Rect.fromCenter(
-      center: worldToWidget(world.project3D(-84.0, 0)),
+      center: worldToWidget(Vector2(-84.0, 0)),
       width: slotW,
       height: slotH,
     );
     final emz2Rect = Rect.fromCenter(
-      center: worldToWidget(world.project3D(84.0, 0)),
+      center: worldToWidget(Vector2(84.0, 0)),
       width: slotW,
       height: slotH,
     );
@@ -673,7 +681,7 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
       phaseLampRect = rail.railCompactScreenRect();
     } else {
       final railCenter = worldToWidget(
-        world.project3D(
+        Vector2(
           PhaseRailLayout.centerX,
           PhaseRailLayout.centerY + PhaseRailLayout.actionButtonShift,
         ),
@@ -692,8 +700,29 @@ class DuelFlameGame extends FlameGame<DuelFieldWorld>
   }
 }
 
+EdgeInsets cameraHudInsetsFor({
+  required DuelRoomLayoutSpec spec,
+  required bool hudVisible,
+}) {
+  if (!hudVisible) return EdgeInsets.zero;
+  final hs = spec.hudScale;
+  if (!spec.isCompact) {
+    return EdgeInsets.only(
+      top: DuelFieldGame._topReserved * hs,
+      bottom: DuelFieldGame._bottomReserved * hs,
+    );
+  }
+  return EdgeInsets.only(
+    top:
+        math.max(spec.topHudHeight, 34.0) +
+        DuelFieldGame._compactOpponentGap * hs +
+        HandBarComponent.barHeight * hs,
+    bottom: HandBarComponent.barHeight * hs + DuelFieldGame._compactBottomGap,
+  );
+}
+
 class _HandTapRouter extends PositionComponent
-    with TapCallbacks, HasGameReference<DuelFlameGame> {
+    with TapCallbacks, HasGameReference<DuelFieldGame> {
   @override
   void onMount() {
     super.onMount();

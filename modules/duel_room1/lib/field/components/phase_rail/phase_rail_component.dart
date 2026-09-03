@@ -119,7 +119,7 @@ class PhaseRailComponent extends PositionComponent
   /// 紧凑模式下组件中心的屏幕锚点坐标（锚点矩形换算用）。
   final Vector2 _screenAnchor = Vector2.zero();
 
-  /// 上次投影位置标量：未变则不重新赋值（同 PhaseLamp 时代的优化）。
+  /// 上次锚点位置标量：未变则不重新赋值。
   double _lastAnchorX = double.nan;
   double _lastAnchorY = double.nan;
 
@@ -162,7 +162,7 @@ class PhaseRailComponent extends PositionComponent
     }
     // 组件含末端按钮，几何中心相对胶囊区中心（centerY）下移
     // actionButtonShift，胶囊区因此仍居中于棋盘中线。
-    final anchor = world.project3D(
+    final anchor = Vector2(
       PhaseRailLayout.centerX,
       PhaseRailLayout.centerY + PhaseRailLayout.actionButtonShift,
     );
@@ -178,7 +178,8 @@ class PhaseRailComponent extends PositionComponent
   /// [_screenAnchor]，组件缩放抵消相机 zoom（屏幕尺寸恒定）。
   ///
   /// worldToScreen(W) = (W - viewfinder.position) * zoom + size/2 的
-  /// 逆变换；纵向跟随棋盘中线，夹紧在上下安全区之间。
+  /// 逆变换；横向贴最右卡槽视觉外沿，纵向跟随棋盘中线，并夹紧在
+  /// 安全区内。
   void _syncCompactPosition() {
     final game = world.game;
     final vf = game.camera.viewfinder;
@@ -188,7 +189,21 @@ class PhaseRailComponent extends PositionComponent
     final halfW = size.x * rs / 2;
     final halfH = size.y * rs / 2;
     final pad = game.viewPadding;
-    final targetX = game.size.x - pad.right - 6 - halfW;
+    final boardRightScreen = game
+        .worldToWidget(
+          Vector2(DuelFieldLayout.lastColX + DuelFieldLayout.slotWidth / 2, 0),
+        )
+        .dx;
+    final desiredX = boardRightScreen + 8 + halfW;
+    final actionHitRightExtent =
+        PhaseRailLayout.compactHitExtent -
+        PhaseRailLayout.actionButtonWidth * rs / 2;
+    final rightExtent = max(halfW, actionHitRightExtent);
+    final minX = game.safeRect.left + halfW;
+    final maxX = game.safeRect.right - rightExtent;
+    final targetX = minX <= maxX
+        ? desiredX.clamp(minX, maxX).toDouble()
+        : game.safeRect.center.dx;
     final boardCenterScreenY = game
         .worldToWidget(
           Vector2(
@@ -550,7 +565,7 @@ class PhaseRailComponent extends PositionComponent
         PhaseRailLayout.surrenderButtonHeight,
       );
 
-  // onTapUp 而非 onTapDown：与双指捏合缩放共存（见 slot.dart 注释）。
+  // onTapUp 而非 onTapDown：与双指捏合缩放共存（见 slot_component.dart 注释）。
   @override
   void onTapUp(TapUpEvent event) {
     // 仅两个按钮响应点击：末端「阶段菜单」（≡）与最顶端「投降」；

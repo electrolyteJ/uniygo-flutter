@@ -4,7 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
 
-import '../../duel_flame_game.dart';
+import '../../duel_field_game.dart';
 import '../../util/hand_fan_layout.dart';
 import 'hand.dart';
 import 'hand_card_component.dart';
@@ -22,7 +22,7 @@ import 'hand_card_component.dart';
 /// 本组件以整个游戏画布为自身尺寸（position 恒为原点），
 /// 子卡坐标 = 视口/屏幕坐标，与 DuelFlameGame.worldToWidget 同一空间。
 class HandBarComponent extends PositionComponent
-    with HasGameReference<DuelFlameGame> {
+    with HasGameReference<DuelFieldGame> {
   HandBarComponent({
     required this.isSelfSide,
     this.onCardTap,

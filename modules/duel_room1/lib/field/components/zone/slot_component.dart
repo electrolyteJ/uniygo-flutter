@@ -17,7 +17,6 @@ class CardSlotComponent extends PositionComponent
   /// hover 动画曲线，与 HTML transition: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) 一致。
   static const _hoverCurve = Cubic(0.34, 1.56, 0.64, 1);
   static const _hoverScale = 1.12;
-  static const _hoverLift = 28.0;
 
   /// YGO position 位掩码由 duelink 常量提供：
   /// POS_FACEDOWN(0xA=0x2|0x8) / POS_DEFENSE(0xC=0x4|0x8)。
@@ -185,6 +184,18 @@ class CardSlotComponent extends PositionComponent
     ),
   );
 
+  // 区域堆数量徽章（卡组/墓地/额外/除外右下角）：深色圆角小徽 + 白数字。
+  static final _countBadgePaint = Paint()..color = const Color(0xD90A101A);
+  static final _countPaint = TextPaint(
+    style: const TextStyle(
+      color: Colors.white,
+      fontSize: 9,
+      fontWeight: FontWeight.w800,
+      fontFamily: 'Orbitron',
+      height: 1,
+    ),
+  );
+
   // 实例级复用 Paint：颜色/线宽随 hover、accent(isEMZ)、高亮态动态设置。
   final Paint _slotFillPaint = Paint();
   final Paint _slotStrokePaint = Paint()..style = PaintingStyle.stroke;
@@ -209,6 +220,9 @@ class CardSlotComponent extends PositionComponent
   /// 该槽位所属区域当前「有可召唤/可发动卡」（墓地/额外/除外提醒角标）。
   bool activatable;
 
+  /// 区域堆数量（卡组/墓地/额外/除外）；null = 不显示（普通卡槽）。
+  int? count;
+
   // ── 连锁序号徽章 ──
   /// 正在展示的连锁序号（含连锁结束后的停留期）；null = 无徽章。
   int? _chainBadgeOrder;
@@ -226,9 +240,7 @@ class CardSlotComponent extends PositionComponent
   static const _chainFadeSeconds = 0.3;
 
   bool _hovered = false;
-  double _liftZ = 0; // Z轴提升高度 (模拟 translateZ)
   Effect? _scaleFx;
-  Effect? _liftFx;
 
   /// 已加载的卡图（表侧卡牌才加载）。持有的是加载器缓存图的克隆
   ///（CardImageLoader LRU 超上限会 dispose 被逐出的原图），换卡与
@@ -247,6 +259,7 @@ class CardSlotComponent extends PositionComponent
     this.highlight = CardSlotHighlight.none,
     this.onTap,
     this.activatable = false,
+    this.count,
   }) : super(
     // 命中热区比视觉槽位大（仅影响 hit test；渲染以槽位常量为中心
     // 对称绘制，不受组件 size 影响），见 DuelFieldLayout 注释。
@@ -293,6 +306,7 @@ class CardSlotComponent extends PositionComponent
     required VoidCallback? onTap,
     required bool activatable,
     required int? chainOrder,
+    required int? count,
   }) {
     final prevCode = this.card?.code;
     if (card == null || card.code != prevCode) {
@@ -304,6 +318,7 @@ class CardSlotComponent extends PositionComponent
     this.highlight = highlight;
     this.onTap = onTap;
     this.activatable = activatable;
+    this.count = count;
     _syncChainBadge(chainOrder);
     _requestCardImage();
   }
@@ -351,44 +366,30 @@ class CardSlotComponent extends PositionComponent
     });
   }
 
-  /// hover 缩放/提升共用 [_hoverCurve]：缩放走 Flame 内置的
-  /// [ScaleEffect]（围绕 anchor 中心、命中测试自动适配），lift 需经过
-  /// [DuelFieldWorld.projectLiftY] 投影，用 [FunctionEffect] 从当前值起播，
-  /// 中途反向不会跳变。
+  /// hover 缩放共用 [_hoverCurve]：缩放走 Flame 内置的 [ScaleEffect]
+  /// （围绕 anchor 中心、命中测试自动适配）。Z 轴提升已随 3D 投影一并移除，
+  /// hover 仅保留中心缩放。
   void _animateHover(bool hovering) {
     _scaleFx?.removeFromParent();
-    _liftFx?.removeFromParent();
-    final startLift = _liftZ;
-    final endLift = hovering ? _hoverLift : 0.0;
     _scaleFx = ScaleEffect.to(
       Vector2.all(hovering ? _hoverScale : 1.0),
       CurvedEffectController(0.3, _hoverCurve),
     );
-    _liftFx = FunctionEffect<CardSlotComponent>(
-          (target, progress) =>
-      target._liftZ = startLift + (endLift - startLift) * progress,
-      CurvedEffectController(0.3, _hoverCurve),
-    );
-    addAll([_scaleFx!, _liftFx!]);
+    add(_scaleFx!);
   }
 
   @override
   void render(Canvas canvas) {
-    // 1. 组件 position 已由 world 投影设置，hover 缩放由 Flame transform
-    // 围绕 anchor(中心) 应用；此处仅叠加 Z 轴提升位移（世界坐标 y 方向），
-    // 除以 scale.y 抵消变换缩放，保持世界坐标下的提升量。
-    // ⚠️ 临时关闭 Z 轴提升（3D 效果），便于预览平面布局。恢复时改回：
-    // final liftDy = world.projectLiftY(_liftZ) / scale.y;
-    final liftDy = 0.0;
-
+    // 1. 组件 position 由 world 设置，hover 缩放由 Flame transform 围绕
+    // anchor(中心) 应用；此处把原点移到命中区中心，再绘制视觉槽位。
     canvas.save();
-    canvas.translate(size.x / 2, size.y / 2 + liftDy);
+    canvas.translate(size.x / 2, size.y / 2);
 
     final Color accentColor = isEMZ
         ? const Color(0xFFFFD700)
         : const Color(0xFF00F0FF);
 
-    // 2. 绘制 3D 投影发光底座
+    // 2. 绘制发光底座
     if (_hovered) {
       canvas.drawRRect(
         _hoverGlowRRect,
@@ -414,6 +415,12 @@ class CardSlotComponent extends PositionComponent
       _labelPaint.render(canvas, label, Vector2.zero(), anchor: Anchor.center);
     } else {
       _renderCardBody(canvas);
+    }
+
+    // 区域堆数量（卡组/墓地/额外/除外）：右下角小徽。
+    final countValue = count;
+    if (countValue != null) {
+      _renderCountBadge(canvas, countValue);
     }
 
     // 4. 选择/放置高亮：在槽位本体上绘制发光、填充与描边，
@@ -650,6 +657,31 @@ class CardSlotComponent extends PositionComponent
       canvas,
       text,
       Vector2(badgeX + badgeW / 2, badgeY + badgeH / 2),
+      anchor: Anchor.center,
+    );
+  }
+
+  /// 区域堆数量徽章：槽位右下角深色圆角小徽 + Orbitron 数字。
+  void _renderCountBadge(Canvas canvas, int value) {
+    final text = '$value';
+    final metrics = _countPaint.getLineMetrics(text);
+    const padX = 5.0;
+    const badgeH = 14.0;
+    final badgeW = metrics.width + padX * 2;
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(
+        DuelFieldLayout.slotWidth / 2 - 3 - badgeW,
+        DuelFieldLayout.slotHeight / 2 - 3 - badgeH,
+        badgeW,
+        badgeH,
+      ),
+      const Radius.circular(7),
+    );
+    canvas.drawRRect(rect, _countBadgePaint);
+    _countPaint.render(
+      canvas,
+      text,
+      Vector2(rect.center.dx, rect.center.dy),
       anchor: Anchor.center,
     );
   }

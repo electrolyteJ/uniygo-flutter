@@ -4,3 +4,4 @@ extensions:
   - flame: true
   - provider: true
   - shared_preferences: true
+  - riverpod: true

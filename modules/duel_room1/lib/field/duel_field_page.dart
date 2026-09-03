@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:biz/service_providers.dart';
 import 'package:biz/ygo_sound_service.dart';
@@ -18,18 +17,17 @@ import 'package:biz/duel/models/select_state.dart';
 import 'package:duel_room1/field/widgets/confirm/duel_confirm_dialog.dart';
 import 'package:duel_room1/field/widgets/selector/duel_select_prompt.dart';
 import 'package:duelink/duelink.dart' show PlayerInfo, PlayerType, RoomInDuel;
+import 'package:flame/game.dart';
 import 'package:resource_data/card_info.dart' as pkg;
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:duel_room1/field/duel_flame_game.dart';
+import 'package:duel_room1/field/duel_field_game.dart';
 import 'package:duel_room1/field/util/chain_order_map.dart';
 import 'package:duel_room1/field/util/duel_field_layout.dart';
-import 'package:duel_room1/field/widgets/player_status_chip.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:duel_room1/field/components/phase_rail/phase_rail_layout.dart';
-import 'package:duel_room1/field/flame_playmat_field.dart';
 import 'package:duel_room1/field/widgets/inspector/card_detail_drawer.dart';
 import 'package:duel_room1/field/widgets/inspector/zone_browser_panel.dart';
 import 'package:duel_room1/field/widgets/menus/duel_field_popover_layout.dart';
@@ -55,7 +53,7 @@ import 'components/hand_card/hand.dart';
 /// - 先后攻提示从手动 addListener 兜底改为 `ref.listen(isFirstTurn)`；
 /// - 与 duel_room2 的差异：场地用自绘 Flame 渲染（room1 的存在意义）。
 ///   widget 层经 listenManual 订阅 duelField/selectWindow 后把
-///   [FlameFieldSnapshot] 推入 [DuelFlameGame]（不走 build 副作用），
+///   [FlameFieldSnapshot] 推入 [DuelFieldGame]（不走 build 副作用），
 ///   Flame component 不直接 watch，渲染循环与 Riverpod 解耦；
 ///   Flame 侧槽位组件布局期一次建好，快照变化只原地更新内容。
 ///
@@ -77,48 +75,39 @@ class DuelFieldPage extends ConsumerStatefulWidget {
   ConsumerState<DuelFieldPage> createState() => _DuelFieldPageState();
 }
 
-Widget buildDuelHudIconButton({
-  required IconData icon,
-  required VoidCallback onPressed,
-  double scale = 1.0,
-}) {
-  final visualSize = (44.0 * scale).clamp(34.0, 44.0);
-  return SizedBox.square(
-    key: const ValueKey('duel-hud-icon-hit-target'),
-    dimension: 44,
-    child: Center(
-      child: SizedBox.square(
-        key: const ValueKey('duel-hud-icon-visual'),
-        dimension: visualSize,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xB8060B14),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: const Color(0x3300F0FF), width: 1.2),
-                boxShadow: const [
-                  BoxShadow(color: Color(0x1A00F0FF), blurRadius: 24),
-                ],
-              ),
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                iconSize: visualSize * 0.55,
-                icon: Icon(icon, color: Colors.white.withValues(alpha: 0.92)),
-                tooltip: '返回',
-                onPressed: onPressed,
-              ),
-            ),
-          ),
+enum DuelPrimaryPanel { none, zone, confirm, inspector }
+
+class CompactDuelTopHud extends StatelessWidget {
+  const CompactDuelTopHud({
+    super.key,
+    required this.status,
+    required this.timer,
+  });
+
+  final Widget status;
+  final Widget timer;
+
+  @override
+  Widget build(BuildContext context) {
+    final hs = DuelRoomLayout.of(context).hudScale;
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: SafeArea(
+        bottom: false,
+        minimum: EdgeInsets.fromLTRB(12 * hs, 8 * hs, 12 * hs, 0),
+        child: Row(
+          children: [
+            Flexible(child: status),
+            Expanded(child: Center(child: timer)),
+            const Spacer(),
+          ],
         ),
       ),
-    ),
-  );
+    );
+  }
 }
-
-enum DuelPrimaryPanel { none, zone, confirm, inspector }
 
 DuelPrimaryPanel selectDuelPrimaryPanel({
   required bool isCompact,
@@ -175,8 +164,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
 
   DuelRoomLayoutSpec get _layout => _layoutSpec ?? DuelRoomLayout.of(context);
 
-  double get _hudScale => _layout.hudScale;
-
   bool get _compactHud => _layout.isCompact;
 
   /// 对方手牌栏顶边距（屏幕坐标）：状态栏 + 顶栏 + 间隙，随 HUD 缩放。
@@ -185,7 +172,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
       spec.topHudHeight +
       _opponentHandGap * spec.hudScale;
 
-  DuelFlameGame? _flameGame;
+  DuelFieldGame? _flameGame;
   PlaymatAnchorData? _fieldAnchors;
 
   // 抽卡动画：双方各一条 FIFO 队列（biz 纯逻辑）+ Flame 飞行组件。
@@ -396,10 +383,10 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     showSurrenderConfirmDialog(context: context, ref: ref);
   }
 
-  DuelFlameGame _ensureFlameGame() {
+  DuelFieldGame _ensureFlameGame() {
     final existing = _flameGame;
     if (existing != null) return existing;
-    final game = DuelFlameGame(
+    final game = DuelFieldGame(
       onCardSelect: handleFieldCardTap,
       onZoneInspect: handleZoneInspect,
       onPhaseLampTap: togglePhaseMenu,
@@ -572,13 +559,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     );
   }
 
-  Widget _buildBattlefield() {
-    // 快照推送已移至 listenManual 订阅（见 initState）；
-    // build 只负责挂载 GameWidget，不在此推状态。
-    // onAnchorsChanged 在 _ensureFlameGame 构造游戏时注入，组件不重复传。
-    return FlamePlaymatField(game: _ensureFlameGame());
-  }
-
   Rect _phaseLampRect(Size viewport) {
     final anchors = _fieldAnchors;
     if (anchors != null) {
@@ -611,78 +591,13 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
     );
   }
 
-  /// 顶部 HUD：桌面只剩返回按钮（回合徽章/中央计时/双方状态卡
-  /// 已全部下沉为 Flame 组件）；紧凑模式（小屏）则由 widget 层承接
-  /// 对方状态芯片与中央计时（世界内组件在小屏上不可读）。
+  /// 顶部 HUD：紧凑模式下仅承接中央计时（对方状态芯片已由 Flame 层
+  /// PlayerStatusCardComponent 在对方手牌右侧常驻展示）。
   Widget _buildTopHud() {
-    final hs = _hudScale;
-    final compact = _compactHud;
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: SafeArea(
-        bottom: false,
-        minimum: EdgeInsets.fromLTRB(12 * hs, 8 * hs, 12 * hs, 0),
-        child: Row(
-          children: [
-            buildDuelHudIconButton(
-              icon: Icons.arrow_back,
-              scale: hs,
-              onPressed: () {
-                backHomeDialog(
-                  context: context,
-                  ref: ref,
-                  title: '退出决斗',
-                  content: '是否确认退出当前决斗？',
-                );
-              },
-            ),
-            if (compact) ...[
-              const SizedBox(width: 8),
-              _buildStatusChip(isSelf: false),
-              const Spacer(),
-              _buildCompactTimer(),
-              const SizedBox(width: 8),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 紧凑模式的玩家状态芯片（对方挂顶栏；我方挂左下手牌栏上方）。
-  Widget _buildStatusChip({required bool isSelf}) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final s = ref.watch(
-          duelFieldProvider.select(
-            (s) => (
-              lp: isSelf ? s.selfLp : s.opponentLp,
-              hand: isSelf ? s.selfHand.length : s.opponentHand.length,
-              deck: isSelf ? s.selfDeck : s.oppDeck,
-              extra: isSelf ? s.selfExtra : s.oppExtra,
-              grave: isSelf ? s.selfGrave : s.oppGrave,
-              removed: isSelf ? s.selfRemoved : s.oppRemoved,
-              // 名字依赖 players 与 myController，一并订阅。
-              players: s.players,
-              myController: s.myController,
-            ),
-          ),
-        );
-        // s 仅驱动重建；名字经页面 getter（tag 模式合并显示名）。
-        return PlayerStatusChip(
-          name: isSelf ? _selfName : _oppName,
-          lp: s.lp,
-          handCount: s.hand,
-          deckCount: s.deck,
-          extraCount: s.extra,
-          graveCount: s.grave,
-          removedCount: s.removed,
-          isSelf: isSelf,
-          onZoneTap: openZoneBrowser,
-        );
-      },
+    if (!_compactHud) return const SizedBox.shrink();
+    return CompactDuelTopHud(
+      status: const SizedBox.shrink(),
+      timer: _buildCompactTimer(),
     );
   }
 
@@ -819,7 +734,7 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
           fit: StackFit.expand,
           clipBehavior: Clip.none,
           children: [
-            Positioned.fill(child: _buildBattlefield()),
+            Positioned.fill(child: GameWidget(game: _ensureFlameGame())),
             // HUD 层仅对局进行中展示；非对局阶段本页作为半透明等待弹窗
             // 背后的场地背景常驻挂载（对齐 godot：duel_ui 决斗开始才显示）。
             if (widget.hudVisible) Positioned.fill(child: _buildHudOverlay()),
@@ -968,13 +883,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage> {
           },
         ),
         _buildTopHud(),
-        // 紧凑模式：我方状态芯片挂左下手牌栏上方（对方芯片在顶栏）。
-        if (_compactHud)
-          Positioned(
-            left: _layout.safePadding.left + 8,
-            bottom: _layout.safePadding.bottom + _layout.handBarHeight + 8,
-            child: _buildStatusChip(isSelf: true),
-          ),
         Consumer(
           builder: (context, ref, _) {
             final hasConfirmPanel = ref.watch(

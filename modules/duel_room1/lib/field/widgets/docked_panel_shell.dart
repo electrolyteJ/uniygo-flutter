@@ -170,6 +170,8 @@ class _DockedPanelHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: DockedPanelShell.accent,
               fontSize: 16,
@@ -178,7 +180,10 @@ class _DockedPanelHeader extends StatelessWidget {
             ),
           ),
         ),
-        if (titleSuffix != null) ...[titleSuffix!, const SizedBox(width: 8)],
+        if (titleSuffix != null) ...[
+          Flexible(child: titleSuffix!),
+          const SizedBox(width: 8),
+        ],
         Text(
           '$count 张',
           style: const TextStyle(
@@ -217,7 +222,11 @@ class _DockedPanelCloseButton extends StatelessWidget {
               width: 44,
               height: 44,
               child: Center(
-                child: Icon(Icons.close, color: DockedPanelShell.accent, size: 20),
+                child: Icon(
+                  Icons.close,
+                  color: DockedPanelShell.accent,
+                  size: 20,
+                ),
               ),
             ),
           ),

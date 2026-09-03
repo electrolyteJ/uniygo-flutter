@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ygo_settings/ygo_settings.dart';
+import 'package:ygo_settings/ygo_settings_dialog.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -158,11 +158,11 @@ void main() {
           .ancestor(of: find.text('己方墓地'), matching: find.byType(Positioned))
           .first,
     );
-    // compact 使用 8px 面板间距与 360px spec 宽度。
+    // compact 使用 8px 面板间距与 safeWidth 35% 的 spec 宽度。
     expect(pos.top, closeTo(81.6, 0.001));
     expect(pos.bottom, closeTo(75.6, 0.001));
     expect(pos.right, 8);
-    expect(pos.width, 360);
+    expect(pos.width, 280);
   });
 
   testWidgets('带非对称安全区时面板完全位于 safeRect 内', (tester) async {
@@ -207,7 +207,7 @@ void main() {
 
   for (final entry in const [
     (Size(640, 360), 2),
-    (Size(800, 450), 3),
+    (Size(800, 450), 2),
     (Size(1280, 720), 4),
     (Size(1920, 1080), 4),
   ]) {
@@ -277,6 +277,48 @@ void main() {
     );
     expect(rect.width, greaterThanOrEqualTo(0));
     expect(rect.height, greaterThanOrEqualTo(0));
+    expect(rect.width, spec.dockedPanelWidth);
+  });
+
+  testWidgets('compact 详情卡图不超过面板内容且内容可滚动', (tester) async {
+    const size = Size(640, 360);
+    final spec = DuelRoomLayoutSpec.resolve(size);
+    tester.view
+      ..physicalSize = size
+      ..devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view
+        ..resetPhysicalSize()
+        ..resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: [
+              Positioned.fromRect(
+                rect: cardDetailDrawerRect(spec),
+                child: DuelRoomLayout(
+                  spec: spec,
+                  child: const CardDetailDrawer(cardCode: 0, onClose: _noop),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final panelRect = tester.getRect(find.byType(CardDetailDrawer));
+    final imageRect = tester.getRect(
+      find.byKey(const ValueKey('card-detail-image')),
+    );
+    expect(panelRect.width, spec.dockedPanelWidth);
+    expect(imageRect.left, greaterThan(panelRect.left));
+    expect(imageRect.right, lessThan(panelRect.right));
+    expect(find.byType(SingleChildScrollView), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('可发动的卡显示角标，未命中集合的不显示', (tester) async {

@@ -18,6 +18,8 @@ import 'package:go_router/go_router.dart';
 import 'package:duel_room1/constants.dart';
 import 'package:duel_room1/field/duel_field_page.dart';
 import 'package:duel_room1/layout/duel_room_layout.dart';
+import 'package:duel_room1/platform/duel_immersive_mode.dart';
+import 'package:duel_room1/platform/platform_adaptive.dart';
 import 'package:duel_room1/platform/duel_shortcuts.dart';
 import 'duel_result_page.dart';
 import 'duel_room_exit.dart';
@@ -33,6 +35,113 @@ class DuelResultDismissal {
       identical(result, _dismissedResult) ? null : result;
 
   void dismiss(Map<String, Object?> result) => _dismissedResult = result;
+}
+
+bool shouldShowDuelRoomBackButton({
+  required bool isInDuel,
+  required bool hasResult,
+}) => !isInDuel && !hasResult;
+
+class DuelRoomScaffold extends StatelessWidget {
+  const DuelRoomScaffold({super.key, required this.body});
+
+  final Widget body;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    key: const ValueKey('duel-room-page'),
+    backgroundColor: Colors.brown.shade900,
+    body: body,
+  );
+}
+
+class DuelRoomShell extends StatelessWidget {
+  const DuelRoomShell({
+    super.key,
+    required this.content,
+    required this.isInDuel,
+    required this.hasResult,
+    required this.onBack,
+    this.platform,
+    this.controller,
+  });
+
+  final Widget content;
+  final bool isInDuel;
+  final bool hasResult;
+  final VoidCallback onBack;
+  final DuelPlatform? platform;
+  final DuelSystemUiController? controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return DuelImmersiveMode(
+      platform: platform,
+      controller: controller,
+      child: DuelRoomScaffold(
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(child: content),
+            if (shouldShowDuelRoomBackButton(
+              isInDuel: isInDuel,
+              hasResult: hasResult,
+            ))
+              DuelRoomBackButton(onPressed: onBack),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class DuelRoomBackButton extends StatelessWidget {
+  const DuelRoomBackButton({super.key, required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final layout = DuelRoomLayout.of(context);
+    return Positioned(
+      left: layout.safePadding.left + layout.panelGap,
+      top: layout.safePadding.top + layout.panelGap,
+      child: Semantics(
+        button: true,
+        label: '退出房间',
+        child: Tooltip(
+          message: '退出房间',
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onPressed,
+              borderRadius: BorderRadius.circular(22),
+              child: SizedBox.square(
+                key: const ValueKey('duel-room-back-button'),
+                dimension: 44,
+                child: Center(
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xE6080E18),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0x4D00F0FF)),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: Color(0xFF00F0FF),
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// 决斗房间入口：每次进房创建独立的 [ProviderScope]，
@@ -112,6 +221,7 @@ class _DuelRoomView extends ConsumerStatefulWidget {
 
 class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
   final DuelResultDismissal _resultDismissal = DuelResultDismissal();
+
   /// 已读聊天消息计数：打开/关闭抽屉时对齐到最新；关闭期间的新消息
   /// 在抽屉开关按钮上显示未读角标（弥补旧常驻聊天面板的可见性）。
   int _seenChatCount = 0;
@@ -223,18 +333,6 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
         ),
       );
     });
-  }
-
-  String _roomTitle(DuelRoomState room, Map<String, Object?> args) {
-    final modeName = switch (room.roomOptions?.mode) {
-      RoomMode.single => '单局',
-      RoomMode.match => '比赛',
-      RoomMode.tag => '双打',
-      _ => '',
-    };
-    final roomName = args['roomName'] as String? ?? '';
-    if (roomName.isNotEmpty) return roomName;
-    return '$modeName房间';
   }
 
   @override
@@ -390,60 +488,39 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
           ),
       ],
     );
-    return DuelShortcuts(
-      child: PopScope(
-        // 系统返回不直接弹出房间路由：先弹确认框，避免误触返回
-        // 直接离房（服务器仍占座）。确认退出走 backHomeDialog → backHome。
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (didPop) return;
-          if (effectiveRoundResult != null) return;
-          // 对局中若正有模态选择窗口，返回键由模态自己处理（取消选择），
-          // 这里不再叠加房间退出确认。
-          final modalActive =
-              ref.read(selectWindowProvider.notifier).selectPromptMode ==
-              SelectPromptMode.modal;
-          if (modalActive) return;
-          backHomeDialog(
-            context: context,
-            ref: ref,
-            title: '退出房间',
-            content: '是否确认退出当前房间？',
-          );
-        },
-        child: Scaffold(
-          key: const ValueKey('duel-room-page'),
-          // 场地页自带 Scaffold 背景覆盖全屏，这里仅在 Flame 首帧前短暂可见。
-          backgroundColor: Colors.brown.shade900,
-          // AppBar 透明 + body 延伸到 AppBar 之下：等待室遮罩与背后场地贯通
-          // 整个屏幕（对齐 godot 全屏覆盖层）。非对局阶段保留 AppBar 提供
-          // 退出入口；仅对局进行中（场地页自带 HUD）隐藏。
-          extendBodyBehindAppBar: true,
-          appBar: isInDuel ? null : _buildAppBar(room),
-          body: content,
+    return DuelRoomShell(
+      isInDuel: isInDuel,
+      hasResult: effectiveRoundResult != null,
+      onBack: () => backHomeDialog(
+        context: context,
+        ref: ref,
+        title: '退出房间',
+        content: '是否确认退出当前房间？',
+      ),
+      content: DuelShortcuts(
+        child: PopScope(
+          // 系统返回不直接弹出房间路由：先弹确认框，避免误触返回
+          // 直接离房（服务器仍占座）。确认退出走 backHomeDialog → backHome。
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            if (effectiveRoundResult != null) return;
+            // 对局中若正有模态选择窗口，返回键由模态自己处理（取消选择），
+            // 这里不再叠加房间退出确认。
+            final modalActive =
+                ref.read(selectWindowProvider.notifier).selectPromptMode ==
+                SelectPromptMode.modal;
+            if (modalActive) return;
+            backHomeDialog(
+              context: context,
+              ref: ref,
+              title: '退出房间',
+              content: '是否确认退出当前房间？',
+            );
+          },
+          child: content,
         ),
       ),
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar(DuelRoomState room) {
-    return AppBar(
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back),
-        onPressed: () {
-          backHomeDialog(
-            context: context,
-            ref: ref,
-            title: '退出房间',
-            content: '是否确认退出当前房间？',
-          );
-        },
-      ),
-      title: Text(_roomTitle(room, widget.args)),
-      // 透明 AppBar：浮在半透明等待室遮罩之上，不遮挡背后的决斗场地。
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      foregroundColor: Colors.white,
     );
   }
 }

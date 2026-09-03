@@ -1,5 +1,5 @@
 import 'package:duel_room1/field/components/hand_card/hand.dart';
-import 'package:duel_room1/field/duel_flame_game.dart';
+import 'package:duel_room1/field/duel_field_game.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,7 +9,7 @@ void main() {
     tester,
   ) async {
     final taps = <int>[];
-    final game = DuelFlameGame(onHandCardTap: (index, _) => taps.add(index));
+    final game = DuelFieldGame(onHandCardTap: (index, _) => taps.add(index));
     await tester.pumpWidget(
       SizedBox(width: 640, height: 360, child: GameWidget(game: game)),
     );

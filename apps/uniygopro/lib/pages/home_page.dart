@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:account_mycard/account_mycard.dart';
 import 'package:ygo_settings/ygo_settings.dart';
+import 'package:ygo_settings/ygo_settings_dialog.dart';
 import '../config/route.dart';
 import '../widgets/mycard_account_button.dart';
 import '../config/servers.dart';
@@ -56,13 +57,23 @@ class HomePage extends StatelessWidget {
                 extraActions: [
                   if (!kIsWeb)
                     SettingsExtraAction(
+                      label: '2D 场景预览',
+                      icon: Icons.grid_on,
+                      onTap: (ctx) {
+                        Navigator.of(ctx).pop();
+                        context.push(Routes.duelRoomPreview);
+                      },
+                    ),
+                  if (!kIsWeb)
+                    SettingsExtraAction(
                       label: '3D 场景预览',
                       icon: Icons.view_in_ar,
                       onTap: (ctx) {
                         Navigator.of(ctx).pop();
-                        context.push('/duel-room3-preview');
+                        context.push(Routes.duelRoom3Preview);
                       },
                     ),
+
                 ],
               );
             },
@@ -76,7 +87,7 @@ class HomePage extends StatelessWidget {
               ServiceSingleton.instance.ygoSoundService.playPageTransition();
               // push 而非 go：保留 home 在栈下，DeckHubPage 的 AppBar
               // 自动出现返回按钮（go 会替换栈，导致无返回入口）。
-              context.push('/deck-square');
+              context.push(Routes.deckHub);
             },
           ),
           IconButton(
@@ -84,7 +95,7 @@ class HomePage extends StatelessWidget {
             tooltip: '卡组',
             onPressed: () {
               ServiceSingleton.instance.ygoSoundService.playPageTransition();
-              context.go('/deck-editor');
+              context.push(Routes.deckEditor);
             },
           ),
         ],

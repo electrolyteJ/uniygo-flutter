@@ -1,4 +1,4 @@
-import 'package:duel_room1/field/duel_flame_game.dart';
+import 'package:duel_room1/field/duel_field_game.dart';
 import 'package:duel_room1/field/util/duel_field_layout.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/widgets.dart';
@@ -11,7 +11,7 @@ void main() {
     ) async {
       final selected = <int?>[];
       final inspected = <String>[];
-      final game = DuelFlameGame(
+      final game = DuelFieldGame(
         onCardSelect: (_, code) => selected.add(code),
         onZoneInspect: inspected.add,
       );

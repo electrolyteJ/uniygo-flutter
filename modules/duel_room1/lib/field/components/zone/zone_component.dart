@@ -1,4 +1,4 @@
-import 'package:duel_room1/field/components/zone/slot.dart';
+import 'package:duel_room1/field/components/zone/slot_component.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:biz/duel/models/field_card.dart';
@@ -8,11 +8,11 @@ import 'package:duel_room1/field/duel_field_world.dart';
 import '../deck_shuffle_effect.dart';
 
 /// 场地区域组件：持有全部卡槽（[CardSlotComponent]），负责按
-/// [FlameFieldSnapshot] 构建槽位布局、重建，以及鼠标移动时的视差重投影。
+/// [FlameFieldSnapshot] 构建槽位布局与重建。
 ///
-/// 卡槽作为本组件的子节点，位置使用世界坐标（由 [DuelFieldWorld.project3D]
-/// 投影），本组件本身无变换，故子节点世界坐标 = 棋盘世界坐标。
-class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
+/// 卡槽作为本组件的子节点，位置使用世界坐标（棋盘坐标即世界坐标，
+/// 无 3D 投影），本组件本身无变换，故子节点世界坐标 = 棋盘世界坐标。
+class ZoneComponent extends Component with HasWorldReference<DuelFieldWorld> {
   final Function(FieldCard? card, int? code)? onCardSelect;
   final void Function(String zoneKey)? onZoneInspect;
 
@@ -28,7 +28,6 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
 
   /// 构建 [_specs] 时使用的 myController（朝向一致性校验）。
   int? _specsController;
-  Vector2? _lastParallaxMouse;
 
   // 洗牌动效按侧各自跟踪（快照里是每侧独立 tick）：双方洗牌消息
   // 同帧到达时两侧的动效都要播放，不能互相吞掉。
@@ -40,7 +39,7 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
   /// 当前状态快照（widget 层经游戏推入）。
   FlameFieldSnapshot get _snapshot => world.game.snapshot;
 
-  ZonesComponent({this.onCardSelect, this.onZoneInspect, this.onPlaceSlotTap});
+  ZoneComponent({this.onCardSelect, this.onZoneInspect, this.onPlaceSlotTap});
 
   CardSlotComponent? _slotAt(Vector2 point) {
     final zoom = world.game.camera.viewfinder.zoom;
@@ -87,7 +86,6 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
   @override
   void update(double dt) {
     super.update(dt);
-    _syncParallax();
     _spawnShuffleEffects();
   }
 
@@ -117,22 +115,8 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
 
   void _spawnShuffleAt(Offset boardPos) {
     world.add(
-      DeckShuffleEffect(position: world.project3D(boardPos.dx, boardPos.dy)),
+      DeckShuffleEffect(position: Vector2(boardPos.dx, boardPos.dy)),
     );
-  }
-
-  /// 鼠标移动时重新投影卡槽位置（BoardMesh / PhaseLamp 每帧自行投影，无需同步）。
-  void _syncParallax() {
-    // 3D 投影临时关闭期间 project3D 为恒等变换：每次鼠标移动给 32 个槽位
-    // 重赋相同位置是纯浪费，直接跳过。
-    if (!world.isProjectionEnabled) return;
-    final mouse = world.game.mousePos;
-    final last = _lastParallaxMouse;
-    if (last != null && last.x == mouse.x && last.y == mouse.y) return;
-    _lastParallaxMouse = mouse.clone();
-    for (final slot in _slots) {
-      slot.position = world.project3D(slot.boardX, slot.boardY);
-    }
   }
 
   /// 布局期一次性创建全部槽位；之后快照变化只原地更新内容，
@@ -168,7 +152,7 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
         boardY: spec.boardY,
         isMonster: spec.isMonster,
         isEMZ: spec.isEMZ,
-      )..position = world.project3D(spec.boardX, spec.boardY);
+      )..position = Vector2(spec.boardX, spec.boardY);
       _slots.add(slot);
       add(slot);
       _syncSlot(spec, slot, snapshot);
@@ -205,6 +189,7 @@ class ZonesComponent extends Component with HasWorldReference<DuelFieldWorld> {
       activatable:
           spec.inspectZoneKey != null &&
           snapshot.activatableZoneKeys.contains(spec.inspectZoneKey),
+      count: spec.resolveCount?.call(snapshot),
       chainOrder: spec.chainOrderOf(snapshot.chainOrderBySlotKey),
     );
   }

@@ -49,6 +49,7 @@ class ZoneSlotSpec {
     required this.boardX,
     required this.boardY,
     required this.resolveCard,
+    this.resolveCount,
     this.isMonster = false,
     this.isEMZ = false,
     this.slotKeys = const [],
@@ -76,6 +77,9 @@ class ZoneSlotSpec {
 
   /// 从给定快照解析该槽位应显示的卡（null = 空槽）。
   final FieldCard? Function(FlameFieldSnapshot snapshot) resolveCard;
+
+  /// 该槽位应显示的区域堆数量（卡组/墓地/额外/除外）；null = 不显示。
+  final int? Function(FlameFieldSnapshot snapshot)? resolveCount;
 
   /// 该槽位对应的连锁序号（1 起；不在连锁链上为 null）。
   ///
@@ -201,6 +205,7 @@ List<ZoneSlotSpec> buildZoneSlotSpecs(FlameFieldSnapshot snapshot) {
       resolveCard: deckPreview(opp),
       tapBehavior: ZoneSlotTapBehavior.none,
       chainSlotKey: 'opp_deck',
+      resolveCount: (snap) => snap.oppDeck,
     ),
     for (int i = 0; i < 5; i++)
       ZoneSlotSpec(
@@ -221,6 +226,7 @@ List<ZoneSlotSpec> buildZoneSlotSpecs(FlameFieldSnapshot snapshot) {
       ),
       tapBehavior: ZoneSlotTapBehavior.inspect,
       inspectZoneKey: 'opp_extra',
+      resolveCount: (snap) => snap.oppExtra,
     ),
 
     // ── 对手 Monster 行 (-monsterY) ──
@@ -235,6 +241,7 @@ List<ZoneSlotSpec> buildZoneSlotSpecs(FlameFieldSnapshot snapshot) {
       ),
       tapBehavior: ZoneSlotTapBehavior.inspect,
       inspectZoneKey: 'opp_grave',
+      resolveCount: (snap) => snap.oppGrave,
     ),
     for (int i = 0; i < 5; i++)
       ZoneSlotSpec(
@@ -265,6 +272,7 @@ List<ZoneSlotSpec> buildZoneSlotSpecs(FlameFieldSnapshot snapshot) {
       ),
       tapBehavior: ZoneSlotTapBehavior.inspect,
       inspectZoneKey: 'opp_removed',
+      resolveCount: (snap) => snap.oppRemoved,
     ),
     ZoneSlotSpec(
       label: 'EMZ 1',
@@ -295,6 +303,7 @@ List<ZoneSlotSpec> buildZoneSlotSpecs(FlameFieldSnapshot snapshot) {
       ),
       tapBehavior: ZoneSlotTapBehavior.inspect,
       inspectZoneKey: 'self_removed',
+      resolveCount: (snap) => snap.selfRemoved,
     ),
 
     // ── 己方 Monster 行 (monsterY) ──
@@ -325,6 +334,7 @@ List<ZoneSlotSpec> buildZoneSlotSpecs(FlameFieldSnapshot snapshot) {
       ),
       tapBehavior: ZoneSlotTapBehavior.inspect,
       inspectZoneKey: 'self_grave',
+      resolveCount: (snap) => snap.selfGrave,
     ),
 
     // ── 己方 SpellTrap 行 (stY) ──
@@ -339,6 +349,7 @@ List<ZoneSlotSpec> buildZoneSlotSpecs(FlameFieldSnapshot snapshot) {
       ),
       tapBehavior: ZoneSlotTapBehavior.inspect,
       inspectZoneKey: 'self_extra',
+      resolveCount: (snap) => snap.selfExtra,
     ),
     for (int i = 0; i < 5; i++)
       ZoneSlotSpec(
@@ -355,6 +366,7 @@ List<ZoneSlotSpec> buildZoneSlotSpecs(FlameFieldSnapshot snapshot) {
       resolveCard: deckPreview(self),
       tapBehavior: ZoneSlotTapBehavior.none,
       chainSlotKey: 'self_deck',
+      resolveCount: (snap) => snap.selfDeck,
     ),
   ];
 }

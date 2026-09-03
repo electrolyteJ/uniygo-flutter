@@ -161,16 +161,16 @@ void main() {
           .ancestor(of: find.text('对方卡组'), matching: find.byType(Positioned))
           .first,
     );
-    // compact 使用 8px 面板间距与 360px spec 宽度。
+    // compact 使用 8px 面板间距与 safeWidth 35% 的 spec 宽度。
     expect(pos.top, closeTo(81.6, 0.001));
     expect(pos.bottom, closeTo(75.6, 0.001));
     expect(pos.right, 8);
-    expect(pos.width, 360);
+    expect(pos.width, 280);
   });
 
   for (final entry in const [
     (Size(640, 360), 2),
-    (Size(800, 450), 3),
+    (Size(800, 450), 2),
     (Size(1280, 720), 4),
   ]) {
     testWidgets('${entry.$1} 确认网格使用 ${entry.$2} 列', (tester) async {

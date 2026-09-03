@@ -1,7 +1,7 @@
 # deck_editor3 —— 卡组中心
 
 卡组市场（MDPro3 卡组广场协议）+ 我的卡组 + 全新组卡编辑器。库模块，
-由宿主（uniygopro 路由 `/deck-square`）挂载。
+由宿主（uniygopro 路由 `/deck-hub`）挂载。
 
 ## 功能
 

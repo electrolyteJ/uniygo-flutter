@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:resource_data/card_info.dart';
@@ -18,8 +19,9 @@ Rect cardDetailDrawerRect(DuelRoomLayoutSpec spec) {
       : (160.0 > spec.safePadding.bottom + spec.panelGap
             ? 160.0
             : spec.safePadding.bottom + spec.panelGap);
-  final rightEdge =
-      left + (spec.safeRect.right - left).clamp(0.0, 324.0).toDouble();
+  final rightEdge = (left + spec.dockedPanelWidth)
+      .clamp(left, spec.safeRect.right)
+      .toDouble();
   final bottom = (spec.viewport.height - bottomInset)
       .clamp(top, spec.safeRect.bottom)
       .toDouble();
@@ -45,14 +47,10 @@ class CardDetailDrawer extends StatelessWidget {
     const panelDark = Color(0xF1080C14);
     // 高度由父级 Positioned(top/bottom) 约束决定，自适应屏幕。
     final resolvedCode = cardInfo?.code ?? cardCode ?? 0;
-    // 响应式：宽度夹紧不溢出窄屏；卡图随 HUD 缩放（小屏不再 206×294）。
+    // 响应式：宽度夹紧不溢出窄屏；卡图尺寸由实际内容宽度决定。
     final spec = DuelRoomLayout.of(context);
     final hs = spec.hudScale;
-    final panelWidth = (spec.safeRect.width - spec.panelGap * 2)
-        .clamp(0.0, 324.0)
-        .toDouble();
-    final cardW = 206.0 * hs;
-    final cardH = 294.0 * hs;
+    final panelWidth = spec.dockedPanelWidth;
 
     return ClipRect(
       child: BackdropFilter(
@@ -131,135 +129,154 @@ class CardDetailDrawer extends StatelessWidget {
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Center(
-                        child: Container(
-                          width: cardW,
-                          height: cardH,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0D1624),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: cyanGlow, width: 1.8),
-                            boxShadow: [
-                              BoxShadow(
-                                color: cyanGlow.withValues(alpha: 0.26),
-                                blurRadius: 26,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final desiredCardWidth = spec.isCompact
+                          ? 160.0
+                          : 206.0 * hs;
+                      final cardW = math.min(
+                        desiredCardWidth,
+                        constraints.maxWidth,
+                      );
+                      final cardH = cardW * 294 / 206;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Center(
+                            child: Container(
+                              key: const ValueKey('card-detail-image'),
+                              width: cardW,
+                              height: cardH,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0D1624),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: cyanGlow, width: 1.8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: cyanGlow.withValues(alpha: 0.26),
+                                    blurRadius: 26,
+                                  ),
+                                ],
                               ),
-                            ],
+                              clipBehavior: Clip.antiAlias,
+                              // 无有效卡密时不发请求，渲染静态占位
+                              child: resolvedCode > 0
+                                  ? CardImage(
+                                      code: resolvedCode,
+                                      width: cardW,
+                                      height: cardH,
+                                    )
+                                  : const Center(
+                                      child: Icon(
+                                        Icons.image_not_supported_outlined,
+                                        color: Color(0xFF8B9BB4),
+                                        size: 40,
+                                      ),
+                                    ),
+                            ),
                           ),
-                          clipBehavior: Clip.antiAlias,
-                          // 无有效卡密时不发请求，渲染静态占位
-                          child: resolvedCode > 0
-                              ? CardImage(
-                                  code: resolvedCode,
-                                  width: cardW,
-                                  height: cardH,
-                                )
-                              : const Center(
-                                  child: Icon(
-                                    Icons.image_not_supported_outlined,
-                                    color: Color(0xFF8B9BB4),
-                                    size: 40,
-                                  ),
-                                ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
+                          const SizedBox(height: 18),
 
-                      Text(
-                        cardInfo?.name ??
-                            (cardCode != null ? 'Card #$cardCode' : 'Unknown'),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          fontFamily: 'Rajdhani',
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-
-                      if (cardInfo != null) ...[
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _buildBadge(cardInfo!.kindLabel, goldGlow),
-                            if (cardInfo!.isMonster) ...[
-                              // 等级徽标分类型：XYZ 的 level 存负值（阶级），
-                              // 连接的 level 是 LINK 值而非星级。
-                              _buildBadge(
-                                cardInfo!.isLink
-                                    ? 'LINK-${cardInfo!.level}'
-                                    : cardInfo!.isXyz
-                                    ? '${-cardInfo!.level}阶'
-                                    : '${cardInfo!.level}星',
-                                goldGlow,
-                              ),
-                              _buildBadge(cardInfo!.attributeText, goldGlow),
-                              _buildBadge(cardInfo!.raceText, goldGlow),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-
-                        if (cardInfo!.isMonster)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
+                          Text(
+                            cardInfo?.name ??
+                                (cardCode != null
+                                    ? 'Card #$cardCode'
+                                    : 'Unknown'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'Rajdhani',
+                              letterSpacing: 0.5,
                             ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.1),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          ),
+                          const SizedBox(height: 10),
+
+                          if (cardInfo != null) ...[
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
                               children: [
-                                _buildStatText(
-                                  'ATK',
-                                  '${cardInfo!.attack < 0 ? '?' : cardInfo!.attack}',
-                                  const Color(0xFFFF5A94),
-                                ),
-                                if (!cardInfo!.isLink)
-                                  _buildStatText(
-                                    'DEF',
-                                    '${cardInfo!.defense < 0 ? '?' : cardInfo!.defense}',
-                                    cyanGlow,
+                                _buildBadge(cardInfo!.kindLabel, goldGlow),
+                                if (cardInfo!.isMonster) ...[
+                                  // 等级徽标分类型：XYZ 的 level 存负值（阶级），
+                                  // 连接的 level 是 LINK 值而非星级。
+                                  _buildBadge(
+                                    cardInfo!.isLink
+                                        ? 'LINK-${cardInfo!.level}'
+                                        : cardInfo!.isXyz
+                                        ? '${-cardInfo!.level}阶'
+                                        : '${cardInfo!.level}星',
+                                    goldGlow,
                                   ),
+                                  _buildBadge(
+                                    cardInfo!.attributeText,
+                                    goldGlow,
+                                  ),
+                                  _buildBadge(cardInfo!.raceText, goldGlow),
+                                ],
                               ],
                             ),
-                          ),
-                        const SizedBox(height: 14),
+                            const SizedBox(height: 14),
 
-                        // 描述区域：随抽屉整体滚动（小屏不再内嵌滚动，
-                        // 避免卡图+徽章+攻防固定高度把描述挤没）。
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.4),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.08),
+                            if (cardInfo!.isMonster)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.1),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceAround,
+                                  children: [
+                                    _buildStatText(
+                                      'ATK',
+                                      '${cardInfo!.attack < 0 ? '?' : cardInfo!.attack}',
+                                      const Color(0xFFFF5A94),
+                                    ),
+                                    if (!cardInfo!.isLink)
+                                      _buildStatText(
+                                        'DEF',
+                                        '${cardInfo!.defense < 0 ? '?' : cardInfo!.defense}',
+                                        cyanGlow,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            const SizedBox(height: 14),
+
+                            // 描述区域：随抽屉整体滚动（小屏不再内嵌滚动，
+                            // 避免卡图+徽章+攻防固定高度把描述挤没）。
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.4),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.08),
+                                ),
+                              ),
+                              child: Text(
+                                cardInfo!.desc,
+                                style: const TextStyle(
+                                  color: Color(0xFF8B9BB4),
+                                  fontSize: 12,
+                                  height: 1.5,
+                                  fontFamily: 'Noto Sans SC',
+                                ),
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            cardInfo!.desc,
-                            style: const TextStyle(
-                              color: Color(0xFF8B9BB4),
-                              fontSize: 12,
-                              height: 1.5,
-                              fontFamily: 'Noto Sans SC',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
+                          ],
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),

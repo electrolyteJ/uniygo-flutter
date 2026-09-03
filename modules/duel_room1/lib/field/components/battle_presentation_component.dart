@@ -180,9 +180,8 @@ class BattlePresentationComponent extends Component
     }
   }
 
-  /// 直接攻击的目标点：攻击方的「棋盘坐标 x」+ 越过底/顶行的 y，再投影。
-  /// 注意必须取棋盘坐标（[DuelFieldWorld.boardPositionForZoneKey]），
-  /// 不能复用 render 里已投影的世界坐标，否则恢复 3D 投影后会二次投影错位。
+  /// 直接攻击的目标点：攻击方的「棋盘坐标 x」+ 越过底/顶行的 y。
+  /// 无 3D 投影，棋盘坐标即世界坐标，直接返回。
   Vector2? _directAttackTarget(String attackerZoneKey) {
     final board = world.boardPositionForZoneKey(attackerZoneKey);
     if (board == null) return null;
@@ -190,7 +189,7 @@ class BattlePresentationComponent extends Component
     final targetY = towardTop
         ? -DuelFieldLayout.stY - 72
         : DuelFieldLayout.stY + 72;
-    return world.project3D(board.x, targetY);
+    return Vector2(board.x, targetY);
   }
 
   /// 攻守位置不变时复用缓存的 beam path（同时刷新渐变 shader 与 PathMetric）。

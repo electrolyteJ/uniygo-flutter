@@ -147,7 +147,7 @@ class _ZoneBrowserPanelState extends State<ZoneBrowserPanel>
 /// 卡片网格（或空态文案）。tile 以 sequence 为 key：区域内容变化时
 /// 选中动画状态跟随卡走，不随下标错位。
 ///
-/// 网格列数统一消费 [DuelRoomLayoutSpec.gridColumns]：compact 为 2/3 列，
+/// 网格列数消费 [DuelRoomLayoutSpec]：compact 固定 2 列，
 /// regular/wide 为 4 列，不以无限缩小 tile 换取固定列数。
 /// tile 宽高比按「卡图实卡比例 59:86 + 8 间距 + 两行卡名 + 8 padding」
 /// 反推 ≈ 0.59，保证卡图按宽度完整展示、不被 BoxFit.cover 裁剪。
@@ -192,7 +192,7 @@ class _CardsGrid extends StatelessWidget {
     return GridView.builder(
       key: const ValueKey('zone-browser-grid'),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: spec.gridColumns,
+        crossAxisCount: spec.isCompact ? 2 : spec.gridColumns,
         mainAxisSpacing: DockedPanelShell.gridSpacing,
         crossAxisSpacing: DockedPanelShell.gridSpacing,
         childAspectRatio: _gridAspect,

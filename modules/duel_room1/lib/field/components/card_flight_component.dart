@@ -4,7 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flutter/material.dart';
 
-import '../duel_flame_game.dart';
+import '../duel_field_game.dart';
 import '../util/hand_fan_layout.dart';
 import 'card_paint.dart';
 
@@ -15,7 +15,7 @@ import 'card_paint.dart';
 /// 挂在 camera.viewport（屏幕空间）：卡组→手牌抽卡、场上↔墓地↔手牌等
 /// 全区域双向联动飞牌共用（前者经兼容别名 HandFlightComponent）。
 class CardFlightComponent extends PositionComponent
-    with HasGameReference<DuelFlameGame> {
+    with HasGameReference<DuelFieldGame> {
   CardFlightComponent({
     required this.codes,
     required this.faceUp,
