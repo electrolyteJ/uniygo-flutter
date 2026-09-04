@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'select_turn.dart';
-import 'stage_selection_panel_host.dart';
+import 'widgets/select_turn.dart';
+import 'widgets/stage_selection_panel_host.dart';
 
 /// 选先后攻面板：猜拳胜者选择先攻/后攻，直接由 DuelRoomPage 挂载在
 /// 场地上（不经过等待室弹窗）。

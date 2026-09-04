@@ -24,9 +24,9 @@ import 'package:duel_room1/platform/duel_shortcuts.dart';
 import 'duel_result_page.dart';
 import 'duel_room_exit.dart';
 import 'package:duel_room1/waiting/waiting_room_page.dart';
-import 'package:duel_room1/waiting/widgets/hand_select_panel.dart';
-import 'package:duel_room1/waiting/widgets/stage_selection_panel_host.dart';
-import 'package:duel_room1/waiting/widgets/turn_select_panel.dart';
+import 'package:duel_room1/hand_turn/hand_select_panel.dart';
+import 'package:duel_room1/hand_turn/widgets/stage_selection_panel_host.dart';
+import 'package:duel_room1/hand_turn/turn_select_panel.dart';
 
 class DuelResultDismissal {
   Object? _dismissedResult;

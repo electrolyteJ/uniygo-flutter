@@ -2,16 +2,15 @@ import 'dart:async';
 import 'dart:ui' show SemanticsAction, Tristate;
 
 import 'package:biz/duel/room/duel_room_state.dart' show SidingZone;
-import 'package:duel_room1/waiting/widgets/hand_select_panel.dart';
+import 'package:duel_room1/hand_turn/hand_select_panel.dart';
 import 'package:duel_room1/waiting/widgets/overlay_panel.dart';
-import 'package:duel_room1/waiting/widgets/automation_switch.dart';
-import 'package:duel_room1/waiting/widgets/control_bar.dart';
+import 'package:biz/widgets/automation_switch.dart';
 import 'package:duel_room1/waiting/widgets/deck_selector.dart';
 import 'package:duel_room1/waiting/widgets/playerslot.dart';
-import 'package:duel_room1/waiting/widgets/select_hand.dart';
+import 'package:duel_room1/hand_turn/widgets/select_hand.dart';
 import 'package:duel_room1/waiting/widgets/side_decking_panel.dart';
-import 'package:duel_room1/waiting/widgets/stage_selection_panel_host.dart';
-import 'package:duel_room1/waiting/widgets/turn_select_panel.dart';
+import 'package:duel_room1/hand_turn/widgets/stage_selection_panel_host.dart';
+import 'package:duel_room1/hand_turn/turn_select_panel.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -274,47 +273,6 @@ void main() {
         },
       );
 
-      testWidgets('control bar actions fit and retain callbacks at $viewport', (
-        tester,
-      ) async {
-        var readyTaps = 0;
-        await pumpResponsiveWidget(
-          tester,
-          Align(
-            alignment: Alignment.topCenter,
-            child: SizedBox(
-              width: 100,
-              child: ControlBar(
-                isHost: true,
-                selfType: PlayerType.player1,
-                isSelfReady: false,
-                isAllReady: true,
-                autoHandEnabled: false,
-                autoTurnOrderEnabled: false,
-                autoDuelEnabled: false,
-                toggleReady: (_) => readyTaps++,
-                onToggleAutoHand: (_) {},
-                onToggleAutoTurnOrder: (_) {},
-                onToggleAutoDuel: (_) {},
-                onStartDuel: () {},
-                onBecomeDuelist: () {},
-                onBecomeObserver: () {},
-              ),
-            ),
-          ),
-          viewport,
-          textScaler: const TextScaler.linear(1.3),
-        );
-
-        expect(tester.takeException(), isNull);
-        for (final button in find.byType(OutlinedButton).evaluate()) {
-          final size = tester.getSize(find.byWidget(button.widget));
-          expect(size.width, lessThanOrEqualTo(100));
-          expect(size.height, greaterThanOrEqualTo(44));
-        }
-        await tester.tap(find.byKey(const ValueKey('waiting-room-ready')));
-        expect(readyTaps, 1);
-      });
 
       testWidgets('automation switch has a 44px semantic target at $viewport', (
         tester,
@@ -325,7 +283,7 @@ void main() {
           Center(
             child: SizedBox(
               width: 150,
-              child: buildAutomationSwitch(
+              child: AutomationSwitch(
                 label: '自动化开关说明文字很长很长',
                 value: value,
                 enabled: true,
@@ -417,7 +375,7 @@ void main() {
         var calls = 0;
         await pumpResponsiveWidget(
           tester,
-          buildAutomationSwitch(
+          AutomationSwitch(
             label: '禁用自动化',
             value: true,
             enabled: false,

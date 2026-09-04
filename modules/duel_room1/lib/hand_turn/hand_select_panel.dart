@@ -1,8 +1,8 @@
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 
-import 'select_hand.dart';
-import 'stage_selection_panel_host.dart';
+import 'widgets/select_hand.dart';
+import 'widgets/stage_selection_panel_host.dart';
 
 /// 猜拳阶段面板：直接由 DuelRoomPage 挂载在场地上（不经过等待室弹窗）。
 ///

@@ -1,7 +1,7 @@
 import 'package:duel_room1/layout/duel_room_layout.dart';
 import 'package:flutter/material.dart';
 
-import 'overlay_panel.dart';
+import '../../waiting/widgets/overlay_panel.dart';
 
 class InteractionIsolation extends StatelessWidget {
   const InteractionIsolation({

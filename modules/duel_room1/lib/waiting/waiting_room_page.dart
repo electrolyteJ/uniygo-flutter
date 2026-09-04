@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:biz/service_providers.dart';
 import 'package:biz/duel/room/duel_room_state.dart';
+import 'package:biz/widgets/automation_switch.dart';
+import 'package:duel_room1/waiting/widgets/room_button.dart';
 import 'package:duelink/duelink.dart' hide ConnectionState;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +11,6 @@ import 'package:go_router/go_router.dart';
 import 'package:resource_data/lf_table.dart';
 
 import 'package:duel_room1/layout/duel_room_layout.dart';
-import 'package:duel_room1/waiting/widgets/control_bar.dart';
 import 'package:duel_room1/waiting/widgets/overlay_panel.dart';
 import 'package:duel_room1/waiting/widgets/player_panel.dart';
 import 'package:duel_room1/waiting/widgets/room_info_panel.dart';
@@ -167,7 +168,26 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
               ? null
               : KeyedSubtree(
                   key: const ValueKey('waiting-room-controls'),
-                  child: _buildControlBar(room, roomCtl),
+                  child: _buildControlBar(
+                    isHost: room.isHost,
+                    selfType: room.selfType,
+                    isSelfReady: room.isSelfReady,
+                    isAllReady: room.isAllReady,
+                    autoHandEnabled: room.autoHandEnabled,
+                    autoTurnOrderEnabled: room.autoTurnOrderEnabled,
+                    autoDuelEnabled: room.autoDuelEnabled,
+                    toggleReady: (context) => _onToggleReady(context, ref),
+                    onToggleAutoHand: (v) =>
+                        unawaited(_onToggleAutomation(ref, v, roomCtl.setAutoHandEnabled)),
+                    onToggleAutoTurnOrder: (v) => unawaited(
+                      _onToggleAutomation(ref, v, roomCtl.setAutoTurnOrderEnabled),
+                    ),
+                    onToggleAutoDuel: (v) =>
+                        unawaited(_onToggleAutomation(ref, v, roomCtl.setAutoDuelEnabled)),
+                    onStartDuel: roomCtl.startDuel,
+                    onBecomeDuelist: roomCtl.becomeDuelist,
+                    onBecomeObserver: roomCtl.becomeObserver,
+                  ),
                 ),
         ),
       ),
@@ -256,27 +276,117 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
       ],
     );
   }
-
-  Widget _buildControlBar(DuelRoomState room, DuelRoomNotifier roomCtl) {
-    return ControlBar(
-      isHost: room.isHost,
-      selfType: room.selfType,
-      isSelfReady: room.isSelfReady,
-      isAllReady: room.isAllReady,
-      autoHandEnabled: room.autoHandEnabled,
-      autoTurnOrderEnabled: room.autoTurnOrderEnabled,
-      autoDuelEnabled: room.autoDuelEnabled,
-      toggleReady: (context) => _onToggleReady(context, ref),
-      onToggleAutoHand: (v) =>
-          unawaited(_onToggleAutomation(ref, v, roomCtl.setAutoHandEnabled)),
-      onToggleAutoTurnOrder: (v) => unawaited(
-        _onToggleAutomation(ref, v, roomCtl.setAutoTurnOrderEnabled),
+  Widget _buildControlBar({
+    required bool isHost,
+    required PlayerType selfType,
+    required bool isSelfReady,
+    required bool isAllReady,
+    required bool autoHandEnabled,
+    required bool autoTurnOrderEnabled,
+    required bool autoDuelEnabled,
+    required ValueChanged<BuildContext> toggleReady,
+    required ValueChanged<bool> onToggleAutoHand,
+    required ValueChanged<bool> onToggleAutoTurnOrder,
+    required ValueChanged<bool> onToggleAutoDuel,
+    required VoidCallback onStartDuel,
+    required VoidCallback onBecomeDuelist,
+    required VoidCallback onBecomeObserver,
+  }) {
+    /// godot RoomOverlay 按钮的强调色。
+    const _accentReady = Color(0xFF1A8C4C); // 准备：绿
+    const _accentStart = Color(0xFF996600); // 开始决斗：橙
+    // tag 模式 2/3 号位（player3/player4）同样是决斗者。
+    final isPlayer = selfType.isDuelist;
+    // 不设底色：等待室已改为半透明弹窗，面板背景由弹窗容器提供。
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Colors.blueGrey.shade700)),
       ),
-      onToggleAutoDuel: (v) =>
-          unawaited(_onToggleAutomation(ref, v, roomCtl.setAutoDuelEnabled)),
-      onStartDuel: roomCtl.startDuel,
-      onBecomeDuelist: roomCtl.becomeDuelist,
-      onBecomeObserver: roomCtl.becomeObserver,
+      child: SafeArea(
+        top: false,
+        // 两行布局：第一行自动化开关，第二行操作按钮。
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 4,
+              children: [
+                if (isHost)
+                  AutomationSwitch(
+                    label: '自动加入决斗',
+                    value: autoDuelEnabled,
+                    enabled: !isSelfReady,
+                    onChanged: (value) => onToggleAutoDuel(value),
+                  ),
+                AutomationSwitch(
+                  label: '自动猜拳',
+                  value: autoHandEnabled,
+                  enabled: !isSelfReady,
+                  onChanged: (value) => onToggleAutoHand(value),
+                ),
+                AutomationSwitch(
+                  label: '自动随机先后手',
+                  value: autoTurnOrderEnabled,
+                  enabled: !isSelfReady,
+                  onChanged: (value) => onToggleAutoTurnOrder(value),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            LayoutBuilder(
+              builder: (context, constraints) => Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  if (isPlayer)
+                    RoomButton(
+                      key: const ValueKey('waiting-room-ready'),
+                      maxWidth: constraints.maxWidth,
+                      // 自动开局只在房主端生效（notifier 内按 isHost
+                      // 门控），非房主即使开过偏好也不会自动开始，
+                      // 标签同步隐藏避免误导。
+                      label: isSelfReady
+                          ? '取消准备'
+                          : (isHost && autoDuelEnabled ? '准备&决斗' : '准备'),
+                      icon: isSelfReady ? Icons.cancel : Icons.check_circle,
+                      accent: _accentReady,
+                      active: isSelfReady,
+                      onPressed: () => toggleReady(context),
+                    ),
+                  if (isPlayer)
+                    RoomButton(
+                      maxWidth: constraints.maxWidth,
+                      label: '观战',
+                      icon: Icons.visibility,
+                      accent: const Color(0xFF8CA6C4),
+                      onPressed: onBecomeObserver,
+                    ),
+                  if (selfType == PlayerType.observer)
+                    RoomButton(
+                      maxWidth: constraints.maxWidth,
+                      label: '加入对战',
+                      icon: Icons.person_add,
+                      accent: Colors.amber,
+                      onPressed: onBecomeDuelist,
+                    ),
+                  if (isHost && !autoDuelEnabled)
+                    RoomButton(
+                      maxWidth: constraints.maxWidth,
+                      label: '开始决斗',
+                      icon: Icons.play_arrow,
+                      accent: _accentStart,
+                      onPressed: isAllReady ? onStartDuel : null,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
