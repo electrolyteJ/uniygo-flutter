@@ -67,21 +67,16 @@ void main() {
       expect(PhaseRailLayout.height, lessThan(510));
     });
 
-    test('紧凑屏幕按钮命中边长至少为 44', () {
-      expect(PhaseRailLayout.compactHitExtent, 44);
+    test('屏幕按钮命中边长至少为 44', () {
+      expect(PhaseRailLayout.minHitExtent, 44);
       expect(
-        PhaseRailLayout.compactHitExtent,
+        PhaseRailLayout.minHitExtent,
         greaterThan(PhaseRailLayout.actionButtonHeight),
       );
     });
 
-    test('普通与 compact 的所有可操作按钮命中至少 44x44', () {
+    test('所有可操作按钮命中至少 44x44（按相机 zoom 反推）', () {
       for (final scale in [0.4, 0.8, 1.5]) {
-        final effectiveScale = PhaseRailLayout.hitScreenScale(
-          cameraZoom: scale,
-          compact: false,
-        );
-        expect(effectiveScale, scale);
         for (final visualRect in [
           Rect.fromCenter(
             center: Offset.zero,
@@ -96,7 +91,7 @@ void main() {
         ]) {
           final hitRect = PhaseRailLayout.hitRectForVisual(
             visualRect,
-            screenScale: effectiveScale,
+            screenScale: scale,
           );
           expect(hitRect.width * scale, greaterThanOrEqualTo(44));
           expect(hitRect.height * scale, greaterThanOrEqualTo(44));
@@ -105,24 +100,6 @@ void main() {
           expect(visualRect.size, const Size(44, 22));
         }
       }
-
-      final compactVisual = Rect.fromCenter(
-        center: Offset.zero,
-        width: PhaseRailLayout.actionButtonWidth,
-        height: PhaseRailLayout.actionButtonHeight,
-      );
-      final compactHit = PhaseRailLayout.hitRectForVisual(
-        compactVisual,
-        screenScale: PhaseRailLayout.hitScreenScale(
-          cameraZoom: 0.4,
-          compact: true,
-        ),
-      );
-      expect(
-        compactHit.size * PhaseRailLayout.compactScreenScale,
-        const Size(44, 44),
-      );
-      expect(compactVisual.size, const Size(44, 22));
     });
 
     test('低 zoom 热区不侵入最右卡槽边界', () {

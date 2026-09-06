@@ -16,8 +16,9 @@ import '../hand_card/hand_bar_component.dart';
 /// tick diff；同侧同 kind 0.8s 内的连续变动由 [LpToastFeed] 合并累加。
 /// 动画：缩放弹入（150ms）→ 停留 → 上飘淡出（末 350ms），全程 1.4s。
 ///
-/// 挂 viewport（与 HandBarComponent 同层）：不随场地相机缩放，
-/// 位置只依赖屏幕尺寸与对方手牌栏 hudTopY。
+/// 挂 viewport（与 HandBarComponent 同层）：不随场地相机缩放。
+/// 双方锚点关于屏幕水平中线严格镜像（与手牌栏镜像排布一致）：
+/// 对方分支是我方分支以 y' = 屏高 - y 取镜像的同一公式。
 class LpChangeToastComponent extends PositionComponent
     with HasGameReference<DuelFieldGame> {
   LpChangeToastComponent({required this.isSelf})
@@ -41,20 +42,21 @@ class LpChangeToastComponent extends PositionComponent
   double _zoom = 1.0;
 
   void _syncPosition() {
-    // 我方：手牌栏（屏显高度 = 96 × hudScale，贴底并让开 Home 指示条）
-    // 正上方；对方：手牌栏正下方。
+    // 我方：手牌栏（屏显高度 96，贴底并让开 Home 指示条）正上方；
+    // 对方：手牌栏正下方 —— 双方锚点关于屏幕水平中线严格镜像
+    //（bottomPadding 为负值表出血，镜像两侧同号参与运算）。
     final halfH = size.y / 2;
-    final barVisualH =
-        HandBarComponent.barHeight * game.hudScale;
+    final barVisualH = HandBarComponent.barHeight;
     final y = isSelf
         ? game.size.y -
             game.viewPadding.bottom -
             barVisualH -
-            HandBarComponent.bottomPadding -
+        HandBarComponent.bottomPadding -
             _gap -
             halfH
-        : (game.oppHandBar?.hudTopY ?? 0) +
+        : game.viewPadding.bottom +
             barVisualH +
+            HandBarComponent.bottomPadding +
             _gap +
             halfH;
     position = Vector2(game.size.x / 2, y);

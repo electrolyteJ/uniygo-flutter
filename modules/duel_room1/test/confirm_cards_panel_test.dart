@@ -1,5 +1,4 @@
 import 'package:duel_room1/field/widgets/confirm/confirm_cards_panel.dart';
-import 'package:duel_room1/layout/duel_room_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -146,93 +145,27 @@ void main() {
     expect(pos.left, isNull);
   });
 
-  testWidgets('手机横屏视口下面板收缩上下留白', (tester) async {
-    tester.view.physicalSize = const Size(800, 390);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    final s = buildSubject();
-    await tester.pumpWidget(s.widget);
-    await tester.pumpAndSettle();
-
-    final pos = tester.widget<Positioned>(
-      find
-          .ancestor(of: find.text('对方卡组'), matching: find.byType(Positioned))
-          .first,
-    );
-    // compact 使用 8px 面板间距与 safeWidth 35% 的 spec 宽度。
-    expect(pos.top, closeTo(81.6, 0.001));
-    expect(pos.bottom, closeTo(75.6, 0.001));
-    expect(pos.right, 8);
-    expect(pos.width, 280);
-  });
-
-  for (final entry in const [
-    (Size(640, 360), 2),
-    (Size(800, 450), 2),
-    (Size(1280, 720), 4),
-  ]) {
-    testWidgets('${entry.$1} 确认网格使用 ${entry.$2} 列', (tester) async {
-      tester.view
-        ..physicalSize = entry.$1
-        ..devicePixelRatio = 1;
-      addTearDown(() {
-        tester.view
-          ..resetPhysicalSize()
-          ..resetDevicePixelRatio();
-      });
-      final s = buildSubject(
-        panelCodes: List.generate(8, (index) => 1000 + index),
-      );
-      await tester.pumpWidget(s.widget);
-      await tester.pumpAndSettle();
-
-      final grid = tester.widget<GridView>(
-        find.byKey(const ValueKey('confirm-cards-grid')),
-      );
-      final delegate =
-          grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-      expect(delegate.crossAxisCount, entry.$2);
-      expect(tester.getSize(find.text('C1001')).width, greaterThan(0));
-    });
-  }
-
-  testWidgets('844x390 非对称安全区内停靠且避开 HUD 与手牌栏', (tester) async {
-    const size = Size(844, 390);
-    const safePadding = EdgeInsets.fromLTRB(44, 0, 21, 16);
-    final spec = DuelRoomLayoutSpec.resolve(size, safePadding: safePadding);
+  testWidgets('确认网格固定使用 4 列', (tester) async {
     tester.view
-      ..physicalSize = size
+      ..physicalSize = const Size(1280, 800)
       ..devicePixelRatio = 1;
     addTearDown(() {
       tester.view
         ..resetPhysicalSize()
         ..resetDevicePixelRatio();
     });
-    final s = buildSubject();
-    await tester.pumpWidget(
-      MediaQuery(
-        data: const MediaQueryData(
-          size: size,
-          viewPadding: safePadding,
-          padding: safePadding,
-        ),
-        child: DuelRoomLayout(spec: spec, child: s.widget),
-      ),
+    final s = buildSubject(
+      panelCodes: List.generate(8, (index) => 1000 + index),
     );
+    await tester.pumpWidget(s.widget);
     await tester.pumpAndSettle();
 
-    final rect = tester.getRect(find.byKey(const ValueKey('docked-panel')));
-    expect(rect.left, greaterThanOrEqualTo(spec.safeRect.left));
-    expect(rect.right, lessThanOrEqualTo(spec.safeRect.right));
-    expect(
-      rect.top,
-      greaterThanOrEqualTo(spec.safeRect.top + spec.topHudHeight),
+    final grid = tester.widget<GridView>(
+      find.byKey(const ValueKey('confirm-cards-grid')),
     );
-    expect(
-      rect.bottom,
-      lessThanOrEqualTo(spec.safeRect.bottom - spec.handBarHeight),
-    );
+    final delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 4);
+    expect(tester.getSize(find.text('C1001')).width, greaterThan(0));
   });
 }

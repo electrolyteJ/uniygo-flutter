@@ -131,11 +131,8 @@ class _ZoneBrowserPanelState extends State<ZoneBrowserPanel>
               ),
             ),
             if (widget.selectedActions.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              SizedBox(
-                height: constraints.maxHeight * 0.48,
-                child: _ActionsSection(actions: widget.selectedActions),
-              ),
+              SizedBox(height: 8),
+              _ActionsSection(actions: widget.selectedActions),
             ],
           ],
         ),
@@ -179,7 +176,7 @@ class _CardsGrid extends StatelessWidget {
       return Center(
         child: Text(
           hiddenCount > 0 ? '该区域有 $hiddenCount 张里侧卡片，无法查看' : '该区域当前没有卡片',
-          style: const TextStyle(
+          style: TextStyle(
             color: DockedPanelShell.subtitle,
             fontSize: 13,
             fontWeight: FontWeight.w700,
@@ -192,7 +189,7 @@ class _CardsGrid extends StatelessWidget {
     return GridView.builder(
       key: const ValueKey('zone-browser-grid'),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: spec.isCompact ? 2 : spec.gridColumns,
+        crossAxisCount: spec.gridColumns,
         mainAxisSpacing: DockedPanelShell.gridSpacing,
         crossAxisSpacing: DockedPanelShell.gridSpacing,
         childAspectRatio: _gridAspect,
@@ -223,7 +220,7 @@ class _ActionsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(12),
@@ -232,7 +229,7 @@ class _ActionsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
+          Text(
             '可直接执行的动作',
             style: TextStyle(
               color: DockedPanelShell.accent,
@@ -242,17 +239,17 @@ class _ActionsSection extends StatelessWidget {
               letterSpacing: 0.8,
             ),
           ),
-          const SizedBox(height: 10),
-          Expanded(
-            child: ListView.separated(
-              key: const ValueKey('zone-browser-actions-scroll'),
-              itemCount: actions.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 8),
-              itemBuilder: (context, index) => CyberButton(
-                label: actions[index].label,
-                width: double.infinity,
-                onTap: actions[index].onTap,
-              ),
+          SizedBox(height: 10),
+          ListView.separated(
+            key: const ValueKey('zone-browser-actions-scroll'),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: actions.length,
+            separatorBuilder: (_, _) => SizedBox(height: 8),
+            itemBuilder: (context, index) => CyberButton(
+              label: actions[index].label,
+              width: double.infinity,
+              onTap: actions[index].onTap,
             ),
           ),
         ],
@@ -319,7 +316,7 @@ class _ZoneBrowserCardTile extends StatelessWidget {
             ),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.all(8),
+              padding: EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: isSelected ? 0.09 : 0.04),
                 borderRadius: BorderRadius.circular(10),
@@ -369,7 +366,7 @@ class _ZoneBrowserCardTile extends StatelessWidget {
                           // 可发动标记：左上角小胶囊（与选中态的整框
                           // 描边区分，非选中也可辨识）。
                           if (isActivatable)
-                            const Positioned(
+                            Positioned(
                               left: 3,
                               top: 3,
                               child: _ActivatableBadge(),
@@ -378,7 +375,7 @@ class _ZoneBrowserCardTile extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     name,
                     maxLines: 2,
@@ -412,7 +409,7 @@ class _ActivatableBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      padding: EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
         color: activatableGold,
         borderRadius: BorderRadius.circular(5),
@@ -424,7 +421,7 @@ class _ActivatableBadge extends StatelessWidget {
           ),
         ],
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.bolt, color: Colors.black, size: 10),
@@ -455,7 +452,7 @@ class _ActivatableCountChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         color: activatableGold.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(6),
@@ -464,11 +461,11 @@ class _ActivatableCountChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.bolt, color: activatableGold, size: 12),
-          const SizedBox(width: 2),
+          Icon(Icons.bolt, color: activatableGold, size: 12),
+          SizedBox(width: 2),
           Text(
             '$count 可发动',
-            style: const TextStyle(
+            style: TextStyle(
               color: activatableGold,
               fontSize: 10,
               fontWeight: FontWeight.w900,

@@ -49,14 +49,25 @@ class DeckSelector extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
+          Row(children: [
               Icon(Icons.style, size: 14, color: Colors.blueGrey.shade400),
               const SizedBox(width: 6),
               Text(
                 '卡组',
                 style: TextStyle(color: Colors.blueGrey.shade300, fontSize: 13),
               ),
+              const SizedBox(width: 6),
+              if (hasSelectedDeck)
+                Flexible(
+                  child: Text(() {
+                      final deck = decks.firstWhere((d) => d.deckName == selectedDeckName);
+                      return '主: ${deck.mainCount}  额: ${deck.extraCount}  副: ${deck.sideCount}';
+                    }(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 11),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 8),
@@ -67,71 +78,62 @@ class DeckSelector extends StatelessWidget {
               style: TextStyle(color: Colors.blueGrey.shade500, fontSize: 12),
             )
           else
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: BoxDecoration(
-                color: Colors.blueGrey.shade800,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.blueGrey.shade600),
-              ),
-              child: DropdownButton<String>(
-                // 卡组重命名/删除后所选名可能已不在列表中，
-                // value 逃逸会触发 DropdownButton 断言，逃逸时回退为未选中。
-                value: hasSelectedDeck ? selectedDeckName : null,
-                isExpanded: true,
-                underline: const SizedBox.shrink(),
-                dropdownColor: Colors.blueGrey.shade800,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-                items: decks.map((d) {
-                  return DropdownMenuItem(
-                    value: d.deckName,
-                    child: Text(
-                      d.deckName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
-                }).toList(),
-                onChanged: enabled ? onSelectDeck : null,
-              ),
-            ),
-          if (hasSelectedDeck)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                () {
-                  final deck = decks.firstWhere(
-                    (d) => d.deckName == selectedDeckName,
-                  );
-                  return '主: ${deck.mainCount}  额: ${deck.extraCount}  副: ${deck.sideCount}';
-                }(),
-                style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 11),
-              ),
-            ),
-          if (hasSelectedDeck)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton(
-                  onPressed: onEditDeck,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.amber.shade200,
-                    side: BorderSide(color: Colors.amber.shade700),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
+            Row(children: [
+              Expanded(
+                flex: 3,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blueGrey.shade800,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.blueGrey.shade600),
                   ),
-                  child: const Wrap(
-                    alignment: WrapAlignment.center,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
-                    children: [Icon(Icons.edit_note, size: 16), Text('编辑当前卡组')],
+                  child: DropdownButton<String>(
+                    // 卡组重命名/删除后所选名可能已不在列表中，
+                    // value 逃逸会触发 DropdownButton 断言，逃逸时回退为未选中。
+                    value: hasSelectedDeck ? selectedDeckName : null,
+                    underline: const SizedBox.shrink(),
+                    isExpanded: true,
+                    iconSize: 20,
+                    isDense: true,
+                    dropdownColor: Colors.blueGrey.shade800,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    items: decks.map((d) {
+                      return DropdownMenuItem(
+                        value: d.deckName,
+                        child: Text(
+                          d.deckName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: enabled ? onSelectDeck : null,
                   ),
                 ),
               ),
-            ),
+              const SizedBox(width: 10),
+              if (hasSelectedDeck)
+                Flexible(
+                  flex: 2,
+                  child: OutlinedButton(
+                    onPressed: onEditDeck,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.amber.shade200,
+                      side: BorderSide(color: Colors.amber.shade700),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                    ),
+                    child: const Text(
+                      '编辑当前卡组',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+            ]),
           if (invalid)
             Padding(
               padding: const EdgeInsets.only(top: 6),

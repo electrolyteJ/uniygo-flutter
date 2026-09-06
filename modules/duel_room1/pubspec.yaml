@@ -33,6 +33,7 @@ dependencies:
   flutter_scene: ^0.21.1
   collection: ^1.19.0
   riverpod_annotation: ^4.0.6
+  flutter_screenutil: ^5.9.3
 
 dev_dependencies:
   flutter_test:

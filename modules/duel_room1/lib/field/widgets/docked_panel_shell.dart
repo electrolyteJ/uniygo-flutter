@@ -59,9 +59,8 @@ class DockedPanelShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final spec = DuelRoomLayout.of(context);
     final viewport = spec.viewport;
-    final legacyScale = spec.isCompact ? spec.hudScale : 1.0;
-    final desiredTop = panelTop * legacyScale;
-    final desiredBottom = panelBottom * legacyScale;
+    final desiredTop = panelTop;
+    final desiredBottom = panelBottom;
     final top = desiredTop
         .clamp(
           spec.safeRect.top + spec.topHudHeight + spec.panelGap,
@@ -108,7 +107,7 @@ class DockedPanelShell extends StatelessWidget {
               key: const ValueKey('docked-panel'),
               width: double.infinity,
               height: double.infinity,
-              padding: EdgeInsets.all(spec.isCompact ? 12 : padding),
+              padding: EdgeInsets.all(padding),
               decoration: BoxDecoration(
                 color: panelColor,
                 borderRadius: BorderRadius.circular(14),

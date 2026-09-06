@@ -24,6 +24,7 @@ enum _AiType {
 
   final String label;
   final String description;
+
   const _AiType(this.label, this.description);
 }
 
@@ -35,6 +36,7 @@ enum _AiType {
 /// 经 [RoomTokens.encodeAiPassword] 生成。
 class AiRoomSheet extends StatefulWidget {
   final GameServer server;
+
   const AiRoomSheet({super.key, required this.server});
 
   @override
@@ -60,8 +62,7 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
   /// 禁限卡表选项与自由房同源：dataService 的全部 lflist 表 +
   /// 末尾追加无禁限（NF）。
   Future<List<Mercury233BanlistOption>> _loadBanlistOptions() async {
-    final tables =
-        await ServiceSingleton.instance.dataService.getAllLfTable();
+    final tables = await ServiceSingleton.instance.dataService.getAllLfTable();
     return buildMercury233BanlistOptions(tables.values);
   }
 
@@ -130,95 +131,88 @@ class _AiRoomSheetState extends State<AiRoomSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: sheetContainer(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // 表单主体用 Flexible 占据头部之后的剩余高度（不用固定
-            // 像素预算，避免头部高度变化导致 RenderFlex 溢出）；主体
-            // 自带 SingleChildScrollView，超出时自行滚动。
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  widget.server.displayName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.server.description,
-                  style: TextStyle(
-                    color: Colors.blueGrey.shade400,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                // ── AI 类型选择器 ──
-                _aiTypeSelector(),
-                const SizedBox(height: 12),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          _aiType.description,
-                          style: TextStyle(
-                            color: Colors.blueGrey.shade300,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        // ── 本地 AI 对手模式选择 ──
-                        if (_aiType == _AiType.local) ...[
-                          _agentModeSelector(),
-                          const SizedBox(height: 8),
-                        ],
-                        // ── 与 233 建房表单共用的参数控件 ──
-                        RoomParamsForm(
-                          options: _spec.toRoomOptions(),
-                          cardRuleItems: cardRuleItems233,
-                          // 本地 AI 固定单局，隐藏对战模式；233 服 AI 可切模式。
-                          showMode: _aiType != _AiType.local,
-                          // 本地 AI 没有禁限概念，隐藏该选项。
-                          showBanlist: _aiType != _AiType.local,
-                          banlistOptionsLoader: _loadBanlistOptions,
-                          banlist: _spec.banlist,
-                          onBanlistChanged: (v) =>
-                              setState(() => _spec = _spec.copyWith(banlist: v)),
-                          onChanged: (o) =>
-                              setState(() => _spec = _spec.applyRoomOptions(o)),
-                        ),
-                        // ── 233 服 AI 房间串预览 ──
-                        if (_aiType != _AiType.local) ...[
-                          const SizedBox(height: 10),
-                          _roomStringPreview(),
-                        ],
-                        const SizedBox(height: 16),
-                        connectButton(
-                          key: _aiType == _AiType.local
-                              ? const ValueKey('ai-room-start-local')
-                              : const ValueKey('ai-room-start-server233'),
-                          label: _aiType == _AiType.local
-                              ? '开始人机对战'
-                              : '连接 233 服 AI',
-                          connecting: _connecting,
-                          onTapFeedback: ServiceSingleton
-                              .instance
-                              .ygoSoundService
-                              .playButtonTap,
-                          onPressed: () => _start(),
-                        ),
-                      ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.server.displayName,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.server.description,
+              style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 13),
+            ),
+            const SizedBox(height: 14),
+            // ── AI 类型选择器 ──
+            _aiTypeSelector(),
+            const SizedBox(height: 12),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      _aiType.description,
+                      style: TextStyle(
+                        color: Colors.blueGrey.shade300,
+                        fontSize: 13,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    // ── 本地 AI 对手模式选择 ──
+                    if (_aiType == _AiType.local) ...[
+                      _agentModeSelector(),
+                      const SizedBox(height: 8),
+                    ],
+                    // ── 与 233 建房表单共用的参数控件 ──
+                    RoomParamsForm(
+                      options: _spec.toRoomOptions(),
+                      cardRuleItems: cardRuleItems233,
+                      // 本地 AI 固定单局，隐藏对战模式；233 服 AI 可切模式。
+                      showMode: _aiType != _AiType.local,
+                      // 本地 AI 没有禁限概念，隐藏该选项。
+                      showBanlist: _aiType != _AiType.local,
+                      banlistOptionsLoader: _loadBanlistOptions,
+                      banlist: _spec.banlist,
+                      onBanlistChanged: (v) =>
+                          setState(() => _spec = _spec.copyWith(banlist: v)),
+                      onChanged: (o) =>
+                          setState(() => _spec = _spec.applyRoomOptions(o)),
+                    ),
+                    // ── 233 服 AI 房间串预览 ──
+                    if (_aiType != _AiType.local) ...[
+                      const SizedBox(height: 10),
+                      _roomStringPreview(),
+                    ],
+
+                  ],
                 ),
-              ],
-            );
-          },
+              ),
+            ),
+
+            const SizedBox(height: 16),
+            connectButton(
+              key: _aiType == _AiType.local
+                  ? const ValueKey('ai-room-start-local')
+                  : const ValueKey('ai-room-start-server233'),
+              label: _aiType == _AiType.local
+                  ? '开始人机对战'
+                  : '连接 233 服 AI',
+              connecting: _connecting,
+              onTapFeedback: ServiceSingleton
+                  .instance
+                  .ygoSoundService
+                  .playButtonTap,
+              onPressed: () => _start(),
+            ),
+
+          ],
         ),
       ),
     );

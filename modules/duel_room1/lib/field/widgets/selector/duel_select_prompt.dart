@@ -174,7 +174,7 @@ class DuelSelectPrompt extends ConsumerWidget {
                   children: [
                     ConstrainedBox(
                       constraints: BoxConstraints(
-                        maxWidth: spec.isCompact ? 260 : 420,
+                        maxWidth: 420,
                       ),
                       child: Text(
                         state.inlineSelectHint,

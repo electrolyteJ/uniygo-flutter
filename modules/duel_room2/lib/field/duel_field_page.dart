@@ -449,7 +449,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
               ),
             _buildCancelButton(),
             _buildHandShuffleButton(),
-            _buildWaitingHint(),
             _buildHud(isMyTurn),
             if (zoneBrowserKey != null)
               _buildZoneBrowser(
@@ -613,35 +612,6 @@ class _DuelFieldPageState extends ConsumerState<DuelFieldPage>
         child: IconButton.filled(
           onPressed: canShuffle ? _boardN.shuffleSelfHand : null,
           icon: const Icon(Icons.shuffle),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWaitingHint() {
-    return Positioned(
-      bottom: 18,
-      right: 16,
-      child: IgnorePointer(
-        ignoring: true,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.28),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-          ),
-          child: Text(
-            _select.currentSelect?.player == _board.myController
-                ? '等待你的操作'
-                : '等待对手操作',
-            style: const TextStyle(
-              color: Color(0xFF8B9BB4),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Orbitron',
-            ),
-          ),
         ),
       ),
     );

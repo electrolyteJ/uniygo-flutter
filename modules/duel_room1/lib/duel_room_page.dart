@@ -164,48 +164,31 @@ class DuelRoomPage extends StatelessWidget {
     // UncontrolledProviderScope 把应用级容器暴露到 widget 树，内层
     // ProviderScope 自动沿树向上链接它作为 parent——服务 provider
     // 保持应用级单例，房间/对局状态仍在房间 scope 内重建。
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final mediaQuery = MediaQuery.of(context);
-        final viewport = Size(
-          constraints.maxWidth.isFinite
-              ? constraints.maxWidth
-              : mediaQuery.size.width,
-          constraints.maxHeight.isFinite
-              ? constraints.maxHeight
-              : mediaQuery.size.height,
-        );
-        final spec = DuelRoomLayoutSpec.resolve(
-          viewport,
-          safePadding: mediaQuery.viewPadding,
-        );
-        return DuelRoomLayout(
-          spec: spec,
-          child: UncontrolledProviderScope(
-            container: duelRoomServiceContainer,
-            child: ProviderScope(
-              overrides: [
-                duelRoomProvider.overrideWith(DuelRoomNotifier.new),
-                duelChatProvider.overrideWith(DuelChatNotifier.new),
-                // 四个子状态在房间 scope 内重建（不 override 会解析到 parent
-                // 容器变成跨房间单例）；协调器读取子状态并负责流订阅回收。
-                duelFieldProvider.overrideWith(DuelFieldNotifier.new),
-                selectWindowProvider.overrideWith(SelectWindowNotifier.new),
-                cardConfirmProvider.overrideWith(CardConfirmNotifier.new),
-                fieldOverlayProvider.overrideWith(FieldOverlayNotifier.new),
-                duelMessageRouterProvider.overrideWith(DuelMessageRouter.new),
-                // 连接生命周期钩子必须在房间 scope 内实例化：它只 watch 应用级
-                // duelServiceProvider，不 override 会解析到根容器，onDispose 只在
-                // 应用退出时触发，房间 scope 销毁时断连兜底失效。
-                roomConnectionLifetimeProvider.overrideWith(
-                  roomConnectionLifetime,
-                ),
-              ],
-              child: _DuelRoomView(args: args),
+    return DuelRoomLayout(
+      spec: DuelRoomLayoutSpec.fixed,
+      child: UncontrolledProviderScope(
+        container: duelRoomServiceContainer,
+        child: ProviderScope(
+          overrides: [
+            duelRoomProvider.overrideWith(DuelRoomNotifier.new),
+            duelChatProvider.overrideWith(DuelChatNotifier.new),
+            // 四个子状态在房间 scope 内重建（不 override 会解析到 parent
+            // 容器变成跨房间单例）；协调器读取子状态并负责流订阅回收。
+            duelFieldProvider.overrideWith(DuelFieldNotifier.new),
+            selectWindowProvider.overrideWith(SelectWindowNotifier.new),
+            cardConfirmProvider.overrideWith(CardConfirmNotifier.new),
+            fieldOverlayProvider.overrideWith(FieldOverlayNotifier.new),
+            duelMessageRouterProvider.overrideWith(DuelMessageRouter.new),
+            // 连接生命周期钩子必须在房间 scope 内实例化：它只 watch 应用级
+            // duelServiceProvider，不 override 会解析到根容器，onDispose 只在
+            // 应用退出时触发，房间 scope 销毁时断连兜底失效。
+            roomConnectionLifetimeProvider.overrideWith(
+              roomConnectionLifetime,
             ),
-          ),
-        );
-      },
+          ],
+          child: _DuelRoomView(args: args),
+        ),
+      ),
     );
   }
 }
@@ -428,7 +411,8 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
       fit: StackFit.expand,
       children: [
         DuelFieldPage(room.players, isInDuel: isInDuel),
-        if (stage is RoomInLobby || stage is RoomSideDecking)const WaitingRoomPage(),
+        if (stage is RoomInLobby || stage is RoomSideDecking)
+          const WaitingRoomPage(),
         // 猜拳（含结果展示）：直接挂在页面层，不经等待室弹窗。
         // 面板包容内容、屏幕居中，不为右侧聊天浮窗让位。
         if (isSelectingHand || isHandResult)

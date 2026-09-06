@@ -125,7 +125,7 @@ class DuelConfirmDialog extends ConsumerWidget {
         : (isSelf ? 'self_deck' : 'opp_deck');
     final zoneRect = slotRectOf(zoneKey);
 
-    final size = spec.isCompact ? const Size(126, 240) : const Size(150, 270);
+    final size = const Size(150, 270);
     late final Rect desiredRect;
     if (zoneRect != null) {
       desiredRect = Rect.fromLTWH(

@@ -7,8 +7,7 @@ import 'player_status_layout.dart';
 
 /// 玩家状态卡（LP 芯片，viewport 屏幕空间）：头像 + 名字 + LP，竖排。
 ///
-/// 两张竖排芯片紧贴场地左侧：对方在上、我方在下。尺寸按
-/// [DuelFieldGame.hudScale] 等比适配；横/纵位置经
+/// 两张竖排芯片紧贴场地左侧：对方在上、我方在下。横/纵位置经
 /// [DuelFieldGame.worldToWidget] 对齐棋盘左沿与各自半场中心，
 /// 随相机缩放/平移同步。手牌栏隐藏（等待室/猜拳等）时一并隐藏。
 class PlayerStatusCardComponent extends PositionComponent
@@ -20,7 +19,7 @@ class PlayerStatusCardComponent extends PositionComponent
 
   static const _baseWidth = 150.0;
   static const _baseHeight = 104.0;
-  /// 芯片右缘与棋盘左沿的间隙（随 hudScale 缩放）。
+  /// 芯片右缘与棋盘左沿的间隙。
   static const _boardGap = 8.0;
 
   static const _accent = Color(0xFF00F0FF);
@@ -63,13 +62,12 @@ class PlayerStatusCardComponent extends PositionComponent
   static double get _boardLeftWorldX =>
       -(DuelFieldLayout.lastColX + DuelFieldLayout.slotWidth / 2); // -286
 
-  /// 按 hudScale 等比缩放，并贴到棋盘左沿（屏幕坐标），对方上我方下。
+  /// 贴到棋盘左沿（屏幕坐标），对方上我方下。
   void _syncLayout() {
-    final hs = game.hudScale;
-    scale = Vector2.all(hs);
-    final halfW = _baseWidth * hs / 2;
+    scale = Vector2.all(1.0);
+    final halfW = _baseWidth / 2;
     final boardLeftScreen = game.worldToWidget(Vector2(_boardLeftWorldX, 0)).dx;
-    final x = boardLeftScreen - _boardGap * hs - halfW;
+    final x = boardLeftScreen - _boardGap - halfW;
     final y = game
         .worldToWidget(
           Vector2(

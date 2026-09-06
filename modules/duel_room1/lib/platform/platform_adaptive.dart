@@ -69,28 +69,7 @@ class PlatformAdaptive {
 
   /// 当前运行平台名称（日志/调试用）。
   String get name => platform.name;
-
-  // ---- 响应式断点（逻辑像素） ----
-
-  /// 视口宽度 < 600 视为窄屏（手机横屏 / 小浏览器窗口）。
-  static bool isNarrowWidth(double width) => width < 600;
-
-  /// 视口宽度 >= 1200 视为宽屏（桌面大屏 / 浏览器全屏）。
-  static bool isWideWidth(double width) => width >= 1200;
-
-  /// 视口高度 < 400 视为矮视口（紧凑模式阈值，与 [ui_scale] 的 760 基准互补）。
-  static bool isShortHeight(double height) => height < 400;
-
-  /// 在 [context] 下根据视口宽度返回当前断点。
-  static Breakpoint breakpointOf(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    if (isNarrowWidth(width)) return Breakpoint.compact;
-    if (isWideWidth(width)) return Breakpoint.expanded;
-    return Breakpoint.medium;
-  }
 }
-
-enum Breakpoint { compact, medium, expanded }
 
 /// 平台相关的鼠标光标包装。
 ///

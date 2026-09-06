@@ -70,8 +70,8 @@ void main() {
   });
 
   testWidgets('20 张卡按 layout spec 列数铺满网格且卡图保持 59:86', (tester) async {
-    const size = Size(800, 450);
-    final spec = DuelRoomLayoutSpec.resolve(size);
+    const size = Size(1280, 800);
+    final spec = DuelRoomLayoutSpec.fixed;
     final select = SelectState(
       type: SelectType.card,
       player: 0,

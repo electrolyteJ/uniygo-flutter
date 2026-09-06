@@ -25,6 +25,7 @@ class PositionSelector extends StatelessWidget {
     return ResponsivePanel(
       maxWidth: 520,
       maxHeight: 250,
+      wrapWidth: false,
       header: const Text(
         '选择表示形式',
         textAlign: TextAlign.center,

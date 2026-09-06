@@ -41,16 +41,7 @@ class PhaseActionMenu extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'PHASE ACTION',
-              style: TextStyle(
-                color: Color(0xFF00F0FF),
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                fontFamily: 'Orbitron',
-                letterSpacing: 0.8,
-              ),
-            ),
+            const Text('PHASE ACTION', style: TextStyle(color: Color(0xFF00F0FF), fontSize: 11, fontWeight: FontWeight.w900, fontFamily: 'Orbitron', letterSpacing: 0.8,),),
             const SizedBox(height: 10),
             Flexible(
               child: SingleChildScrollView(
@@ -94,8 +85,7 @@ class _PhaseActionButton extends StatelessWidget {
       canRequestFocus: true,
       borderRadius: BorderRadius.circular(12),
       child: Ink(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           color: Colors.white.withValues(alpha: 0.05),

@@ -14,6 +14,13 @@ const responsivePanelDecoration = BoxDecoration(
 );
 
 /// Safe-area-aware selector shell with a fixed header/actions and bounded body.
+///
+/// 尺寸策略：宽度/高度上限固定（[maxWidth] / [maxHeight]），下限包裹内容。
+/// 高度侧天然包裹：Column 用 [MainAxisSize.min]，body 经 [Flexible] 松约束，
+/// 滚动体（GridView/ListView）须开启 shrinkWrap 才能随内容收缩而非撑满。
+/// 宽度侧由 [wrapWidth] 决定：为 true 时用 [IntrinsicWidth] 让面板收缩到
+/// 内容固有宽度（上限仍为 [maxWidth]）；内容为网格/列表等无固有宽度的
+/// 滚动体时应设为 false，让其撑满 [maxWidth] 以正确分行/分列。
 class ResponsivePanel extends StatelessWidget {
   const ResponsivePanel({
     super.key,
@@ -24,6 +31,7 @@ class ResponsivePanel extends StatelessWidget {
     this.actions,
     this.maxHeight = 620,
     this.decoration = responsivePanelDecoration,
+    this.wrapWidth = false,
   });
 
   final Key? panelKey;
@@ -33,6 +41,9 @@ class ResponsivePanel extends StatelessWidget {
   final Widget body;
   final Widget? actions;
   final Decoration decoration;
+
+  /// 是否按内容固有宽度收缩（最小包裹内容、最大 [maxWidth]）。
+  final bool wrapWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -57,37 +68,43 @@ class ResponsivePanel extends StatelessWidget {
           );
           final width = math.min(maxWidth, availableWidth);
           final height = math.min(maxHeight, availableHeight);
-          final panelPadding = spec.isCompact ? 12.0 : 20.0;
+          final panelPadding = 20.0;
           return Padding(
             key: const ValueKey('responsive-panel-safe-padding'),
             padding: EdgeInsets.all(spec.pagePadding),
             child: Center(
-              child: SizedBox(
-                width: width,
-                height: height,
-                child: DecoratedBox(
-                  key: panelKey ?? const ValueKey('responsive-panel-chrome'),
-                  decoration: decoration,
-                  child: Padding(
-                    padding: EdgeInsets.all(panelPadding),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        header,
-                        SizedBox(height: spec.isCompact ? 4 : 12),
-                        Expanded(child: body),
-                        if (actions != null) ...[
-                          const SizedBox(height: 12),
-                          actions!,
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: width, maxHeight: height),
+                child: wrapWidth
+                    ? IntrinsicWidth(child: _buildChrome(panelPadding))
+                    : _buildChrome(panelPadding),
               ),
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildChrome(double panelPadding) {
+    return DecoratedBox(
+      key: panelKey ?? const ValueKey('responsive-panel-chrome'),
+      decoration: decoration,
+      child: Padding(
+        padding: EdgeInsets.all(panelPadding),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            header,
+            const SizedBox(height: 12),
+            Flexible(child: body),
+            if (actions != null) ...[
+              const SizedBox(height: 12),
+              actions!,
+            ],
+          ],
+        ),
       ),
     );
   }

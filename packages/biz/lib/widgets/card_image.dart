@@ -78,6 +78,16 @@ class _CardImageState extends State<CardImage> {
 
   @override
   Widget build(BuildContext context) {
+    // 无有效卡密时不发请求，渲染静态占位
+    if (widget.code <= 0) {
+      return const Center(
+        child: Icon(
+          Icons.image_not_supported_outlined,
+          color: Color(0xFF8B9BB4),
+          size: 40,
+        ),
+      );
+    }
     final w = widget.width;
     final h = widget.height;
     // 每次 build 都从 LRU 重新取：淘汰会 dispose 旧 ui.Image，而 Widget

@@ -1,7 +1,6 @@
 import 'package:biz/duel/models/duel_menu.dart';
 import 'package:duel_room1/field/widgets/inspector/card_detail_drawer.dart';
 import 'package:duel_room1/field/widgets/inspector/zone_browser_panel.dart';
-import 'package:duel_room1/layout/duel_room_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -143,100 +142,31 @@ void main() {
     expect(pos.left, isNull);
   });
 
-  testWidgets('手机横屏视口下面板收缩上下留白', (tester) async {
-    tester.view.physicalSize = const Size(800, 390);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    final s = buildSubject();
-    await tester.pumpWidget(s.widget);
-    await tester.pumpAndSettle();
-
-    final pos = tester.widget<Positioned>(
-      find
-          .ancestor(of: find.text('己方墓地'), matching: find.byType(Positioned))
-          .first,
-    );
-    // compact 使用 8px 面板间距与 safeWidth 35% 的 spec 宽度。
-    expect(pos.top, closeTo(81.6, 0.001));
-    expect(pos.bottom, closeTo(75.6, 0.001));
-    expect(pos.right, 8);
-    expect(pos.width, 280);
-  });
-
-  testWidgets('带非对称安全区时面板完全位于 safeRect 内', (tester) async {
-    const size = Size(844, 390);
-    const safePadding = EdgeInsets.fromLTRB(44, 0, 21, 16);
+  testWidgets('区域网格固定使用 4 列', (tester) async {
     tester.view
-      ..physicalSize = size
+      ..physicalSize = const Size(1280, 800)
       ..devicePixelRatio = 1;
     addTearDown(() {
       tester.view
         ..resetPhysicalSize()
         ..resetDevicePixelRatio();
     });
-
-    final s = buildSubject();
-    await tester.pumpWidget(
-      MediaQuery(
-        data: const MediaQueryData(
-          size: size,
-          viewPadding: safePadding,
-          padding: safePadding,
-        ),
-        child: DuelRoomLayout(
-          spec: DuelRoomLayoutSpec.resolve(size, safePadding: safePadding),
-          child: s.widget,
-        ),
+    final s = buildSubject(
+      entries: List.generate(
+        6,
+        (index) => ZoneBrowserCardEntry(sequence: index, code: 1000 + index),
       ),
     );
+    await tester.pumpWidget(s.widget);
     await tester.pumpAndSettle();
 
-    final rect = tester.getRect(find.byKey(const ValueKey('docked-panel')));
-    final safeRect = DuelRoomLayoutSpec.resolve(
-      size,
-      safePadding: safePadding,
-    ).safeRect;
-    expect(safeRect.contains(rect.topLeft), isTrue);
-    expect(
-      safeRect.contains(rect.bottomRight - const Offset(0.001, 0.001)),
-      isTrue,
+    final grid = tester.widget<GridView>(
+      find.byKey(const ValueKey('zone-browser-grid')),
     );
+    final delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 4);
   });
-
-  for (final entry in const [
-    (Size(640, 360), 2),
-    (Size(800, 450), 2),
-    (Size(1280, 720), 4),
-    (Size(1920, 1080), 4),
-  ]) {
-    testWidgets('${entry.$1} 区域网格使用 ${entry.$2} 列', (tester) async {
-      tester.view
-        ..physicalSize = entry.$1
-        ..devicePixelRatio = 1;
-      addTearDown(() {
-        tester.view
-          ..resetPhysicalSize()
-          ..resetDevicePixelRatio();
-      });
-      final s = buildSubject(
-        entries: List.generate(
-          6,
-          (index) => ZoneBrowserCardEntry(sequence: index, code: 1000 + index),
-        ),
-      );
-      await tester.pumpWidget(s.widget);
-      await tester.pumpAndSettle();
-
-      final grid = tester.widget<GridView>(
-        find.byKey(const ValueKey('zone-browser-grid')),
-      );
-      final delegate =
-          grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-      expect(delegate.crossAxisCount, entry.$2);
-    });
-  }
 
   testWidgets('详情抽屉关闭命中区为 44 且内容可滚动', (tester) async {
     await tester.pumpWidget(
@@ -256,69 +186,6 @@ void main() {
       const Size.square(44),
     );
     expect(find.byType(SingleChildScrollView), findsOneWidget);
-  });
-
-  test('详情抽屉在 compact 安全区内且避开顶部 HUD 与底部手牌栏', () {
-    final spec = DuelRoomLayoutSpec.resolve(
-      const Size(844, 390),
-      safePadding: const EdgeInsets.fromLTRB(44, 0, 21, 16),
-    );
-    final rect = cardDetailDrawerRect(spec);
-
-    expect(spec.safeRect.contains(rect.topLeft), isTrue);
-    expect(rect.right, lessThanOrEqualTo(spec.safeRect.right));
-    expect(
-      rect.top,
-      greaterThanOrEqualTo(spec.safeRect.top + spec.topHudHeight),
-    );
-    expect(
-      rect.bottom,
-      lessThanOrEqualTo(spec.safeRect.bottom - spec.handBarHeight - 8),
-    );
-    expect(rect.width, greaterThanOrEqualTo(0));
-    expect(rect.height, greaterThanOrEqualTo(0));
-    expect(rect.width, spec.dockedPanelWidth);
-  });
-
-  testWidgets('compact 详情卡图不超过面板内容且内容可滚动', (tester) async {
-    const size = Size(640, 360);
-    final spec = DuelRoomLayoutSpec.resolve(size);
-    tester.view
-      ..physicalSize = size
-      ..devicePixelRatio = 1;
-    addTearDown(() {
-      tester.view
-        ..resetPhysicalSize()
-        ..resetDevicePixelRatio();
-    });
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Stack(
-            children: [
-              Positioned.fromRect(
-                rect: cardDetailDrawerRect(spec),
-                child: DuelRoomLayout(
-                  spec: spec,
-                  child: const CardDetailDrawer(cardCode: 0, onClose: _noop),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    final panelRect = tester.getRect(find.byType(CardDetailDrawer));
-    final imageRect = tester.getRect(
-      find.byKey(const ValueKey('card-detail-image')),
-    );
-    expect(panelRect.width, spec.dockedPanelWidth);
-    expect(imageRect.left, greaterThan(panelRect.left));
-    expect(imageRect.right, lessThan(panelRect.right));
-    expect(find.byType(SingleChildScrollView), findsOneWidget);
-    expect(tester.takeException(), isNull);
   });
 
   testWidgets('可发动的卡显示角标，未命中集合的不显示', (tester) async {
@@ -346,9 +213,9 @@ void main() {
     expect(tapped, 1);
   });
 
-  testWidgets('640x360 下 20 个动作可滚动到末项并点击', (tester) async {
+  testWidgets('动作区按内容高度渲染，多动作无需滚动即可点击末项', (tester) async {
     tester.view
-      ..physicalSize = const Size(640, 360)
+      ..physicalSize = const Size(1280, 800)
       ..devicePixelRatio = 1;
     addTearDown(() {
       tester.view
@@ -358,31 +225,19 @@ void main() {
     var tapped = 0;
     final s = buildSubject(
       actions: List.generate(
-        20,
+        5,
         (index) => ActionMenuEntry(
           label: '动作$index',
-          onTap: index == 19 ? () => tapped++ : () {},
+          onTap: index == 4 ? () => tapped++ : () {},
         ),
       ),
     );
     await tester.pumpWidget(s.widget);
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
 
-    await tester.scrollUntilVisible(
-      find.text('动作19'),
-      100,
-      scrollable: find.descendant(
-        of: find.byKey(const ValueKey('zone-browser-actions-scroll')),
-        matching: find.byType(Scrollable),
-      ),
-    );
-    await Scrollable.ensureVisible(
-      tester.element(find.text('动作19')),
-      alignment: 0.5,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('动作19'));
+    // 动作区高度为内容高度：末项直接可见，无需滚动即可点击。
+    await tester.tap(find.text('动作4'));
     expect(tapped, 1);
   });
 }

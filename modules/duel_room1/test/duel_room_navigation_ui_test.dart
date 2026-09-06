@@ -67,10 +67,7 @@ void main() {
     tester,
   ) async {
     var presses = 0;
-    final spec = DuelRoomLayoutSpec.resolve(
-      const Size(800, 450),
-      safePadding: const EdgeInsets.fromLTRB(24, 12, 0, 0),
-    );
+    final spec = DuelRoomLayoutSpec.fixed;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -84,7 +81,7 @@ void main() {
     );
 
     final button = find.byKey(const ValueKey('duel-room-back-button'));
-    expect(tester.getTopLeft(button), const Offset(32, 20));
+    expect(tester.getTopLeft(button), const Offset(18, 18));
     expect(tester.getSize(button), const Size.square(44));
     expect(find.byTooltip('退出房间'), findsOneWidget);
 

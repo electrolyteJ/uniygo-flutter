@@ -24,6 +24,7 @@ class YesNoDialog extends StatelessWidget {
     return ResponsivePanel(
       maxWidth: 320,
       maxHeight: 480,
+      wrapWidth: true,
       header: const Text(
         '确认',
         textAlign: TextAlign.center,
@@ -37,22 +38,19 @@ class YesNoDialog extends StatelessWidget {
         child: Column(
           children: [
             if (code != null && code > 0) ...[
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 172),
-                child: AspectRatio(
-                  aspectRatio: 59 / 86,
-                  child: InkWell(
-                    onTap: onInspectCard == null
-                        ? null
-                        : () => onInspectCard!(code),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) => CardImage(
-                        code: code,
-                        width: constraints.maxWidth,
-                        height: constraints.maxHeight,
-                        showCodeFallback: false,
-                      ),
-                    ),
+              Center(
+                child: InkWell(
+                  onTap: onInspectCard == null
+                      ? null
+                      : () => onInspectCard!(code),
+                  borderRadius: BorderRadius.circular(4),
+                  // 卡图预览固定 118×172（保持 59:86 卡图比例），避免
+                  // LayoutBuilder 让 IntrinsicWidth 无法测量固有宽度。
+                  child: CardImage(
+                    code: code,
+                    width: 118,
+                    height: 172,
+                    showCodeFallback: false,
                   ),
                 ),
               ),

@@ -90,6 +90,7 @@ class _DuelResultPageState extends ConsumerState<DuelResultPage> {
         ResponsivePanel(
           panelKey: const ValueKey('duel-result-panel'),
           maxWidth: 520,
+          wrapWidth: true,
           decoration: BoxDecoration(
             color: const Color(0xEE10141C),
             borderRadius: BorderRadius.circular(24),
@@ -135,23 +136,22 @@ class _DuelResultPageState extends ConsumerState<DuelResultPage> {
               ],
             ),
           ),
-          actions: SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              key: const ValueKey('duel-result-action'),
-              onPressed: onAction,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(44, 44),
-                backgroundColor: accent,
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
+          // 宽度由 ResponsivePanel 的 stretch 撑满；去掉 width: double.infinity
+          // 以免其无穷固有宽度让 IntrinsicWidth 无法收缩面板。
+          actions: FilledButton(
+            key: const ValueKey('duel-result-action'),
+            onPressed: onAction,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(44, 44),
+              backgroundColor: accent,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              textStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
               ),
-              child: Text(actionLabel),
             ),
+            child: Text(actionLabel),
           ),
         ),
       ],

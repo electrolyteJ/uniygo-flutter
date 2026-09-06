@@ -808,6 +808,14 @@ class SelectWindowNotifier extends _$SelectWindowNotifier {
   }
 
   void applySelectChain(MsgSelectChain msg) {
+    // AI 对手（player != 本机）的连锁选择窗口由引擎自动应答
+    // （ML agent → 规则 AI 兜底），本机不回包也不弹窗；否则会在对方
+    // 窗口与本机窗口之间一闪而过地弹出连锁选择条（且本机回包会被
+    // 引擎 onResponse 因 _pendingSelectPlayer != 0 而忽略）。
+    if (msg.player != _board.myController) {
+      console.log('applySelectChain: 对手正在决定是否连锁（本机忽略）');
+      return;
+    }
     // 官方客户端在无可连锁卡、非强制且非时点提示时直接回传 -1 放弃连锁，
     // 避免弹出空选择器阻塞对局。
     final isEmptyWindow =

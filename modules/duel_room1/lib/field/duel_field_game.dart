@@ -17,7 +17,6 @@ import 'duel_field_world.dart';
 import 'package:duel_room1/field/models/flame_field_snapshot.dart';
 import 'package:duel_room1/field/components/phase_rail/phase_rail_layout.dart';
 import 'package:duel_room1/field/util/camera_viewport_layout.dart';
-import 'package:duel_room1/field/util/ui_scale.dart';
 import 'package:duel_room1/layout/duel_room_layout.dart';
 
 /// 决斗场地 FlameGame：只持有 [DuelFieldWorld] 与观察它的
@@ -50,23 +49,17 @@ class DuelFieldGame extends FlameGame<DuelFieldWorld>
   /// 视口四周需为 HUD 预留的不可侵占空间。水平预留已收窄：左右状态卡
   /// 已下沉为世界内组件（计入棋盘内容宽），不再占用 HUD 预留。
   static const _horizontalReserved = 24.0;
-  static const _topReserved = 230.0; // 顶部 HUD + 对手手牌预留
-  static const _bottomReserved = 116.0; // 己方手牌栏 height:96 + 间隙
+  // 手牌已改为贴边出血（bottomPadding=-20），可见部分距屏边约 80px
+  //（90 卡高 - 20 出血 + 10 凸弧）；预留取 96 让棋盘紧靠手牌，
+  // 上下两侧各留约 16px 间隙，且上下对称。
+  static const _topReserved = 96.0;
+  static const _bottomReserved = 96.0;
 
-  static const _compactOpponentGap = 10.0;
-  static const _compactBottomGap = 8.0;
+  // ── 用户缩放平移（安全区/HUD 缩放适配已由全局 FittedBox 承接） ──
 
-  // ── 移动端适配：安全区 / HUD 缩放 / 用户缩放平移 ──
-
-  /// 设备安全区内边距（刘海/Home 指示条），由页面从 MediaQuery 推入。
-  /// 计入相机 HUD 预留，避免棋盘/手牌栏被圆角或指示条遮挡。
   DuelRoomLayoutSpec? _layoutSpec;
-  EdgeInsets? _pendingViewPadding;
 
-  EdgeInsets get viewPadding =>
-      _layoutSpec?.safePadding ?? _pendingViewPadding ?? EdgeInsets.zero;
-
-  set viewPadding(EdgeInsets value) => setViewPadding(value);
+  EdgeInsets get viewPadding => _layoutSpec?.safePadding ?? EdgeInsets.zero;
 
   Rect get safeRect => CameraViewportLayout.resolve(
     Size(size.x, size.y),
@@ -75,7 +68,6 @@ class DuelFieldGame extends FlameGame<DuelFieldWorld>
 
   void setLayoutSpec(DuelRoomLayoutSpec spec) {
     if (_layoutSpec == spec) return;
-    _pendingViewPadding = null;
     _layoutSpec = spec;
     if (!hasLayout) return;
     _applyImmersiveCamera();
@@ -83,26 +75,6 @@ class DuelFieldGame extends FlameGame<DuelFieldWorld>
     oppHandBar?.relayout();
     _emitAnchors();
   }
-
-  /// 页面推入安全区内边距（变化才重算相机并上报锚点）。
-  void setViewPadding(EdgeInsets padding) {
-    if (!hasLayout) {
-      _pendingViewPadding = padding;
-      return;
-    }
-    setLayoutSpec(
-      DuelRoomLayoutSpec.resolve(Size(size.x, size.y), safePadding: padding),
-    );
-  }
-
-  /// 屏幕空间 HUD 的缩放系数（手机横屏矮视口收缩手牌栏/顶栏，
-  /// 把高度让给棋盘）。桌面视口恒为 1.0。
-  double get hudScale => _layoutSpec?.hudScale ?? hudScaleForHeight(size.y);
-
-  /// 紧凑 HUD 模式：世界内玩家状态卡/中央计时器让位给 widget 层
-  /// 紧凑件，阶段轨道反缩放为固定屏幕尺寸。
-  bool get compactHud => _compactHud;
-  bool _compactHud = false;
 
   /// 用户缩放倍率（叠在自适应 fit zoom 之上）：双指捏合/滚轮调整。
   double _userZoom = 1.0;
@@ -159,9 +131,6 @@ class DuelFieldGame extends FlameGame<DuelFieldWorld>
   HandBarComponent? selfHandBar;
   HandBarComponent? oppHandBar;
 
-  /// 对方手牌栏顶部 y（页面按 HUD 高度推入）。
-  double _oppHandTopY = 0;
-
   /// 播放中的抽卡/发牌飞行动画（新对局时统一清除）。
   final Set<CardFlightComponent> _flights = {};
 
@@ -200,12 +169,8 @@ class DuelFieldGame extends FlameGame<DuelFieldWorld>
     await super.onLoad();
     // 手牌栏挂 viewport（屏幕空间 HUD 层）：不随场地相机缩放。
     // 双方在首帧即常驻挂载，可见性由 setHudVisible 控制。
-    oppHandBar = HandBarComponent(isSelfSide: false)..hudTopY = _oppHandTopY;
-    selfHandBar = HandBarComponent(
-      isSelfSide: true,
-      onCardTap: onHandCardTap,
-      onCardSecondaryTap: onHandCardSecondaryTap,
-    );
+    oppHandBar = HandBarComponent(isSelfSide: false);
+    selfHandBar = HandBarComponent(isSelfSide: true, onCardTap: onHandCardTap, onCardSecondaryTap: onHandCardSecondaryTap,);
     camera.viewport.addAll([oppHandBar!, selfHandBar!]);
     // LP 变动 toast：与手牌栏同层（viewport 屏幕空间），
     // 锚定受影响玩家手牌栏附近。
@@ -270,26 +235,12 @@ class DuelFieldGame extends FlameGame<DuelFieldWorld>
     _emitAnchors();
   }
 
-  /// 页面推入对方手牌栏顶部 y（含状态栏/顶部 HUD 高度的视口坐标）。
-  void setOppHandTopY(double y) {
-    if (_oppHandTopY == y) return;
-    _oppHandTopY = y;
-    // setHudTopY 内部触发重排：页面在 build 路径推值，手牌栏可能已
-    // 布局完毕，只改字段会让对方栏停在旧位置直到下一次快照/缩放。
-    oppHandBar?.setHudTopY(y);
-  }
-
   /// 选中己方手牌的屏幕矩形（Flutter 操作菜单的锚定，拉式查询）。
   Rect? selectedHandCardRect() => selfHandBar?.selectedCardRect();
 
   /// 阶段轨道末端「阶段菜单按钮」的屏幕矩形（阶段菜单的锚定，
   /// 拉式查询），与卡槽/手牌矩形同一几何口径（世界坐标 × zoom）。
   Rect phaseActionButtonRect() {
-    // 紧凑模式：轨道反缩放为固定屏幕尺寸，直接取组件屏幕矩形。
-    final rail = world.phaseRailComponent;
-    if (_compactHud && rail != null && rail.isLoaded) {
-      return rail.actionButtonCompactScreenRect();
-    }
     final zoom = camera.viewfinder.zoom;
     final center = worldToWidget(
       Vector2(
@@ -404,14 +355,6 @@ class DuelFieldGame extends FlameGame<DuelFieldWorld>
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
-    final pendingPadding = _pendingViewPadding;
-    if (pendingPadding != null) {
-      _layoutSpec = DuelRoomLayoutSpec.resolve(
-        Size(size.x, size.y),
-        safePadding: pendingPadding,
-      );
-      _pendingViewPadding = null;
-    }
     // 自适应 zoom：视口尺寸变化时重算，让卡槽阵列始终铺满可见区。
     _applyImmersiveCamera();
     if (isLoaded) {
@@ -430,23 +373,10 @@ class DuelFieldGame extends FlameGame<DuelFieldWorld>
     final vh = size.y;
     if (vw <= 0 || vh <= 0) return;
 
-    // 紧凑 HUD 模式切换（视口高度越过基准线时）：阶段轨道反缩放、
-    // 世界内状态卡/计时器让位给 widget 层紧凑件。
-    final compact = _layoutSpec?.isCompact ?? isCompactHudHeight(vh);
-    if (compact != _compactHud) {
-      _compactHud = compact;
-      if (world.isLoaded) world.setCompactHudMode(compact);
-    }
-
     // 始终按 HUD 可见预留上下栏空间（hudVisible: true），让场地尺寸
     // 进房（仅作背景、手牌栏隐藏）与进对局保持一致，避免进入对局瞬间
     // 场地缩放跳变。手牌栏组件本身仍由 setHandBarsVisible 控制显示/隐藏。
-    final verticalHudInsets = cameraHudInsetsFor(
-      spec:
-          _layoutSpec ??
-          DuelRoomLayoutSpec.resolve(Size(vw, vh), safePadding: viewPadding),
-      hudVisible: true,
-    );
+    final verticalHudInsets = cameraHudInsetsFor(hudVisible: true);
     final layout = CameraViewportLayout.resolve(
       Size(vw, vh),
       safePadding: viewPadding,
@@ -681,24 +611,17 @@ class DuelFieldGame extends FlameGame<DuelFieldWorld>
     // 阶段轨道位置固定（PhaseRailLayout.centerX/centerY，棋盘中线右侧），
     // 不依赖卡槽锚点，直接由世界坐标换算。含末端按钮后几何中心较
     // 胶囊区中心下移 actionButtonShift（与组件 _syncPosition 同一偏移）。
-    // 紧凑模式：轨道反缩放为固定屏幕尺寸，直接取组件屏幕矩形。
-    final rail = _compactHud ? world.phaseRailComponent : null;
-    final Rect phaseLampRect;
-    if (rail != null && rail.isLoaded) {
-      phaseLampRect = rail.railCompactScreenRect();
-    } else {
-      final railCenter = worldToWidget(
-        Vector2(
-          PhaseRailLayout.centerX,
-          PhaseRailLayout.centerY + PhaseRailLayout.actionButtonShift,
-        ),
-      );
-      phaseLampRect = Rect.fromCenter(
-        center: railCenter,
-        width: _phaseRailSize.width * zoom,
-        height: _phaseRailSize.height * zoom,
-      );
-    }
+    final railCenter = worldToWidget(
+      Vector2(
+        PhaseRailLayout.centerX,
+        PhaseRailLayout.centerY + PhaseRailLayout.actionButtonShift,
+      ),
+    );
+    final phaseLampRect = Rect.fromCenter(
+      center: railCenter,
+      width: _phaseRailSize.width * zoom,
+      height: _phaseRailSize.height * zoom,
+    );
 
     return PlaymatAnchorData(
       slotRects: slotRects,
@@ -707,24 +630,11 @@ class DuelFieldGame extends FlameGame<DuelFieldWorld>
   }
 }
 
-EdgeInsets cameraHudInsetsFor({
-  required DuelRoomLayoutSpec spec,
-  required bool hudVisible,
-}) {
+EdgeInsets cameraHudInsetsFor({required bool hudVisible}) {
   if (!hudVisible) return EdgeInsets.zero;
-  final hs = spec.hudScale;
-  if (!spec.isCompact) {
-    return EdgeInsets.only(
-      top: DuelFieldGame._topReserved * hs,
-      bottom: DuelFieldGame._bottomReserved * hs,
-    );
-  }
   return EdgeInsets.only(
-    top:
-        math.max(spec.topHudHeight, 34.0) +
-        DuelFieldGame._compactOpponentGap * hs +
-        HandBarComponent.barHeight * hs,
-    bottom: HandBarComponent.barHeight * hs + DuelFieldGame._compactBottomGap,
+    top: DuelFieldGame._topReserved,
+    bottom: DuelFieldGame._bottomReserved,
   );
 }
 

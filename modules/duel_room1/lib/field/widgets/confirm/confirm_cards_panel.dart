@@ -65,7 +65,7 @@ class ConfirmCardsPanel extends StatelessWidget {
           : GridView.builder(
               key: const ValueKey('confirm-cards-grid'),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: spec.isCompact ? 2 : spec.gridColumns,
+                crossAxisCount: spec.gridColumns,
                 mainAxisSpacing: DockedPanelShell.gridSpacing,
                 crossAxisSpacing: DockedPanelShell.gridSpacing,
                 childAspectRatio: DockedPanelShell.gridAspect,

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:biz/duel/models/select_state.dart';
 import 'package:biz/widgets/card_image.dart';
-import 'package:duel_room1/layout/duel_room_layout.dart';
 import 'package:duel_room1/layout/responsive_panel.dart';
 
 /// 指示物移除选择弹窗（MSG_SELECT_COUNTER）。
@@ -50,6 +49,7 @@ class _CounterSelectDialogState extends State<CounterSelectDialog> {
     return ResponsivePanel(
       maxWidth: 520,
       maxHeight: 560,
+      wrapWidth: false,
       header: Text(
         '选择要移除的指示物（合计 $_sum/$required）',
         textAlign: TextAlign.center,
@@ -60,6 +60,7 @@ class _CounterSelectDialogState extends State<CounterSelectDialog> {
         ),
       ),
       body: ListView.separated(
+        shrinkWrap: true,
         itemCount: select.options.length,
         separatorBuilder: (context, index) => const SizedBox(height: 8),
         itemBuilder: (context, index) => _buildRow(index, select),
@@ -88,7 +89,6 @@ class _CounterSelectDialogState extends State<CounterSelectDialog> {
     final option = select.options[index];
     final max = option.level ?? 0;
     final count = _counts[index];
-    final compact = DuelRoomLayout.of(context).isCompact;
     return Row(
       children: [
         Semantics(
@@ -101,12 +101,12 @@ class _CounterSelectDialogState extends State<CounterSelectDialog> {
             onTap: () => widget.onInspectCard(option.code),
             child: SizedBox(
               width: 44,
-              height: compact ? 52 : 64,
+              height: 64,
               child: Center(
                 child: CardImage(
                   code: option.code,
-                  width: compact ? 36 : 44,
-                  height: compact ? 52 : 64,
+                  width: 44,
+                  height: 64,
                 ),
               ),
             ),

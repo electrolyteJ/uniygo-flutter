@@ -110,15 +110,6 @@ class PhaseRailComponent extends PositionComponent
   bool _surrenderEnabled = false;
   double _time = 0;
 
-  /// 紧凑 HUD 模式（小屏）：组件仍挂在 world 下，但每帧按相机反推
-  /// position/scale，使其在屏幕上保持固定尺寸（[PhaseRailLayout
-  /// .compactScreenScale]）并停靠右缘——避免随场地 zoom 缩到不可读。
-  /// 由 [DuelFlameGame] 按视口高度切换。
-  bool compactMode = false;
-
-  /// 紧凑模式下组件中心的屏幕锚点坐标（锚点矩形换算用）。
-  final Vector2 _screenAnchor = Vector2.zero();
-
   /// 上次锚点位置标量：未变则不重新赋值。
   double _lastAnchorX = double.nan;
   double _lastAnchorY = double.nan;
@@ -156,10 +147,6 @@ class PhaseRailComponent extends PositionComponent
   }
 
   void _syncPosition() {
-    if (compactMode) {
-      _syncCompactPosition();
-      return;
-    }
     // 组件含末端按钮，几何中心相对胶囊区中心（centerY）下移
     // actionButtonShift，胶囊区因此仍居中于棋盘中线。
     final anchor = Vector2(
@@ -170,86 +157,8 @@ class PhaseRailComponent extends PositionComponent
     _lastAnchorX = anchor.x;
     _lastAnchorY = anchor.y;
     position = anchor;
-    // 退出紧凑模式时还原缩放（紧凑路径按 rs/zoom 反缩放）。
     scale = Vector2.all(1.0);
   }
-
-  /// 紧凑模式定位：反解相机变换，让组件中心落在屏幕锚点
-  /// [_screenAnchor]，组件缩放抵消相机 zoom（屏幕尺寸恒定）。
-  ///
-  /// worldToScreen(W) = (W - viewfinder.position) * zoom + size/2 的
-  /// 逆变换；横向贴最右卡槽视觉外沿，纵向跟随棋盘中线，并夹紧在
-  /// 安全区内。
-  void _syncCompactPosition() {
-    final game = world.game;
-    final vf = game.camera.viewfinder;
-    final zoom = vf.zoom;
-    if (zoom <= 0) return;
-    const rs = PhaseRailLayout.compactScreenScale;
-    final halfW = size.x * rs / 2;
-    final halfH = size.y * rs / 2;
-    final pad = game.viewPadding;
-    final boardRightScreen = game
-        .worldToWidget(
-          Vector2(DuelFieldLayout.lastColX + DuelFieldLayout.slotWidth / 2, 0),
-        )
-        .dx;
-    final desiredX = boardRightScreen + 8 + halfW;
-    final actionHitRightExtent =
-        PhaseRailLayout.compactHitExtent -
-        PhaseRailLayout.actionButtonWidth * rs / 2;
-    final rightExtent = max(halfW, actionHitRightExtent);
-    final minX = game.safeRect.left + halfW;
-    final maxX = game.safeRect.right - rightExtent;
-    final targetX = minX <= maxX
-        ? desiredX.clamp(minX, maxX).toDouble()
-        : game.safeRect.center.dx;
-    final boardCenterScreenY = game
-        .worldToWidget(
-          Vector2(
-            0,
-            PhaseRailLayout.centerY + PhaseRailLayout.actionButtonShift,
-          ),
-        )
-        .dy;
-    final targetY = boardCenterScreenY.clamp(
-      pad.top + halfH + 4,
-      (game.size.y - pad.bottom - halfH - 4) < pad.top + halfH + 4
-          ? pad.top + halfH + 4
-          : game.size.y - pad.bottom - halfH - 4,
-    );
-    _screenAnchor.setValues(targetX, targetY);
-    position = vf.position + (Vector2(targetX, targetY) - game.size / 2) / zoom;
-    scale = Vector2.all(rs / zoom);
-  }
-
-  /// 紧凑模式下组件内某行（世界 y 中心、宽高）的屏幕矩形。
-  Rect _compactScreenRectOf(double worldCenterY, double w, double h) {
-    const rs = PhaseRailLayout.compactScreenScale;
-    final localCenterY = _localCenterY(worldCenterY);
-    return Rect.fromCenter(
-      center: Offset(
-        _screenAnchor.x,
-        _screenAnchor.y + (localCenterY - size.y / 2) * rs,
-      ),
-      width: w * rs,
-      height: h * rs,
-    );
-  }
-
-  /// 末端「阶段菜单」按钮的屏幕矩形（紧凑模式弹层锚定用）。
-  Rect actionButtonCompactScreenRect() => _compactScreenRectOf(
-    PhaseRailLayout.actionButtonCenterY,
-    PhaseRailLayout.actionButtonWidth,
-    PhaseRailLayout.actionButtonHeight,
-  );
-
-  /// 整条轨道（含徽章/按钮与边距）的屏幕矩形（紧凑模式锚点上报用）。
-  Rect railCompactScreenRect() => Rect.fromCenter(
-    center: Offset(_screenAnchor.x, _screenAnchor.y),
-    width: size.x * PhaseRailLayout.compactScreenScale,
-    height: size.y * PhaseRailLayout.compactScreenScale,
-  );
 
   @override
   void update(double dt) {
@@ -542,10 +451,7 @@ class PhaseRailComponent extends PositionComponent
     );
     final hitRect = PhaseRailLayout.hitRectForVisual(
       visualRect,
-      screenScale: PhaseRailLayout.hitScreenScale(
-        cameraZoom: world.game.camera.viewfinder.zoom,
-        compact: compactMode,
-      ),
+      screenScale: world.game.camera.viewfinder.zoom,
     );
     return hitRect.contains(Offset(p.x, p.y));
   }

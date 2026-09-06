@@ -3,7 +3,7 @@ import 'package:biz/service_providers.dart';
 import 'package:biz/ygo_data_service.dart';
 import 'package:biz/ygo_sound_service.dart';
 import 'package:duel_room1/waiting/waiting_room_page.dart';
-import 'package:duel_room1/waiting/widgets/overlay_panel.dart';
+import 'package:biz/widgets/overlay_panel.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -120,7 +120,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
   }
 
-  group('WaitingRoomPage 响应式弹窗几何', () {
+  group('WaitingRoomPage 弹窗几何', () {
     testWidgets('宽屏视口下弹窗宽度有上限，不无限铺开', (tester) async {
       setSize(tester, const Size(1600, 900));
       await tester.pumpWidget(buildSubject());
@@ -137,59 +137,21 @@ void main() {
       expect(constrainedBox.constraints.maxWidth, 560.0);
     });
 
-    testWidgets('窄视口下弹窗宽度不溢出屏幕', (tester) async {
-      const width = 360.0;
-      setSize(tester, const Size(width, 640));
+    testWidgets('控制条固定、内容滚动', (tester) async {
+      setSize(tester, const Size(1280, 800));
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
-      final constrainedBox = tester.widget<ConstrainedBox>(
-        find
-            .ancestor(
-              of: find.byType(OverlayPanel),
-              matching: find.byType(ConstrainedBox),
-            )
-            .first,
+      final controlsScrollable = find.ancestor(
+        of: find.byKey(const ValueKey('waiting-room-controls')),
+        matching: find.byType(Scrollable),
       );
-      expect(constrainedBox.constraints.maxWidth, width - 32);
-    });
-
-    testWidgets('极端矮视口下弹窗高度有兜底', (tester) async {
-      setSize(tester, const Size(800, 240));
-      await tester.pumpWidget(buildSubject());
-      await tester.pump();
-
-      final constrainedBox = tester.widget<ConstrainedBox>(
-        find
-            .ancestor(
-              of: find.byType(OverlayPanel),
-              matching: find.byType(ConstrainedBox),
-            )
-            .first,
+      final contentScrollable = find.ancestor(
+        of: find.byKey(const ValueKey('waiting-room-content')),
+        matching: find.byType(Scrollable),
       );
-      expect(constrainedBox.constraints.maxHeight, 240 - 32);
+      expect(contentScrollable, findsOneWidget);
+      expect(controlsScrollable, findsNothing);
     });
-
-    for (final entry in const [
-      (Size(640, 360), true),
-      (Size(1280, 720), false),
-    ]) {
-      testWidgets('${entry.$1} 控制条滚动结构符合尺寸等级', (tester) async {
-        setSize(tester, entry.$1);
-        await tester.pumpWidget(buildSubject());
-        await tester.pump();
-
-        final controlsScrollable = find.ancestor(
-          of: find.byKey(const ValueKey('waiting-room-controls')),
-          matching: find.byType(Scrollable),
-        );
-        final contentScrollable = find.ancestor(
-          of: find.byKey(const ValueKey('waiting-room-content')),
-          matching: find.byType(Scrollable),
-        );
-        expect(contentScrollable, findsOneWidget);
-        expect(controlsScrollable, entry.$2 ? findsOneWidget : findsNothing);
-      });
-    }
   });
 }

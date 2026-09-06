@@ -47,21 +47,12 @@ class PhaseRailLayout {
   /// 轨道中心 y：棋盘中线（双方回合中立位）。
   static const centerY = 0.0;
 
-  /// 紧凑 HUD 模式（小屏）下轨道在屏幕上的固定缩放比：
-  /// 不随场地相机 zoom 缩放，保证阶段胶囊/按钮可读可点。
-  static const compactScreenScale = 0.85;
-
-  /// Compact 模式按钮的屏幕命中边长，视觉尺寸保持不变。
-  static const compactHitExtent = 44.0;
-
-  static double hitScreenScale({
-    required double cameraZoom,
-    required bool compact,
-  }) => compact ? compactScreenScale : cameraZoom;
+  /// 轨道按钮的最小屏幕命中边长（44px 标准触控目标）。
+  static const minHitExtent = 44.0;
 
   static Rect hitRectForVisual(Rect visualRect, {double screenScale = 1}) {
     final scale = screenScale.isFinite && screenScale > 0 ? screenScale : 1.0;
-    final minimum = compactHitExtent / scale;
+    final minimum = minHitExtent / scale;
     final width = visualRect.width < minimum ? minimum : visualRect.width;
     final height = visualRect.height < minimum ? minimum : visualRect.height;
     return Rect.fromLTWH(

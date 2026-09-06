@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:biz/widgets/card_image.dart';
-import 'package:duel_room1/layout/duel_room_layout.dart';
 
 /// 卡组顶部 / 额外卡组顶部 确认展示的浮动卡片。
 ///
@@ -91,10 +90,9 @@ class _ConfirmFloatingCardState extends State<ConfirmFloatingCard>
     final index = widget.currentIndex.clamp(0, widget.codes.length - 1);
     final code = widget.codes[index];
     final name = widget.cardNameBuilder(code);
-    final compact = DuelRoomLayout.of(context).isCompact;
-    final width = compact ? 126.0 : 150.0;
-    final imageWidth = compact ? 106.0 : 130.0;
-    final imageHeight = compact ? 152.0 : 186.0;
+    final width = 150.0;
+    final imageWidth = 130.0;
+    final imageHeight = 186.0;
 
     return AnimatedBuilder(
       animation: _controller,

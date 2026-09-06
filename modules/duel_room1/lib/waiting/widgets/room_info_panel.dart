@@ -163,16 +163,14 @@ class _InkInfoRow extends StatelessWidget {
                   : Colors.blueGrey.shade600,
             ),
             const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                text,
-                style: TextStyle(
-                  color: enabled
-                      ? Colors.blueGrey.shade200
-                      : Colors.blueGrey.shade500,
-                  fontSize: 13,
-                  decoration: enabled ? TextDecoration.underline : null,
-                ),
+            Text(
+              text,
+              style: TextStyle(
+                color: enabled
+                    ? Colors.blueGrey.shade200
+                    : Colors.blueGrey.shade500,
+                fontSize: 13,
+                decoration: enabled ? TextDecoration.underline : null,
               ),
             ),
             if (enabled) ...[

@@ -68,10 +68,7 @@ void main() {
 
     // 两张可发动卡的 tile 描边为金色；剩一张不可发动卡为默认白 10%。
     expect(_borderColorCount(tester, activatableGold), 2);
-    expect(
-      _borderColorCount(tester, Colors.white.withValues(alpha: 0.1)),
-      1,
-    );
+    expect(_borderColorCount(tester, Colors.white.withValues(alpha: 0.1)), 1);
   });
 
   testWidgets('无可发动卡：无角标、无计数 chip、无金色描边', (tester) async {

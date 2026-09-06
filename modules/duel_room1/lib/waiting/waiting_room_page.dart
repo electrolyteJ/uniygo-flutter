@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:biz/service_providers.dart';
 import 'package:biz/duel/room/duel_room_state.dart';
 import 'package:biz/widgets/automation_switch.dart';
+import 'package:duel_room1/waiting/widgets/deck_selector.dart';
+import 'package:duel_room1/waiting/widgets/playerslot.dart';
 import 'package:duel_room1/waiting/widgets/room_button.dart';
 import 'package:duelink/duelink.dart' hide ConnectionState;
 import 'package:flutter/material.dart';
@@ -11,8 +13,7 @@ import 'package:go_router/go_router.dart';
 import 'package:resource_data/lf_table.dart';
 
 import 'package:duel_room1/layout/duel_room_layout.dart';
-import 'package:duel_room1/waiting/widgets/overlay_panel.dart';
-import 'package:duel_room1/waiting/widgets/player_panel.dart';
+import 'package:biz/widgets/overlay_panel.dart';
 import 'package:duel_room1/waiting/widgets/room_info_panel.dart';
 import 'package:duel_room1/waiting/widgets/side_decking_panel.dart';
 
@@ -155,7 +156,6 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
       child: Padding(
         padding: EdgeInsets.all(spec.pagePadding),
         child: _WaitingRoomPanelLayout(
-          compact: spec.isCompact,
           content: _buildRoomContent(
             room: room,
             roomCtl: roomCtl,
@@ -177,13 +177,19 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
                     autoTurnOrderEnabled: room.autoTurnOrderEnabled,
                     autoDuelEnabled: room.autoDuelEnabled,
                     toggleReady: (context) => _onToggleReady(context, ref),
-                    onToggleAutoHand: (v) =>
-                        unawaited(_onToggleAutomation(ref, v, roomCtl.setAutoHandEnabled)),
-                    onToggleAutoTurnOrder: (v) => unawaited(
-                      _onToggleAutomation(ref, v, roomCtl.setAutoTurnOrderEnabled),
+                    onToggleAutoHand: (v) => unawaited(
+                      _onToggleAutomation(ref, v, roomCtl.setAutoHandEnabled),
                     ),
-                    onToggleAutoDuel: (v) =>
-                        unawaited(_onToggleAutomation(ref, v, roomCtl.setAutoDuelEnabled)),
+                    onToggleAutoTurnOrder: (v) => unawaited(
+                      _onToggleAutomation(
+                        ref,
+                        v,
+                        roomCtl.setAutoTurnOrderEnabled,
+                      ),
+                    ),
+                    onToggleAutoDuel: (v) => unawaited(
+                      _onToggleAutomation(ref, v, roomCtl.setAutoDuelEnabled),
+                    ),
                     onStartDuel: roomCtl.startDuel,
                     onBecomeDuelist: roomCtl.becomeDuelist,
                     onBecomeObserver: roomCtl.becomeObserver,
@@ -207,35 +213,82 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PlayerPanel(
-          mySlot: mySlotVal,
-          selfType: room.selfType,
-          players: room.players,
-          isHost: room.isHost,
-          onKick: roomCtl.kickPlayer,
-          // 换备阶段隐藏卡组选择（换备走专用面板）。
-          deckSelectionEnabled: !room.isSelfReady && !isSideDecking,
-          decks: room.availableDecks,
-          deckListLoading: !_deckListLoadFinished,
-          selectedDeckName: room.selectedDeckName,
-          onSelectDeck: (value) {
-            if (value == null) return;
-            // selectDeck 的失败（卡组加载失败/不存在）
-            // 不回写 invalidationDeckResult，不经
-            // errorMessage 渠道就会静默丢弃。
-            unawaited(() async {
-              final r = await roomCtl.selectDeck(value);
-              final error = r.error;
-              if (error != null) {
-                roomCtl.setErrorText(error);
-              }
-            }());
-          },
-          onEditDeck: room.selectedDeckName == null
-              ? null
-              : () => _onEditDeck(context, ref),
-          deckInvalidationResult: room.invalidationDeckResult,
-          observerCount: room.observerCount,
+        // 不设底色：等待室已改为半透明弹窗，面板背景由弹窗容器提供。
+        Container(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Row(children: [
+                    Icon(Icons.sports_esports, size: 16,
+                        color: Colors.blueGrey.shade300),
+                    Text(
+                      '玩家: ${room.players.length}人',
+                      style: TextStyle(
+                          color: Colors.blueGrey.shade300, fontSize: 13),
+                    ),
+                  ],
+                  ),
+                  const SizedBox(width: 12),
+                  Row(children: [
+                      Icon(Icons.visibility, size: 16,
+                          color: Colors.blueGrey.shade300),
+                      Text(
+                        '观战: ${room.observerCount}人',
+                        style: TextStyle(
+                            color: Colors.blueGrey.shade300, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              ...room.players.map((item) =>
+                    Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      child: PlayerSlot(
+                        player: item,
+                        placeholder: '玩家 ${item.pos + 1}',
+                        // 房主徽章以 PlayerInfo.host 为准（按座位 0 惯例填充），
+                        // 不能由「我的视角」反推，否则非房主视角下人人都像房主。
+                        isHostSlot: item.host,
+                        isMe: item.pos == mySlotVal,
+                        // 仅房主可踢人：不能踢自己，也不能踢房主。
+                        canKick: room.isHost && item.pos != mySlotVal &&
+                            !item.host,
+                        onKick: () => roomCtl.kickPlayer(item.pos),
+                      ),
+                    ),
+              ),
+              const SizedBox(height: 6),
+              DeckSelector(
+                enabled: !room.isSelfReady && !isSideDecking,
+                // 换备阶段隐藏卡组选择（换备走专用面板）。
+                decks: room.availableDecks,
+                deckListLoading: !_deckListLoadFinished,
+                selectedDeckName: room.selectedDeckName,
+                selfType: room.selfType,
+                onSelectDeck: (value) {
+                  if (value == null) return;
+                  // selectDeck 的失败（卡组加载失败/不存在）
+                  // 不回写 invalidationDeckResult，不经
+                  // errorMessage 渠道就会静默丢弃。
+                  unawaited(() async {
+                    final r = await roomCtl.selectDeck(value);
+                    final error = r.error;
+                    if (error != null) {
+                      roomCtl.setErrorText(error);
+                    }
+                  }());
+                },
+                onEditDeck: room.selectedDeckName == null
+                    ? null
+                    : () => _onEditDeck(context, ref),
+                invalidationResult: room.invalidationDeckResult,
+              ),
+            ],
+          ),
         ),
         // match 模式局间换备面板（提交后自动 ready）。
         if (isSideDecking)
@@ -276,6 +329,7 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
       ],
     );
   }
+
   Widget _buildControlBar({
     required bool isHost,
     required PlayerType selfType,
@@ -393,25 +447,15 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
 
 class _WaitingRoomPanelLayout extends StatelessWidget {
   const _WaitingRoomPanelLayout({
-    required this.compact,
     required this.content,
     this.controlBar,
   });
 
-  final bool compact;
   final Widget content;
   final Widget? controlBar;
 
   @override
   Widget build(BuildContext context) {
-    if (compact) {
-      return SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [content, ?controlBar],
-        ),
-      );
-    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -430,15 +474,8 @@ class _WaitingRoomPanelFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final spec = DuelRoomLayout.of(context);
-    final double width = spec.isCompact
-        ? spec.safeRect.width - spec.pagePadding * 2
-        : spec.safeRect.width.clamp(0.0, 560.0);
-    final height = spec.safeRect.height - spec.pagePadding * 2;
     final legacyMaxWidth = (spec.viewport.width - 32).clamp(0.0, 560.0);
-    final legacyMaxHeight = (spec.viewport.height - 32).clamp(
-      0.0,
-      double.infinity,
-    );
+    final legacyMaxHeight = (spec.viewport.height - 32).clamp(0.0, double.infinity);
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.all(spec.pagePadding),
@@ -448,15 +485,7 @@ class _WaitingRoomPanelFrame extends StatelessWidget {
               maxWidth: legacyMaxWidth,
               maxHeight: legacyMaxHeight,
             ),
-            child: OverflowBox(
-              maxWidth: width.clamp(0.0, double.infinity),
-              maxHeight: height.clamp(0.0, double.infinity),
-              child: SizedBox(
-                width: width.clamp(0.0, double.infinity),
-                height: height.clamp(0.0, double.infinity),
-                child: OverlayPanel(child: child),
-              ),
-            ),
+            child: OverlayPanel(child: child),
           ),
         ),
       ),

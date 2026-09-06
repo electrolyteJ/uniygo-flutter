@@ -1,9 +1,4 @@
-import 'dart:math' as math;
-
-import 'package:duel_room1/field/util/ui_scale.dart';
 import 'package:flutter/widgets.dart';
-
-enum DuelRoomSizeClass { compact, regular, wide }
 
 @immutable
 class DuelRoomLayoutSpec {
@@ -11,8 +6,6 @@ class DuelRoomLayoutSpec {
     required this.viewport,
     required this.safePadding,
     required this.safeRect,
-    required this.sizeClass,
-    required this.hudScale,
     required this.pagePadding,
     required this.dialogMaxSize,
     required this.dockedPanelWidth,
@@ -22,65 +15,30 @@ class DuelRoomLayoutSpec {
   final Size viewport;
   final EdgeInsets safePadding;
   final Rect safeRect;
-  final DuelRoomSizeClass sizeClass;
-  final double hudScale;
   final double pagePadding;
   final Size dialogMaxSize;
   final double dockedPanelWidth;
   final int gridColumns;
 
-  bool get isCompact => sizeClass == DuelRoomSizeClass.compact;
   double get minimumTapExtent => 44;
-  double get topHudHeight => 52 * hudScale;
-  double get handBarHeight => 96 * hudScale;
-  double get panelGap => isCompact ? 8 : 18;
+  double get topHudHeight => 52;
+  double get handBarHeight => 96;
+  double get panelGap => 18;
 
-  factory DuelRoomLayoutSpec.resolve(
-    Size rawViewport, {
-    EdgeInsets safePadding = EdgeInsets.zero,
-  }) {
-    final hasValidRawHeight =
-        rawViewport.height.isFinite && rawViewport.height > 0;
-    final viewport = Size(
-      _validDimension(rawViewport.width),
-      _validDimension(rawViewport.height),
-    );
-    final left = _clampInset(safePadding.left, viewport.width);
-    final top = _clampInset(safePadding.top, viewport.height);
-    final right = _clampInset(safePadding.right, viewport.width - left);
-    final bottom = _clampInset(safePadding.bottom, viewport.height - top);
-    final resolvedPadding = EdgeInsets.fromLTRB(left, top, right, bottom);
-    final safeWidth = viewport.width - resolvedPadding.horizontal;
-    final safeHeight = viewport.height - resolvedPadding.vertical;
-    final sizeClass = safeWidth < 1024 || safeHeight < 600
-        ? DuelRoomSizeClass.compact
-        : safeWidth >= 1600 && safeHeight >= 900
-        ? DuelRoomSizeClass.wide
-        : DuelRoomSizeClass.regular;
-    final pagePadding = sizeClass == DuelRoomSizeClass.compact ? 8.0 : 18.0;
-    final contentWidth = math.max(0.0, safeWidth - pagePadding * 2);
-    final contentHeight = math.max(0.0, safeHeight - pagePadding * 2);
-    final compactPanelWidth = (safeWidth * 0.35).clamp(220.0, 300.0);
-
-    return DuelRoomLayoutSpec._(
-      viewport: viewport,
-      safePadding: resolvedPadding,
-      safeRect: Rect.fromLTWH(left, top, safeWidth, safeHeight),
-      sizeClass: sizeClass,
-      hudScale: hasValidRawHeight ? hudScaleForAvailableHeight(safeHeight) : 1,
-      pagePadding: pagePadding,
-      dialogMaxSize: Size(math.min(860, contentWidth), contentHeight),
-      dockedPanelWidth: math.min(
-        sizeClass == DuelRoomSizeClass.compact ? compactPanelWidth : 440,
-        contentWidth,
-      ),
-      gridColumns: safeWidth < 720
-          ? 2
-          : safeWidth < 1024
-          ? 3
-          : 4,
-    );
-  }
+  /// 全局 FittedBox 固定设计分辨率（1280×800，无设备安全区）下的唯一布局规格。
+  ///
+  /// 应用已改用 [_ScaledApp] 等比缩放：整棵 widget 树按 [kAppDesignSize]
+  /// 布局，MediaQuery 也被覆盖为设计分辨率，因此不再需要按视口/断点分支，
+  /// 所有页面共用这一份固定几何。
+  static const DuelRoomLayoutSpec fixed = DuelRoomLayoutSpec._(
+    viewport: Size(1280, 800),
+    safePadding: EdgeInsets.zero,
+    safeRect: Rect.fromLTWH(0, 0, 1280, 800),
+    pagePadding: 18,
+    dialogMaxSize: Size(860, 764),
+    dockedPanelWidth: 440,
+    gridColumns: 4,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -89,8 +47,6 @@ class DuelRoomLayoutSpec {
           viewport == other.viewport &&
           safePadding == other.safePadding &&
           safeRect == other.safeRect &&
-          sizeClass == other.sizeClass &&
-          hudScale == other.hudScale &&
           pagePadding == other.pagePadding &&
           dialogMaxSize == other.dialogMaxSize &&
           dockedPanelWidth == other.dockedPanelWidth &&
@@ -101,8 +57,6 @@ class DuelRoomLayoutSpec {
     viewport,
     safePadding,
     safeRect,
-    sizeClass,
-    hudScale,
     pagePadding,
     dialogMaxSize,
     dockedPanelWidth,
@@ -116,11 +70,7 @@ class DuelRoomLayout extends InheritedWidget {
   final DuelRoomLayoutSpec spec;
 
   static DuelRoomLayoutSpec of(BuildContext context) =>
-      maybeOf(context) ??
-      DuelRoomLayoutSpec.resolve(
-        MediaQuery.sizeOf(context),
-        safePadding: MediaQuery.viewPaddingOf(context),
-      );
+      maybeOf(context) ?? DuelRoomLayoutSpec.fixed;
 
   static DuelRoomLayoutSpec? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<DuelRoomLayout>()?.spec;
@@ -128,8 +78,3 @@ class DuelRoomLayout extends InheritedWidget {
   @override
   bool updateShouldNotify(DuelRoomLayout oldWidget) => oldWidget.spec != spec;
 }
-
-double _validDimension(double value) => value.isFinite && value > 0 ? value : 1;
-
-double _clampInset(double value, double maximum) =>
-    value.isFinite ? value.clamp(0.0, maximum) : 0;

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:resource_data/ygo_data.dart' as pkg;
 
 import 'package:biz/widgets/card_image.dart';
-import 'package:duel_room1/layout/duel_room_layout.dart';
 import 'package:duel_room1/layout/responsive_panel.dart';
 
 /// 宣言卡名弹窗。
@@ -158,10 +157,10 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final compact = DuelRoomLayout.of(context).isCompact;
     return ResponsivePanel(
       maxWidth: 860,
       maxHeight: 680,
+      wrapWidth: false,
       header: const Text(
         '宣言卡名',
         textAlign: TextAlign.center,
@@ -172,20 +171,19 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
         ),
       ),
       body: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!compact) ...[
-            Text(
-              _restricted ? '从下方可宣言的卡片中选择要宣言的卡片。' : '输入卡名关键字，然后从搜索结果中选择要宣言的卡片。',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF9FB5C7),
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
+          Text(
+            _restricted ? '从下方可宣言的卡片中选择要宣言的卡片。' : '输入卡名关键字，然后从搜索结果中选择要宣言的卡片。',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF9FB5C7),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(height: 12),
-          ],
+          ),
+          const SizedBox(height: 12),
           if (!_restricted) ...[
             TextField(
               controller: _controller,
@@ -197,7 +195,7 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
                 fontWeight: FontWeight.w700,
               ),
               decoration: InputDecoration(
-                isDense: compact,
+                isDense: false,
                 hintText: '例如：电子龙、青眼、禁发令',
                 hintStyle: const TextStyle(color: Color(0x668FA6BA)),
                 filled: true,
@@ -234,9 +232,9 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
                 ),
               ),
             ),
-            SizedBox(height: compact ? 4 : 12),
+            SizedBox(height: 12),
           ],
-          Expanded(
+          Flexible(
             child: _restricted ? _buildDeclarableBody() : _buildSearchBody(),
           ),
         ],
@@ -310,6 +308,7 @@ class _AnnounceCardDialogState extends State<AnnounceCardDialog> {
 
   Widget _buildCardList(List<pkg.CardInfo> cards) {
     return ListView.separated(
+      shrinkWrap: true,
       itemCount: cards.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) => _buildCardTile(cards[index]),

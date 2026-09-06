@@ -78,6 +78,7 @@ class _CardSelectorState extends State<CardSelector> {
     final spec = DuelRoomLayout.of(context);
     return ResponsivePanel(
       maxWidth: 640,
+      wrapWidth: false,
       header: Text(
         _title(select),
         textAlign: TextAlign.center,
@@ -90,6 +91,7 @@ class _CardSelectorState extends State<CardSelector> {
         ),
       ),
       body: GridView.builder(
+        shrinkWrap: true,
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: spec.gridColumns,
           childAspectRatio: 59 / 86,

@@ -60,17 +60,36 @@ void main() {
       expect(layout.centerDx(0), -layout.centerDx(3));
       expect(layout.centerDx(1), -layout.centerDx(2));
     });
+
+    test('镜像排布：对方手牌是我方手牌的上下镜像（屏幕水平中线为轴）', () {
+      const normal = HandFanLayout(count: 5, maxWidth: 800);
+      const mirrored = HandFanLayout(count: 5, maxWidth: 800, mirrored: true);
+      for (var i = 0; i < 5; i++) {
+        // 下标排布仍右→左翻转（抽卡新卡落在对方左端）。
+        expect(mirrored.centerDx(i), -normal.centerDx(i));
+        // 放射角公式与方向无关：同一扇形公式，靠下标翻转自然反号成倒影。
+        expect(mirrored.angleAt(i), normal.angleAt(i));
+        // 视觉镜像：镜像侧第 count-1-i 张（与我方第 i 张同一水平位置）
+        // 的倾斜角恰好反号 —— 真正的倒影，而非平移复制。
+        expect(mirrored.angleAt(4 - i), -normal.angleAt(i));
+        // 凸弧高度对称不变，但升起方向翻转（镜像后朝场地中心）。
+        expect(mirrored.arcLiftAt(i), normal.arcLiftAt(i));
+        expect(mirrored.centerAt(i).dy, -normal.centerAt(i).dy);
+      }
+      // 间距/总宽不受镜像影响。
+      expect(mirrored.spacing, normal.spacing);
+      expect(mirrored.totalWidth, normal.totalWidth);
+    });
   });
 
   test('HandBarViewportGeometry uses safe horizontal width and center', () {
     final geometry = HandBarViewportGeometry.resolve(
       viewport: const Size(844, 390),
       safeRect: const Rect.fromLTRB(44, 0, 823, 374),
-      hudScale: 0.6,
     );
 
-    expect(geometry.centerX, 722.5);
-    expect(geometry.maxWidth, closeTo(1282.3333333333333, 1e-9));
-    expect(geometry.selfBottomInset, closeTo(26.666666666666668, 1e-9));
+    expect(geometry.centerX, 433.5);
+    expect(geometry.maxWidth, 763.0);
+    expect(geometry.edgeInset, 16.0);
   });
 }

@@ -42,7 +42,21 @@ class HandFanLayout {
   /// 排布可用的最大宽度（一般为视口宽减去左右边距）。
   final double maxWidth;
 
-  const HandFanLayout({required this.count, required this.maxWidth});
+  /// 是否镜像（对方手牌栏）：对方手牌是己方手牌关于屏幕水平中线的
+  /// 上下镜像（而非平移复制）——下标排布翻转为「右→左」（抽卡新卡
+  /// trailing 下标落到对方手牌左端，与对方左侧卡组飞入方向一致）、
+  /// 凸弧方向翻转，视同一水平位置的卡倾斜角反号成倒影
+  ///（[angleAt] 公式与方向无关，靠下标翻转自然反号）。
+  final bool mirrored;
+
+  const HandFanLayout({
+    required this.count,
+    required this.maxWidth,
+    this.mirrored = false,
+  });
+
+  /// 镜像方向系数：己方 +1（左→右），对方 -1（右→左）。
+  double get _direction => mirrored ? -1.0 : 1.0;
 
   /// 中心卡下标（偶数张时落在偏左的半张上，与原实现一致）。
   double get centerIndex => (count - 1) / 2;
@@ -55,7 +69,7 @@ class HandFanLayout {
   }
 
   /// 第 [index] 张卡的卡心相对扇形中心的水平偏移。
-  double centerDx(int index) => (index - centerIndex) * spacing;
+  double centerDx(int index) => _direction * (index - centerIndex) * spacing;
 
   /// 凸弧升起高度：中心最高（[arcLift]），向两侧递减至 0。
   double arcLiftAt(int index) {
@@ -66,6 +80,11 @@ class HandFanLayout {
   }
 
   /// 放射旋转角：左侧逆时针、右侧顺时针。
+  ///
+  /// 故意不乘 [_direction]：镜像侧下标已右→左翻转（[centerDx]），
+  /// 公式保持不变后，视觉同一水平位置的卡倾斜角恰好反号，
+  /// 对方手牌才是己方手牌的上下镜像（若连同角度一起翻转，
+  /// 两者抵消，对方扇形只是己方扇形的平移复制）。
   double angleAt(int index) => (index - centerIndex) * rotationStep;
 
   /// 扇形整体宽度（首张到末张卡心的距离 + 一张卡宽）。
@@ -73,32 +92,34 @@ class HandFanLayout {
 
   /// 第 [index] 张卡的卡心（相对扇形锚点的局部坐标）。
   ///
-  /// y 轴向上为正：返回的 dy 是「应向负 y 方向移动」的升起量，
-  /// 调用方按自身锚点方向换算。
-  Offset centerAt(int index) => Offset(centerDx(index), -arcLiftAt(index));
+  /// 非镜像：凸弧向负 y（屏上方）升起；镜像：凸弧向正 y（屏下方）升起，
+  /// 使对方手牌成为己方手牌的镜像（两侧凸弧均朝向场地中心）。
+  Offset centerAt(int index) =>
+      Offset(centerDx(index), -arcLiftAt(index) * _direction);
 }
 
 class HandBarViewportGeometry {
   const HandBarViewportGeometry({
     required this.centerX,
     required this.maxWidth,
-    required this.selfBottomInset,
+    required this.edgeInset,
   });
 
   final double centerX;
   final double maxWidth;
-  final double selfBottomInset;
+
+  /// 手牌到屏边的间距（底部安全区值）：我方到屏底、对方到屏顶
+  /// 共用同一值，保证双方手牌关于屏幕水平中线严格镜像。
+  final double edgeInset;
 
   factory HandBarViewportGeometry.resolve({
     required Size viewport,
     required Rect safeRect,
-    required double hudScale,
   }) {
-    final scale = hudScale.isFinite && hudScale > 0 ? hudScale : 1.0;
     return HandBarViewportGeometry(
-      centerX: safeRect.center.dx / scale,
-      maxWidth: math.max(1, safeRect.width / scale - 16),
-      selfBottomInset: math.max(0, viewport.height - safeRect.bottom) / scale,
+      centerX: safeRect.center.dx,
+      maxWidth: math.max(1, safeRect.width - 16),
+      edgeInset: math.max(0, viewport.height - safeRect.bottom),
     );
   }
 }

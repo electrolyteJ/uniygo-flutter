@@ -38,17 +38,6 @@ class HandBarComponent extends PositionComponent
   /// 右键（辅助点击）手牌回调（index, code）；对方手牌栏为 null。
   final void Function(int index, int code)? onCardSecondaryTap;
 
-  /// 对方手牌栏顶部 y（页面按 HUD 高度推入，见 [setHudTopY]）。
-  double hudTopY = 0;
-
-  /// 更新顶部 y 并重排手牌（值未变时跳过）。布局在 [_relayout] 中
-  /// 读取 [hudTopY]，直接改字段不重排会让对方手牌栏停在旧位置。
-  void setHudTopY(double y) {
-    if (hudTopY == y) return;
-    hudTopY = y;
-    _relayout();
-  }
-
   void relayout() => _relayout();
 
   /// 手牌栏整体是否可见（HUD 可见性跟随对局阶段：
@@ -68,7 +57,7 @@ class HandBarComponent extends PositionComponent
 
   HandCardComponent? _cardAt(Vector2 point) {
     if (!barVisible || !isSelfSide) return null;
-    final minLocalExtent = 44 / game.hudScale;
+    final minLocalExtent = 44.0;
     HandCardComponent? nearest;
     var nearestDistance = double.infinity;
     for (final card in _cards) {
@@ -97,40 +86,50 @@ class HandBarComponent extends PositionComponent
   }
 
   bool dispatchPrimaryTap(Vector2 screenPoint) {
-    final card = _cardAt(screenPoint / game.hudScale);
+    final card = _cardAt(screenPoint);
     if (card == null) return false;
     card.dispatchPrimaryTap();
     return true;
   }
 
   bool canDispatchPrimaryTap(Vector2 screenPoint) =>
-      _cardAt(screenPoint / game.hudScale) != null;
+      _cardAt(screenPoint) != null;
 
-  /// 手牌栏高度（与原 Flutter 版一致；虚拟坐标，屏显高度见
-  /// [visualBarHeight]——紧凑 HUD 模式下整栏按 hudScale 缩放）。
+  /// 手牌栏高度（与原 Flutter 版一致）。
   static const double barHeight = 96;
 
   /// 卡底与屏边的间距。
-  static const double bottomPadding = 4;
+  static const double bottomPadding = -20;
 
-  /// 手牌栏的屏幕像素高度（虚拟高度 × HUD 缩放）。
-  double get visualBarHeight => barHeight * game.hudScale;
-
-  /// 同步 HUD 缩放与虚拟尺寸。
+  /// 手牌基准线 y（凸弧两侧卡的卡心 y，屏幕坐标）。
   ///
-  /// 整栏缩放经组件 transform 实现：布局在「虚拟视口」（屏寸 ÷ hudScale）
-  /// 内按原 64×90 卡尺寸排布，再按 hudScale 整体缩放到屏幕——卡图、
-  /// 扇形几何、上浮动效等全部沿用原数值，命中测试随变换自动适配。
-  void _syncHudScale() {
-    final hs = game.hudScale;
-    scale = Vector2.all(hs);
-    size.setFrom(game.size / hs);
+  /// 对方手牌是我方手牌关于屏幕水平中线的严格镜像：
+  /// - 我方贴屏底（让开 [edgeInset] 底部安全区，出血 [bottomPadding]）；
+  /// - 对方贴屏顶，间距与底部一致（恒等式
+  ///   viewportHeight - baseLineY_opp == baseLineY_self 成立）。
+  static double baseLineYFor({
+    required bool isSelfSide,
+    required double viewportHeight,
+    required double edgeInset,
+  }) {
+    return isSelfSide
+        ? viewportHeight - edgeInset - bottomPadding - HandFanLayout.cardHeight / 2
+        : edgeInset + bottomPadding + HandFanLayout.cardHeight / 2;
+  }
+
+  /// 手牌栏的屏幕像素高度。
+  double get visualBarHeight => barHeight;
+
+  /// 同步组件尺寸为屏幕尺寸（缩放恒为 1:1）。
+  void _syncScreenSize() {
+    scale = Vector2.all(1.0);
+    size.setFrom(game.size);
   }
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    _syncHudScale();
+    _syncScreenSize();
     // 可见性/挂载晚于首份快照时（页面监听注册早于游戏加载完成）补齐。
     barVisible = game.handBarsVisible;
     applySnapshot(isSelfSide ? game.snapshot.selfHand : game.snapshot.oppHand);
@@ -139,7 +138,7 @@ class HandBarComponent extends PositionComponent
   @override
   void onGameResize(Vector2 size) {
     super.onGameResize(size);
-    _syncHudScale();
+    _syncScreenSize();
     _relayout();
   }
 
@@ -188,37 +187,33 @@ class HandBarComponent extends PositionComponent
 
   /// 扇形排布：每卡基准中心 + 放射角；下标大的压在上面（priority）。
   ///
-  /// 全部在虚拟坐标（屏寸 ÷ hudScale）内计算：size 已是虚拟尺寸，
-  /// 屏幕空间的 hudTopY / Home 指示条安全区按 hudScale 折算成虚拟值。
+  /// 全部在屏幕坐标内计算：size 即屏幕尺寸。
   void _relayout() {
     if (_cards.isEmpty) return;
-    // 未挂载（测试/构造期快照预填）时无 game 可取，按缩放 1、无安全区
-    // 兜底；挂载后 onLoad/onGameResize 会触发重排补齐。
-    final hs = isMounted ? game.hudScale : 1.0;
+    // 未挂载（测试/构造期快照预填）时无 game 可取，按无安全区兜底；
+    // 挂载后 onLoad/onGameResize 会触发重排补齐。
     final safeRect = isMounted
         ? game.safeRect
-        : Rect.fromLTWH(0, 0, size.x * hs, size.y * hs);
+        : Rect.fromLTWH(0, 0, size.x, size.y);
     final geometry = HandBarViewportGeometry.resolve(
-      viewport: Size(size.x * hs, size.y * hs),
+      viewport: Size(size.x, size.y),
       safeRect: safeRect,
-      hudScale: hs,
     );
     final layout = HandFanLayout(
       count: _cards.length,
       maxWidth: geometry.maxWidth,
+      // 对方手牌栏镜像排布（右→左），使新抽卡（trailing 下标）落在
+      // 对方手牌左端，与对方左侧卡组飞入方向一致。
+      mirrored: !isSelfSide,
     );
-    // 与原 Flutter 版一致：96 高条带内底对齐（bottom padding 4），
-    // 凸弧向上（对方栏同样向上，与历史视觉一致）。
-    // 己方栏底让开 Home 指示条安全区（viewPadding.bottom）。
-    final baseLineY = isSelfSide
-        ? size.y -
-              geometry.selfBottomInset -
-              bottomPadding -
-              HandFanLayout.cardHeight / 2
-        : hudTopY / hs +
-              barHeight -
-              bottomPadding -
-              HandFanLayout.cardHeight / 2;
+    // 双方手牌关于屏幕水平中线严格镜像：己方底对齐贴屏底
+    //（让开 Home 指示条安全区），对方贴屏顶且间距一致；
+    // 凸弧各自朝向场地中心（己方向上、对方向下），倾斜角倒影。
+    final baseLineY = baseLineYFor(
+      isSelfSide: isSelfSide,
+      viewportHeight: size.y,
+      edgeInset: geometry.edgeInset,
+    );
     for (var i = 0; i < _cards.length; i++) {
       _cards[i].setBaseCenter(
         Vector2(
@@ -284,27 +279,23 @@ class HandBarComponent extends PositionComponent
     }
   }
 
-  /// 第 [index] 张卡的基准卡位矩形（视口/屏幕坐标，不含上浮动效），
-  /// 抽卡/发牌飞行的终点。卡中心/baseCenter 是虚拟坐标，×hudScale
-  /// 换算回屏幕。
+  /// 第 [index] 张卡的基准卡位矩形（屏幕坐标，不含上浮动效），
+  /// 抽卡/发牌飞行的终点。
   Rect cardSlotRect(int index) {
-    final hs = game.hudScale;
     if (index < 0 || index >= _cards.length) {
       // 兜底：栏中央（理论上调用方按下标闭合，不会触达）。
+      // 兜底位置保持双方镜像口径（屏底 -50 ↔ 屏顶 50）。
       return Rect.fromCenter(
-        center: Offset(
-          size.x / 2 * hs,
-          (isSelfSide ? size.y - 50 : hudTopY / hs + 50) * hs,
-        ),
-        width: HandFanLayout.cardWidth * hs,
-        height: HandFanLayout.cardHeight * hs,
+        center: Offset(size.x / 2, isSelfSide ? size.y - 50 : 50),
+        width: HandFanLayout.cardWidth,
+        height: HandFanLayout.cardHeight,
       );
     }
     final c = _cards[index].baseCenter;
     return Rect.fromCenter(
-      center: Offset(c.x * hs, c.y * hs),
-      width: HandFanLayout.cardWidth * hs,
-      height: HandFanLayout.cardHeight * hs,
+      center: Offset(c.x, c.y),
+      width: HandFanLayout.cardWidth,
+      height: HandFanLayout.cardHeight,
     );
   }
 
@@ -313,16 +304,15 @@ class HandBarComponent extends PositionComponent
   Rect? selectedCardRect() {
     final index = _snap.selectedIndex;
     if (index == null || index < 0 || index >= _cards.length) return null;
-    final hs = game.hudScale;
     final card = _cards[index];
     final lifted = Offset(
-      (card.baseCenter.x + card.shuffleDx) * hs,
-      (card.baseCenter.y - HandFanLayout.activeLift) * hs,
+      card.baseCenter.x + card.shuffleDx,
+      card.baseCenter.y - HandFanLayout.activeLift,
     );
     return Rect.fromCenter(
       center: lifted,
-      width: HandFanLayout.cardWidth * HandFanLayout.activeScale * hs,
-      height: HandFanLayout.cardHeight * HandFanLayout.activeScale * hs,
+      width: HandFanLayout.cardWidth * HandFanLayout.activeScale,
+      height: HandFanLayout.cardHeight * HandFanLayout.activeScale,
     );
   }
 

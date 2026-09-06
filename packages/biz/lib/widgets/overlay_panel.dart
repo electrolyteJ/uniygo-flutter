@@ -13,12 +13,18 @@ class OverlayPanel extends StatelessWidget {
 
   const OverlayPanel({super.key, required this.child});
 
+  /// 缓存的模糊滤镜实例：`ui.ImageFilter` 未重写 `==`，若每次 build 都新建
+  /// `ImageFilter.blur(...)`，`BackdropFilter` 会误判「滤镜已变」并在面板每次
+  /// 重建时重放一次高斯模糊，导致背后的内容（选卡弹窗等）整屏闪一下。
+  /// 缓存同一实例后，`BackdropFilter` 只在滤镜真正变化时才重放。
+  static final ImageFilter _blur = ImageFilter.blur(sigmaX: 10, sigmaY: 10);
+
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: _blur,
         child: Container(
           decoration: BoxDecoration(
             color: const Color(0xF2080E18),
