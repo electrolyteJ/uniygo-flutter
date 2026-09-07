@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>uniygopro · 跨平台游戏王对战客户端</title>
+  <meta name="description" content="基于 Flutter 打造的开源 Yu-Gi-Oh! Pro 游戏客户端，一套代码运行于 Android、iOS、Windows、Linux、macOS 与 Web。AI 对战、联机房间、卡组编辑、全卡表支持。" />
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --bg-soft: #11141b;
+      --card: #161a23;
+      --border: #232836;
+      --text: #e6e9f2;
+      --muted: #9aa3b8;
+      --primary: #7c5cff;
+      --primary-soft: #5b3fd6;
+      --accent: #2dd4bf;
+      --warn: #f59e0b;
+      --radius: 14px;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --max: 1120px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+    .section { padding: 96px 0; }
+    .section h2 { font-size: 34px; font-weight: 700; letter-spacing: -.5px; margin-bottom: 12px; }
+    .section .eyebrow { color: var(--primary); font-size: 14px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+    .section .lead { color: var(--muted); font-size: 17px; max-width: 680px; margin: 0 auto 56px; text-align: center; }
+    .center { text-align: center; }
+
+    /* Nav */
+    nav {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(11,13,18,.8);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+    .brand-logo {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      display: grid; place-items: center; color: #fff; font-weight: 800;
+    }
+    .nav-links { display: flex; gap: 28px; }
+    .nav-links a { color: var(--muted); font-size: 14px; transition: color .2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      padding: 8px 18px; border-radius: 8px; background: var(--primary); color: #fff; font-size: 14px; font-weight: 600;
+      transition: background .2s;
+    }
+    .nav-cta:hover { background: var(--primary-soft); }
+    @media (max-width: 720px) { .nav-links { display: none; } }
+
+    /* Hero */
+    .hero {
+      position: relative; overflow: hidden;
+      padding: 120px 0 80px;
+      background:
+        radial-gradient(1200px 600px at 50% -10%, rgba(124,92,255,.25), transparent 60%),
+        radial-gradient(800px 400px at 90% 20%, rgba(45,212,191,.15), transparent 60%),
+        var(--bg);
+    }
+    .hero-grid {
+      position: absolute; inset: 0;
+      background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000, transparent);
+    }
+    .hero-inner { position: relative; text-align: center; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 999px;
+      background: rgba(124,92,255,.12); border: 1px solid rgba(124,92,255,.3);
+      color: #c9b8ff; font-size: 13px; font-weight: 500; margin-bottom: 24px;
+    }
+    .hero h1 {
+      font-size: clamp(40px, 6vw, 68px); font-weight: 800; letter-spacing: -1.5px;
+      line-height: 1.1; margin-bottom: 20px;
+      background: linear-gradient(180deg, #fff 0%, #b8bccc 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .hero h1 .grad {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero p.sub { font-size: 19px; color: var(--muted); max-width: 680px; margin: 0 auto 40px; }
+    .hero-cta { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 28px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 28px; border-radius: 10px; font-size: 15px; font-weight: 600;
+      transition: transform .15s, background .2s, border-color .2s;
+      border: 1px solid transparent;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-soft); }
+    .btn-ghost { background: transparent; border-color: var(--border); color: var(--text); }
+    .btn-ghost:hover { border-color: var(--primary); }
+    .hero-platforms { color: var(--muted); font-size: 14px; }
+    .hero-platforms span { margin: 0 6px; }
+
+    /* Stats */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+    .stat { text-align: center; padding: 28px 16px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
+    .stat .num { font-size: 40px; font-weight: 800; background: linear-gradient(135deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat .label { color: var(--muted); font-size: 14px; margin-top: 6px; }
+    @media (max-width: 720px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+
+    /* Features */
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .feature {
+      padding: 32px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      transition: transform .2s, border-color .2s;
+    }
+    .feature:hover { transform: translateY(-4px); border-color: var(--primary); }
+    .feature .icon {
+      width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center;
+      background: linear-gradient(135deg, rgba(124,92,255,.2), rgba(45,212,191,.15));
+      font-size: 24px; margin-bottom: 18px;
+    }
+    .feature h3 { font-size: 19px; font-weight: 700; margin-bottom: 10px; }
+    .feature p { color: var(--muted); font-size: 14.5px; }
+    @media (max-width: 900px) { .features { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { .features { grid-template-columns: 1fr; } }
+
+    /* Compare */
+    .compare { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; max-width: 880px; margin: 0 auto; }
+    .compare-col { padding: 28px; border-radius: var(--radius); border: 1px solid var(--border); }
+    .compare-col.bad { background: rgba(239,68,68,.05); }
+    .compare-col.good { background: rgba(45,212,191,.06); border-color: rgba(45,212,191,.25); }
+    .compare-col h3 { font-size: 17px; margin-bottom: 16px; }
+    .compare-col ul { list-style: none; }
+    .compare-col li { padding: 8px 0 8px 28px; position: relative; color: var(--muted); font-size: 14.5px; }
+    .compare-col.bad li:before { content: "✕"; position: absolute; left: 0; color: #ef4444; }
+    .compare-col.good li:before { content: "✓"; position: absolute; left: 0; color: var(--accent); }
+
+    /* Showcase */
+    .showcase-tabs { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px; }
+    .showcase-tab {
+      padding: 8px 18px; border-radius: 8px; background: var(--card); border: 1px solid var(--border);
+      color: var(--muted); font-size: 14px; cursor: pointer; transition: all .2s;
+    }
+    .showcase-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .showcase-frame {
+      position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border);
+      box-shadow: var(--shadow); background: var(--bg-soft);
+    }
+    .showcase-frame img { width: 100%; display: block; aspect-ratio: 16/9; object-fit: cover; background: linear-gradient(135deg, #1a1f2e, #0d1117); }
+    .showcase-frame .ph { width: 100%; aspect-ratio: 16/9; display: grid; place-items: center; color: var(--muted); font-size: 14px; background: linear-gradient(135deg, #1a1f2e, #0d1117); }
+
+    /* Use cases */
+    .usecases { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .usecase {
+      padding: 28px 24px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      text-align: center; transition: transform .2s;
+    }
+    .usecase:hover { transform: translateY(-4px); }
+    .usecase .emoji { font-size: 36px; margin-bottom: 14px; }
+    .usecase h3 { font-size: 16px; margin-bottom: 8px; }
+    .usecase p { color: var(--muted); font-size: 13.5px; }
+    @media (max-width: 900px) { .usecases { grid-template-columns: repeat(2, 1fr); } }
+
+    /* Download */
+    .download-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .download-card {
+      padding: 28px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      transition: transform .2s, border-color .2s;
+    }
+    .download-card:hover { transform: translateY(-4px); border-color: var(--primary); }
+    .download-card .plat-icon { font-size: 40px; margin-bottom: 14px; }
+    .download-card h3 { font-size: 18px; margin-bottom: 6px; }
+    .download-card .meta { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+    .download-card .btn { width: 100%; justify-content: center; }
+    @media (max-width: 900px) { .download-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { .download-grid { grid-template-columns: 1fr; } }
+
+    /* FAQ */
+    .faq-list { max-width: 820px; margin: 0 auto; }
+    .faq-item { border-bottom: 1px solid var(--border); }
+    .faq-q {
+      width: 100%; text-align: left; background: none; border: none; color: var(--text);
+      font-size: 16px; font-weight: 600; padding: 20px 0; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+    }
+    .faq-q:after { content: "+"; font-size: 22px; color: var(--primary); transition: transform .2s; }
+    .faq-item.open .faq-q:after { transform: rotate(45deg); }
+    .faq-a { color: var(--muted); font-size: 14.5px; max-height: 0; overflow: hidden; transition: max-height .3s; }
+    .faq-item.open .faq-a { max-height: 300px; padding-bottom: 20px; }
+
+    /* Footer */
+    footer { border-top: 1px solid var(--border); padding: 40px 0; color: var(--muted); font-size: 14px; }
+    .footer-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap nav-inner">
+    <div class="brand">
+      <div class="brand-logo">U</div>
+      <span>uniygopro</span>
+    </div>
+    <div class="nav-links">
+      <a href="#features">功能</a>
+      <a href="#showcase">界面</a>
+      <a href="#usecases">场景</a>
+      <a href="#download">下载</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <a href="#download" class="nav-cta">免费下载</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="wrap hero-inner">
+    <div class="hero-badge">
+      <span>●</span> 开源 · 跨平台 · Flutter 驱动
+    </div>
+    <h1>一套代码，<span class="grad">六端对战</span><br/>游戏王就此随身</h1>
+    <p class="sub">uniygopro 是基于 Flutter 打造的开源 Yu-Gi-Oh! Pro 游戏客户端。AI 对战、联机房间、可视化卡组编辑、全卡表支持——一个应用，覆盖 Android、iOS、Windows、Linux、macOS 与 Web。</p>
+    <div class="hero-cta">
+      <a href="#download" class="btn btn-primary">⬇ 免费下载</a>
+      <a href="https://uniygopro.electrolytej.workers.dev/" target="_blank" rel="noopener" class="btn btn-ghost">▶ 在线试玩</a>
+    </div>
+    <div class="hero-platforms">
+      <span>Android</span>·<span>iOS</span>·<span>Windows</span>·<span>Linux</span>·<span>macOS</span>·<span>Web</span>
+    </div>
+  </div>
+</section>
+
+<!-- Stats -->
+<section class="section" style="padding-top:0; margin-top:-40px;">
+  <div class="wrap">
+    <div class="stats">
+      <div class="stat"><div class="num">6+</div><div class="label">支持平台</div></div>
+      <div class="stat"><div class="num">100%</div><div class="label">开源透明</div></div>
+      <div class="stat"><div class="num">AI</div><div class="label">智能对战</div></div>
+      <div class="stat"><div class="num">∞</div><div class="label">联机房间</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Compare -->
+<section class="section">
+  <div class="wrap center">
+    <div class="eyebrow">Why uniygopro</div>
+    <h2>告别散装对战环境</h2>
+    <p class="lead">不再为每个平台找不同客户端、不再忍受封闭闭源、不再受限于单一对战模式。</p>
+    <div class="compare">
+      <div class="compare-col bad">
+        <h3>传统对战客户端</h3>
+        <ul>
+          <li>每个平台一个客户端，维护割裂</li>
+          <li>闭源黑盒，规则与数据不可控</li>
+          <li>卡表更新滞后，新卡迟迟不上</li>
+          <li>联机与 AI 割裂，切换繁琐</li>
+        </ul>
+      </div>
+      <div class="compare-col good">
+        <h3>uniygopro</h3>
+        <ul>
+          <li>一套 Flutter 代码，六端原生运行</li>
+          <li>完全开源，核心规则可审计</li>
+          <li>CardScripts 自动同步卡表</li>
+          <li>AI、联机、卡组编辑统一入口</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="section" id="features" style="background: var(--bg-soft);">
+  <div class="wrap center">
+    <div class="eyebrow">Core Features</div>
+    <h2>为对战而生的生产力客户端</h2>
+    <p class="lead">单人练习、好友联机、卡组研究、赛事举办——一个应用全部覆盖。</p>
+    <div class="features">
+      <div class="feature">
+        <div class="icon">📱</div>
+        <h3>全平台原生覆盖</h3>
+        <p>基于 Flutter，一套代码同时输出 Android、iOS、Windows、Linux、macOS 与 Web，体验一致、更新同步。</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🃏</div>
+        <h3>完整卡表支持</h3>
+        <p>接入 ProjectIgnis CardScripts，卡表自动同步更新，新卡发售即可上手，规则实现贴近实卡。</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🤖</div>
+        <h3>AI 智能对战</h3>
+        <p>内置多难度 AI 对手，随时练习战术、测试卡组，无需等待对手即可开始一局完整对局。</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🌐</div>
+        <h3>联机对战房间</h3>
+        <p>WebSocket 联机房间，与好友实时对战，低延迟同步操作，支持观战与多房间并行。</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🛠️</div>
+        <h3>可视化卡组编辑</h3>
+        <p>拖拽构建卡组，实时统计卡片分布，支持卡组导入导出，卡组研究从此高效直观。</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🔓</div>
+        <h3>开源完全透明</h3>
+        <p>客户端代码与核心规则实现完全开源，可审计、可二次开发，社区共建持续迭代。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Showcase -->
+<section class="section" id="showcase">
+  <div class="wrap center">
+    <div class="eyebrow">Real Interface</div>
+    <h2>所见即所得的真实界面</h2>
+    <p class="lead">以下为客户端真实运行截图（构建后自动替换），并非效果图。</p>
+    <div class="showcase-tabs">
+      <div class="showcase-tab active" data-tab="duel">对战界面</div>
+      <div class="showcase-tab" data-tab="deck">卡组编辑</div>
+      <div class="showcase-tab" data-tab="room">联机房间</div>
+      <div class="showcase-tab" data-tab="settings">设置</div>
+    </div>
+    <div class="showcase-frame">
+      <div class="ph" id="showcase-ph">对战界面截图 · 构建时由 CI 注入</div>
+    </div>
+  </div>
+</section>
+
+<!-- Use cases -->
+<section class="section" id="usecases" style="background: var(--bg-soft);">
+  <div class="wrap center">
+    <div class="eyebrow">Use Cases</div>
+    <h2>谁在用 uniygopro</h2>
+    <p class="lead">不同场景，同一客户端。</p>
+    <div class="usecases">
+      <div class="usecase">
+        <div class="emoji">🎯</div>
+        <h3>单人练习</h3>
+        <p>多难度 AI 对手随时开局，磨炼操作与战术决策。</p>
+      </div>
+      <div class="usecase">
+        <div class="emoji">🤝</div>
+        <h3>好友联机</h3>
+        <p>创建房间分享链接，与好友低延迟实时对战。</p>
+      </div>
+      <div class="usecase">
+        <div class="emoji">📚</div>
+        <h3>卡组研究</h3>
+        <p>可视化编辑、卡组导入导出，构建并验证构筑思路。</p>
+      </div>
+      <div class="usecase">
+        <div class="emoji">🏆</div>
+        <h3>赛事举办</h3>
+        <p>多房间并行、观战支持，组织线上小型赛事。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Download -->
+<section class="section" id="download">
+  <div class="wrap center">
+    <div class="eyebrow">Download</div>
+    <h2>下载 uniygopro</h2>
+    <p class="lead">全平台安装包由 GitHub Actions 自动构建并发布到 Releases，点击对应平台即可获取。</p>
+    <div class="download-grid">
+      <div class="download-card">
+        <div class="plat-icon">🤖</div>
+        <h3>Android</h3>
+        <div class="meta">arm64 / armeabi-v7a / x86_64 · APK</div>
+        <a class="btn btn-primary" href="https://github.com/electrolytej/uniygo-flutter/releases/latest" target="_blank" rel="noopener">下载 APK</a>
+      </div>
+      <div class="download-card">
+        <div class="plat-icon">🪟</div>
+        <h3>Windows</h3>
+        <div class="meta">Windows 10/11 · x86_64 · ZIP</div>
+        <a class="btn btn-primary" href="https://github.com/electrolytej/uniygo-flutter/releases/latest" target="_blank" rel="noopener">下载 Windows 版</a>
+      </div>
+      <div class="download-card">
+        <div class="plat-icon">🐧</div>
+        <h3>Linux</h3>
+        <div class="meta">x86_64 · tar.gz</div>
+        <a class="btn btn-primary" href="https://github.com/electrolytej/uniygo-flutter/releases/latest" target="_blank" rel="noopener">下载 Linux 版</a>
+      </div>
+      <div class="download-card">
+        <div class="plat-icon">🍎</div>
+        <h3>macOS</h3>
+        <div class="meta">Apple 芯片 / Intel · DMG</div>
+        <a class="btn btn-primary" href="https://github.com/electrolytej/uniygo-flutter/releases/latest" target="_blank" rel="noopener">下载 macOS 版</a>
+      </div>
+      <div class="download-card">
+        <div class="plat-icon">📱</div>
+        <h3>iOS</h3>
+        <div class="meta">需自行签名 · IPA</div>
+        <a class="btn btn-primary" href="https://github.com/electrolytej/uniygo-flutter/releases/latest" target="_blank" rel="noopener">下载 iOS 版</a>
+      </div>
+      <div class="download-card">
+        <div class="plat-icon">🌐</div>
+        <h3>Web 在线试玩</h3>
+        <div class="meta">无需安装 · 浏览器即开即玩</div>
+        <a class="btn btn-primary" href="https://uniygopro.electrolytej.workers.dev/" target="_blank" rel="noopener">立即试玩</a>
+      </div>
+    </div>
+    <p style="color: var(--muted); font-size: 13px; margin-top: 28px;">
+      系统要求：Android 8+ / Windows 10+ / macOS 12+ / Linux（GTK 3+） / 现代 浏览器。<br/>
+      所有构建产物由 GitHub Actions 自动产出，可在 <a href="https://github.com/electrolytej/uniygo-flutter/actions" target="_blank" rel="noopener" style="color: var(--primary);">Actions</a> 查看构建记录。
+    </p>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section" id="faq" style="background: var(--bg-soft);">
+  <div class="wrap center">
+    <div class="eyebrow">FAQ</div>
+    <h2>常见问题</h2>
+    <p class="lead">关于 uniygopro 你可能想知道的。</p>
+    <div class="faq-list">
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">uniygopro 是什么？</button>
+        <div class="faq-a">uniygopro 是一个基于 Flutter 的开源 Yu-Gi-Oh! Pro 游戏客户端，目标是让同一套代码运行于 Android、iOS、Windows、Linux、macOS 与 Web，提供 AI 对战、联机房间、卡组编辑等完整功能。</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">完全免费吗？开源吗？</button>
+        <div class="faq-a">完全免费且开源。客户端代码托管在 GitHub，所有平台构建产物由 GitHub Actions 自动产出并发布到 Releases，任何人可自行下载、审计、二次开发。</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">卡表会更新吗？支持新卡吗？</button>
+        <div class="faq-a">会。项目接入 ProjectIgnis CardScripts 卡表资源，通过 git submodule 拉取，新卡发售后同步更新即可使用，规则实现贴近实卡。</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">支持联机对战吗？需要服务器吗？</button>
+        <div class="faq-a">支持。通过 WebSocket 联机房间可与好友实时对战，低延迟同步操作。房间服务可由社区或自建服务器提供，客户端已内置 duelink 联机模块。</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">iOS 版为什么需要自行签名？</button>
+        <div class="faq-a">Apple 不允许未签名 IPA 直接安装。CI 会产出未签名 IPA，需使用自己的 Apple 开发者证书签名后通过侧载方式安装，或自行编译。</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">如何在本地编译？</button>
+        <div class="faq-a">克隆仓库后执行 <code>git submodule update --init --recursive</code>，在 apps/uniygopro 目录执行 <code>flutter pub get</code> 与 <code>flutter build &lt;platform&gt; --release</code> 即可。详情见仓库 README。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap footer-inner">
+    <div>© 2026 uniygopro · 开源项目</div>
+    <div class="footer-links">
+      <a href="https://github.com/electrolytej/uniygo-flutter" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/electrolytej/uniygo-flutter/releases" target="_blank" rel="noopener">Releases</a>
+      <a href="https://github.com/electrolytej/uniygo-flutter/actions" target="_blank" rel="noopener">Actions</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // FAQ toggle
+  function toggleFaq(btn) {
+    const item = btn.parentElement;
+    const wasOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+    if (!wasOpen) item.classList.add('open');
+  }
+
+  // Showcase tabs (placeholder behavior)
+  document.querySelectorAll('.showcase-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.showcase-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const ph = document.getElementById('showcase-ph');
+      const labels = {
+        duel: '对战界面截图 · 构建时由 CI 注入',
+        deck: '卡组编辑截图 · 构建时由 CI 注入',
+        room: '联机房间截图 · 构建时由 CI 注入',
+        settings: '设置界面截图 · 构建时由 CI 注入'
+      };
+      ph.textContent = labels[tab.dataset.tab] || labels.duel;
+    });
+  });
+
+  // Auto platform detection hint
+  (function() {
+    const ua = navigator.userAgent;
+    const cards = document.querySelectorAll('.download-card h3');
+    let plat = null;
+    if (/Android/i.test(ua)) plat = 'Android';
+    else if (/iPhone|iPad|iPod/i.test(ua)) plat = 'iOS';
+    else if (/Windows/i.test(ua)) plat = 'Windows';
+    else if (/Mac OS X/i.test(ua)) plat = 'macOS';
+    else if (/Linux/i.test(ua)) plat = 'Linux';
+    if (plat) {
+      cards.forEach(h => {
+        if (h.textContent === plat) {
+          h.parentElement.style.borderColor = 'var(--primary)';
+          h.parentElement.style.transform = 'translateY(-4px)';
+        }
+      });
+    }
+  })();
+</script>
+
+</body>
+</html>

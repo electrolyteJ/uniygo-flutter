@@ -1,0 +1,48 @@
+name: Deploy Website to GitHub Pages
+
+# 部署 uniygopro 项目介绍页（静态 HTML）到 GitHub Pages。
+# 注意：与 deploy-github-pages.yml（Flutter Web 应用）会部署到同一个 GitHub Pages 站点，
+# 两者同时启用会相互覆盖。推荐启用本 workflow 作为项目主入口页，
+# Flutter Web 在线试玩已部署在 https://uniygopro.electrolytej.workers.dev/ 。
+# 如需保留 Flutter Web 到 GitHub Pages，请禁用其中一个，或改用子路径部署。
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'website/**'
+      - '.github/workflows/deploy-website.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Static Website
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
