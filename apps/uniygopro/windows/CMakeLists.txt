@@ -2,6 +2,12 @@
 cmake_minimum_required(VERSION 3.14)
 project(uniygopro LANGUAGES CXX)
 
+# CMake >= 4.0 移除了对 cmake_minimum_required < 3.5 的兼容。
+# firebase_core 插件拉取的 Firebase C++ SDK 仍声明过老版本（< 3.5），
+# 这里在加载插件前统一豁免（同时作用于子目录与嵌套 cmake 子进程）。
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+set(ENV{CMAKE_POLICY_VERSION_MINIMUM} "3.5")
+
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
 set(BINARY_NAME "uniygopro")

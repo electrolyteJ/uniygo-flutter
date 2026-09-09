@@ -1,0 +1,54 @@
+site_name: uniygopro Beta
+site_description: uniygopro 内测版本下载入口
+site_url: https://electrolytej.github.io/uniygo-flutter/
+repo_url: https://github.com/electrolytej/uniygo-flutter
+repo_name: electrolytej/uniygo-flutter
+edit_uri: ""
+
+docs_dir: docs/beta
+site_dir: site
+
+theme:
+  name: material
+  language: zh
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - content.code.copy
+  palette:
+    - scheme: slate
+      primary: deep purple
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: 切换深色
+    - scheme: default
+      primary: deep purple
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: 切换浅色
+  font:
+    text: Noto Sans SC
+    code: JetBrains Mono
+
+nav:
+  - 版本列表: index.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.magiclink:
+      repo_url_shorthand: true
+      provider: github
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search

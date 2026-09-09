@@ -1,0 +1,162 @@
+name: Deploy MkDocs Beta Site
+
+# 构建 MkDocs 站点并部署到 GitHub Pages。
+# 部署前会用 gh CLI 拉取最新的预发布版本及资产，注入 docs/beta/index.md。
+#
+# 注意：本 workflow 部署到 GitHub Pages 站点。
+# Flutter Web 应用已改由 deploy-web.yml 部署到 Cloudflare + Firebase，
+# 不再占用 GitHub Pages，两者互不冲突。
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/beta/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/deploy-mkdocs.yml'
+  workflow_dispatch:
+  repository_dispatch:
+    types: [beta-released, prod-released]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build MkDocs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install MkDocs & Material
+        run: pip install mkdocs mkdocs-material
+
+      - name: Generate beta release list
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # 列出所有版本（正式 + 内测），按发布时间倒序，在标题标注类型。
+          # 注意：gh release list --json 不支持 url/assets/body 字段（会直接报错并回退 []），
+          # 因此改用 gh api REST /releases（字段完整，键为 snake_case），并过滤 draft。
+          RELEASES_JSON=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=50" \
+            --jq '[.[] | select(.draft == false)]' 2>/dev/null || echo "[]")
+
+          INDEX_FILE="docs/beta/index.md"
+          TMP_FILE="$(mktemp)"
+
+          # 保留 START 标记前的内容（标题 + 说明）
+          awk '/<!-- BETA_RELEASE_LIST_START -->/{exit} {print}' "$INDEX_FILE" > "$TMP_FILE"
+          echo "" >> "$TMP_FILE"
+
+          COUNT=$(echo "$RELEASES_JSON" | jq 'length')
+          if [ "$COUNT" -eq 0 ]; then
+            echo "## 暂无版本" >> "$TMP_FILE"
+            echo "" >> "$TMP_FILE"
+            echo "尚未发布任何版本，请稍后访问。" >> "$TMP_FILE"
+          else
+            echo "$RELEASES_JSON" | jq -c '.[]' | while read -r rel; do
+              TAG=$(echo "$rel" | jq -r '.tag_name')
+              NAME=$(echo "$rel" | jq -r '.name // .tag_name')
+              PUBLISHED=$(echo "$rel" | jq -r '.published_at // "" | sub("T.*"; "")')
+              URL=$(echo "$rel" | jq -r '.html_url')
+              BODY=$(echo "$rel" | jq -r '.body // ""' | head -20)
+              IS_PRE=$(echo "$rel" | jq -r '.prerelease')
+
+              if [ "$IS_PRE" = "true" ]; then
+                BADGE=":material-beta: 内测"
+              else
+                BADGE=":material-check-decagram: 正式"
+              fi
+
+              echo "## $NAME" >> "$TMP_FILE"
+              echo "" >> "$TMP_FILE"
+              echo "<sup>[:octicons-tag-24:] \`${TAG}\`](${URL}) · :material-calendar: ${PUBLISHED} · ${BADGE}</sup>" >> "$TMP_FILE"
+              echo "" >> "$TMP_FILE"
+
+              ASSETS=$(echo "$rel" | jq -c '.assets[]?')
+              if [ -n "$ASSETS" ]; then
+                echo "### 下载" >> "$TMP_FILE"
+                echo "" >> "$TMP_FILE"
+                echo "| 平台 | 文件 | 大小 | 链接 |" >> "$TMP_FILE"
+                echo "|---|---|---|---|" >> "$TMP_FILE"
+                echo "$ASSETS" | while read -r asset; do
+                  A_NAME=$(echo "$asset" | jq -r '.name')
+                  A_URL=$(echo "$asset" | jq -r '.browser_download_url')
+                  A_SIZE=$(echo "$asset" | jq -r '.size')
+                  SIZE_HR=$(awk "BEGIN { s=$A_SIZE; if (s > 1048576) printf \"%.1f MB\", s/1048576; else printf \"%.0f KB\", s/1024 }")
+                  PLATFORM="未知"
+                  case "$A_NAME" in
+                    *.apk) PLATFORM="Android" ;;
+                    *.aab) PLATFORM="Android (AAB)" ;;
+                    *.ipa) PLATFORM="iOS" ;;
+                    *windows*) PLATFORM="Windows" ;;
+                    *linux*) PLATFORM="Linux" ;;
+                    *.dmg|*macos*) PLATFORM="macOS" ;;
+                    *.tar.gz) PLATFORM="Linux/macOS" ;;
+                    *.deb) PLATFORM="Linux (deb)" ;;
+                    *.rpm) PLATFORM="Linux (rpm)" ;;
+                    *.snap) PLATFORM="Linux (snap)" ;;
+                    *.msix) PLATFORM="Windows (MSIX)" ;;
+                  esac
+                  echo "| ${PLATFORM} | \`${A_NAME}\` | ${SIZE_HR} | [下载](${A_URL}) |" >> "$TMP_FILE"
+                done
+                echo "" >> "$TMP_FILE"
+              fi
+
+              if [ -n "$BODY" ]; then
+                echo "### 更新说明" >> "$TMP_FILE"
+                echo "" >> "$TMP_FILE"
+                echo '??? note "点击展开"' >> "$TMP_FILE"
+                echo "" >> "$TMP_FILE"
+                echo "$BODY" | sed 's/^/    /' >> "$TMP_FILE"
+                echo "" >> "$TMP_FILE"
+              fi
+
+              echo "---" >> "$TMP_FILE"
+              echo "" >> "$TMP_FILE"
+            done
+          fi
+
+          # 追加 END 标记后的内容（平台说明等）
+          awk '/<!-- BETA_RELEASE_LIST_END -->/{flag=1} flag' "$INDEX_FILE" >> "$TMP_FILE"
+
+          mv "$TMP_FILE" "$INDEX_FILE"
+          echo "=== 生成的 index.md 预览（前 50 行）==="
+          head -50 "$INDEX_FILE"
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build MkDocs
+        run: mkdocs build --strict --verbose
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

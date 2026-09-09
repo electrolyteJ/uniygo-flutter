@@ -1,0 +1,589 @@
+name: Prod Release Uniygopro (正式渠道)
+
+# 正式发布入口：workflow_dispatch 填版本号后自动打 v* tag 并发布，
+# 也可直接推送 v* tag 触发（吸收并替换原 build-uniygopro.yml）。
+# 与 beta-release.yml 统一：Release 所需的 Git tag 均由工作流自动创建，无需手动 git tag。
+#
+# 渠道分发：
+#   Android 国内（华为/小米/OPPO/vivo/荣耀/应用宝/360/百度）：
+#     CI 仅产出 AAB + 通用 APK 到 GitHub Release；各商店需人工上传到对应开放平台后台
+#     （多数国内商店无开放上传 API，或需各自专用 keystore）
+#   Android 海外 Google Play：AAB + service account JSON 自动上传
+#   iOS / iPadOS App Store：签名 IPA + App Store Connect API 自动上传
+#   macOS：公证（Notarization）DMG → GitHub Release；Mac App Store 可选
+#   Windows：MSIX 打包 → GitHub Release；Microsoft Store 可选
+#   Linux：deb/rpm/snap → GitHub Release；Flathub/Snap Store 可选
+#   Web：调用 deploy-web.yml（Cloudflare 国内 + Firebase Hosting 海外）
+#   任意平台：website（MkDocs）+ GitHub Release tag
+#
+# 所需 Secrets（按需配置，未配置则对应 step 自动跳过）：
+#   Google Play：GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+#   App Store：APP_STORE_CONNECT_API_KEY（JSON）、IOS 签名四件套
+#   macOS 公证：APPLE_ID / APPLE_APP_PASSWORD / APPLE_TEAM_ID + 证书
+#   Windows MSIX 签名：WINDOWS_MSIX_CERT_BASE64 / WINDOWS_MSIX_CERT_PASSWORD
+#   Snap Store：SNAPCRAFT_LOGIN（snapcraft login 凭据文件）
+#   Mac App Store / Microsoft Store 提交：分别需要对应 API key
+#
+# 详见 docs/multiplatform-deployment/README.md。
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号（如 1.2.3），工作流自动创建 v<version> tag 并发布'
+        required: true
+        type: string
+      skip_upload:
+        description: '仅构建+GitHub Release，跳过所有商店上传（调试用）'
+        required: true
+        default: false
+        type: boolean
+
+env:
+  FLUTTER_VERSION: '3.47.0'
+  APP_NAME: 'uniygopro'
+  APP_DIR: 'apps/uniygopro'
+  # 发布 tag：手动分发时由 version 输入自动生成 v<version>（自动容忍已带 v 前缀）；推送 v* tag 触发时即该 tag
+  TAG: ${{ github.event_name == 'workflow_dispatch' && (startsWith(inputs.version, 'v') && inputs.version || format('v{0}', inputs.version)) || github.ref_name }}
+
+permissions:
+  contents: write
+
+jobs:
+  # ============================================================
+  # Android：AAB + APK → GitHub Release + Google Play + 国内商店指引
+  # ============================================================
+  android:
+    name: Android Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      # 发布签名材料已入库（android/key.properties + upload-keystore.jks），
+      # build.gradle.kts 检测到 key.properties 自动启用发布签名。
+
+      - name: Install dependencies
+        run: flutter pub get
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Build AAB (Release)
+        run: flutter build appbundle --release
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Build APK (Release, fat)
+        run: flutter build apk --release
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Upload AAB + APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: |
+            ${{ env.APP_DIR }}/build/app/outputs/bundle/release/app-release.aab
+            ${{ env.APP_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      # ---------- 海外：Google Play ----------
+      - name: Upload to Google Play
+        if: ${{ !inputs.skip_upload && env.GP_KEY != '' }}
+        env:
+          GP_KEY: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.e.uniygopro
+          releaseFiles: ${{ env.APP_DIR }}/build/app/outputs/bundle/release/app-release.aab
+          track: production
+          status: completed
+
+      # ---------- 国内：华为/小米/OPPO/vivo/荣耀/应用宝/360/百度 ----------
+      - name: Domestic store upload guide (人工)
+        run: |
+          echo "::notice::国内 Android 商店无统一开放上传 API，需人工上传 AAB/APK 到各开放平台后台。"
+          echo "产物路径："
+          echo "  AAB: $APP_DIR/build/app/outputs/bundle/release/app-release.aab"
+          echo "  APK: $APP_DIR/build/app/outputs/flutter-apk/app-release.apk"
+          echo ""
+          echo "请前往各商店后台手动上传："
+          echo "  华为 AppGallery Connect: https://developer.huawei.com/conference/cn/agconnect/"
+          echo "  小米 开发者: https://dev.mi.com/"
+          echo "  OPPO 开放平台: https://open.oppomobile.com/"
+          echo "  vivo 开放平台: https://dev.vivo.com.cn/"
+          echo "  荣耀 开发者服务: https://developer.honor.com/"
+          echo "  应用宝: https://open.tencent.com/"
+          echo "  360 开放平台: https://dev.360.cn/"
+          echo "  百度 开发者平台: https://developer.baidu.com/"
+
+  # ============================================================
+  # iOS / iPadOS：签名 IPA → GitHub Release + App Store Connect 上传
+  # ============================================================
+  ios:
+    name: iOS / iPadOS Release
+    runs-on: macos-latest
+    if: ${{ !inputs.skip_upload || true }}
+    env:
+      IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'com.e.uniygopro' }}
+      IOS_EXPORT_METHOD: ${{ vars.IOS_EXPORT_METHOD || 'app-store' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: |
+          flutter pub get
+          cd ios && pod install
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Import signing certificate & provisioning profile
+        env:
+          IOS_P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+          IOS_MOBILEPROVISION_BASE64: ${{ secrets.IOS_MOBILEPROVISION_BASE64 }}
+        run: |
+          set -e
+          KEYCHAIN=ci-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 16)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "$IOS_P12_BASE64" | base64 -d > /tmp/dist.p12
+          security import /tmp/dist.p12 -k "$KEYCHAIN" -P "$IOS_P12_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          rm -f /tmp/dist.p12
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$IOS_MOBILEPROVISION_BASE64" | base64 -d > /tmp/profile.mobileprovision
+          PROFILE_UUID=$(security cms -D -i /tmp/profile.mobileprovision | plutil -extract UUID raw -)
+          cp /tmp/profile.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          rm -f /tmp/profile.mobileprovision
+          echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+
+      - name: Archive (manual signing)
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          set -o pipefail
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath build/ios/Runner.xcarchive archive \
+            DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID"
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Export IPA
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          cat > /tmp/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>$IOS_EXPORT_METHOD</string>
+            <key>teamID</key><string>$IOS_TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict><key>$IOS_BUNDLE_ID</key><string>$PROFILE_UUID</string></dict>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive -archivePath build/ios/Runner.xcarchive \
+            -exportOptionsPlist /tmp/ExportOptions.plist -exportPath build/ios/ipa
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release
+          path: ${{ env.APP_DIR }}/build/ios/ipa/*.ipa
+          retention-days: 30
+
+      # ---------- App Store Connect ----------
+      - name: Upload to App Store Connect
+        if: ${{ !inputs.skip_upload && env.ASC_KEY != '' }}
+        env:
+          ASC_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          echo "$ASC_KEY" > /tmp/asc_key.json
+          xcrun altool --upload-app --type ios \
+            --file "$(ls $APP_DIR/build/ios/ipa/*.ipa | head -1)" \
+            --apiKey "$(jq -r '.key_id' /tmp/asc_key.json)" \
+            --apiIssuer "$(jq -r '.issuer_id' /tmp/asc_key.json)" \
+            --apiKeyPath /tmp/asc_key.json
+          rm -f /tmp/asc_key.json
+
+  # ============================================================
+  # macOS：公证（Notarization）DMG → GitHub Release + Mac App Store 可选
+  # ============================================================
+  macos:
+    name: macOS Release
+    runs-on: macos-latest
+    env:
+      IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'com.e.uniygopro' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Build macOS (Release)
+        run: flutter build macos --release
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Sign .app
+        env:
+          IOS_P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          set -e
+          KEYCHAIN=ci-macos.keychain-db
+          KP=$(openssl rand -hex 16)
+          security create-keychain -p "$KP" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KP" "$KEYCHAIN"
+          echo "$IOS_P12_BASE64" | base64 -d > /tmp/dev.p12
+          security import /tmp/dev.p12 -k "$KEYCHAIN" -P "$IOS_P12_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KP" "$KEYCHAIN"
+          rm -f /tmp/dev.p12
+          APP="$APP_DIR/build/macos/Build/Products/Release/${APP_NAME^}.app"
+          codesign --deep --force --options runtime --timestamp \
+            --sign "$IOS_TEAM_ID" "$APP"
+
+      - name: Notarize .app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -e
+          APP_NAME_CAP=$(echo "${APP_NAME}" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
+          APP="$APP_DIR/build/macos/Build/Products/Release/${APP_NAME_CAP}.app"
+          ZIP="/tmp/${APP_NAME}.zip"
+          ditto -c -k --keepParent "$APP" "$ZIP"
+          xcrun notarytool submit "$ZIP" \
+            --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "$APP"
+          rm -f "$ZIP"
+
+      - name: Package DMG + tar.gz
+        run: |
+          mkdir -p artifacts
+          APP_NAME_CAP=$(echo "${APP_NAME}" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
+          BUILD_DIR="$APP_DIR/build/macos/Build/Products/Release"
+          cd "$BUILD_DIR"
+          hdiutil create -volname "${APP_NAME}" -srcfolder "${APP_NAME_CAP}.app" -ov -format UDZO \
+            "${{ github.workspace }}/artifacts/${APP_NAME}-macos.dmg"
+          tar -czf "${{ github.workspace }}/artifacts/${APP_NAME}-macos.tar.gz" "${APP_NAME_CAP}.app"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: artifacts/*
+          retention-days: 30
+
+      # ---------- Mac App Store（可选，需 Transporter） ----------
+      - name: Upload to Mac App Store
+        if: ${{ !inputs.skip_upload && env.ASC_KEY != '' }}
+        env:
+          ASC_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: |
+          echo "$ASC_KEY" > /tmp/asc_key.json
+          # MAS 上传需 pkg，此处仅占位；实际需先 build macos --mas 再导出 pkg
+          echo "::notice::Mac App Store 上传需额外配置 MAS 证书与 pkg 导出，当前 step 占位"
+
+  # ============================================================
+  # Windows：MSIX 打包 → GitHub Release + Microsoft Store 可选
+  # ============================================================
+  windows:
+    name: Windows Release
+    runs-on: windows-latest
+    env:
+      # CMake 4.x 已移除 <3.5 兼容；Firebase C++ SDK 旧版 cmake_minimum_required 需此豁免
+      CMAKE_POLICY_VERSION_MINIMUM: '3.5'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Build libocgcore.dll (Windows)
+        shell: pwsh
+        run: |
+          cmake -S packages/ocgcore/native -B packages/ocgcore/native/build -A x64
+          cmake --build packages/ocgcore/native/build --config Release
+          New-Item -ItemType Directory -Force packages/ocgcore/windows/libs/x64 | Out-Null
+          Copy-Item packages/ocgcore/native/build/Release/ocgcore.dll packages/ocgcore/windows/libs/x64/ocgcore.dll
+
+      - name: Install dependencies
+        run: flutter pub get
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Build Windows (Release)
+        run: flutter build windows --release
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Package ZIP
+        shell: pwsh
+        run: |
+          $BUILD_DIR = "$env:APP_DIR\build\windows\x64\runner\Release"
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          Compress-Archive -Path "$BUILD_DIR\*" -DestinationPath "artifacts\${env:APP_NAME}-windows-x86_64.zip" -Force
+
+      - name: Package MSIX
+        shell: pwsh
+        env:
+          MSIX_CERT_BASE64: ${{ secrets.WINDOWS_MSIX_CERT_BASE64 }}
+          MSIX_CERT_PASSWORD: ${{ secrets.WINDOWS_MSIX_CERT_PASSWORD }}
+        run: |
+          # 若未配置 MSIX 证书，仅产出未签名 MSIX 供 GitHub Release 下载
+          $PUBLISHER = "CN=uniygopro"
+          if ($env:MSIX_CERT_BASE64) {
+            [System.IO.File]::WriteAllBytes("artifacts\signing.pfx", [System.Convert]::FromBase64String($env:MSIX_CERT_BASE64))
+            $Publisher = (Get-PfxCertificate -FilePath "artifacts\signing.pfx").Subject
+            # 实际签名在 signtool 或 MakeAppx 后
+          }
+          # 占位：完整 MSIX 打包需要 AppxManifest.xml 与 msix 库（pubspec.yaml 加 msix）
+          # 此处仅生成目录结构说明，实际启用需 apps/uniygopro 加 msix 依赖
+          echo "::notice::MSIX 打包需 apps/uniygopro 添加 msix pub 依赖，当前 step 占位"
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: artifacts/*.zip
+          retention-days: 30
+
+  # ============================================================
+  # Linux：deb / rpm / snap → GitHub Release + Flathub/Snap Store 可选
+  # ============================================================
+  linux:
+    name: Linux Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ninja-build libgtk-3-dev libblkid-dev liblzma-dev \
+            libsecret-1-dev libjsoncpp-dev librsync-dev libcurl4-openssl-dev \
+            clang cmake pkg-config libssl-dev libunwind-dev libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev libmpv-dev
+          # 打包工具
+          sudo apt-get install -y ruby ruby-dev
+          sudo gem install fpm
+          sudo snap install lxd || true
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Build Linux (Release)
+        run: flutter build linux --release
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Package tar.gz
+        run: |
+          mkdir -p artifacts
+          BUILD_DIR="$APP_DIR/build/linux/x64/release/bundle"
+          tar -czf "artifacts/${APP_NAME}-linux-x86_64.tar.gz" -C "$BUILD_DIR" .
+
+      - name: Package deb
+        run: |
+          BUILD_DIR="$APP_DIR/build/linux/x64/release/bundle"
+          fpm -s dir -t deb -n "$APP_NAME" -v "${TAG#v}" \
+            --prefix /usr/lib/$APP_NAME \
+            -C "$BUILD_DIR" .
+          mv -f *.deb artifacts/
+
+      - name: Package rpm
+        run: |
+          BUILD_DIR="$APP_DIR/build/linux/x64/release/bundle"
+          fpm -s dir -t rpm -n "$APP_NAME" -v "${TAG#v}" \
+            --prefix /usr/lib/$APP_NAME \
+            -C "$BUILD_DIR" .
+          mv -f *.rpm artifacts/ || echo "rpm 需额外 rpmbuild 环境，跳过"
+
+      - name: Package snap
+        run: |
+          # 完整 snap 打包需要 snapcraft 与 lxd，此处占位
+          echo "::notice::Snap 完整打包需 snapcraft + lxd，当前 step 占位"
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: artifacts/*
+          retention-days: 30
+
+      # ---------- Snap Store（可选） ----------
+      - name: Upload to Snap Store
+        if: ${{ !inputs.skip_upload && env.SNAP_LOGIN != '' }}
+        env:
+          SNAP_LOGIN: ${{ secrets.SNAPCRAFT_LOGIN }}
+        run: |
+          echo "$SNAP_LOGIN" > snapcraft_login.txt
+          snapcraft login --with snapcraft_login.txt
+          # snapcraft push *.snap
+          echo "::notice::Snap Store 上传需先完成 snap 打包，当前 step 占位"
+
+  # ============================================================
+  # Web：构建并部署到 Cloudflare（国内）+ Firebase Hosting（海外）
+  # ============================================================
+  web:
+    name: Web Release (Cloudflare + Firebase)
+    uses: ./.github/workflows/deploy-web.yml
+    permissions:
+      contents: read
+
+  # ============================================================
+  # GitHub Release：收集全平台产物 → 创建正式 Release
+  # ============================================================
+  github-release:
+    name: GitHub Release (任意平台下载)
+    needs: [android, ios, macos, windows, linux]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Android artifact
+        if: always() && needs.android.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: android-release
+          path: artifacts
+          merge-multiple: true
+
+      - name: Download iOS artifact
+        if: always() && needs.ios.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-release
+          path: artifacts
+          merge-multiple: true
+
+      - name: Download macOS artifacts
+        if: always() && needs.macos.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-release
+          path: artifacts
+          merge-multiple: true
+
+      - name: Download Windows artifacts
+        if: always() && needs.windows.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-release
+          path: artifacts
+          merge-multiple: true
+
+      - name: Download Linux artifacts
+        if: always() && needs.linux.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-release
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la artifacts/ || true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
+          name: Release ${{ env.TAG }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================================
+  # MkDocs：触发版本列表页重新生成与部署（任意平台 website 入口）
+  # ============================================================
+  trigger-mkdocs:
+    name: Trigger MkDocs Site Deploy
+    needs: [github-release]
+    if: always() && needs.github-release.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger deploy-mkdocs via repository_dispatch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST \
+            "/repos/${{ github.repository }}/dispatches" \
+            -f event_type=prod-released \
+            -f client_payload[tag]="${{ env.TAG }}"
+          echo "已触发 MkDocs 版本列表页重新部署（正式渠道）。"

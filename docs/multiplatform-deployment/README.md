@@ -12,13 +12,42 @@
 | **iOS / iPadOS** | TestFlight 内测（需开发者账号） | App Store 上架 | **$99/年**（Apple Developer） |
 | **Android（海外）** | GitHub Releases / 侧载 APK | Google Play | **$25 一次性**（2026 起新账号需 12 名测试者规则） |
 | **Android（国内）** | 蒲公英等内测分发 | 华为/小米/OPPO/vivo/应用宝等 | **¥0~1000**（软著 + APP 备案） |
-| **Web** | GitHub Pages / Cloudflare Pages / Vercel（免费） | 自定义域名 + 国内备案（可选） | **¥0**（域名除外） |
+| **Web** | GitHub Pages / Cloudflare Pages / Vercel / Firebase Hosting（免费） | 自定义域名 + 国内备案（可选） | **¥0**（域名除外） |
 | **macOS** | 自签名 dmg / GitHub Releases | Mac App Store / 公证 | **$99/年**（公证需开发者账号） |
 | **Windows** | 免签 exe / GitHub Releases | Microsoft Store（MSIX） | **$0~19**（商店注册费） |
 | **Linux** | AppImage / Flatpak / Snap（免费） | 各发行版仓库 | **¥0** |
 | **Steam**（可选） | — | Steam Direct | **$100/款** |
 
 **一句话**：Flutter 项目多端发布，**Web 端几乎零成本**、Android 海外 $25 买断、iOS/macOS 需 $99/年、国内安卓核心成本是**软著 + APP 备案**（钱少但周期长）。
+
+### 渠道分类：内测渠道 vs 正式渠道
+
+先按渠道性质分类，便于快速对号入座（具体方案见下文各端小节）：
+
+**内测渠道（Beta / 测试分发）**
+
+| 平台                | 渠道                               | 说明 |
+|-------------------|----------------------------------|---|
+| iOS / iPadOS      | **TestFlight**                   | Apple 官方内测：随账号 100 台设备 / 90 天，公开链接可 1 万人（见 2.1、2.4） |
+| Android（海外）       | **Google Play 内部 / 封闭 / 开放测试**   | Play Console 自带、免费随账号，内部测试 100 人（见 2.2、2.4） |
+| Android / iOS（国内） | **蒲公英（PGYER）**                   | 免费基础分发（iOS 需企业签/Ad-hoc 安装包）；本项目 CI 已接入（`.github/workflows/upload-pgyer.yml`，见 2.4） |
+| Android / iOS     | **Firebase App Distribution**    | 免费，接入 CI 方便（见 2.4） |
+| 任意平台              | **GitHub Releases/云盘/存储空间+说明页面** | 安装包直链，免费（见 2.4） |
+
+**正式渠道（正式上架 / 发布）**
+
+| 平台 | 渠道 | 核心成本 / 资质 |
+|---|---|---|
+| iOS / iPadOS | **App Store** | **$99/年**（Apple Developer）；游戏需 IARC 分级，内购走 Apple IAP |
+| Android（海外） | **Google Play** | **$25** 一次性；2026 新账号需 12 名测试者 14 天，内测为上架前置 |
+| Android（国内） | **华为 / 小米 / OPPO / vivo / 荣耀 / 应用宝 / 360 / 百度等** | **软著 + APP 备案**（¥0，办理另计）；经营性业务（内购/广告）可能需 ICP 许可证 |
+| macOS | **Mac App Store** / **公证（Notarization）dmg** | **$99/年** |
+| Windows | **Microsoft Store（MSIX）** | **$19** 一次性（个人注册）；代码签名证书可选 |
+| Linux | **发行版仓库（deb/rpm）** / Flathub / Snapcraft | ¥0 |
+| Web | **GitHub Pages / Cloudflare Pages / Vercel / Netlify / Firebase Hosting**；国内稳定访问需域名备案 + 大陆 CDN | 托管 ¥0（域名除外） |
+| Steam（可选） | **Steam Direct** | **$100/款** 一次性 |
+
+> 💡 内测渠道通常是正式上架的前置步骤：iOS 用 TestFlight 收集反馈后再提审；Google Play 2026 新账号必须完成 12 名测试者内测才可上架；国内安卓可先用蒲公英内测，再走软著 + APP 备案上架。
 
 ---
 
@@ -73,7 +102,7 @@
 |---|---|---|
 | **TestFlight** | 100 台内测设备、公开链接 1 万人 | iOS 官方内测 |
 | **Google Play 内部测试** | 100 人 | Android 官方内测 |
-| **蒲公英（PGYER）** | 免费版基础分发（有次数/数量限制） | 国内常用，本项目 CI 已接入（见 `.github/workflows/upload-pgyer.yml`） |
+| **蒲公英（PGYER）** | 免费版基础分发（有次数/数量限制） | Android / iOS 内测分发（国内常用；iOS 需企业签/Ad-hoc 包），本项目 CI 已接入（见 `.github/workflows/upload-pgyer.yml`） |
 | **Firebase App Distribution** | 免费 | Android/iOS 内测，接入 CI 方便 |
 | **GitHub Releases** | 免费 | 任意平台安装包直链 |
 
@@ -84,6 +113,7 @@
 | **GitHub Pages** | 1GB 站点、100GB 流量/月、10 个站点/账号 | 免费 HTTPS + 自定义域名 |
 | **Cloudflare Pages** | 无限静态请求、500 构建/月 | 全球 CDN，配 Workers 可做后端 |
 | **Vercel / Netlify** | 免费额度充裕 | 一键 Git 部署 |
+| **Firebase Hosting** | Spark 免费版：10GB 存储、360MB/天流量、免费 SSL/自定义域名 | 与 Firebase App Distribution 同一 CLI（`firebase deploy`）/GitHub Actions，工具链统一 |
 | 国内访问 | 海外免费托管国内访问不稳；要稳需**备案 + 大陆 CDN/OSS** | 备案免费但需域名+服务器 |
 
 > 本项目：Flutter Web 产物 `build/web` 可直接部署到上述任意平台；无后端时纯静态，成本 ¥0。
@@ -129,7 +159,7 @@
 | iOS | ❌（无开发者账号无法真机/上架） | Apple Developer + App Store | **$99/年** |
 | Android 海外 | GitHub Releases 侧载 | Google Play | **$25** 一次性 |
 | Android 国内 | 蒲公英内测 | 渠道上架（软著+备案） | **¥0~1000**（资质） |
-| Web | GitHub Pages / CF Pages | 自定义域名（可选） | **¥0** |
+| Web | GitHub Pages / CF Pages / Firebase Hosting | 自定义域名（可选） | **¥0** |
 | macOS | 自签名分发 | App Store / 公证 | **$99/年** |
 | Windows | 免签 exe | Microsoft Store | **$19** 一次性 |
 | Linux | AppImage / Flatpak / Snap | — | **¥0** |
@@ -142,7 +172,7 @@
 ### 路径 A：个人开发者最小成本（~$25）
 1. **Android（海外）**：$25 开 Google Play 账号 → AAB + 现有签名材料直接上架
 2. **Android（国内）**：办软著（自办 ¥0/代理几百）→ APP 备案 → 上华为/小米等
-3. **Web**：GitHub Pages / Cloudflare Pages 免费部署
+3. **Web**：GitHub Pages / Cloudflare Pages / Firebase Hosting 免费部署
 4. **iOS/macOS**：暂缓（$99/年）或 TestFlight 内测（仍需账号）
 5. **成本**：**$25 + 软著费用 + 备案服务器月费（可复用已有）**
 
@@ -178,6 +208,7 @@
 - 小米开放平台（软著/备案要求）：https://dev.mi.com/
 - GitHub Pages 限制：https://docs.github.com/zh/pages/getting-started-with-github-pages/github-pages-limits
 - Cloudflare Pages 定价：https://www.cloudflare.com/zh-cn/plans/developer-platform/
+- Firebase Hosting 方案与定价：https://firebase.google.com/docs/hosting/plans
 - 蒲公英内测分发：https://www.pgyer.com/
 - Steam Direct：https://partner.steamgames.com/
 

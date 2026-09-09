@@ -23,5 +23,44 @@
         ]
       }
     ]
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "spacecraft-67664",
+          "appId": "1:394905982403:android:6605ad64c59f2a4a24d976",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "spacecraft-67664",
+          "appId": "1:394905982403:ios:04cc0c1f33d674ac24d976",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "spacecraft-67664",
+          "appId": "1:394905982403:ios:04cc0c1f33d674ac24d976",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "spacecraft-67664",
+          "configurations": {
+            "android": "1:394905982403:android:6605ad64c59f2a4a24d976",
+            "ios": "1:394905982403:ios:04cc0c1f33d674ac24d976",
+            "macos": "1:394905982403:ios:04cc0c1f33d674ac24d976",
+            "web": "1:394905982403:web:715e6d90b5f2dcc524d976",
+            "windows": "1:394905982403:web:7a949442a642a9bf24d976"
+          }
+        }
+      }
+    }
   }
 }
