@@ -50,6 +50,7 @@ dependencies:
   http: ^1.2.1
   flutter_portal: ^1.1.4
   web_socket_channel: ^3.0.0
+  firebase_core: ^3.10.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

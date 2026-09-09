@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "394905982403",
+    "project_id": "spacecraft-67664",
+    "storage_bucket": "spacecraft-67664.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:394905982403:android:6605ad64c59f2a4a24d976",
+        "android_client_info": {
+          "package_name": "com.e.uniygopro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHtCtTEK_kk3AdjO-aRm-tkgzuzMVo6Rg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:394905982403:android:4fa3eb142ad65fe524d976",
+        "android_client_info": {
+          "package_name": "com.electrolytej.spacecraft"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHtCtTEK_kk3AdjO-aRm-tkgzuzMVo6Rg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
