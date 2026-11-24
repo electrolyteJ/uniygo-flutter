@@ -68,26 +68,31 @@ class _PuzzleRoomSheetState extends State<PuzzleRoomSheet> {
               onChanged: (v) => setState(() => _filter = v.trim()),
             ),
             const SizedBox(height: 8),
-            SizedBox(
-              height: 420,
-              child: FutureBuilder<List<PuzzleInfo>>(
-                future: _puzzles,
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        '残局加载失败: ${snapshot.error}',
-                        style: const TextStyle(color: Colors.redAccent),
-                      ),
-                    );
-                  }
-                  if (!snapshot.hasData) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: Colors.amber),
-                    );
-                  }
-                  return _buildPuzzleList(snapshot.data!);
-                },
+            // 固定 420 高在 640×360 下放不下（弹窗最大高 88% ≈ 317px，
+            // 头部 + 搜索框已占约 145px），会 RenderFlex overflow 260px。
+            // 套 Flexible 让列表在矮屏按剩余高度收缩，正常屏高仍取 420。
+            Flexible(
+              child: SizedBox(
+                height: 420,
+                child: FutureBuilder<List<PuzzleInfo>>(
+                  future: _puzzles,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          '残局加载失败: ${snapshot.error}',
+                          style: const TextStyle(color: Colors.redAccent),
+                        ),
+                      );
+                    }
+                    if (!snapshot.hasData) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: Colors.amber),
+                      );
+                    }
+                    return _buildPuzzleList(snapshot.data!);
+                  },
+                ),
               ),
             ),
           ],

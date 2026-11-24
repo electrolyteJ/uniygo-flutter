@@ -11,6 +11,11 @@ resolution: workspace
 dependencies:
   applog:
     path: ../../packages/applog
+  # 账号体系门面（lib/main.dart、大厅、登录页、测试均直接 import）：
+  # 此前只靠 deck_editor1/biz 的传递依赖，pubspec 未声明，分析器在
+  # test/ 下会报 depend_on_referenced_packages。
+  account_mycard:
+    path: ../../packages/account_mycard
   flutter:
     sdk: flutter
   flutter_localizations:
@@ -54,6 +59,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # 仅测试用：尺寸矩阵需包一层 ProviderScope（结算页是 riverpod 组件）。
+  flutter_riverpod: ^3.4.2
   flutter_web_plugins:
     sdk: flutter
   integration_test:

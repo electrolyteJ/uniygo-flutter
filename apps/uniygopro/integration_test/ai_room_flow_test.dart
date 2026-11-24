@@ -1,6 +1,12 @@
 /// 方案 2 —— AI 对决房间流程的 UI 集成测试（真实 App，真实引擎）。
 ///
-/// 流程：连接 → 进房 → 准备 → 猜拳 → 进入决斗场（RoomInDuel）。
+/// 流程：开屏分流 → 游客进入大厅 → 连接 → 进房 → 准备 → 猜拳 →
+/// 进入决斗场（RoomInDuel）。
+///
+/// 入口契约：`config/route.dart` 的 `initialLocation` 是 `/splash`，
+/// `splash_page` 在 1200ms 动画后按登录态分流（无登录态 → `/login`）。
+/// 因此不能 `pumpAndSettle()` 后直接点大厅控件，必须先过开屏、点
+/// `login-guest-entry`（与 spec 首启链路一致），否则第一处断言就红。
 ///
 /// 运行方式：
 /// - macOS:  `flutter test integration_test/ai_room_flow_test.dart -d macos`
@@ -20,6 +26,9 @@ import 'package:uniygopro/main.dart' as app;
 import 'package:biz/ygo_sound_service.dart';
 import 'package:cardlive/cardlive.dart' show Summon3DOverlay;
 
+const _aiRoomKey = ValueKey('home-server-ai-room');
+const _guestEntryKey = ValueKey('login-guest-entry');
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -28,8 +37,10 @@ void main() {
     // 留下 transient callbacks，导致测试框架报「animation still running」。
     YgoSoundService.enabled = false;
     app.main();
-    await tester.pumpAndSettle();
-    _failIfFlutterException(tester, 'after app startup');
+    // 启动链路本身是异步的（SharedPreferences / DuelRoomRendererPreference
+    // .restore()），首帧到达前 pumpAndSettle 会立刻返回，因此按条件等首屏。
+    await _enterLobby(tester);
+    _failIfFlutterException(tester, 'after entering lobby');
 
     // ── 1. 进入本地 AI 房（触发连接 + 进房）──
     await tester.tap(find.byKey(const ValueKey('home-server-ai-room')));
@@ -76,6 +87,42 @@ void main() {
     expect(status, contains('stage=RoomInDuel'));
     expect(status, contains('errorMessage=<none>'));
   });
+}
+
+/// 从开屏进入大厅：已登录直接在大厅，未登录点「游客进入」。
+///
+/// 开屏 `SplashPage` 有 1200ms 有限次动画，`pumpAndSettle()` 在真实
+/// 首帧到达前会立刻返回，所以按条件等（LiveBinding 下不能靠
+/// `pump(Duration)` 推进时钟，只能「泵一帧 + 真实等待」交替）。
+Future<void> _enterLobby(WidgetTester tester) async {
+  await _pumpUntil(
+    tester,
+    () => _onLobby() || _guestEntry().evaluate().isNotEmpty,
+    reason: '启动后既没进大厅也没出现登录页',
+  );
+  if (_onLobby()) return;
+  await tester.tap(_guestEntry());
+  await tester.pumpAndSettle();
+  await _pumpUntil(tester, _onLobby, reason: '点「游客进入」后未回到大厅');
+}
+
+bool _onLobby() => find.byKey(_aiRoomKey).evaluate().isNotEmpty;
+
+Finder _guestEntry() => find.byKey(_guestEntryKey);
+
+Future<void> _pumpUntil(
+  WidgetTester tester,
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 30),
+  required String reason,
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    await tester.pump(const Duration(milliseconds: 50));
+    if (condition()) return;
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  }
+  fail('等待超时（${timeout.inSeconds}s）：$reason');
 }
 
 /// 驱动到 RoomInDuel：遇猜拳阶段出石头，遇选先攻阶段选先攻；

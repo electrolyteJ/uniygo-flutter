@@ -9,6 +9,7 @@
 library;
 
 export 'src/models/deck_model.dart';
+export 'src/pages/deck_editor_layout.dart';
 export 'src/pages/deck_editor_page.dart';
 export 'src/pages/deck_editor_session.dart';
 export 'src/pages/deck_editor_store.dart';

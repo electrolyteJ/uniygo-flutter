@@ -1,8 +1,15 @@
 /// MyCard 账号密码登录对话框（应用内直登，不走网页 SSO）。
 library;
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:account_mycard/account_mycard.dart';
+
+/// 持久化“记住密码”凭证的 SharedPreferences 键。
+/// 与 `mycard_account`（登录态）平行存在，密码本不随 token 失效而丢失。
+const String kMycardCredentialsKey = 'mycard_credentials';
 
 /// 弹出登录表单；成功返回账号（已通过统一接口写入登录态），取消返回 null。
 Future<MyCardAccount?> showMyCardLoginDialog(
@@ -35,7 +42,48 @@ class _MyCardLoginDialogState extends State<_MyCardLoginDialog> {
 
   bool _submitting = false;
   bool _obscure = true;
+  bool _rememberPassword = true; // 默认勾选“记住密码”
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  /// 启动时从 SharedPreferences 读取已保存凭证，预填到输入框。
+  /// 仅在用户上次登录且勾选了“记住密码”时存在。
+  Future<void> _loadSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(kMycardCredentialsKey);
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final map = jsonDecode(raw) as Map;
+      final username = map['username'] as String? ?? '';
+      final password = map['password'] as String? ?? '';
+      if (username.isEmpty || password.isEmpty) return;
+      _usernameCtrl.text = username;
+      _passwordCtrl.text = password;
+      _rememberPassword = true;
+      if (mounted) setState(() {});
+    } on FormatException {
+      // 损坏的凭证数据，清除避免反复出错。
+      await prefs.remove(kMycardCredentialsKey);
+    }
+  }
+
+  /// 登录成功后根据勾选状态保存或清除凭证。
+  Future<void> _persistCredentials(String username, String password) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_rememberPassword) {
+      await prefs.setString(
+        kMycardCredentialsKey,
+        jsonEncode({'username': username, 'password': password}),
+      );
+    } else {
+      await prefs.remove(kMycardCredentialsKey);
+    }
+  }
 
   @override
   void dispose() {
@@ -58,6 +106,8 @@ class _MyCardLoginDialogState extends State<_MyCardLoginDialog> {
     });
     try {
       final account = await widget.api.signIn(username, password);
+      // 登录成功后再落盘凭证（避免存错密码）。
+      await _persistCredentials(username, password);
       if (!mounted) return;
       Navigator.of(context).pop(account);
     } on MyCardAuthException catch (e) {
@@ -135,6 +185,32 @@ class _MyCardLoginDialogState extends State<_MyCardLoginDialog> {
                 style: const TextStyle(color: Colors.redAccent, fontSize: 12),
               ),
             ],
+            Row(
+              children: [
+                Checkbox(
+                  key: const ValueKey('mycard-login-remember'),
+                  value: _rememberPassword,
+                  onChanged: _submitting
+                      ? null
+                      : (v) => setState(() => _rememberPassword = v ?? false),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                const SizedBox(width: 0),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _submitting
+                        ? null
+                        : () => setState(
+                              () => _rememberPassword = !_rememberPassword,
+                            ),
+                    child: const Text(
+                      '记住密码（仅本机，下次自动填入）',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),

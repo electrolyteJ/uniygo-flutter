@@ -48,6 +48,12 @@ void main() async {
     }
   });
 
+  // 恢复决斗渲染器偏好（2D / 3D）：必须在 runApp 前完成，路由表里的
+  // `/duel-room` 直接读 DuelRoomRendererPreference.current 决定进 room1 还是
+  // room3——不恢复的话每次冷启都退回默认 2D，用户的 3D 选择丢失。
+  // 依赖 SharedPreferences，故放在 ensureInitialized() 之后。
+  await restore();
+
   runApp(
     MultiProvider(
       providers: [

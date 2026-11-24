@@ -26,6 +26,9 @@ void backHomeDialog({
         ),
         TextButton(
           onPressed: () {
+            // 先关弹窗再离房：弹窗推在 root navigator 上，backHome 里的
+            // context.go 只改写 router 内部栈，不关弹窗它会悬浮在首页/结算页上。
+            Navigator.of(ctx).pop();
             unawaited(backHome(context, ref, surrenderOnExit: true));
           },
           style: TextButton.styleFrom(foregroundColor: Colors.red),

@@ -1,6 +1,12 @@
 /// 233 服 AI 房间流程集成测试（真实外网服务器 s1.ygo233.com:233）。
 ///
-/// 流程：连接 → 进房 → 准备 → 猜拳 → （胜则选先攻）→ 进入决斗场。
+/// 流程：开屏分流 → 游客进入大厅 → 连接 → 进房 → 准备 → 猜拳 →
+/// （胜则选先攻）→ 进入决斗场。
+///
+/// 入口契约：`config/route.dart` 的 `initialLocation` 是 `/splash`，
+/// 无登录态时开屏 1200ms 动画后分流到 `/login`。因此不能
+/// `pumpAndSettle()` 后直接点大厅控件，必须先过开屏、点
+/// `login-guest-entry`（与 spec 首启链路一致）。
 ///
 /// 与本地 AI 测试不同，233 服务器端 AI 出拳是伪随机的、无法通过
 /// [AiDuelService.fixedAiHandChoice] 固定，因此本测试对猜拳胜负
@@ -16,6 +22,9 @@ import 'package:integration_test/integration_test.dart';
 import 'package:uniygopro/main.dart' as app;
 import 'package:biz/ygo_sound_service.dart';
 
+const _aiRoomKey = ValueKey('home-server-ai-room');
+const _guestEntryKey = ValueKey('login-guest-entry');
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -24,8 +33,10 @@ void main() {
     // 留下 transient callbacks。
     YgoSoundService.enabled = false;
     app.main();
-    await tester.pumpAndSettle();
-    _failIfFlutterException(tester, 'after app startup');
+    // 启动链路异步（SharedPreferences / 渲染器偏好 restore），首帧到达前
+    // pumpAndSettle 会立刻返回，因此按条件等首屏。
+    await _enterLobby(tester);
+    _failIfFlutterException(tester, 'after entering lobby');
 
     // ── 1. 进入 AI 房并切换到「233 服 AI」──
     await tester.tap(find.byKey(const ValueKey('home-server-ai-room')));
@@ -71,6 +82,41 @@ void main() {
     expect(status, contains('stage=RoomInDuel'));
     expect(status, contains('errorMessage=<none>'));
   });
+}
+
+/// 从开屏进入大厅：已登录直接在大厅，未登录点「游客进入」。
+///
+/// LiveBinding 下不能靠 `pump(Duration)` 推进时钟，只能「泵一帧 + 真实
+/// 等待」交替；开屏 1200ms 动画期间条件不成立，靠超时窗口自然覆盖。
+Future<void> _enterLobby(WidgetTester tester) async {
+  await _pumpUntil(
+    tester,
+    () => _onLobby() || _guestEntry().evaluate().isNotEmpty,
+    reason: '启动后既没进大厅也没出现登录页',
+  );
+  if (_onLobby()) return;
+  await tester.tap(_guestEntry());
+  await tester.pumpAndSettle();
+  await _pumpUntil(tester, _onLobby, reason: '点「游客进入」后未回到大厅');
+}
+
+bool _onLobby() => find.byKey(_aiRoomKey).evaluate().isNotEmpty;
+
+Finder _guestEntry() => find.byKey(_guestEntryKey);
+
+Future<void> _pumpUntil(
+  WidgetTester tester,
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 30),
+  required String reason,
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    await tester.pump(const Duration(milliseconds: 50));
+    if (condition()) return;
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  }
+  fail('等待超时（${timeout.inSeconds}s）：$reason');
 }
 
 /// 在等待房聊天输入框发送消息（用于 `/ai` 唤醒 233 服务器 AI）。

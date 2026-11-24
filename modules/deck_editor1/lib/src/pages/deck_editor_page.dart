@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'deck_editor_store.dart';
+import 'deck_editor_layout.dart';
 import 'package:biz/service_singleton.dart';
 import '../widgets/deck_list_panel.dart';
 import '../widgets/deck_edit_panel.dart';
@@ -10,17 +11,44 @@ import '../widgets/card_search_bar.dart';
 import '../widgets/card_grid_view.dart';
 import '../widgets/card_list_view.dart';
 
+/// 单栏布局固定段高度：顶部栏 56 + 底部卡组栏（约 70）。
+const double _kMobileChromeHeight = 126;
+
+/// 单栏布局中间区（搜索栏 + 结果区）的最小可布局高度。
+///
+/// 低于此值时容器放不下「搜索栏 186 + 结果区」，中间区改为整体滚动，
+/// 顶栏与底部卡组栏仍常驻，避免极矮容器（大厅内嵌 640×360）下溢出。
+const double _kMinMiddleExtent = 260;
+
 class DeckEditorPage extends StatefulWidget {
-  const DeckEditorPage({super.key, this.args});
+  const DeckEditorPage({
+    super.key,
+    this.args,
+    this.embedded = false,
+    this.columns,
+  });
 
   /// 路由会话参数（通用 Map，键见 DeckEditorStore.configureSession）。
   final Map<String, Object?>? args;
+
+  /// 内嵌模式：不自建 Scaffold / AppBar / PopScope，由宿主提供外壳。
+  ///
+  /// 用于大厅「卡组 → 组卡器」分区（宿主已有 Scaffold 与响应式档位，
+  /// 嵌套 Scaffold 会叠出第二条 AppBar，且返回键会误触发路由 pop）。
+  final bool embedded;
+
+  /// 栏数：1 单栏 / 2 双栏 / 3 三栏（240 / flex / 380）。
+  ///
+  /// 为空时按自身可用宽度推导（<600 单栏，否则三栏），保持独立路由的旧行为；
+  /// 由宿主按 AppLayout 档位注入（compact 1 / regular 2 / wide 3）。
+  final int? columns;
 
   @override
   State<DeckEditorPage> createState() => _DeckEditorPageState();
 }
 
 class _DeckEditorPageState extends State<DeckEditorPage> {
+  /// 编辑抽屉是否已打开（用于防重复开层并禁用按钮）。
   bool _isDrawerOpen = false;
 
   @override
@@ -38,6 +66,16 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final store = context.watch<DeckEditorStore>();
+
+    final content = ColoredBox(
+      color: const Color(0xFF1E2A38),
+      child: _buildResponsiveLayout(theme, store),
+    );
+
+    // 内嵌模式：外壳（Scaffold / AppBar / 返回处理）交给宿主。
+    if (widget.embedded) {
+      return content;
+    }
 
     final canPop = Navigator.of(context).canPop();
     return PopScope<Object?>(
@@ -60,7 +98,7 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
           backgroundColor: Colors.blueGrey.shade800,
           foregroundColor: Colors.white,
         ),
-        body: _buildResponsiveLayout(theme, store),
+        body: content,
       ),
     );
   }
@@ -68,12 +106,46 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
   Widget _buildResponsiveLayout(ThemeData theme, DeckEditorStore store) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 600) {
-          return _buildMobileLayout(theme, store);
-        } else {
-          return _buildDesktopLayout(theme, store);
-        }
+        // 宿主注入了档位就按档位走；否则按自身可用宽度推导（独立路由旧行为）。
+        final columns = resolveDeckEditorColumns(
+          availableWidth: constraints.maxWidth,
+          override: widget.columns,
+        );
+        if (columns <= 1) return _buildMobileLayout(theme, store);
+        if (columns == 2) return _buildTwoColumnLayout(theme, store);
+        return _buildDesktopLayout(theme, store);
       },
+    );
+  }
+
+  /// 卡组列表栏（三栏与双栏共用，避免双份构建逻辑）。
+  Widget _buildDeckListPanel(DeckEditorStore store) {
+    return DeckListPanel(
+      decks: store.decks,
+      currentDeckName: store.currentDeck?.deckName,
+      isLocked: store.lockDeckSelection,
+      onSelectDeck: store.selectDeck,
+      onCreateDeck: store.createDeck,
+      onDeleteDeck: store.deleteDeck,
+    );
+  }
+
+  // ── 双栏布局（regular）：卡组列表 240 + 卡池/编辑主区 ──
+  Widget _buildTwoColumnLayout(ThemeData theme, DeckEditorStore store) {
+    return Row(
+      children: [
+        SizedBox(width: 240, child: _buildDeckListPanel(store)),
+        const VerticalDivider(width: 1, color: Color(0xFF455A64)),
+        Expanded(
+          child: Column(
+            children: [
+              Expanded(child: _buildMainContent(theme, store)),
+              // 双栏没有独立编辑区，用底部卡组栏 + 「展开编辑」抽屉承接。
+              _buildMobileDeckBar(theme),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -82,17 +154,7 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
     return Row(
       children: [
         // 左侧：卡组列表 (240px)
-        SizedBox(
-          width: 240,
-          child: DeckListPanel(
-            decks: store.decks,
-            currentDeckName: store.currentDeck?.deckName,
-            isLocked: store.lockDeckSelection,
-            onSelectDeck: store.selectDeck,
-            onCreateDeck: store.createDeck,
-            onDeleteDeck: store.deleteDeck,
-          ),
-        ),
+        SizedBox(width: 240, child: _buildDeckListPanel(store)),
         // 中间：搜索 + 结果
         Expanded(child: _buildMainContent(theme, store)),
         // 右侧：卡组编辑区 (380px)
@@ -176,24 +238,30 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
   // ── 搜索结果 ──
   Widget _buildSearchResults(DeckEditorStore store) {
     if (store.searchResults.isEmpty) {
+      // 空态可滚动：去掉全局等比缩放后，640×360 横屏下搜索栏（约 190px）
+      // 会吃掉大部分高度，留给结果区的可能只有几十像素；固定高度的
+      // Column 会直接 RenderFlex overflow。用滚动容器兜底，屏高足够时
+      // 视觉仍是「图标 + 文案垂直居中」。
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.search,
-              size: 48,
-              color: Colors.white.withValues(alpha: 0.3),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '输入关键词搜索卡牌',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 14,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.search,
+                size: 48,
+                color: Colors.white.withValues(alpha: 0.3),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                '输入关键词搜索卡牌',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -214,17 +282,49 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
 
   // ── 手机版布局 ──
   Widget _buildMobileLayout(ThemeData theme, DeckEditorStore store) {
-    return Column(
-      children: [
-        // 顶部栏
-        _buildMobileAppBar(theme),
-        // 搜索栏
-        _buildSearchBar(store),
-        // 搜索结果
-        Expanded(child: _buildSearchResults(store)),
-        // 底部卡组信息栏
-        _buildMobileDeckBar(theme),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final middle = constraints.maxHeight - _kMobileChromeHeight;
+        if (middle >= _kMinMiddleExtent) {
+          // 常规屏高：搜索栏固定、结果区占满剩余（原有行为）。
+          return Column(
+            children: [
+              // 顶部栏
+              _buildMobileAppBar(theme),
+              // 搜索栏
+              _buildSearchBar(store),
+              // 搜索结果
+              Expanded(child: _buildSearchResults(store)),
+              // 底部卡组信息栏
+              _buildMobileDeckBar(theme),
+            ],
+          );
+        }
+        // 极矮容器兜底：大厅内嵌「卡组 → 组卡器」在 640×360 下可用高约
+        // 256px，而固定段（顶栏 56 + 搜索栏 186 + 底部卡组栏 70）已 312px，
+        // 直接 Column 会 RenderFlex overflow 并把内容挤出屏幕。
+        // 这里保留顶栏与底部卡组栏常驻（「展开编辑」入口必须始终可点），
+        // 中间区（搜索栏 + 结果）改为整体纵向滚动。
+        return Column(
+          children: [
+            _buildMobileAppBar(theme),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildSearchBar(store),
+                    SizedBox(
+                      height: _kMinMiddleExtent,
+                      child: _buildSearchResults(store),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            _buildMobileDeckBar(theme),
+          ],
+        );
+      },
     );
   }
 
@@ -239,10 +339,12 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
+          // 内嵌时没有可返回的路由，隐藏返回键避免“死按钮”。
+          if (!widget.embedded)
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
           const Expanded(child: _DeckNameInput()),
           IconButton(
             icon: const Icon(Icons.save),
@@ -290,9 +392,7 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
             ),
           ),
           FilledButton(
-            onPressed: () {
-              setState(() => _isDrawerOpen = !_isDrawerOpen);
-            },
+            onPressed: _isDrawerOpen ? null : _openEditSheet,
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFFFB300),
               foregroundColor: const Color(0xFF1E2A38),
@@ -304,6 +404,25 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
     );
   }
 
+  /// 「展开编辑」：单栏 / 双栏没有独立编辑区，用底部抽屉承载 [DeckEditPanel]。
+  ///
+  /// 此前该按钮只翻转 [_isDrawerOpen] 而无人读取，属于死交互；单栏布局
+  /// 因此完全没有移卡入口。现改为真实抽屉，并避免重复开层。
+  Future<void> _openEditSheet() async {
+    if (_isDrawerOpen) return;
+    setState(() => _isDrawerOpen = true);
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: const Color(0xFF1E2A38),
+        builder: (_) => const _DeckEditSheet(),
+      );
+    } finally {
+      if (mounted) setState(() => _isDrawerOpen = false);
+    }
+  }
+
   void _handleBack() {
     ServiceSingleton.instance.ygoSoundService.playBackNavigation();
     final store = context.read<DeckEditorStore>();
@@ -312,6 +431,59 @@ class _DeckEditorPageState extends State<DeckEditorPage> {
       return;
     }
     context.go('/');
+  }
+}
+
+/// 卡组编辑抽屉：单栏 / 双栏布局下的编辑面板（移卡、洗切、排序、清空）。
+///
+/// 独立成 widget 以便 `showModalBottomSheet` 内正常 `context.watch`
+/// 监听 [DeckEditorStore]（弹层的 builder context 不属于页面 State）。
+class _DeckEditSheet extends StatelessWidget {
+  const _DeckEditSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final store = context.watch<DeckEditorStore>();
+    // 占屏 72%，上下留出上下文，避免遮挡搜索结果。
+    final height = MediaQuery.sizeOf(context).height * 0.72;
+
+    return SizedBox(
+      height: height,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 8, 4),
+            child: Row(
+              children: [
+                const Text(
+                  '卡组编辑',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: '收起',
+                  icon: const Icon(Icons.keyboard_arrow_down),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFF455A64)),
+          Expanded(
+            child: DeckEditPanel(
+              deck: store.editingDeck,
+              onShuffle: store.shuffleDeck,
+              onSort: store.sortDeck,
+              onClear: store.clearDeck,
+              cardImageUrlOf: store.getCardImageUrl,
+              banlistStatusOf: store.getBanlistStatus,
+              onAddCard: store.addCard,
+              onRemoveCard: store.removeCard,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

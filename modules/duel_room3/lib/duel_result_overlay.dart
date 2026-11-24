@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:biz/duel/field/duel_field_state.dart';
 import 'package:biz/duel/room/duel_room_state.dart';
@@ -9,6 +10,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'duel_room_exit.dart';
 import 'hud/hud_theme.dart';
 
+/// 结算面板在 regular / wide 档的最大宽度（room3 窄于 room1 的 560）。
+const double _panelMaxWidthWide = 520;
+
+/// 结算面板在 compact 档的宽度上限（实际取 `min(viewport.width * 0.9, 420)`）。
+const double _panelMaxWidthCompactCap = 420;
+
+/// LP 条比例尺下限：常规开局 LP（match/tag 初始可能更高，按实际数值抬升）。
+/// 只用于把 LP 换算成条长，不参与结算数据推导。
+const int _lpBaseline = 8000;
+
 /// 内建全屏结算 overlay（room3 宿主未注册结算页路由，改为房间内自绘）。
 ///
 /// 自己 watch duelFieldProvider 的 duelResult：非空时盖在场地/等待室之上，
@@ -17,12 +28,26 @@ import 'hud/hud_theme.dart';
 ///
 /// 遮罩（ModalBarrier，点击不关闭）与「已关闭」状态收敛在本组件内部：
 /// - 换备阶段（match 局间）按钮为「进入换备阶段」，点击后记录当前 result
-///   实例，同一实例不再弹出；
+///   实例，同一实例不再弹出；同时提供「返回首页」次按钮作为离房出口
+///   （此前换备阶段被模态锁死，只能一路进入换备）。换备阶段离房等于放弃
+///   本场（判负），因此该按钮必须先过二次确认；
 /// - 其他情况按钮为「返回首页」离房。
 /// 新一局 MSG_WIN 会生成新 result 实例，identical 比较失效自动重新弹出，
 /// 与 room1 的「父页按结果重建组件」行为等价。
+///
+/// 档位取真实视口（`MediaQuery`，扣除安全区；与 `DuelRoomLayoutSpec` 同一
+/// 套断点）：wide/regular 面板宽 520、胜者侧 LP 条、按钮并排；
+/// compact（可用宽 < 1024 或高 < 600）面板宽
+/// `min(viewport.width * 0.9, 420)`、LP 条收起为纯数值、按钮纵向堆叠且
+/// 最小高 48。
 class DuelResultOverlay extends ConsumerStatefulWidget {
-  const DuelResultOverlay({super.key});
+  /// 换备阶段「返回首页」二次确认通过后的离房动作。
+  ///
+  /// 缺省走 [leaveRoomAfterNotJoined]（断开并回首页）；宿主可注入自定义
+  /// 离房流程，测试也借此断言「确认后才离房」。
+  final VoidCallback? onLeave;
+
+  const DuelResultOverlay({super.key, this.onLeave});
 
   @override
   ConsumerState<DuelResultOverlay> createState() => _DuelResultOverlayState();
@@ -33,11 +58,42 @@ class _DuelResultOverlayState extends ConsumerState<DuelResultOverlay> {
   /// 不再重复弹出，新一局 MSG_WIN 的新实例由 identical 比较失效重新弹出）。
   Object? _dismissed;
 
+  /// 换备阶段离房 = 放弃本场（判负）：先二次确认，避免误触丢局。
+  Future<void> _confirmLeave() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('放弃本场比赛？'),
+        content: const Text('换备阶段离开房间将放弃本场对局（判负）并返回首页，确定吗？'),
+        actions: [
+          TextButton(
+            key: const ValueKey('duel-result-leave-cancel'),
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            key: const ValueKey('duel-result-leave-confirm'),
+            style: FilledButton.styleFrom(
+              backgroundColor: HudTheme.danger,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('放弃并返回首页'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    if (widget.onLeave != null) {
+      widget.onLeave!();
+      return;
+    }
+    await leaveRoomAfterNotJoined(context, ref);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final result = ref.watch(
-      duelFieldProvider.select((s) => s.duelResult),
-    );
+    final result = ref.watch(duelFieldProvider.select((s) => s.duelResult));
     if (result == null || identical(_dismissed, result)) {
       // 无结果、或该局结果已被关闭（进入换备）：透明占位不拦截点击。
       return const SizedBox.shrink();
@@ -48,8 +104,10 @@ class _DuelResultOverlayState extends ConsumerState<DuelResultOverlay> {
     final winPlayer = result['winPlayer'] as int?;
     final selfName = result['selfName'] as String? ?? '自己';
     final opponentName = result['opponentName'] as String? ?? '对手';
-    final selfLp = result['selfLp'] as int? ?? 0;
-    final opponentLp = result['opponentLp'] as int? ?? 0;
+    // LP 允许缺失（部分结算来源不下发）：缺失即不展示 LP 区，不造 0。
+    final selfLp = result['selfLp'] as int?;
+    final opponentLp = result['opponentLp'] as int?;
+    final hasLp = selfLp != null || opponentLp != null;
     final reason = result['reason'] as int?;
     // 平局：服务端 MSG_WIN 的 winPlayer 为 PLAYER_NONE（ocgcore=2），
     // 此时 didWin 对双方都是 false，不能按「失败」展示。
@@ -63,18 +121,18 @@ class _DuelResultOverlayState extends ConsumerState<DuelResultOverlay> {
     final accent = isDraw
         ? HudTheme.textSecondary
         : didWin
-            ? HudTheme.gold
-            : HudTheme.cyan;
+        ? HudTheme.gold
+        : HudTheme.cyan;
     final title = isDraw
         ? '平局'
         : isDuelist
-            ? (didWin ? '胜利' : '失败')
-            : '决斗结束';
+        ? (didWin ? '胜利' : '失败')
+        : '决斗结束';
     final subtitle = isDraw
         ? '双方战平'
         : isDuelist
-            ? (didWin ? '你赢下了这场决斗' : '这场决斗落败')
-            : (didWin ? '$selfName 获胜' : '$opponentName 获胜');
+        ? (didWin ? '你赢下了这场决斗' : '这场决斗落败')
+        : (didWin ? '$selfName 获胜' : '$opponentName 获胜');
     // match 局间换备阶段（RoomSideDecking）：按钮改「进入换备阶段」关闭
     // 弹窗进入换备（自持 _dismissed）；否则「返回首页」离房。
     final isSideDecking = ref.watch(
@@ -85,6 +143,63 @@ class _DuelResultOverlayState extends ConsumerState<DuelResultOverlay> {
         ? () => setState(() => _dismissed = result)
         : () => unawaited(leaveRoomAfterNotJoined(context, ref));
 
+    // 真实视口档位（与 duel_room1 的 DuelRoomLayoutSpec 同一套断点）：
+    // room3 没有注入布局 spec 的 InheritedWidget，这里直接从 MediaQuery 推导，
+    // 不做任何全局缩放改写。
+    final media = MediaQuery.of(context);
+    final viewport = media.size;
+    final available = Size(
+      viewport.width - media.padding.horizontal,
+      viewport.height - media.padding.vertical,
+    );
+    final isCompact = available.width < 1024 || available.height < 600;
+    final panelMaxWidth = isCompact
+        ? math.min(viewport.width * 0.9, _panelMaxWidthCompactCap)
+        : _panelMaxWidthWide;
+    final minButtonHeight = isCompact ? 48.0 : 44.0;
+    final maxLp = math.max(_lpBaseline, math.max(selfLp ?? 0, opponentLp ?? 0));
+    // 胜方高亮只对局内玩家有意义（观战者没有胜负立场）。
+    final highlightSelf = isDuelist && !isDraw && didWin;
+    final highlightOpponent = isDuelist && !isDraw && !didWin;
+
+    // 主按钮固定 key `duel-result-action`（集成测试与既有用例依赖）；
+    // 换备阶段追加「返回首页」次按钮（真实出口，非占位死按钮）。
+    final actions = <Widget>[
+      FilledButton(
+        key: const ValueKey('duel-result-action'),
+        onPressed: onAction,
+        style: FilledButton.styleFrom(
+          minimumSize: Size(44, minButtonHeight),
+          backgroundColor: accent,
+          foregroundColor: Colors.black,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+        ),
+        child: Text(actionLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+      if (isSideDecking)
+        OutlinedButton(
+          key: const ValueKey('duel-result-leave'),
+          // 弃权离房：先弹二次确认，确认后才走离房流程。
+          onPressed: () => unawaited(_confirmLeave()),
+          style: OutlinedButton.styleFrom(
+            minimumSize: Size(44, minButtonHeight),
+            foregroundColor: accent,
+            side: BorderSide(color: accent.withValues(alpha: 0.6)),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            textStyle: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          child: const Text(
+            '返回首页',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+    ];
+
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -94,68 +209,166 @@ class _DuelResultOverlayState extends ConsumerState<DuelResultOverlay> {
           color: HudTheme.bgDeep.withValues(alpha: 0.72),
         ),
         Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
-              decoration: HudTheme.glowPanel(glow: accent, radius: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: accent,
-                      fontSize: 34,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2,
-                      shadows: [Shadow(color: accent, blurRadius: 18)],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    subtitle,
-                    style: HudTheme.body.copyWith(
-                      color: HudTheme.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  _ResultRow(
-                    label: selfName,
-                    value: selfLp,
-                    highlight: didWin,
-                    accent: accent,
-                  ),
-                  const SizedBox(height: 12),
-                  _ResultRow(label: opponentName, value: opponentLp),
-                  const SizedBox(height: 24),
-                  Text(
-                    '结束原因：${reason == null ? '未知' : _reasonText(reason)}',
-                    style: HudTheme.caption,
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: onAction,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: accent,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        textStyle: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
+          child: SafeArea(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: panelMaxWidth,
+                maxHeight: available.height * 0.94,
+              ),
+              child: Container(
+                key: const ValueKey('duel-result-panel'),
+                padding: isCompact
+                    ? const EdgeInsets.fromLTRB(20, 24, 20, 18)
+                    : const EdgeInsets.fromLTRB(28, 32, 28, 24),
+                decoration: HudTheme.glowPanel(
+                  glow: accent,
+                  radius: isCompact ? 18 : 24,
+                ),
+                // 面板宽度固定在 panelMaxWidth（信息卡不随内容宽度抖动）。
+                // 结构：信息区可滚动 + 按钮区常驻面板底部——与 room1 的
+                // ResponsivePanel（actions 在 Flexible(body) 之外）对齐。
+                // 若把按钮塞进滚动区，640×360 + 换备双按钮时第二颗按钮会被
+                // 裁掉半截（实测 rect.bottom 361.8 > 视口 360），用户必须先
+                // 滚动才能看到出口，compact 下等于不可用。
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                title,
+                                style: TextStyle(
+                                  color: accent,
+                                  fontSize: isCompact ? 28 : 34,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 2,
+                                  shadows: [
+                                    Shadow(color: accent, blurRadius: 18),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                subtitle,
+                                textAlign: TextAlign.center,
+                                style: HudTheme.body.copyWith(
+                                  color: HudTheme.textSecondary,
+                                ),
+                              ),
+                              SizedBox(height: isCompact ? 16 : 24),
+                              _ResultDivider(color: accent),
+                              if (hasLp) ...[
+                                const SizedBox(height: 14),
+                                if (selfLp != null)
+                                  _ResultRow(
+                                    label: selfName,
+                                    value: selfLp,
+                                    ratio: selfLp / maxLp,
+                                    highlight: highlightSelf,
+                                    accent: accent,
+                                    showBar: !isCompact,
+                                    compact: isCompact,
+                                  ),
+                                if (selfLp != null && opponentLp != null)
+                                  const SizedBox(height: 10),
+                                if (opponentLp != null)
+                                  _ResultRow(
+                                    label: opponentName,
+                                    value: opponentLp,
+                                    ratio: opponentLp / maxLp,
+                                    highlight: highlightOpponent,
+                                    accent: accent,
+                                    showBar: !isCompact,
+                                    compact: isCompact,
+                                  ),
+                                const SizedBox(height: 14),
+                                _ResultDivider(color: accent),
+                              ],
+                              const SizedBox(height: 12),
+                              Text(
+                                '结束原因：${reason == null ? '未知' : _reasonText(reason)}',
+                                textAlign: TextAlign.center,
+                                style: HudTheme.caption,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      child: Text(actionLabel),
-                    ),
+                      SizedBox(height: isCompact ? 16 : 24),
+                      _ResultActionRow(stacked: isCompact, buttons: actions),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 结算按钮组：宽档并排等分，compact 档纵向堆叠（撑满整行）。
+class _ResultActionRow extends StatelessWidget {
+  const _ResultActionRow({required this.stacked, required this.buttons});
+
+  final bool stacked;
+  final List<Widget> buttons;
+
+  @override
+  Widget build(BuildContext context) {
+    if (buttons.length == 1) {
+      return SizedBox(width: double.infinity, child: buttons.single);
+    }
+    if (stacked) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < buttons.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            buttons[i],
+          ],
+        ],
+      );
+    }
+    return Row(
+      children: [
+        for (var i = 0; i < buttons.length; i++) ...[
+          if (i > 0) const SizedBox(width: 12),
+          Expanded(child: buttons[i]),
+        ],
+      ],
+    );
+  }
+}
+
+/// 结算面板内的细分隔线（按胜负强调色淡染）。
+class _ResultDivider extends StatelessWidget {
+  const _ResultDivider({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            color.withValues(alpha: 0.0),
+            color.withValues(alpha: 0.35),
+            color.withValues(alpha: 0.0),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -231,55 +444,90 @@ String _reasonText(int reason) {
   }
 }
 
-/// 单侧玩家结果行：名字 + LP，胜方金色高亮。
+/// 单侧玩家结果行：名字 + LP（胜方高亮），宽档附 LP 比例条。
 class _ResultRow extends StatelessWidget {
   const _ResultRow({
     required this.label,
     required this.value,
-    this.highlight = false,
-    this.accent,
+    required this.ratio,
+    required this.highlight,
+    required this.accent,
+    required this.showBar,
+    required this.compact,
   });
 
   final String label;
   final int value;
+  final double ratio;
   final bool highlight;
-  final Color? accent;
+  final Color accent;
+  final bool showBar;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final highlightColor = accent ?? HudTheme.gold;
+    final highlightColor = accent;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 14 : 18,
+        vertical: compact ? 10 : 14,
+      ),
       decoration: BoxDecoration(
         color: highlight
             ? highlightColor.withValues(alpha: 0.10)
             : const Color(0xFF0E1626),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(compact ? 12 : 14),
         border: Border.all(
           color: highlight
               ? highlightColor.withValues(alpha: 0.7)
               : HudTheme.panelBorder,
         ),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: Text(
-              label,
-              style: HudTheme.body.copyWith(
-                color: HudTheme.textPrimary,
-                fontWeight: FontWeight.w700,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: HudTheme.body.copyWith(
+                    color: HudTheme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: compact ? 12 : null,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'LP $value',
+                style: TextStyle(
+                  color: highlight ? highlightColor : HudTheme.textSecondary,
+                  fontSize: compact ? 16 : 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          if (showBar) ...[
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: ratio.clamp(0.0, 1.0),
+                minHeight: 6,
+                backgroundColor: Colors.white10,
+                valueColor: AlwaysStoppedAnimation(
+                  highlight
+                      ? highlightColor
+                      : highlightColor.withValues(alpha: 0.45),
+                ),
               ),
             ),
-          ),
-          Text(
-            'LP $value',
-            style: TextStyle(
-              color: highlight ? highlightColor : HudTheme.textSecondary,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+          ],
         ],
       ),
     );
