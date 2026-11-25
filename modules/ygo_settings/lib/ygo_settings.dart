@@ -8,13 +8,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ygo_settings/ygo_settings_dialog.dart';
 
 export 'duel_room_renderer.dart';
+export 'ygo_settings_dialog.dart';
 
 const _kChain1 = 'duel_settings.show_chain1_animation';
 const _kMonster = 'duel_settings.auto_monster_position';
 const _kSpellTrap = 'duel_settings.auto_spell_trap_position';
 const _kSpectateJump = 'duel_settings.spectate_jump_to_current';
 const _kReplaySpeed = 'duel_settings.replay_speed_factor';
-
 
 /// 带 SharedPreferences 持久化的设置实现。
 ///
@@ -87,24 +87,63 @@ class PersistentYgoSettingsNotifier extends YgoSettingsNotifier {
   }
 }
 
+/// 账号页展示信息（可选；宿主不传时账号页按游客态展示）。
+class YgoSettingsAccount {
+  const YgoSettingsAccount({
+    required this.isLoggedIn,
+    this.name,
+    this.username,
+    this.onSignOut,
+    this.onGoLogin,
+  });
+
+  final bool isLoggedIn;
+  final String? name;
+  final String? username;
+  final VoidCallback? onSignOut;
+  final VoidCallback? onGoLogin;
+}
 
 /// 从应用级服务容器读取设置并打开弹窗（首页等无 ProviderScope 场景）。
 void showGlobalSettingsDialog(
   BuildContext context, {
   List<SettingsExtraAction> extraActions = const [],
+  YgoSettingsAccount? account,
+  void Function(bool is3d)? onOpenPreview,
 }) {
   final settings = duelRoomServiceContainer.read(ygoSettingsProvider);
   final notifier = duelRoomServiceContainer.read(ygoSettingsProvider.notifier);
   showDialog<void>(
     context: context,
-    builder: (_) => YgoSettingsDialog(
-      initialSettings: settings,
-      onShowChain1Changed: notifier.setShowChain1Animation,
-      onAutoMonsterChanged: notifier.setAutoMonsterPosition,
-      onAutoSpellTrapChanged: notifier.setAutoSpellTrapPosition,
-      onSpectateJumpChanged: notifier.setSpectateJumpToCurrent,
-      onReplaySpeedFactorChanged: notifier.setReplaySpeedFactor,
-      extraActions: extraActions,
+    barrierColor: Colors.transparent,
+    builder: (_) => Dialog(
+      insetPadding: EdgeInsets.zero,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: SizedBox.expand(
+        child: FittedBox(
+          fit: BoxFit.fill,
+          child: SizedBox(
+            width: 844,
+            height: 390,
+            child: YgoSettingsDialog(
+              initialSettings: settings,
+              onShowChain1Changed: notifier.setShowChain1Animation,
+              onAutoMonsterChanged: notifier.setAutoMonsterPosition,
+              onAutoSpellTrapChanged: notifier.setAutoSpellTrapPosition,
+              onSpectateJumpChanged: notifier.setSpectateJumpToCurrent,
+              onReplaySpeedFactorChanged: notifier.setReplaySpeedFactor,
+              extraActions: extraActions,
+              isLoggedIn: account?.isLoggedIn ?? false,
+              accountName: account?.name,
+              accountUsername: account?.username,
+              onSignOut: account?.onSignOut,
+              onGoLogin: account?.onGoLogin,
+              onOpenPreview: onOpenPreview,
+            ),
+          ),
+        ),
+      ),
     ),
   );
 }
@@ -114,19 +153,48 @@ void showGlobalSettingsDialog(
 /// 弹窗由 [showDialog] 挂到根 Navigator overlay，脱离了房间 ProviderScope
 /// widget 树；这里在打开前用调用方 context 对应的容器同步读一次设置与
 /// notifier，再以纯参数注入弹窗，弹窗内部不再 watch 跨树 provider。
-void showYgoSettingsDialog(BuildContext context) {
+void showYgoSettingsDialog(
+  BuildContext context, {
+  bool? autoDuel,
+  bool? autoHand,
+  bool? autoTurnOrder,
+  ValueChanged<bool>? onAutoDuelChanged,
+  ValueChanged<bool>? onAutoHandChanged,
+  ValueChanged<bool>? onAutoTurnOrderChanged,
+}) {
   final container = ProviderScope.containerOf(context, listen: false);
   final settings = container.read(ygoSettingsProvider);
   final notifier = container.read(ygoSettingsProvider.notifier);
   showDialog<void>(
     context: context,
-    builder: (_) => YgoSettingsDialog(
-      initialSettings: settings,
-      onShowChain1Changed: notifier.setShowChain1Animation,
-      onAutoMonsterChanged: notifier.setAutoMonsterPosition,
-      onAutoSpellTrapChanged: notifier.setAutoSpellTrapPosition,
-      onSpectateJumpChanged: notifier.setSpectateJumpToCurrent,
-      onReplaySpeedFactorChanged: notifier.setReplaySpeedFactor,
+    barrierColor: Colors.transparent,
+    builder: (_) => Dialog(
+      insetPadding: EdgeInsets.zero,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: SizedBox.expand(
+        child: FittedBox(
+          fit: BoxFit.fill,
+          child: SizedBox(
+            width: 844,
+            height: 390,
+            child: YgoSettingsDialog(
+              initialSettings: settings,
+              onShowChain1Changed: notifier.setShowChain1Animation,
+              onAutoMonsterChanged: notifier.setAutoMonsterPosition,
+              onAutoSpellTrapChanged: notifier.setAutoSpellTrapPosition,
+              onSpectateJumpChanged: notifier.setSpectateJumpToCurrent,
+              onReplaySpeedFactorChanged: notifier.setReplaySpeedFactor,
+              autoDuel: autoDuel,
+              autoHand: autoHand,
+              autoTurnOrder: autoTurnOrder,
+              onAutoDuelChanged: onAutoDuelChanged,
+              onAutoHandChanged: onAutoHandChanged,
+              onAutoTurnOrderChanged: onAutoTurnOrderChanged,
+            ),
+          ),
+        ),
+      ),
     ),
   );
 }

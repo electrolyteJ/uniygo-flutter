@@ -1,6 +1,7 @@
 import 'package:biz/duel/models/duel_menu.dart';
 import 'package:flutter/material.dart';
 
+import '../theme/cyber_palette.dart';
 import 'hud_theme.dart';
 
 /// MDPro3 风格操作条：底部居中横向胶囊按钮组（召唤/发动/攻击等）。
@@ -65,7 +66,7 @@ class _ActionButton extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           gradient: const LinearGradient(
-            colors: [Color(0xFF123049), Color(0xFF1B5A7A)],
+            colors: [CyberPalette.deepNavy, CyberPalette.magentaDim],
           ),
           border: Border.all(color: HudTheme.cyan.withValues(alpha: 0.6)),
         ),

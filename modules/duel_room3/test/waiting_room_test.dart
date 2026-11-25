@@ -9,7 +9,6 @@ library;
 
 import 'package:biz/duel/room/duel_room_state.dart' show SidingZone;
 import 'package:biz/widgets/banlist_detail_dialog.dart';
-import 'package:duel_room3/waiting/widgets/automation_switch.dart';
 import 'package:duel_room3/waiting/widgets/room_info_panel.dart';
 import 'package:duel_room3/waiting/widgets/side_decking_panel.dart';
 import 'package:duelink/duelink.dart' show DuelRule, RoomMode, RoomOptions;
@@ -261,42 +260,6 @@ void main() {
       await tester.tap(find.text('禁限卡表: 2024.10 禁限卡表'));
       await tester.pumpAndSettle();
       expect(find.byType(BanlistDetailDialog), findsOneWidget);
-    });
-  });
-
-  group('AutomationSwitch', () {
-    testWidgets('开关切换回调', (tester) async {
-      var received = false;
-      await tester.pumpWidget(
-        _wrap(
-          AutomationSwitch(
-            label: '自动猜拳',
-            value: false,
-            enabled: true,
-            onChanged: (v) => received = v,
-          ),
-        ),
-      );
-
-      await tester.tap(find.byType(Switch));
-      expect(received, isTrue);
-    });
-
-    testWidgets('禁用时不回调', (tester) async {
-      var called = false;
-      await tester.pumpWidget(
-        _wrap(
-          AutomationSwitch(
-            label: '自动猜拳',
-            value: false,
-            enabled: false,
-            onChanged: (_) => called = true,
-          ),
-        ),
-      );
-
-      await tester.tap(find.byType(Switch));
-      expect(called, isFalse);
     });
   });
 }

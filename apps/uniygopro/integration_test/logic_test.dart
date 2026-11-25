@@ -8,12 +8,12 @@ import 'package:duelink/duelink.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uniygopro/config/servers.dart';
-import 'package:uniygopro/models/created_room_record.dart';
+import 'package:uniygopro/create_room/free/created_room_record.dart';
 import 'package:deck_editor1/deck_editor1.dart';
-import 'package:uniygopro/models/mercury233_room_spec.dart';
-import 'package:uniygopro/models/mercury233_room_string_codec.dart';
-import 'package:uniygopro/pages/create_room/match_store.dart';
-import 'package:uniygopro/pages/create_room/room_history_store.dart';
+import 'package:uniygopro/create_room/models/mercury233_room_spec.dart';
+import 'package:uniygopro/create_room/models/mercury233_room_string_codec.dart';
+import 'package:uniygopro/create_room/match_store.dart';
+import 'package:uniygopro/create_room/free/room_history_store.dart';
 import 'package:resource_data/card_info.dart' as pkg;
 import 'package:resource_data/lf_table.dart';
 
@@ -123,13 +123,19 @@ void main() {
 
     test('手动房间串与校验', () {
       final manual = Mercury233RoomStringCodec.build(
-        const Mercury233RoomSpec(manualRoomStringEnabled: true, manualRoomString: 'M#abc'),
+        const Mercury233RoomSpec(
+          manualRoomStringEnabled: true,
+          manualRoomString: 'M#abc',
+        ),
       );
       expect(manual.value, 'M#abc');
       expect(manual.error, isNull);
 
       final blank = Mercury233RoomStringCodec.build(
-        const Mercury233RoomSpec(manualRoomStringEnabled: true, manualRoomString: '  '),
+        const Mercury233RoomSpec(
+          manualRoomStringEnabled: true,
+          manualRoomString: '  ',
+        ),
       );
       expect(blank.error, '房间串不能为空');
 
@@ -143,11 +149,7 @@ void main() {
   group('Mercury233RoomSpec', () {
     test('toRoomOptions 映射 rule', () {
       const spec = Mercury233RoomSpec(
-        options: RoomOptions(
-          mode: RoomMode.match,
-          rule: 4,
-          noCheckDeck: true,
-        ),
+        options: RoomOptions(mode: RoomMode.match, rule: 4, noCheckDeck: true),
       );
       final options = spec.toRoomOptions();
       expect(options.mode, RoomMode.match);
@@ -190,17 +192,17 @@ void main() {
 
   group('CreatedRoomRecord', () {
     CreatedRoomRecord standard() => CreatedRoomRecord(
-          env: DuelEnvironment.mycard,
-          roomName: '标准房',
-          password: 'pw',
-          options: const RoomOptions(mode: RoomMode.match, startLp: 8000),
-        );
+      env: DuelEnvironment.mycard,
+      roomName: '标准房',
+      password: 'pw',
+      options: const RoomOptions(mode: RoomMode.match, startLp: 8000),
+    );
 
     CreatedRoomRecord mercury() => CreatedRoomRecord(
-          env: DuelEnvironment.mercury233,
-          roomName: '',
-          mercurySpec: const Mercury233RoomSpec(roomName: '233房'),
-        );
+      env: DuelEnvironment.mercury233,
+      roomName: '',
+      mercurySpec: const Mercury233RoomSpec(roomName: '233房'),
+    );
 
     test('title/summary 分支', () {
       expect(standard().title, '标准房');
@@ -233,10 +235,7 @@ void main() {
       expect(DuelEnvironment.puzzle.isPuzzle, isTrue);
       expect(DuelEnvironment.mycard.useEncodedPassword, isTrue);
       expect(DuelEnvironment.mercury233.usesRoomStringDsl, isTrue);
-      expect(
-        gameServers.first.wsUrl,
-        startsWith('wss://'),
-      );
+      expect(gameServers.first.wsUrl, startsWith('wss://'));
     });
   });
 
@@ -260,7 +259,8 @@ void main() {
     });
 
     test('uri：puzzle / 普通环境', () {
-      final store = MatchStore()..selectPuzzle(gameServers.first, 'puzzle/xx/yy.lua');
+      final store = MatchStore()
+        ..selectPuzzle(gameServers.first, 'puzzle/xx/yy.lua');
       expect(store.uri?.scheme, 'puzzle');
       expect(store.environment, DuelEnvironment.puzzle);
 
@@ -278,7 +278,6 @@ void main() {
       store.startSearching('athletic');
       expect(store.isSearching, isTrue);
       expect(store.arena, 'athletic');
-      store.setMatchResult('1.2.3.4', 9999, 'secret');
       expect(store.isSearching, isFalse);
       expect(store.serverAddress, '1.2.3.4');
       expect(store.serverPort, 9999);
@@ -289,26 +288,24 @@ void main() {
       expect(store.environment, DuelEnvironment.koishi);
     });
 
-    test('setEnvironment / stopSearching', () {
-      final store = MatchStore();
-      store.setEnvironment(DuelEnvironment.mercury233);
-      expect(store.environment, DuelEnvironment.mercury233);
-      store.stopSearching();
-      expect(store.isSearching, isFalse);
-    });
+
   });
 
   group('DeckEditorSaveResult', () {
     test('isCompliant', () {
       expect(const DeckEditorSaveResult(saved: true).isCompliant, isTrue);
       expect(
-        const DeckEditorSaveResult(saved: true, validationErrors: [])
-            .isCompliant,
+        const DeckEditorSaveResult(
+          saved: true,
+          validationErrors: [],
+        ).isCompliant,
         isTrue,
       );
       expect(
-        const DeckEditorSaveResult(saved: true, validationErrors: ['x'])
-            .isCompliant,
+        const DeckEditorSaveResult(
+          saved: true,
+          validationErrors: ['x'],
+        ).isCompliant,
         isFalse,
       );
     });

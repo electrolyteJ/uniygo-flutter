@@ -79,21 +79,24 @@ void _installAssetMessageHandler() {
 
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMessageHandler('flutter/assets', (ByteData? message) async {
-    if (message == null) return null;
-    final key = utf8.decode(
-      message.buffer.asUint8List(message.offsetInBytes, message.lengthInBytes),
-    );
-    const prefixes = ['packages/ocgcore/vendor/scripts/'];
-    for (final prefix in prefixes) {
-      if (key.startsWith(prefix)) {
-        final name = key.substring(prefix.length);
-        return _fetchAssetBytes('/web_assets/scripts/$name');
-      }
-    }
-    // 其它资产在 web 测试服务器上不存在；直接返回 null 让 rootBundle
-    // 快速报 "asset does not exist"，避免默认实现永久挂起。
-    return null;
-  });
+        if (message == null) return null;
+        final key = utf8.decode(
+          message.buffer.asUint8List(
+            message.offsetInBytes,
+            message.lengthInBytes,
+          ),
+        );
+        const prefixes = ['packages/ocgcore/vendor/scripts/'];
+        for (final prefix in prefixes) {
+          if (key.startsWith(prefix)) {
+            final name = key.substring(prefix.length);
+            return _fetchAssetBytes('/web_assets/scripts/$name');
+          }
+        }
+        // 其它资产在 web 测试服务器上不存在；直接返回 null 让 rootBundle
+        // 快速报 "asset does not exist"，避免默认实现永久挂起。
+        return null;
+      });
 }
 
 Future<ByteData?> _fetchAssetBytes(String url) async {

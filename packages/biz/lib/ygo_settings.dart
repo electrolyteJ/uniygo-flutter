@@ -104,7 +104,20 @@ class YgoSettingsNotifier extends _$YgoSettingsNotifier {
 
 /// 打开全局设置弹窗的函数指针。默认 null（对局包不感知设置 UI 的具体实现），
 /// 由宿主 app 注入 apps/duel_settings 的弹窗。
-typedef ShowYgoSettingsDialog = void Function(BuildContext context);
+typedef ShowYgoSettingsDialog =
+    void Function(
+      BuildContext context, {
+
+      /// 等候厅三项开关的当前房间值（不传则读本机偏好）。
+      bool? autoDuel,
+      bool? autoHand,
+      bool? autoTurnOrder,
+
+      /// 等候厅三项开关的即时回调（传了就对当前房间立即生效）。
+      ValueChanged<bool>? onAutoDuelChanged,
+      ValueChanged<bool>? onAutoHandChanged,
+      ValueChanged<bool>? onAutoTurnOrderChanged,
+    });
 
 /// 打开全局设置弹窗的函数指针 provider。默认 null，由宿主 app override 注入。
 @Riverpod(keepAlive: true)

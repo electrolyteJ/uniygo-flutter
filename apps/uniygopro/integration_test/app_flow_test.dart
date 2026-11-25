@@ -1,7 +1,7 @@
-/// 首页各建房入口的完整导航流程（真实 App 启动）。
+/// 启动流程：开屏 → 登录（游客）→ 主页 → 对战模式 → 建房面板。
 ///
-/// 依次打开竞技匹配 / 娱乐匹配 / 自由房间 / 残局房 / AI 对决 面板，
-/// 验证各 sheet 渲染与基础交互，最后进入卡组编辑器入口。
+/// 覆盖开屏/登录/主页三屏切换，以及新版「建房」页（自由房间 / 练习）
+/// 到既有 create_room 面板的接入，最后进入卡组中心。
 library;
 
 import 'package:flutter/material.dart';
@@ -13,58 +13,67 @@ import 'package:biz/ygo_sound_service.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('首页 → 各建房面板 → 卡组编辑器入口', (tester) async {
+  testWidgets('开屏 → 游客主页 → 对战模式 → 建房面板 → 卡组中心', (tester) async {
     YgoSoundService.enabled = false;
     app.main();
     await tester.pumpAndSettle();
     _failIfFlutterException(tester, 'after app startup');
 
-    // ── 竞技匹配 sheet ──
-    await tester.tap(find.text('竞技匹配'));
-    await tester.pumpAndSettle();
-    expect(find.text('开始匹配'), findsOneWidget);
-    expect(find.text('用户名'), findsOneWidget);
-    // 关闭弹层（点击遮罩）
-    await tester.tapAt(const Offset(10, 10));
+    // 开屏会自动跳转：未登录 → 登录页，已登录 → 主页。
+    await Future<void>.delayed(const Duration(milliseconds: 2600));
     await tester.pumpAndSettle();
 
-    // ── 娱乐匹配 sheet ──
-    await tester.tap(find.text('娱乐匹配'));
-    await tester.pumpAndSettle();
-    expect(find.text('开始匹配'), findsOneWidget);
-    await tester.tapAt(const Offset(10, 10));
-    await tester.pumpAndSettle();
+    final guestButton = find.byKey(const ValueKey('login-guest'));
+    if (guestButton.evaluate().isNotEmpty) {
+      expect(find.text('账号登录'), findsOneWidget);
+      await tester.tap(guestButton);
+      await tester.pumpAndSettle();
+      _failIfFlutterException(tester, 'after guest login');
+    }
 
-    // ── 自由房间 sheet（默认 Koishi 只能加入）──
-    await tester.tap(find.text('自由房间'));
-    await tester.pumpAndSettle();
+    // 主页基础信息（新版底栏）
+    expect(find.text('公告'), findsOneWidget);
+    expect(find.text('比赛观看 ▾'), findsOneWidget);
+    expect(find.text('竞技匹配 ▾'), findsOneWidget);
+
+    // ── 建房：自由房间 → 进入房间面板 ──
+    // 匹配盘有常驻旋转动画：这一页内不要 pumpAndSettle。
+    await tester.tap(find.byKey(const ValueKey('home-match-bar')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('对战'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('create-room-tab-3')));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Koishi 通用环境'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('create-room-center')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('加入房间'), findsOneWidget);
     expect(find.text('对战环境'), findsOneWidget);
     await tester.tapAt(const Offset(10, 10));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
 
-    // ── 残局房 sheet ──
-    await tester.tap(find.text('残局房'));
-    await tester.pumpAndSettle();
-    expect(find.text('搜索残局…'), findsOneWidget);
-    await tester.tapAt(const Offset(10, 10));
-    await tester.pumpAndSettle();
-
-    // ── AI 对决 sheet → 切到 233 → 校验房间串预览 ──
-    await tester.tap(find.byKey(const ValueKey('home-server-ai-room')));
-    await tester.pumpAndSettle();
+    // ── 练习 → 人机对决面板 ──
+    await tester.tap(find.byKey(const ValueKey('create-room-tab-2')));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('人机对决'), findsWidgets);
+    await tester.tap(find.byKey(const ValueKey('create-room-center')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('开始人机对战'), findsOneWidget);
-    await tester.tap(find.text('233 服 AI'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('房间串:'), findsOneWidget);
     await tester.tapAt(const Offset(10, 10));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
 
-    // ── 卡组编辑器入口 ──
-    await tester.tap(find.byIcon(Icons.card_membership));
+    // ── 返回主页 → 卡组页签 ──
+    await tester.tap(find.text('← 返回大厅'));
     await tester.pumpAndSettle();
-    expect(find.text('卡组编辑器'), findsOneWidget);
-    _failIfFlutterException(tester, 'after opening deck editor');
+    expect(find.text('比赛观看 ▾'), findsOneWidget);
+
+    await tester.tap(find.text('卡组'));
+    await tester.pumpAndSettle();
+    expect(find.text('卡组中心'), findsOneWidget);
+    _failIfFlutterException(tester, 'after opening deck hub');
   });
 }
 

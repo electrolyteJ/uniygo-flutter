@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:account_mycard/account_mycard.dart';
 
-import '../services/mycard_gate.dart';
+import '../login/mycard_gate.dart';
 
 class MyCardAccountButton extends StatelessWidget {
   const MyCardAccountButton({super.key});

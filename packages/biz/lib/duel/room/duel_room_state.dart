@@ -88,6 +88,8 @@ class DuelRoomState {
     this.opponentHandResult,
     this.isFirstTurn,
     this.roomOptions,
+    this.roomId,
+    this.roomName,
     this.selectedDeckName,
     this.availableDecks = const [],
     this.autoHandEnabled = false,
@@ -111,6 +113,13 @@ class DuelRoomState {
   final int? myHandResult;
   final int? opponentHandResult;
   final RoomOptions? roomOptions;
+
+  /// 建房/进房时生成的房间邀码（只有带邀码的房间才有，如 MyCard 私密房）；
+  /// 公开房/匹配/练习没有则保持 null，等待室据此隐藏邀请入口。
+  final String? roomId;
+
+  /// 建房/进房携带的房间名（等待室顶栏展示）。
+  final String? roomName;
 
   final bool autoHandEnabled;
   final bool autoTurnOrderEnabled;
@@ -154,6 +163,8 @@ class DuelRoomState {
     Object? opponentHandResult = _sentinel,
     Object? isFirstTurn = _sentinel,
     Object? roomOptions = _sentinel,
+    Object? roomId = _sentinel,
+    Object? roomName = _sentinel,
     Object? selectedDeckName = _sentinel,
     List<DeckInfo>? availableDecks,
     bool? autoHandEnabled,
@@ -626,6 +637,20 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
 
   /// 直接设置错误文案（连接失败等非服务器错误），
   /// 与服务器错误共用 errorMessage 渠道，由页面 SnackBar 展示。
+  /// 记录房间名（等待室顶栏展示）。
+  void setRoomName(String? name) {
+    if (name == null || name.isEmpty) return;
+    if (state.roomName == name) return;
+    state = state.copyWith(roomName: name);
+  }
+
+  /// 记录房间邀码（建房/进房链路带入，用于等待室邀请入口）。
+  void setRoomId(String? id) {
+    if (id == null || id.isEmpty) return;
+    if (state.roomId == id) return;
+    state = state.copyWith(roomId: id);
+  }
+
   void setErrorText(String message) {
     state = state.copyWith(errorMessage: message);
   }

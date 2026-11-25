@@ -6,7 +6,7 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:uniygopro/pages/create_room/match_store.dart';
+import 'package:uniygopro/create_room/match_store.dart';
 
 void main() {
   group('MatchStore.tryStartSearching 单飞守卫', () {
@@ -26,13 +26,6 @@ void main() {
       store.stopSearching();
       expect(store.tryStartSearching('entertain'), isTrue);
       expect(store.arena, 'entertain');
-    });
-
-    test('setMatchResult（匹配成功）后放行下一次匹配', () {
-      final store = MatchStore();
-      expect(store.tryStartSearching('athletic'), isTrue);
-      store.setMatchResult('127.0.0.1', 7911, 'pw');
-      expect(store.tryStartSearching('entertain'), isTrue);
     });
 
     test('reset 后放行下一次匹配', () {

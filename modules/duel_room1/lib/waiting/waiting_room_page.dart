@@ -142,6 +142,18 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
     }
   }
 
+  /// 打开全局设置弹窗（由 biz 的 provider 注入，缺省时提示不可用）。
+  void _openSettings(BuildContext context) {
+    final open = ref.read(showYgoSettingsDialogProvider);
+    if (open == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('设置功能不可用')));
+      return;
+    }
+    open(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final room = ref.watch(duelRoomProvider);
@@ -221,45 +233,68 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
             children: [
               Row(
                 children: [
-                  Row(children: [
-                    Icon(Icons.sports_esports, size: 16,
-                        color: Colors.blueGrey.shade300),
-                    Text(
-                      '玩家: ${room.players.length}人',
-                      style: TextStyle(
-                          color: Colors.blueGrey.shade300, fontSize: 13),
-                    ),
-                  ],
-                  ),
-                  const SizedBox(width: 12),
-                  Row(children: [
-                      Icon(Icons.visibility, size: 16,
-                          color: Colors.blueGrey.shade300),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.sports_esports,
+                        size: 16,
+                        color: Colors.blueGrey.shade300,
+                      ),
                       Text(
-                        '观战: ${room.observerCount}人',
+                        '玩家: ${room.players.length}人',
                         style: TextStyle(
-                            color: Colors.blueGrey.shade300, fontSize: 13),
+                          color: Colors.blueGrey.shade300,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
+                  const SizedBox(width: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.visibility,
+                        size: 16,
+                        color: Colors.blueGrey.shade300,
+                      ),
+                      Text(
+                        '观战: ${room.observerCount}人',
+                        style: TextStyle(
+                          color: Colors.blueGrey.shade300,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    key: const ValueKey('waiting-settings'),
+                    tooltip: '设置',
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(
+                      Icons.settings_outlined,
+                      size: 18,
+                      color: Colors.blueGrey.shade300,
+                    ),
+                    onPressed: () => _openSettings(context),
+                  ),
                 ],
               ),
-              ...room.players.map((item) =>
-                    Container(
-                      margin: const EdgeInsets.only(top: 8),
-                      child: PlayerSlot(
-                        player: item,
-                        placeholder: '玩家 ${item.pos + 1}',
-                        // 房主徽章以 PlayerInfo.host 为准（按座位 0 惯例填充），
-                        // 不能由「我的视角」反推，否则非房主视角下人人都像房主。
-                        isHostSlot: item.host,
-                        isMe: item.pos == mySlotVal,
-                        // 仅房主可踢人：不能踢自己，也不能踢房主。
-                        canKick: room.isHost && item.pos != mySlotVal &&
-                            !item.host,
-                        onKick: () => roomCtl.kickPlayer(item.pos),
-                      ),
-                    ),
+              ...room.players.map(
+                (item) => Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  child: PlayerSlot(
+                    player: item,
+                    placeholder: '玩家 ${item.pos + 1}',
+                    // 房主徽章以 PlayerInfo.host 为准（按座位 0 惯例填充），
+                    // 不能由「我的视角」反推，否则非房主视角下人人都像房主。
+                    isHostSlot: item.host,
+                    isMe: item.pos == mySlotVal,
+                    // 仅房主可踢人：不能踢自己，也不能踢房主。
+                    canKick: room.isHost && item.pos != mySlotVal && !item.host,
+                    onKick: () => roomCtl.kickPlayer(item.pos),
+                  ),
+                ),
               ),
               const SizedBox(height: 6),
               DeckSelector(
@@ -446,10 +481,7 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
 }
 
 class _WaitingRoomPanelLayout extends StatelessWidget {
-  const _WaitingRoomPanelLayout({
-    required this.content,
-    this.controlBar,
-  });
+  const _WaitingRoomPanelLayout({required this.content, this.controlBar});
 
   final Widget content;
   final Widget? controlBar;
@@ -475,7 +507,10 @@ class _WaitingRoomPanelFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final spec = DuelRoomLayout.of(context);
     final legacyMaxWidth = (spec.viewport.width - 32).clamp(0.0, 560.0);
-    final legacyMaxHeight = (spec.viewport.height - 32).clamp(0.0, double.infinity);
+    final legacyMaxHeight = (spec.viewport.height - 32).clamp(
+      0.0,
+      double.infinity,
+    );
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.all(spec.pagePadding),

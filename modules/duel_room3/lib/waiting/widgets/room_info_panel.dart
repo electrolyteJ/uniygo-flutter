@@ -66,7 +66,7 @@ class RoomInfoPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('房间信息', style: HudTheme.caption),
+          Text('房间信息1', style: HudTheme.caption),
           const SizedBox(height: 6),
           _infoRow(Icons.gamepad, '$modeStr · $ruleStr'),
           _infoRow(Icons.gavel, duelRuleStr),
@@ -162,7 +162,9 @@ class _InkInfoRow extends StatelessWidget {
                 text,
                 style: HudTheme.body.copyWith(
                   fontSize: 13,
-                  color: enabled ? HudTheme.textPrimary : HudTheme.textSecondary,
+                  color: enabled
+                      ? HudTheme.textPrimary
+                      : HudTheme.textSecondary,
                 ),
               ),
             ),

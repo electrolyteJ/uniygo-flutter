@@ -5,6 +5,7 @@ import 'package:biz/widgets/card_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../theme/cyber_palette.dart';
 import 'announce_card_dialog.dart';
 import 'counter_allocator_dialog.dart';
 import 'hud_theme.dart';
@@ -392,7 +393,7 @@ class _OptionDialog extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(vertical: 3),
                     child: FilledButton(
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF123049),
+                        backgroundColor: CyberPalette.cyanDeep,
                         foregroundColor: HudTheme.textPrimary,
                       ),
                       onPressed: () => respond(i),

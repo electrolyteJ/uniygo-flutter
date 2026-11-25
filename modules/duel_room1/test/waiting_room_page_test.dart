@@ -81,7 +81,7 @@ class _FakeDuelRoomNotifier extends DuelRoomNotifier {
 }
 
 void main() {
-  Widget buildSubject() {
+  Widget buildSubject({VoidCallback? onOpenSettings}) {
     YgoSoundService.enabled = false;
     addTearDown(() => YgoSoundService.enabled = true);
 
@@ -106,6 +106,18 @@ void main() {
         duelRoomProvider.overrideWith(() => _FakeDuelRoomNotifier(state)),
         dataServiceProvider.overrideWith((ref) => _fakeDataService),
         ygoSoundServiceProvider.overrideWith((ref) => YgoSoundService()),
+        if (onOpenSettings != null)
+          showYgoSettingsDialogProvider.overrideWithValue(
+            (
+              context, {
+              autoDuel,
+              autoHand,
+              autoTurnOrder,
+              onAutoDuelChanged,
+              onAutoHandChanged,
+              onAutoTurnOrderChanged,
+            }) => onOpenSettings(),
+          ),
       ],
       child: const MaterialApp(
         home: Scaffold(body: SizedBox.expand(child: WaitingRoomPage())),
@@ -119,6 +131,18 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
   }
+
+  testWidgets('玩家/观战行尾有全局设置入口，点击打开设置弹窗', (tester) async {
+    var opened = false;
+    setSize(tester, const Size(1280, 800));
+    await tester.pumpWidget(buildSubject(onOpenSettings: () => opened = true));
+    await tester.pump();
+
+    final button = find.byKey(const ValueKey('waiting-settings'));
+    expect(button, findsOneWidget);
+    await tester.tap(button);
+    expect(opened, isTrue);
+  });
 
   group('WaitingRoomPage 弹窗几何', () {
     testWidgets('宽屏视口下弹窗宽度有上限，不无限铺开', (tester) async {

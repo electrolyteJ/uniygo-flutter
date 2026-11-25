@@ -39,6 +39,37 @@ flutter run -d macos --enable-flutter-gpu -t apps/uniygopro/lib/main.dart
 共存时其 data_assets 注入的 shaderbundle 无法被本运行时解包，
 原版遇错中断会导致内建材质随机缺失（ShaderLibrary 初始化失败）。
 
+## 赛博朋克皮肤（决斗²）
+
+对应 Ardot 设计稿「05 对战-决斗 · 3D」的赛博强化版视觉稿
+`website/05-duel-cyberpunk.html`。改动只换皮，不动 `Duel3DBridge` /
+`CardStandee` / `CameraRig` / 射线拾取：
+
+- `theme/cyber_palette.dart` + `theme/cyber_skin.dart`：赛博色板与
+  「演出增强层」开关（shared_preferences 持久化，默认开）
+- `hud/hud_theme.dart`：HUD 常量整体换成深黑蓝 + 亮青 + 品红/酸绿
+- `hud/cyber_overlay.dart`：扫描线 / 雨丝 / 噪点 / 暗角 / 故障条 /
+  四角切角线框（纯 Flutter CustomPaint，内置 IgnorePointer）
+- `scene3d/arena_component.dart`：矩形悬浮平台 + 双层霓虹边框 +
+  法阵环 + 四角光柱 + 城市天际线穹顶 + 无限延伸地面网格
+- `scene3d/zone_grid_component.dart`：32 槽霓虹配色 + 逐格流动微光
+- `scene3d/fx/effects_manager.dart`：召唤门三层 / 双光柱 / 地面冲击波 /
+  双色光束 / 双层命中闪光 / 异色粒子
+- `scene3d/duel_3d_game.dart`：品红 + 亮青双色侧光
+- `field/duel_field_page.dart`：叠层挂载 + 右上角闪电按钮即时切换
+
+开关控制的是**动态演出强度**，关掉后回到接近经典的观感；皮肤底板
+（HUD 色板、灯光、天际线、地面网格）常驻，不随开关变化。所有 3D
+组件都在 `update` / 特效播放时读取开关，因此切换即时生效，不需要
+重建 `Duel3DGame`。粒子池上限仍为 260，复杂动画靠分层与复用实现，
+不靠堆粒子数。
+
+**限制**：flame_3d 的 `BlendState` 是整帧 render pass 的全局状态，
+无法按材质设 additive，也没有 bloom 后处理，因此霓虹辉光靠高饱和
+自发光色 + 多层叠加近似，做不到 HTML 原型里 `lighter` 合成的真辉光；
+真辉光仍需设计文档里列的自定义 Material + shaderbundle spike。
+Web 端依旧不支持（`kIsWeb` 降级到 `room2d`）。
+
 ## 已知简化（v1）
 
 - 换备（siding）界面为简化版：仅数量校验 + 确认，不支持拖动换卡

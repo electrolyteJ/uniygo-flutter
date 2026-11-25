@@ -20,6 +20,7 @@ import '../hud/action_bar.dart';
 import '../hud/card_detail_panel.dart';
 import '../hud/confirm_cards_dialog.dart';
 import '../hud/confirm_floating_card.dart';
+import '../hud/cyber_overlay.dart';
 import '../hud/duel_overlays.dart';
 import '../hud/hand_bar.dart';
 import '../hud/hud_theme.dart';
@@ -28,6 +29,7 @@ import '../hud/phase_rail.dart';
 import '../hud/turn_order_hint.dart';
 import '../hud/zone_count_bar.dart';
 import '../scene3d/duel_3d_game.dart';
+import '../theme/cyber_skin.dart';
 
 /// 3D 决斗场地页：flame_3d 场景 + MDPro3 风格 HUD 叠层。
 class DuelFieldPage3D extends ConsumerStatefulWidget {
@@ -70,6 +72,9 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
   void initState() {
     super.initState();
     _initGpu();
+    // 赛博演出开关是全局持久化偏好；恢复后 3D 组件每帧读取，
+    // 不需要重建 GameWidget。
+    unawaited(CyberSkin.restore());
   }
 
   /// 先预载 shader（GpuBackend）再挂载 GameWidget，避免首帧
@@ -316,6 +321,15 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
               ),
           ),
 
+          // 赛博 HUD 后处理：只覆盖 3D 场景层，HUD 文字保持清晰。
+          // IgnorePointer 内置于 CyberOverlay，不影响射线拾取。
+          ValueListenableBuilder<bool>(
+            valueListenable: CyberSkin.enabled,
+            builder: (context, cyberOn, _) => cyberOn
+                ? const Positioned.fill(child: CyberOverlay())
+                : const SizedBox.shrink(),
+          ),
+
           // 选择窗口（横幅 + 模态 + 确认）
           const DuelSelectOverlay(),
 
@@ -435,12 +449,22 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
             ),
           ),
 
-          // 右上：菜单按钮组
+          // 右上：赛博演出开关 + 菜单按钮组
           Positioned(
             right: 12,
             top: 12,
             child: Row(
               children: [
+                ValueListenableBuilder<bool>(
+                  valueListenable: CyberSkin.enabled,
+                  builder: (context, on, _) => _HudIconButton(
+                    icon: on ? Icons.flash_on : Icons.flash_off,
+                    tooltip: on ? '赛博演出：开（点击关闭）' : '赛博演出：关（点击开启）',
+                    accent: on ? CyberPalette.magenta : HudTheme.textSecondary,
+                    onTap: () => unawaited(CyberSkin.toggle()),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 _HudIconButton(
                   icon: Icons.article_outlined,
                   tooltip: '决斗日志',
@@ -660,11 +684,13 @@ class _HudIconButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onTap,
+    this.accent,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
+  final Color? accent;
 
   @override
   Widget build(BuildContext context) {
@@ -678,7 +704,7 @@ class _HudIconButton extends StatelessWidget {
           height: 36,
           alignment: Alignment.center,
           decoration: HudTheme.panel(radius: 18),
-          child: Icon(icon, color: HudTheme.textPrimary, size: 18),
+          child: Icon(icon, color: accent ?? HudTheme.textPrimary, size: 18),
         ),
       ),
     );

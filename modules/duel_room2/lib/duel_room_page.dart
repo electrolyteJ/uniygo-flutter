@@ -95,7 +95,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     }
 
     final duelService = ref.read(duelServiceProvider);
-
+    final roomId = args['roomId'] as String?;
     // connect() 必须在流订阅之前调用，否则 DuelService 门面会把订阅
     // 路由到默认的 WebSocket 服务（而不是 AI/TCP 等目标协议）。
     try {
@@ -108,6 +108,10 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     if (!mounted) return;
 
     ref.read(duelRoomProvider.notifier).start();
+    // 房间邀码：建房/进房链路带入（没有的房间类型为 null）。
+    ref
+        .read(duelRoomProvider.notifier)
+        .setRoomId(roomId);
     ref.read(duelChatProvider.notifier).start();
     ref
         .read(duelMessageRouterProvider.notifier)

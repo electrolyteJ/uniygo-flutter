@@ -56,7 +56,9 @@ void main() {
     // debug 按钮触发完整 3D overlay：初始化 Flutter GPU → 加载程序化
     // 机械龙 → 播放 1.55s 演出 → 自动移除。任何 GPU/渲染异常都会经
     // takeException 暴露。
-    final summonButton = find.byKey(const ValueKey('debug-summon-cyber-dragon'));
+    final summonButton = find.byKey(
+      const ValueKey('debug-summon-cyber-dragon'),
+    );
     expect(summonButton, findsOneWidget);
     await tester.tap(summonButton);
     await tester.pump();

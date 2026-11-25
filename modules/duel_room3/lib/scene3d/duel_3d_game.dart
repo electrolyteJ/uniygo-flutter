@@ -6,6 +6,7 @@ import 'package:flame_3d/components.dart';
 import 'package:flame_3d/game.dart';
 import 'package:flame_3d/graphics.dart';
 
+import '../theme/cyber_skin.dart';
 import 'arena_component.dart';
 import 'camera_rig.dart';
 import 'field_3d_layout.dart';
@@ -79,7 +80,7 @@ class Duel3DGame extends FlameGame3D<World3D, CameraComponent3D> {
   }
 
   @override
-  Color backgroundColor() => const Color(0xFF05070F);
+  Color backgroundColor() => CyberPalette.voidBlack;
 
   @override
   Future<void> onLoad() async {
@@ -93,13 +94,21 @@ class Duel3DGame extends FlameGame3D<World3D, CameraComponent3D> {
       zoneGrid,
       standees,
       effects,
-      // flame_3d 无平行光/IBL；点光按 1/d² 衰减，强度按 cardlive 量级给。
-      LightComponent.ambient(intensity: 0.62),
-      LightComponent.point(position: Vector3(3, 6, 4), intensity: 60),
+      // 赛博双色侧光：品红（近端）+ 亮青（远端）。flame_3d 无平行光/IBL，
+      // 点光按 1/d² 衰减；颜色刻意保留较高白度，避免卡图被染得太偏色。
+      LightComponent.ambient(
+        color: const Color(0xFF8E9AD6),
+        intensity: 0.54,
+      ),
       LightComponent.point(
-        position: Vector3(-3, 4, -5),
-        color: const Color(0xFF88AAFF),
-        intensity: 35,
+        position: Vector3(3.2, 6, 4),
+        color: const Color(0xFFFF6FB0),
+        intensity: 58,
+      ),
+      LightComponent.point(
+        position: Vector3(-3.2, 4.5, -5),
+        color: const Color(0xFF6BE9FF),
+        intensity: 42,
       ),
     ]);
     _sceneReady = true;

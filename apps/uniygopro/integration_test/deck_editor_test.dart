@@ -17,14 +17,19 @@ pkg.CardInfo _card(
   int code, {
   String name = '',
   int type = 0x1, // 通常怪兽
-}) =>
-    pkg.CardInfo(code: code, type: type, name: name, attack: 1000, defense: 1000);
+}) => pkg.CardInfo(
+  code: code,
+  type: type,
+  name: name,
+  attack: 1000,
+  defense: 1000,
+);
 
 const _fusion = 0x1 | 0x40; // 怪兽 | 融合
 
 Widget _wrap(Widget child) => MaterialApp(
-      home: Scaffold(body: SizedBox(width: 800, height: 600, child: child)),
-    );
+  home: Scaffold(body: SizedBox(width: 800, height: 600, child: child)),
+);
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -53,37 +58,53 @@ void main() {
       String urlOf(int code) => '';
       var added = <int>[];
 
-      await tester.pumpWidget(_wrap(CardGridView(
-        cards: const [],
-        banlistStatusOf: statusOf,
-        cardImageUrlOf: urlOf,
-        onAddCard: (_) {},
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          CardGridView(
+            cards: const [],
+            banlistStatusOf: statusOf,
+            cardImageUrlOf: urlOf,
+            onAddCard: (_) {},
+          ),
+        ),
+      );
       expect(find.text('无搜索结果'), findsOneWidget);
 
       final card = _card(1, name: '青眼白龙');
-      await tester.pumpWidget(_wrap(CardGridView(
-        cards: [card],
-        banlistStatusOf: statusOf,
-        cardImageUrlOf: urlOf,
-        onAddCard: (c) => added.add(c.code),
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          CardGridView(
+            cards: [card],
+            banlistStatusOf: statusOf,
+            cardImageUrlOf: urlOf,
+            onAddCard: (c) => added.add(c.code),
+          ),
+        ),
+      );
       expect(find.text('青眼白龙'), findsOneWidget);
 
-      await tester.pumpWidget(_wrap(CardListView(
-        cards: const [],
-        banlistStatusOf: statusOf,
-        cardImageUrlOf: urlOf,
-        onAddCard: (_) {},
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          CardListView(
+            cards: const [],
+            banlistStatusOf: statusOf,
+            cardImageUrlOf: urlOf,
+            onAddCard: (_) {},
+          ),
+        ),
+      );
       expect(find.text('无搜索结果'), findsOneWidget);
 
-      await tester.pumpWidget(_wrap(CardListView(
-        cards: [card],
-        banlistStatusOf: statusOf,
-        cardImageUrlOf: urlOf,
-        onAddCard: (c) => added.add(c.code),
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          CardListView(
+            cards: [card],
+            banlistStatusOf: statusOf,
+            cardImageUrlOf: urlOf,
+            onAddCard: (c) => added.add(c.code),
+          ),
+        ),
+      );
       expect(find.text('青眼白龙'), findsOneWidget);
     });
   });
@@ -92,24 +113,32 @@ void main() {
     testWidgets('空态与有数据态 + 删除', (tester) async {
       var removed = <String>[];
       final card = _card(1, name: '怪兽');
-      await tester.pumpWidget(_wrap(DeckZoneWidget(
-        type: DeckZoneType.main,
-        cards: const [],
-        cardImageUrlOf: (_) => '',
-        banlistStatusOf: (_) => null,
-        onAcceptCard: (_, _) {},
-        onRemoveCard: (_, _) {},
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          DeckZoneWidget(
+            type: DeckZoneType.main,
+            cards: const [],
+            cardImageUrlOf: (_) => '',
+            banlistStatusOf: (_) => null,
+            onAcceptCard: (_, _) {},
+            onRemoveCard: (_, _) {},
+          ),
+        ),
+      );
       expect(find.text('拖拽卡牌到此处'), findsOneWidget);
 
-      await tester.pumpWidget(_wrap(DeckZoneWidget(
-        type: DeckZoneType.main,
-        cards: [card],
-        cardImageUrlOf: (_) => '',
-        banlistStatusOf: (_) => null,
-        onAcceptCard: (_, _) {},
-        onRemoveCard: (zone, _) => removed.add(zone),
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          DeckZoneWidget(
+            type: DeckZoneType.main,
+            cards: [card],
+            cardImageUrlOf: (_) => '',
+            banlistStatusOf: (_) => null,
+            onAcceptCard: (_, _) {},
+            onRemoveCard: (zone, _) => removed.add(zone),
+          ),
+        ),
+      );
       expect(find.byIcon(Icons.close), findsOneWidget);
       await tester.tap(find.byIcon(Icons.close));
       expect(removed, ['main']);
@@ -122,24 +151,32 @@ void main() {
       var deleted = <String>[];
       var selected = <String>[];
       final deck = DeckInfo(deckName: '卡组1', isBuiltin: true);
-      await tester.pumpWidget(_wrap(DeckListPanel(
-        decks: const [],
-        currentDeckName: null,
-        isLocked: false,
-        onSelectDeck: selected.add,
-        onCreateDeck: created.add,
-        onDeleteDeck: deleted.add,
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          DeckListPanel(
+            decks: const [],
+            currentDeckName: null,
+            isLocked: false,
+            onSelectDeck: selected.add,
+            onCreateDeck: created.add,
+            onDeleteDeck: deleted.add,
+          ),
+        ),
+      );
       expect(find.text('新建卡组'), findsOneWidget);
 
-      await tester.pumpWidget(_wrap(DeckListPanel(
-        decks: [deck],
-        currentDeckName: '卡组1',
-        isLocked: false,
-        onSelectDeck: selected.add,
-        onCreateDeck: created.add,
-        onDeleteDeck: deleted.add,
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          DeckListPanel(
+            decks: [deck],
+            currentDeckName: '卡组1',
+            isLocked: false,
+            onSelectDeck: selected.add,
+            onCreateDeck: created.add,
+            onDeleteDeck: deleted.add,
+          ),
+        ),
+      );
       expect(find.text('卡组1'), findsOneWidget);
       await tester.tap(find.text('卡组1'));
       expect(selected, ['卡组1']);
@@ -165,29 +202,40 @@ void main() {
     testWidgets('空态与有数据态 + 清空确认', (tester) async {
       var cleared = 0;
       final empty = EditingDeck(deckName: '');
-      await tester.pumpWidget(_wrap(DeckEditPanel(
-        deck: empty,
-        onShuffle: () {},
-        onSort: () {},
-        onClear: () => cleared++,
-        cardImageUrlOf: (_) => '',
-        banlistStatusOf: (_) => null,
-        onAddCard: (_, {targetZone}) {},
-        onRemoveCard: (_, _) {},
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          DeckEditPanel(
+            deck: empty,
+            onShuffle: () {},
+            onSort: () {},
+            onClear: () => cleared++,
+            cardImageUrlOf: (_) => '',
+            banlistStatusOf: (_) => null,
+            onAddCard: (_, {targetZone}) {},
+            onRemoveCard: (_, _) {},
+          ),
+        ),
+      );
       expect(find.text('主卡组 (0)'), findsOneWidget);
 
-      final deck = EditingDeck(deckName: 'D', main: [_card(1, name: '怪兽')]);
-      await tester.pumpWidget(_wrap(DeckEditPanel(
-        deck: deck,
-        onShuffle: () {},
-        onSort: () {},
-        onClear: () => cleared++,
-        cardImageUrlOf: (_) => '',
-        banlistStatusOf: (_) => null,
-        onAddCard: (_, {targetZone}) {},
-        onRemoveCard: (_, _) {},
-      )));
+      final deck = EditingDeck(
+        deckName: 'D',
+        main: [_card(1, name: '怪兽')],
+      );
+      await tester.pumpWidget(
+        _wrap(
+          DeckEditPanel(
+            deck: deck,
+            onShuffle: () {},
+            onSort: () {},
+            onClear: () => cleared++,
+            cardImageUrlOf: (_) => '',
+            banlistStatusOf: (_) => null,
+            onAddCard: (_, {targetZone}) {},
+            onRemoveCard: (_, _) {},
+          ),
+        ),
+      );
       expect(find.text('主卡组 (1)'), findsOneWidget);
       await tester.tap(find.text('清空'));
       await tester.pumpAndSettle();
@@ -262,30 +310,32 @@ void main() {
       expect(store.editingDeck.totalCount, 0);
     });
 
-    test('filter / banlist / markDirty / toDeckInfo / lastSaveResultForRoute',
-        () async {
-      final store = DeckEditorStore();
-      expect(store.filter.isDefault, isFalse); // 默认带 env:0
-      store.updateFilter(const CardFilter(cardType: 0x1));
-      expect(store.filter.cardType, 0x1);
-      store.resetSearchFilters();
-      expect(store.filter.cardType, isNull);
+    test(
+      'filter / banlist / markDirty / toDeckInfo / lastSaveResultForRoute',
+      () async {
+        final store = DeckEditorStore();
+        expect(store.filter.isDefault, isFalse); // 默认带 env:0
+        store.updateFilter(const CardFilter(cardType: 0x1));
+        expect(store.filter.cardType, 0x1);
+        store.resetSearchFilters();
+        expect(store.filter.cardType, isNull);
 
-      store.selectBanlist(123);
-      expect(store.selectedBanlistHash, 123);
-      expect(store.getBanlistStatus(_card(1)), isNull); // 无表 → null
+        store.selectBanlist(123);
+        expect(store.selectedBanlistHash, 123);
+        expect(store.getBanlistStatus(_card(1)), isNull); // 无表 → null
 
-      await store.addCard(_card(7, name: '七'));
-      final info = store.toDeckInfo();
-      expect(info.mainCount, 1);
+        await store.addCard(_card(7, name: '七'));
+        final info = store.toDeckInfo();
+        expect(info.mainCount, 1);
 
-      store.markDirty();
-      expect(store.editingDeck.isDirty, isTrue);
-      expect(store.lastSaveResultForRoute, isNull); // 尚未保存
+        store.markDirty();
+        expect(store.editingDeck.isDirty, isTrue);
+        expect(store.lastSaveResultForRoute, isNull); // 尚未保存
 
-      store.clearError();
-      expect(store.errorMessage, isNull);
-    });
+        store.clearError();
+        expect(store.errorMessage, isNull);
+      },
+    );
 
     test('configureSession 解析等待室参数', () async {
       final store = DeckEditorStore();

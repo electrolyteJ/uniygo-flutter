@@ -15,18 +15,18 @@ import 'package:integration_test/integration_test.dart';
 import 'package:provider/provider.dart';
 import 'package:account_mycard/account_mycard.dart';
 import 'package:uniygopro/config/servers.dart';
-import 'package:uniygopro/models/created_room_record.dart';
-import 'package:uniygopro/models/mercury233_room_spec.dart';
-import 'package:uniygopro/widgets/create_room/create_room_form.dart';
-import 'package:uniygopro/widgets/create_room/env_selector.dart';
-import 'package:uniygopro/widgets/create_room/join_room_form.dart';
-import 'package:uniygopro/widgets/create_room/mercury233_room_form_section.dart';
-import 'package:uniygopro/widgets/create_room/password_field.dart';
-import 'package:uniygopro/widgets/create_room/room_history_list.dart';
+import 'package:uniygopro/create_room/free/created_room_record.dart';
+import 'package:uniygopro/create_room/models/mercury233_room_spec.dart';
+import 'package:uniygopro/create_room/widgets/create_room_form.dart';
+import 'package:uniygopro/create_room/widgets/env_selector.dart';
+import 'package:uniygopro/create_room/widgets/join_room_form.dart';
+import 'package:uniygopro/create_room/widgets/mercury233_room_form_section.dart';
+import 'package:uniygopro/create_room/widgets/password_field.dart';
+import 'package:uniygopro/create_room/widgets/room_history_list.dart';
 
 Widget _wrap(Widget child) => MaterialApp(
-      home: Scaffold(body: SingleChildScrollView(child: child)),
-    );
+  home: Scaffold(body: SingleChildScrollView(child: child)),
+);
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -34,7 +34,9 @@ void main() {
   testWidgets('PasswordField 显示/隐藏切换', (tester) async {
     final controller = TextEditingController();
     addTearDown(controller.dispose);
-    await tester.pumpWidget(_wrap(PasswordField(controller: controller, label: '密码')));
+    await tester.pumpWidget(
+      _wrap(PasswordField(controller: controller, label: '密码')),
+    );
     expect(find.byType(TextField), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'secret');
     expect(controller.text, 'secret');
@@ -135,15 +137,12 @@ void main() {
           historyLoader: () async => const [],
           onSaveRecord: (_) async {},
           onDeleteRecord: (_) async {},
-          onEnterRoom: ({
-            required options,
-            required roomName,
-            required password,
-          }) {
-            capturedOptions = options;
-            capturedRoomName = roomName;
-            capturedPassword = password;
-          },
+          onEnterRoom:
+              ({required options, required roomName, required password}) {
+                capturedOptions = options;
+                capturedRoomName = roomName;
+                capturedPassword = password;
+              },
         ),
       ),
     );
@@ -154,10 +153,7 @@ void main() {
     expect(find.text('请设置房间密码'), findsOneWidget);
 
     // 填写密码后创建
-    await tester.enterText(
-      find.widgetWithText(TextField, '房间密码'),
-      'secret',
-    );
+    await tester.enterText(find.widgetWithText(TextField, '房间密码'), 'secret');
     await tester.tap(find.text('创建房间'));
     await tester.pump();
     expect(capturedOptions, isNotNull);
@@ -190,9 +186,7 @@ void main() {
       }
       return http.Response('x', 404);
     });
-    return MyCardAccountApi(
-      authService: MyCardAuthService(httpClient: mock),
-    );
+    return MyCardAccountApi(authService: MyCardAuthService(httpClient: mock));
   }
 
   Widget wrapWithApi(Widget child, MyCardAccountApi api) => MaterialApp(
@@ -201,9 +195,7 @@ void main() {
       child: Scaffold(body: SingleChildScrollView(child: child)),
     ),
   );
-  testWidgets('CreateRoomForm MyCard 私密房：无密码框，编码含派生房间 ID', (
-    tester,
-  ) async {
+  testWidgets('CreateRoomForm MyCard 私密房：无密码框，编码含派生房间 ID', (tester) async {
     final api = loggedInApi();
     addTearDown(api.dispose);
     await api.signIn('kai', 'pw123'); // 预先登录，跳过登录对话框
@@ -221,15 +213,12 @@ void main() {
           historyLoader: () async => const [],
           onSaveRecord: (r) async => savedRecord = r,
           onDeleteRecord: (_) async {},
-          onEnterRoom: ({
-            required options,
-            required roomName,
-            required password,
-          }) {
-            capturedOptions = options;
-            capturedRoomName = roomName;
-            capturedPassword = password;
-          },
+          onEnterRoom:
+              ({required options, required roomName, required password}) {
+                capturedOptions = options;
+                capturedRoomName = roomName;
+                capturedPassword = password;
+              },
         ),
         api,
       ),
@@ -289,9 +278,7 @@ void main() {
     );
   });
 
-  testWidgets('JoinRoomForm MyCard 未登录：弹登录对话框，取消则中止', (
-    tester,
-  ) async {
+  testWidgets('JoinRoomForm MyCard 未登录：弹登录对话框，取消则中止', (tester) async {
     final api = MyCardAccountApi(
       authService: MyCardAuthService(
         httpClient: MockClient((req) async => http.Response('x', 401)),
@@ -325,11 +312,8 @@ void main() {
           historyLoader: () async => const [],
           onSaveRecord: (_) async {},
           onDeleteRecord: (_) async {},
-          onEnterRoom: ({
-            required options,
-            required roomName,
-            required password,
-          }) {},
+          onEnterRoom:
+              ({required options, required roomName, required password}) {},
         ),
       ),
     );
@@ -351,10 +335,7 @@ void main() {
     expect(find.textContaining('最终房间串:'), findsOneWidget);
 
     // 修改房间名
-    await tester.enterText(
-      find.widgetWithText(TextField, '房间名称'),
-      '我的房间',
-    );
+    await tester.enterText(find.widgetWithText(TextField, '房间名称'), '我的房间');
     expect(spec.roomName, '我的房间');
 
     // 切换不检查卡组 checkbox

@@ -6,6 +6,7 @@ import 'package:flame_3d/components.dart';
 import 'package:flame_3d/core.dart';
 import 'package:flame_3d/resources.dart';
 
+import '../../theme/cyber_skin.dart';
 import '../card_texture_cache.dart';
 import '../tween_3d.dart';
 import 'digit_atlas.dart';
@@ -15,7 +16,7 @@ import 'ring_mesh.dart';
 /// 召唤特效种类（场景层自有枚举，biz SummonEffectType 由桥接层映射）。
 enum SummonFx { normal, special, flip, set, ritual, fusion, synchro, xyz, link }
 
-const _summonColors = {
+const _classicSummonColors = {
   SummonFx.normal: ui.Color(0xFFFFD75A),
   SummonFx.special: ui.Color(0xFFFF8C42),
   SummonFx.flip: ui.Color(0xFF7CFF6B),
@@ -25,6 +26,19 @@ const _summonColors = {
   SummonFx.synchro: ui.Color(0xFFF2F2F2),
   SummonFx.xyz: ui.Color(0xFFFFE08A),
   SummonFx.link: ui.Color(0xFF37E2FF),
+};
+
+/// 赛博皮肤召唤色：提高饱和度，并把 XYZ / Link 换成品红 / 亮青。
+const _cyberSummonColors = {
+  SummonFx.normal: ui.Color(0xFFFFC93C),
+  SummonFx.special: ui.Color(0xFFFF5A2E),
+  SummonFx.flip: CyberPalette.acid,
+  SummonFx.set: ui.Color(0xFF6C7AA8),
+  SummonFx.ritual: ui.Color(0xFF4D7CFF),
+  SummonFx.fusion: CyberPalette.violet,
+  SummonFx.synchro: ui.Color(0xFFE6FBFF),
+  SummonFx.xyz: CyberPalette.magenta,
+  SummonFx.link: CyberPalette.cyan,
 };
 
 /// 效果总控：召唤门/光柱、攻击光束、伤害数字、抽牌飞牌、破坏爆发。
@@ -50,14 +64,15 @@ class EffectsManager extends Component3D {
 
   /// 在 [at]（地砖中心，y=0 平面）播放召唤特效：召唤门圆环 + 光柱 + 粒子爆发。
   void playSummonFx(Vector3 at, SummonFx fx) {
-    final color = _summonColors[fx]!;
+    final cyber = CyberSkin.isOn;
+    final color = (cyber ? _cyberSummonColors : _classicSummonColors)[fx]!;
     if (fx == SummonFx.set) {
       // 盖放：低调的一圈涟漪粒子
       particles.burst(
         origin: at + Vector3(0, 0.15, 0),
         color: color,
-        count: 10,
-        speed: 1.2,
+        count: cyber ? 16 : 10,
+        speed: cyber ? 1.6 : 1.2,
         life: 0.5,
       );
       return;
@@ -122,14 +137,117 @@ class EffectsManager extends Component3D {
         ));
       },
     ));
-    // 粒子爆发
+    if (cyber) {
+      // 第二层召唤门：更大、反向自转的品红外环，与主环构成双层符文门。
+      final outerMat = UnlitMaterial(albedoColor: CyberPalette.magenta);
+      final outerRing = MeshComponent(
+        mesh: RingMesh(
+          innerRadius: 0.92,
+          outerRadius: 1.02,
+          material: outerMat,
+        ),
+        position: at + Vector3(0, 0.05, 0),
+      );
+      _spawnTransient(outerRing, ttl: 1.05);
+      tweens.addVector(Vector3Tween(
+        from: Vector3.all(0.25),
+        to: Vector3.all(1.9),
+        duration: 1.05,
+        ease: easeOutCubic,
+        apply: (v) => outerRing.scale.setFrom(v),
+      ));
+      tweens.addScalar(ScalarTween(
+        from: 0,
+        to: -7.0,
+        duration: 1.05,
+        apply: (v) => outerRing.rotation.setFrom(Quaternion.euler(v, 0, 0)),
+      ));
+      tweens.addScalar(ScalarTween(
+        from: 1.0,
+        to: 0.0,
+        duration: 1.05,
+        apply: (a) => outerMat.albedoColor =
+            CyberPalette.magenta.withValues(alpha: a),
+      ));
+
+      // 地面冲击波：贴地快速扩散的薄环。
+      final shockMat = UnlitMaterial(albedoColor: CyberPalette.cyan);
+      final shock = MeshComponent(
+        mesh: RingMesh(
+          innerRadius: 0.30,
+          outerRadius: 0.42,
+          material: shockMat,
+        ),
+        position: at + Vector3(0, 0.035, 0),
+      );
+      _spawnTransient(shock, ttl: 0.55);
+      tweens.addVector(Vector3Tween(
+        from: Vector3.all(0.5),
+        to: Vector3.all(4.2),
+        duration: 0.55,
+        ease: easeOutCubic,
+        apply: (v) => shock.scale.setFrom(v),
+      ));
+      tweens.addScalar(ScalarTween(
+        from: 0.95,
+        to: 0.0,
+        duration: 0.55,
+        apply: (a) =>
+            shockMat.albedoColor = CyberPalette.cyan.withValues(alpha: a),
+      ));
+
+      // 副光柱：更细更高、错峰拔起，主副光柱形成双色拔剑感。
+      final subMat = UnlitMaterial(albedoColor: CyberPalette.magenta);
+      final subBeam = MeshComponent(
+        mesh: CylinderMesh(
+          radius: 0.14,
+          height: 1,
+          segments: 16,
+          material: subMat,
+        ),
+        position: at + Vector3(0, 0.5, 0),
+      );
+      _spawnTransient(subBeam, ttl: 0.85);
+      tweens.addScalar(ScalarTween(
+        from: 0.01,
+        to: 4.2,
+        duration: 0.38,
+        ease: easeOutCubic,
+        apply: (v) {
+          subBeam.scale.setFrom(Vector3(1, v, 1));
+          subBeam.position.setFrom(at + Vector3(0, v / 2, 0));
+        },
+        onComplete: () {
+          tweens.addScalar(ScalarTween(
+            from: 1.0,
+            to: 0.0,
+            duration: 0.42,
+            apply: (a) => subMat.albedoColor =
+                CyberPalette.magenta.withValues(alpha: a),
+          ));
+        },
+      ));
+    }
+
+    // 粒子爆发（池上限 260，分层不堆量：主色 + 少量异色细粒）
     particles.burst(
       origin: at + Vector3(0, 0.4, 0),
       color: color,
-      count: 34,
-      speed: 3.0,
-      life: 0.9,
+      count: cyber ? 46 : 34,
+      speed: cyber ? 3.6 : 3.0,
+      life: cyber ? 1.1 : 0.9,
     );
+    if (cyber) {
+      particles.burst(
+        origin: at + Vector3(0, 0.7, 0),
+        color: CyberPalette.cyan,
+        count: 14,
+        speed: 2.2,
+        upBias: 1.1,
+        life: 0.8,
+        size: 0.06,
+      );
+    }
   }
 
   // ───────────────────────── 攻击 ─────────────────────────
@@ -138,12 +256,15 @@ class EffectsManager extends Component3D {
   void playBeamFx(
     Vector3 from,
     Vector3 to, {
-    ui.Color color = const ui.Color(0xFF9FE8FF),
+    ui.Color? color,
   }) {
+    final cyber = CyberSkin.isOn;
+    final beamColor =
+        color ?? (cyber ? CyberPalette.beam : CyberPalette.classicBeam);
     final dir = to - from;
     final length = dir.length;
     if (length < 1e-3) return;
-    final material = UnlitMaterial(albedoColor: color);
+    final material = UnlitMaterial(albedoColor: beamColor);
     final beam = MeshComponent(
       mesh: CylinderMesh(
         radius: 0.09,
@@ -168,23 +289,100 @@ class EffectsManager extends Component3D {
       from: 1.0,
       to: 0.0,
       duration: 0.32,
-      apply: (a) => material.albedoColor = color.withValues(alpha: a),
+      apply: (a) => material.albedoColor = beamColor.withValues(alpha: a),
     ));
+
+    if (cyber) {
+      // 内芯：更细的品红光束，稍晚淡出，形成双色「能量束」。
+      final coreMat = UnlitMaterial(albedoColor: CyberPalette.magenta);
+      final core = MeshComponent(
+        mesh: CylinderMesh(
+          radius: 0.035,
+          height: 1,
+          segments: 8,
+          material: coreMat,
+        ),
+        position: (from + to) / 2,
+      );
+      if (axis.length > 1e-4) {
+        core.rotation
+            .setFrom(Quaternion.axisAngle(axis.normalized(), angle));
+      } else if (d.y < 0) {
+        core.rotation
+            .setFrom(Quaternion.axisAngle(Vector3(1, 0, 0), math.pi));
+      }
+      core.scale.setFrom(Vector3(1, length, 1));
+      _spawnTransient(core, ttl: 0.42);
+      tweens.addScalar(ScalarTween(
+        from: 1.0,
+        to: 0.0,
+        duration: 0.42,
+        apply: (a) =>
+            coreMat.albedoColor = CyberPalette.magenta.withValues(alpha: a),
+      ));
+      // 沿束撒少量细粒（每 0.6 世界单位一个，最多 12 个）。
+      final steps = math.min(12, (length / 0.6).ceil());
+      for (var i = 1; i < steps; i++) {
+        particles.trail(
+          origin: from + dir * (i / steps),
+          color: CyberPalette.cyan,
+          size: 0.06,
+          life: 0.35,
+        );
+      }
+    }
   }
 
   /// 命中爆发（攻击命中点 / 破坏点）。
   void playImpactFx(
     Vector3 at, {
-    ui.Color color = const ui.Color(0xFFFFB347),
+    ui.Color? color,
   }) {
+    final cyber = CyberSkin.isOn;
+    final impactColor =
+        color ?? (cyber ? CyberPalette.impact : CyberPalette.classicImpact);
     particles.burst(
       origin: at,
-      color: color,
-      count: 30,
-      speed: 3.4,
+      color: impactColor,
+      count: cyber ? 44 : 30,
+      speed: cyber ? 4.0 : 3.4,
       life: 0.7,
       size: 0.11,
     );
+    if (cyber) {
+      // 异色细粒：青色上冲，模拟能量溅射。
+      particles.burst(
+        origin: at,
+        color: CyberPalette.cyan,
+        count: 12,
+        speed: 2.0,
+        upBias: 1.2,
+        life: 0.5,
+        size: 0.07,
+      );
+      // 品红外圈闪光：比白核心更大、更慢淡出。
+      final auraMat = UnlitMaterial(albedoColor: CyberPalette.magenta);
+      final aura = MeshComponent(
+        mesh: PlaneMesh(size: Vector2(1, 1), material: auraMat),
+        position: at.clone(),
+        rotation: Quaternion.euler(0, 1.5707963, 0),
+      );
+      _spawnTransient(aura, ttl: 0.30);
+      tweens.addVector(Vector3Tween(
+        from: Vector3.all(0.3),
+        to: Vector3.all(2.8),
+        duration: 0.30,
+        ease: easeOutCubic,
+        apply: (v) => aura.scale.setFrom(v),
+      ));
+      tweens.addScalar(ScalarTween(
+        from: 0.8,
+        to: 0.0,
+        duration: 0.30,
+        apply: (a) =>
+            auraMat.albedoColor = CyberPalette.magenta.withValues(alpha: a),
+      ));
+    }
     // 命中闪光：瞬放的大平面
     final flashMaterial = UnlitMaterial(albedoColor: const ui.Color(0xFFFFFFFF));
     final flash = MeshComponent(
@@ -195,7 +393,7 @@ class EffectsManager extends Component3D {
     _spawnTransient(flash, ttl: 0.18);
     tweens.addVector(Vector3Tween(
       from: Vector3.all(0.2),
-      to: Vector3.all(1.8),
+      to: Vector3.all(cyber ? 2.1 : 1.8),
       duration: 0.18,
       ease: easeOutCubic,
       apply: (v) => flash.scale.setFrom(v),
@@ -216,7 +414,10 @@ class EffectsManager extends Component3D {
   /// 在 [at] 上方飘出伤害/回复数字（billboard 由 update 驱动朝向相机）。
   void playDamageNumber(Vector3 at, int amount, {bool heal = false}) {
     final text = (heal ? '+' : '-') + amount.abs().toString();
-    final color = heal ? const ui.Color(0xFF7CFF6B) : const ui.Color(0xFFFF5A5A);
+    final cyber = CyberSkin.isOn;
+    final color = heal
+        ? (cyber ? CyberPalette.heal : CyberPalette.classicHeal)
+        : (cyber ? CyberPalette.danger : CyberPalette.classicDanger);
     final chars = text.split('');
     final startX = at.x - (chars.length - 1) * 0.14;
     for (var i = 0; i < chars.length; i++) {
@@ -338,8 +539,18 @@ class EffectsManager extends Component3D {
                   card.position.setFrom(v);
                   particles.trail(
                     origin: v,
-                    color: const ui.Color(0xFF9FE8FF),
+                    color: CyberSkin.isOn
+                        ? CyberPalette.cyan
+                        : CyberPalette.classicBeam,
                   );
+                  if (CyberSkin.isOn) {
+                    particles.trail(
+                      origin: v,
+                      color: CyberPalette.magenta,
+                      size: 0.05,
+                      life: 0.3,
+                    );
+                  }
                 },
               ));
               tweens.addVector(Vector3Tween(

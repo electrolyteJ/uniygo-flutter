@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as console;
 
 import 'package:biz/duel/chat/duel_chat_state.dart';
 import 'package:biz/duel/field/card_confirm_state.dart';
@@ -114,7 +115,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
   Future<void> _connect() async {
     final args = widget.args;
     final uri = args['uri'] as Uri?;
-    final username = args['username'] as String? ?? 'Guest';
+    final username = args['username'] as String? ?? 'Unknown';
     final password = args['serverPassword'] as String? ?? '';
     if (uri == null) {
       _reportConnectError('房间参数缺失：未提供服务器地址');
@@ -122,7 +123,9 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     }
 
     final duelService = ref.read(duelServiceProvider);
-
+    final roomName = args['roomName'] as String?;
+    final roomId = args['roomId'] as String?;
+    console.log('roomId=$roomId');
     // connect() 必须在流订阅之前调用（同 duel_room2）。
     try {
       await duelService.connect(uri);
@@ -134,6 +137,9 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     if (!mounted) return;
 
     ref.read(duelRoomProvider.notifier).start();
+    ref.read(duelRoomProvider.notifier).setRoomName(roomName);
+    // 房间邀码：建房/进房链路带入（没有的房间类型为 null）。
+    ref.read(duelRoomProvider.notifier).setRoomId(roomId);
     ref.read(duelChatProvider.notifier).start();
     ref
         .read(duelMessageRouterProvider.notifier)
@@ -188,7 +194,8 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
         // 连接前的最后一个 TCP 段才发结果）：hasPendingWin 把它算作
         // 已有结果，否则正常结算会被误判成意外断连。
         final router = ref.read(duelMessageRouterProvider.notifier);
-        final hasResult = ref.read(duelFieldProvider).duelResult != null ||
+        final hasResult =
+            ref.read(duelFieldProvider).duelResult != null ||
             router.hasPendingWin;
         // 决斗刚结束就被断开（AI 对决的本地服务端在 MSG_WIN 后立即
         // 关连接）：停留展示结算 overlay，导航由其「返回首页」按钮触发。
@@ -235,7 +242,10 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     final isInDuel = room.stage is RoomInDuel;
     final content = isInDuel
         ? DuelFieldPage3D(players: room.players)
-        : const WaitingRoomPage3D();
+        : WaitingRoomPage3D(
+            roomId: widget.args['roomId'] as String?,
+            roomName: widget.args['roomName'] as String?,
+          );
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -256,7 +266,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
       child: Scaffold(
         key: const ValueKey('duel-room3-page'),
         backgroundColor: const Color(0xFF05070F),
-        appBar: isInDuel ? null : _buildAppBar(room),
+        appBar: null,
         // 内建结算 overlay 常驻置顶：结果非空时盖住对局/等待室，
         // 空时内部返回透明占位不拦截点击（对局/等待房两个阶段都能盖住）。
         body: Stack(
@@ -270,6 +280,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     );
   }
 
+  // ignore: unused_element
   PreferredSizeWidget _buildAppBar(DuelRoomState room) {
     final modeName = switch (room.roomOptions?.mode) {
       RoomMode.single => '单局',

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../theme/cyber_palette.dart';
 import 'hud_theme.dart';
 
 /// 先后攻提示：居中短暂展示一次，自带淡入 → 停留 → 淡出 → onDismiss 生命周期。
@@ -63,7 +64,7 @@ class _TurnOrderHintState extends State<TurnOrderHint> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
         decoration: BoxDecoration(
-          color: const Color(0xFF05070F).withValues(alpha: 0.92),
+          color: CyberPalette.voidBlack.withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: accent.withValues(alpha: 0.85), width: 1.5),
           boxShadow: [

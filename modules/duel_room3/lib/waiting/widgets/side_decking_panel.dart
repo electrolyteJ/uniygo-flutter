@@ -124,10 +124,7 @@ class _SideDeckingPanelState extends State<SideDeckingPanel> {
                 ? Row(
                     children: [
                       Expanded(
-                        child: _statusRow(
-                          Icons.error_outline,
-                          '换备数据初始化失败',
-                        ),
+                        child: _statusRow(Icons.error_outline, '换备数据初始化失败'),
                       ),
                       TextButton(
                         onPressed: widget.onRetryInit,

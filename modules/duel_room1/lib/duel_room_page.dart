@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as console;
 
 import 'package:biz/service_providers.dart';
 import 'package:biz/duel/chat/duel_chat_state.dart';
@@ -182,9 +183,7 @@ class DuelRoomPage extends StatelessWidget {
             // 连接生命周期钩子必须在房间 scope 内实例化：它只 watch 应用级
             // duelServiceProvider，不 override 会解析到根容器，onDispose 只在
             // 应用退出时触发，房间 scope 销毁时断连兜底失效。
-            roomConnectionLifetimeProvider.overrideWith(
-              roomConnectionLifetime,
-            ),
+            roomConnectionLifetimeProvider.overrideWith(roomConnectionLifetime),
           ],
           child: _DuelRoomView(args: args),
         ),
@@ -265,7 +264,8 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     }
 
     final duelService = ref.read(duelServiceProvider);
-
+    final roomId = args['roomId'] as String?;
+    console.log('roomId=$roomId');
     // connect() 必须在流订阅之前调用，否则 DuelService 门面会把订阅
     // 路由到默认的 WebSocket 服务（而不是 AI/TCP 等目标协议）。
     try {
@@ -278,9 +278,10 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
     if (!mounted) return;
 
     ref.read(duelRoomProvider.notifier).start();
+    // 房间邀码：建房/进房链路带入（没有的房间类型为 null）。
+    ref.read(duelRoomProvider.notifier).setRoomId(roomId);
     ref.read(duelChatProvider.notifier).start();
-    ref
-        .read(duelMessageRouterProvider.notifier)
+    ref.read(duelMessageRouterProvider.notifier)
         .start(
           // l10n 依赖 BuildContext，以闭包形式注入给 router。
           phaseLabel: (phase) => getDuelPhaseText(context, phase),

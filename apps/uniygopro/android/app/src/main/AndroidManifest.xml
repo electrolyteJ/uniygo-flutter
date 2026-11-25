@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="uniygopro"
+        android:resizeableActivity="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <!-- flame_3d / Flutter GPU 召唤 3D 演出需要 Flutter GPU（对齐 macOS FLTEnableFlutterGPU） -->

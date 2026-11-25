@@ -9,6 +9,8 @@ environment:
 resolution: workspace
 
 dependencies:
+  account_mycard:
+    path: ../../packages/account_mycard
   applog:
     path: ../../packages/applog
   flutter:
