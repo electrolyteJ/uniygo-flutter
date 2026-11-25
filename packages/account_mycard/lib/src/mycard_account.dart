@@ -25,7 +25,7 @@ class MyCardAccount {
   /// external_id/avatar_url 可能缺失（由默认值兜底）。
   final String username;
 
-  /// 展示名。
+  /// 展示名。只在论坛显示，如需修改游戏和聊天室里显示的名字，请修改用户名
   final String name;
 
   /// 邮箱。

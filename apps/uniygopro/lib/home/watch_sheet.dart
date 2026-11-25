@@ -8,7 +8,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../config/servers.dart';
-import 'spectate_service.dart';
+import 'services/spectate_service.dart';
 import 'spectate_watch.dart';
 import 'package:ygo_settings/theme/duel_controls.dart';
 import 'package:ygo_settings/theme/duel_sound.dart';

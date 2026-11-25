@@ -10,7 +10,7 @@ import '../models/mode_models.dart';
 import '../widgets/floating_cards.dart';
 import '../widgets/mode_rail.dart';
 import '../widgets/match_dial.dart';
-import '../widgets/room_fixed_rule_panel.dart';
+import 'room_fixed_rule_panel.dart';
 import '../widgets/room_rule_panel.dart';
 
 /// 408 环境规则由服务端锁定：面板只展示、不提供修改。

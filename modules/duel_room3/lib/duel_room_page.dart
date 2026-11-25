@@ -269,6 +269,7 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
       child: Scaffold(
         key: const ValueKey('duel-room3-page'),
         backgroundColor: const Color(0xFF05070F),
+        // 无 AppBar：等待室/对局 HUD 自带沉浸式顶栏，退出入口在等待室顶栏的返回箭头。
         appBar: null,
         // 内建结算 overlay 常驻置顶：结果非空时盖住对局/等待室，
         // 空时内部返回透明占位不拦截点击（对局/等待房两个阶段都能盖住）。
@@ -280,33 +281,6 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
           ],
         ),
       ),
-    );
-  }
-
-  // ignore: unused_element
-  PreferredSizeWidget _buildAppBar(DuelRoomState room) {
-    final modeName = switch (room.roomOptions?.mode) {
-      RoomMode.single => '单局',
-      RoomMode.match => '比赛',
-      RoomMode.tag => '双打',
-      null => '',
-    };
-    final roomName = widget.args['roomName'] as String? ?? '';
-    return AppBar(
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back),
-        onPressed: () {
-          backHomeDialog(
-            context: context,
-            ref: ref,
-            title: '退出房间',
-            content: '是否确认退出当前房间？',
-          );
-        },
-      ),
-      title: Text(roomName.isNotEmpty ? roomName : '$modeName房间（3D）'),
-      backgroundColor: const Color(0xFF0C1220),
-      foregroundColor: Colors.white,
     );
   }
 }

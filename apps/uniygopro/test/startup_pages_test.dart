@@ -10,7 +10,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uniygopro/home/home_page.dart';
-import 'package:uniygopro/create_room/match_store.dart';
 import 'package:uniygopro/create_room/create_room_page.dart';
 import 'package:uniygopro/login/login_page.dart';
 import 'package:uniygopro/splash/splash_page.dart';
@@ -33,7 +32,6 @@ Widget _app(Widget page, {MyCardAccountApi? api}) {
         )
       else
         ChangeNotifierProvider<MyCardAccountApi>.value(value: api),
-      ChangeNotifierProvider<MatchStore>(create: (_) => MatchStore()),
     ],
     child: MaterialApp(home: page),
   );
@@ -166,7 +164,11 @@ void main() {
     // 匹配盘有常驻旋转动画，不能用 pumpAndSettle。
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('对战'), findsOneWidget);
+    expect(find.byKey(const ValueKey('create-room-back')), findsOneWidget);
+    expect(find.byIcon(Icons.arrow_back_rounded), findsOneWidget);
+    expect(find.text('对战'), findsNothing);
+    expect(find.text('← 返回大厅'), findsNothing);
+    expect(find.text('选择模式后开始匹配'), findsNothing);
     expect(find.text('竞技匹配'), findsOneWidget);
     expect(find.text('娱乐匹配'), findsOneWidget);
     expect(find.text('开始匹配'), findsOneWidget);
@@ -177,7 +179,7 @@ void main() {
     }
     // 「加入房间」挂在页壳上：任意页签都能扫码/粘贴邀码进房。
     expect(find.byKey(const ValueKey('create-room-join')), findsOneWidget);
-    expect(find.text('加入房间 · 扫码'), findsOneWidget);
+    expect(find.text('加入房间'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     // 好友对战页签 → 规则设置面板 + 创建房间
@@ -189,6 +191,17 @@ void main() {
     expect(find.text('初始手牌'), findsOneWidget);
     expect(find.text('不切洗卡组'), findsOneWidget);
     expect(find.text('创建房间'), findsOneWidget);
+
+    // 规则选项复用 Flutter 下拉：点击展开、选中后回填。
+    await tester.tap(find.text('OCG'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('TCG'), findsOneWidget);
+    await tester.tap(find.text('TCG'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('OCG'), findsNothing);
+    expect(find.text('TCG'), findsOneWidget);
 
     // 408 环境同样走创建房间（不再只能加入）：规则被锁定，只展示固定文案面板
     await tester.tap(find.byKey(const ValueKey('mode-entry-friend-408')));

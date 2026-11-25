@@ -10,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uniygopro/config/servers.dart';
 import 'package:uniygopro/create_room/free/created_room_record.dart';
 import 'package:deck_editor1/deck_editor1.dart';
-import 'package:uniygopro/create_room/match_store.dart';
 import 'package:uniygopro/create_room/free/room_history_store.dart';
 import 'package:resource_data/card_info.dart' as pkg;
 
@@ -176,58 +175,6 @@ void main() {
       expect(DuelEnvironment.mercury233.usesRoomStringDsl, isTrue);
       expect(gameServers.first.wsUrl, startsWith('wss://'));
     });
-  });
-
-  group('MatchStore', () {
-    test('selectServer / configureCreatedRoom / toDuelRoomParams', () {
-      final store = MatchStore();
-      store.setUsername('小明');
-      store.configureCreatedRoom(
-        roomOptions: const RoomOptions(mode: RoomMode.single),
-        roomName: 'AI 人机对战',
-      );
-      store.selectServer(
-        gameServers.firstWhere((s) => s.type == ServerType.aiRoom),
-        DuelEnvironment.ai,
-        RoomPassword.encodeJoin(),
-      );
-      final params = store.toDuelRoomParams();
-      expect(params['username'], '小明');
-      expect(params['roomName'], 'AI 人机对战');
-      expect(store.uri?.scheme, 'ai');
-    });
-
-    test('uri：puzzle / 普通环境', () {
-      final store = MatchStore()
-        ..selectPuzzle(gameServers.first, 'puzzle/xx/yy.lua');
-      expect(store.uri?.scheme, 'puzzle');
-      expect(store.environment, DuelEnvironment.puzzle);
-
-      store.selectServer(
-        gameServers.firstWhere((s) => s.type == ServerType.freeRoom),
-        DuelEnvironment.koishi,
-        'pw',
-      );
-      expect(store.uri?.host, 'koishi.momobako.com');
-      expect(store.uri?.port, 7211);
-    });
-
-    test('searching / match result / reset', () {
-      final store = MatchStore();
-      store.startSearching('athletic');
-      expect(store.isSearching, isTrue);
-      expect(store.arena, 'athletic');
-      expect(store.isSearching, isFalse);
-      expect(store.serverAddress, '1.2.3.4');
-      expect(store.serverPort, 9999);
-      store.reset();
-      expect(store.isSearching, isFalse);
-      expect(store.serverAddress, isNull);
-      expect(store.username, 'Guest');
-      expect(store.environment, DuelEnvironment.koishi);
-    });
-
-
   });
 
   group('DeckEditorSaveResult', () {

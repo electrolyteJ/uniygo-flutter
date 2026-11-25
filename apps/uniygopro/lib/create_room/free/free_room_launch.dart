@@ -7,14 +7,13 @@ import 'dart:math' as math;
 import 'package:account_mycard/account_mycard.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flutter/widgets.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../login/mycard_gate.dart';
 import '../../config/route.dart';
 import '../../config/servers.dart';
 import '../../util/snack_bar_util.dart';
-import '../match_store.dart';
+import '../models/banlist_options.dart';
 import '../models/mode_models.dart';
 import '../widgets/room_rule_panel.dart';
 import 'created_room_record.dart';
@@ -23,6 +22,7 @@ import 'room_history_store.dart';
 /// 面板配置 → 房间参数（自由房间只暴露赛制/大师规则/LP/手牌/抽卡/时限）。
 RoomOptions roomOptionsOf(RoomRuleConfig config) {
   return RoomOptions(
+    lfTableHash: BanlistCatalog.hashAt(config.banlist),
     // RoomRuleConfig.mode：0=双打 2v2 / 1=三局两胜 / 2=单局。
     mode: switch (config.mode) {
       0 => RoomMode.tag,
@@ -75,7 +75,6 @@ Future<void> createFreeRoom(
     );
     if (account == null) return;
     if (!context.mounted) return;
-    final store = context.read<MatchStore>();
     final u16 = await context.read<MyCardAccountApi>().fetchU16Secret();
     final externalId = account.externalId != 0
         ? account.externalId
@@ -100,7 +99,6 @@ Future<void> createFreeRoom(
     );
     _enter(
       context,
-      store,
       env,
       options,
       name,
@@ -124,6 +122,8 @@ Future<void> createFreeRoom(
     final roomString = RoomPassword.encodeMercury233(
       options: options,
       roomName: effectiveName,
+      // 233 服只认 LF<n>/NF token；用选中卡表的 hash 反查服务端编号。
+      banlistToken: BanlistCatalog.mercury233TokenForHash(options.lfTableHash),
     );
     if (roomString.length > RoomPassword.mercury233MaxLength) {
       if (context.mounted) {
@@ -134,7 +134,6 @@ Future<void> createFreeRoom(
       }
       return;
     }
-    final store = context.read<MatchStore>();
     unawaited(
       RoomHistoryStore.add(
         CreatedRoomRecord(
@@ -145,31 +144,36 @@ Future<void> createFreeRoom(
         ),
       ),
     );
+    final api = context.read<MyCardAccountApi>();
+    final username = api.account?.username.isNotEmpty == true
+        ? api.account?.username
+        : "Guest";
     // 房间串就是进房凭证：邀码直接用它，好友复制后粘贴到「加入房间」即可。
     _enter(
       context,
-      store,
       env,
       options,
       effectiveName,
       roomString,
-      null,
+      username,
       roomId: roomString,
     );
     return;
   }
 
   if (env == DuelEnvironment.env408) {
-    final store = context.read<MatchStore>();
+    final api = context.read<MyCardAccountApi>();
+    final username = api.account?.username.isNotEmpty == true
+        ? api.account?.username
+        : "Guest";
     final code = randomRoomCode();
     _enter(
       context,
-      store,
       env,
       options,
       '408 房间 $code',
       code,
-      null,
+      username,
       roomId: code,
       server: _serverFor(env),
     );
@@ -187,7 +191,6 @@ Future<void> joinFreeRoom(
   String roomId = '',
   String password = '',
 }) async {
-  final store = context.read<MatchStore>();
   var pass = password;
   String? username;
 
@@ -213,7 +216,6 @@ Future<void> joinFreeRoom(
   }
   _enter(
     context,
-    store,
     env,
     null,
     '',
@@ -226,7 +228,6 @@ Future<void> joinFreeRoom(
 
 void _enter(
   BuildContext context,
-  MatchStore store,
   DuelEnvironment env,
   RoomOptions? options,
   String roomName,
@@ -235,13 +236,16 @@ void _enter(
   String? roomId,
   GameServer? server,
 }) {
-  store.roomId = roomId;
-  if (options != null) {
-    store.configureCreatedRoom(roomOptions: options, roomName: roomName);
+  Uri? uri = Uri.tryParse('${env.schema}://${env.host}:${env.port}');
+  if (context.mounted) {
+    router.go(
+      Routes.duelRoom,
+      extra: {
+        'uri': uri,
+        'serverPassword': '',
+        'username': username,
+        'roomName': roomName,
+      },
+    );
   }
-  if (username != null) store.setUsername(username);
-  store.selectServer(server ?? _server, env, password);
-  final params = store.toDuelRoomParams();
-  store.reset();
-  if (context.mounted) context.go(Routes.duelRoom, extra: params);
 }

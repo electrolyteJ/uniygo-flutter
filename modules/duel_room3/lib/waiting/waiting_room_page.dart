@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../duel_room_exit.dart';
 import '../hud/hud_theme.dart';
 import '../invite/duel_invite.dart';
 import 'widgets/room_info_panel.dart';
@@ -20,16 +21,6 @@ import 'widgets/room_actions.dart';
 import 'widgets/player_card.dart';
 import 'widgets/room_info_card.dart';
 import 'widgets/side_decking_panel.dart';
-
-// 设计稿（209:1）色板
-const _dPanel = duelPanel;
-const _dLine = duelLine;
-const _dCyan = duelCyan;
-const _dText = duelTextColor;
-const _dSub = duelSub;
-const _dFaint = duelFaint;
-const _dHeal = duelHeal;
-const _dDanger = duelDanger;
 
 Future<void> _onEditDeck(BuildContext context, WidgetRef ref) async {
   final controller = ref.read(duelRoomProvider.notifier);
@@ -252,8 +243,8 @@ class _WaitingRoomPage3DState extends ConsumerState<WaitingRoomPage3D> {
                                 minimumSize: Size.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 visualDensity: VisualDensity.compact,
-                                side: const BorderSide(color: _dLine),
-                                foregroundColor: _dSub,
+                                side: const BorderSide(color: duelLine),
+                                foregroundColor: duelSub,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(2),
                                 ),
@@ -262,7 +253,7 @@ class _WaitingRoomPage3DState extends ConsumerState<WaitingRoomPage3D> {
                                 '房间信息',
                                 style: TextStyle(
                                   fontSize: 8.5 * k,
-                                  color: _dSub,
+                                  color: duelSub,
                                 ),
                               ),
                             ),
@@ -369,6 +360,17 @@ class _WaitingTopBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Row(
       children: [
+        IconButton(
+          key: const ValueKey('waiting-exit'),
+          tooltip: '退出房间',
+          icon: const Icon(Icons.arrow_back, color: duelSub, size: 20),
+          onPressed: () => backHomeDialog(
+            context: context,
+            ref: ref,
+            title: '退出房间',
+            content: '是否确认退出当前房间？',
+          ),
+        ),
         Text(
           roomName ?? '对战房间',
           style: HudTheme.body.copyWith(fontWeight: FontWeight.w700),
@@ -378,7 +380,7 @@ class _WaitingTopBar extends ConsumerWidget {
           IconButton(
             key: const ValueKey('waiting-invite'),
             tooltip: '邀请好友',
-            icon: const Icon(Icons.person_add_alt, color: _dCyan, size: 20),
+            icon: const Icon(Icons.person_add_alt, color: duelCyan, size: 20),
             onPressed: () => _showInviteDialog(
               context,
               roomId!,
@@ -389,7 +391,7 @@ class _WaitingTopBar extends ConsumerWidget {
         IconButton(
           key: const ValueKey('waiting-settings'),
           tooltip: '设置',
-          icon: const Icon(Icons.settings_outlined, color: _dSub, size: 20),
+          icon: const Icon(Icons.settings_outlined, color: duelSub, size: 20),
           onPressed: () {
             final open = ref.read(showYgoSettingsDialogProvider);
             if (open == null) {
@@ -518,8 +520,8 @@ Future<void> _showDeckPicker(
   await showDialog<void>(
     context: context,
     builder: (ctx) => AlertDialog(
-      backgroundColor: _dPanel,
-      title: const Text('出战卡组', style: TextStyle(fontSize: 14, color: _dText)),
+      backgroundColor: duelPanel,
+      title: const Text('出战卡组', style: TextStyle(fontSize: 14, color: duelTextColor)),
       content: SizedBox(
         width: 320,
         child: SingleChildScrollView(
@@ -542,14 +544,14 @@ Future<void> _showDeckPicker(
                       style: TextStyle(
                         fontSize: 11,
                         color: d.deckName == room.selectedDeckName
-                            ? _dCyan
-                            : _dText,
+                            ? duelCyan
+                            : duelTextColor,
                       ),
                     ),
                   ),
                 ),
               if (room.availableDecks.isEmpty)
-                Text('暂无可用卡组', style: TextStyle(fontSize: 10, color: _dFaint)),
+                Text('暂无可用卡组', style: TextStyle(fontSize: 10, color: duelFaint)),
             ],
           ),
         ),
@@ -577,7 +579,7 @@ void _showDeckCheckDialog(BuildContext context, DuelRoomState room) {
   showDialog<void>(
     context: context,
     builder: (ctx) => AlertDialog(
-      backgroundColor: _dPanel,
+      backgroundColor: duelPanel,
       title: const Text('卡组校验明细', style: HudTheme.title),
       content: SizedBox(
         width: 380,
@@ -590,17 +592,17 @@ void _showDeckCheckDialog(BuildContext context, DuelRoomState room) {
                 Icon(
                   ok ? Icons.verified : Icons.error_outline,
                   size: 16,
-                  color: ok ? _dHeal : _dDanger,
+                  color: ok ? duelHeal : duelDanger,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   ok ? '校验通过' : '${issues.length} 项未通过',
-                  style: HudTheme.body.copyWith(color: ok ? _dHeal : _dDanger),
+                  style: HudTheme.body.copyWith(color: ok ? duelHeal : duelDanger),
                 ),
               ],
             ),
             const SizedBox(height: 10),
-            Container(height: 1, color: _dLine),
+            Container(height: 1, color: duelLine),
             const SizedBox(height: 8),
             if (ok)
               Text('当前卡组符合禁限卡表与卡组数量规则', style: HudTheme.caption)
@@ -613,7 +615,7 @@ void _showDeckCheckDialog(BuildContext context, DuelRoomState room) {
                     children: [
                       const Padding(
                         padding: EdgeInsets.only(top: 4),
-                        child: Icon(Icons.circle, size: 4, color: _dDanger),
+                        child: Icon(Icons.circle, size: 4, color: duelDanger),
                       ),
                       const SizedBox(width: 6),
                       Expanded(
@@ -636,7 +638,7 @@ void _showDeckCheckDialog(BuildContext context, DuelRoomState room) {
               const SizedBox(height: 8),
               Text(
                 '可点「变更」切换或编辑卡组后重新校验',
-                style: HudTheme.caption.copyWith(fontSize: 10, color: _dCyan),
+                style: HudTheme.caption.copyWith(fontSize: 10, color: duelCyan),
               ),
             ],
           ],
@@ -688,7 +690,7 @@ class _HandButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = enabled ? _dCyan : _dSub;
+    final color = enabled ? duelCyan : duelSub;
     return Opacity(
       opacity: enabled ? 1 : 0.45,
       child: InkWell(
@@ -700,7 +702,7 @@ class _HandButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFF09121C),
             borderRadius: BorderRadius.circular(2),
-            border: Border.all(color: _dLine),
+            border: Border.all(color: duelLine),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -711,7 +713,7 @@ class _HandButton extends StatelessWidget {
                 label,
                 style: HudTheme.caption.copyWith(
                   fontSize: 9,
-                  color: enabled ? _dText : _dSub,
+                  color: enabled ? duelTextColor : duelSub,
                 ),
               ),
             ],
@@ -756,7 +758,7 @@ class _TurnButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: enabled ? const Color(0xFF0A1F2F) : const Color(0xFF09121C),
             borderRadius: BorderRadius.circular(2),
-            border: Border.all(color: enabled ? _dCyan : _dLine),
+            border: Border.all(color: enabled ? duelCyan : duelLine),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -766,7 +768,7 @@ class _TurnButton extends StatelessWidget {
                 style: HudTheme.body.copyWith(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: enabled ? _dCyan : _dSub,
+                  color: enabled ? duelCyan : duelSub,
                 ),
               ),
               const SizedBox(height: 2),
@@ -801,9 +803,9 @@ class _PhaseStatusBar extends StatelessWidget {
     };
     return Container(
       decoration: BoxDecoration(
-        color: _dPanel,
+        color: duelPanel,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _dLine),
+        border: Border.all(color: duelLine),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
@@ -812,14 +814,14 @@ class _PhaseStatusBar extends StatelessWidget {
             width: 6,
             height: 6,
             decoration: const BoxDecoration(
-              color: _dHeal,
+              color: duelHeal,
               shape: BoxShape.circle,
             ),
           ),
           const SizedBox(width: 8),
           Text(
             status,
-            style: HudTheme.caption.copyWith(fontSize: 10, color: _dHeal),
+            style: HudTheme.caption.copyWith(fontSize: 10, color: duelHeal),
           ),
           const Spacer(),
           SizedBox(
@@ -829,15 +831,15 @@ class _PhaseStatusBar extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: progress,
                 minHeight: 4,
-                backgroundColor: _dLine,
-                valueColor: const AlwaysStoppedAnimation(_dCyan),
+                backgroundColor: duelLine,
+                valueColor: const AlwaysStoppedAnimation(duelCyan),
               ),
             ),
           ),
           const SizedBox(width: 12),
           Text(
             hint,
-            style: HudTheme.caption.copyWith(fontSize: 10, color: _dCyan),
+            style: HudTheme.caption.copyWith(fontSize: 10, color: duelCyan),
           ),
         ],
       ),
@@ -897,7 +899,7 @@ class _WaitingLobbyViewState extends State<_WaitingLobbyView> {
                   height: size,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: _dCyan.withValues(alpha: 0.18)),
+                    border: Border.all(color: duelCyan.withValues(alpha: 0.18)),
                   ),
                 ),
               Column(
@@ -912,7 +914,7 @@ class _WaitingLobbyViewState extends State<_WaitingLobbyView> {
                       '房间 #${widget.roomId}',
                       style: HudTheme.caption.copyWith(
                         fontSize: 8,
-                        color: _dCyan,
+                        color: duelCyan,
                       ),
                     ),
                   ],
@@ -972,21 +974,21 @@ class _HandCircle extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: highlight ? const Color(0xFF0A1F2F) : const Color(0xFF09121C),
-        border: Border.all(color: highlight ? _dCyan : _dLine),
+        border: Border.all(color: highlight ? duelCyan : duelLine),
       ),
       alignment: Alignment.center,
       child: hand == null
           ? Text(
               '?',
               style: TextStyle(
-                color: highlight ? _dCyan : _dSub,
+                color: highlight ? duelCyan : duelSub,
                 fontSize: size * 0.34,
                 fontWeight: FontWeight.w700,
               ),
             )
           : Icon(
               _handIcon(hand!),
-              color: highlight ? _dCyan : _dText,
+              color: highlight ? duelCyan : duelTextColor,
               size: size * 0.4,
             ),
     );
@@ -1071,7 +1073,7 @@ class _RpsStage extends ConsumerWidget {
                 chosen ? '已出拳，等待对方…' : '双方选择中 · 倒计时结束后自动出拳',
                 style: HudTheme.caption.copyWith(
                   fontSize: 9,
-                  color: chosen ? _dHeal : _dCyan,
+                  color: chosen ? duelHeal : duelCyan,
                 ),
               ),
             ],
@@ -1097,9 +1099,9 @@ class _RpsResultStage extends ConsumerWidget {
       _ => '平局 · 重新出拳',
     };
     final color = switch (outcome) {
-      1 => _dHeal,
-      -1 => _dDanger,
-      _ => _dSub,
+      1 => duelHeal,
+      -1 => duelDanger,
+      _ => duelSub,
     };
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1185,7 +1187,7 @@ class _TurnSelectStage extends ConsumerWidget {
               Text(
                 waiting ? '等待对手选择先后攻' : '猜拳胜出 · 你先选',
                 style: HudTheme.title.copyWith(
-                  color: waiting ? _dText : _dCyan,
+                  color: waiting ? duelTextColor : duelCyan,
                 ),
               ),
               const SizedBox(height: 8),
@@ -1221,7 +1223,7 @@ class _TurnSelectStage extends ConsumerWidget {
                 waiting ? '对手正在选择…' : '选择后等待对手确认',
                 style: HudTheme.caption.copyWith(
                   fontSize: 9,
-                  color: waiting ? _dSub : _dCyan,
+                  color: waiting ? duelSub : duelCyan,
                 ),
               ),
             ],

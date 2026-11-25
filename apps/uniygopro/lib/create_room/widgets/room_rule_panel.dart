@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:ygo_settings/theme/duel_controls.dart';
 import 'package:ygo_settings/theme/duel_sound.dart';
 import 'package:ygo_settings/theme/duel_theme.dart';
+import '../models/banlist_options.dart';
 import '../models/mode_models.dart';
 
 /// 房间规则值（各页签共用）。
@@ -137,10 +138,40 @@ class RoomRulePanel extends StatefulWidget {
   State<RoomRulePanel> createState() => _RoomRulePanelState();
 }
 
+class _OptionRow {
+  const _OptionRow(
+    this.label,
+    this.values,
+    this.index,
+    this.top,
+    this.onSelected,
+  );
+
+  final String label;
+  final List<String> values;
+  final int index;
+  final double top;
+  final ValueChanged<int>? onSelected;
+}
+
 class _RoomRulePanelState extends State<RoomRulePanel> {
   static const List<String> _modes = ['双打 2v2', '三局两胜', '单局'];
 
-  bool _modeOpen = false;
+  /// 当前展开的下拉行（按 label 唯一标识）；null 表示全部收起。
+  String? _openLabel;
+  List<BanlistOption> _banlists = BanlistCatalog.options;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBanlists();
+  }
+
+  Future<void> _loadBanlists() async {
+    final list = await BanlistCatalog.ensureLoaded();
+    if (!mounted || identical(list, _banlists)) return;
+    setState(() => _banlists = list);
+  }
 
   RoomRuleConfig get _v => widget.value;
   void _update(RoomRuleConfig v) => widget.onChanged(v);
@@ -150,19 +181,37 @@ class _RoomRulePanelState extends State<RoomRulePanel> {
     final collapsed = _v.collapsed;
     var top = 36.0;
     final rows = <Widget>[];
+    final optionRows = <_OptionRow>[];
 
-    if (widget.showEnvRows) {
-      rows.addAll(_textRow('环境', [widget.envNames[_clampEnv()]], 0, top,
-          (i) => _update(_v.copyWith(env: (_v.env + 1) % widget.envNames.length))));
-      top += 24;
-      rows.addAll(_textRow('服务器',
-          [widget.serverNames[_clampEnv()]], 0, top, null));
+    void addOption(
+      String label,
+      List<String> values,
+      int index,
+      ValueChanged<int>? onSelected,
+    ) {
+      final row = _OptionRow(label, values, index, top, onSelected);
+      optionRows.add(row);
+      rows.addAll(_textRow(row));
       top += 24;
     }
 
+    if (widget.showEnvRows) {
+      addOption(
+        '环境',
+        widget.envNames,
+        _clampEnv(),
+        (i) => _update(_v.copyWith(env: i)),
+      );
+      addOption('服务器', [widget.serverNames[_clampEnv()]], 0, null);
+    }
+
     if (widget.showModeRow) {
-      rows.addAll(_modeRow(top));
-      top += 24;
+      addOption(
+        '赛制',
+        _modeList,
+        _v.mode.clamp(0, _modeList.length - 1),
+        (i) => _update(_v.copyWith(mode: i)),
+      );
     }
 
     final labels = <String>[
@@ -181,7 +230,7 @@ class _RoomRulePanelState extends State<RoomRulePanel> {
       RoomRuleOptions.hands,
       RoomRuleOptions.draws,
       RoomRuleOptions.times,
-      if (widget.showBanlist) RoomRuleOptions.banlists,
+      if (widget.showBanlist) [for (final option in _banlists) option.name],
     ];
     final indices = <int>[
       if (widget.showCardRule) _v.rule,
@@ -202,20 +251,19 @@ class _RoomRulePanelState extends State<RoomRulePanel> {
       if (widget.showBanlist) (i) => _update(_v.copyWith(banlist: i)),
     ];
     for (var i = 0; i < labels.length; i++) {
-      rows.addAll(_textRow(labels[i], values[i], indices[i], top, setters[i]));
-      top += 24;
+      addOption(labels[i], values[i], indices[i], setters[i]);
     }
 
-    if (_modeOpen) {
-      rows.add(
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: () => setState(() => _modeOpen = false),
-          ),
-        ),
-      );
-      rows.add(_modeDropdown());
+    _OptionRow? openRow;
+    if (!collapsed) {
+      for (final row in optionRows) {
+        if (row.label == _openLabel &&
+            row.onSelected != null &&
+            row.values.isNotEmpty) {
+          openRow = row;
+          break;
+        }
+      }
     }
 
     return Positioned(
@@ -240,13 +288,37 @@ class _RoomRulePanelState extends State<RoomRulePanel> {
                 child: Container(height: 1, color: DuelColors.divider),
               ),
               ...rows,
-              _checkRow('不检查卡组', 12, widget.checksTop, _v.noCheck,
-                  (v) => _update(_v.copyWith(noCheck: v))),
-              _checkRow('不切洗卡组', 96, widget.checksTop, _v.noShuffle,
-                  (v) => _update(_v.copyWith(noShuffle: v))),
+              _checkRow(
+                '不检查卡组',
+                12,
+                widget.checksTop,
+                _v.noCheck,
+                (v) => _update(_v.copyWith(noCheck: v)),
+              ),
+              _checkRow(
+                '不切洗卡组',
+                96,
+                widget.checksTop,
+                _v.noShuffle,
+                (v) => _update(_v.copyWith(noShuffle: v)),
+              ),
               if (widget.showAutoDeath)
-                _checkRow('40 分钟自动超时', 12, widget.checksTop + 24,
-                    _v.autoDeath, (v) => _update(_v.copyWith(autoDeath: v))),
+                _checkRow(
+                  '40 分钟自动超时',
+                  12,
+                  widget.checksTop + 24,
+                  _v.autoDeath,
+                  (v) => _update(_v.copyWith(autoDeath: v)),
+                ),
+              if (openRow != null) ...[
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: () => setState(() => _openLabel = null),
+                  ),
+                ),
+                _optionsOverlay(openRow),
+              ],
             ],
           ],
         ),
@@ -269,7 +341,10 @@ class _RoomRulePanelState extends State<RoomRulePanel> {
           right: 12,
           top: 12,
           child: DuelHit(
-            onTap: () => _update(_v.copyWith(collapsed: !collapsed)),
+            onTap: () {
+              _openLabel = null;
+              _update(_v.copyWith(collapsed: !collapsed));
+            },
             child: Text(
               collapsed ? '展开 ›' : '收起 ›',
               style: DuelType.sans(8, color: DuelColors.textGhost),
@@ -280,32 +355,38 @@ class _RoomRulePanelState extends State<RoomRulePanel> {
     );
   }
 
-  List<Widget> _textRow(
-    String label,
-    List<String> values,
-    int index,
-    double top,
-    ValueChanged<int>? onSelected,
-  ) {
+  List<Widget> _textRow(_OptionRow row) {
+    final selectable = row.onSelected != null && row.values.isNotEmpty;
+    final safeIndex = row.values.isEmpty
+        ? 0
+        : row.index.clamp(0, row.values.length - 1);
     return [
       Positioned(
         left: 12,
-        top: top + 6,
-        child: Text(label, style: DuelType.sans(8, color: DuelColors.textFaint)),
+        top: row.top + 6,
+        child: Text(
+          row.label,
+          style: DuelType.sans(8, color: DuelColors.textFaint),
+        ),
       ),
       Positioned(
         left: 72,
-        top: top,
+        top: row.top,
         width: 100,
         height: 22,
         child: DuelHit(
-          onTap: onSelected == null
-              ? null
-              : () {
+          onTap: selectable
+              ? () {
                   DuelSounds.tabSwitch();
-                  onSelected((index + 1) % values.length);
-                },
-          child: _valueBox(values[index], arrow: onSelected != null),
+                  setState(() {
+                    _openLabel = _openLabel == row.label ? null : row.label;
+                  });
+                }
+              : null,
+          child: _valueBox(
+            row.values.isEmpty ? '加载中…' : row.values[safeIndex],
+            arrow: selectable,
+          ),
         ),
       ),
     ];
@@ -313,83 +394,76 @@ class _RoomRulePanelState extends State<RoomRulePanel> {
 
   List<String> get _modeList => widget.modeOptions ?? _modes;
 
-  List<Widget> _modeRow(double top) {
-    final values = _modeList;
-    final shown = values[_v.mode.clamp(0, values.length - 1)];
-    return [
-      Positioned(
-        left: 12,
-        top: top + 6,
-        child: Text('赛制', style: DuelType.sans(8, color: DuelColors.textFaint)),
-      ),
-      Positioned(
-        left: 72,
-        top: top,
-        width: 100,
-        height: 22,
-        child: DuelHit(
-          onTap: () {
-            DuelSounds.tabSwitch();
-            setState(() => _modeOpen = !_modeOpen);
-          },
-          child: _valueBox(shown, arrow: true),
-        ),
-      ),
-    ];
-  }
+  /// 展开的下拉多选：沿用赛制原来的 100×20 紧凑列表样式。
+  Widget _optionsOverlay(_OptionRow row) {
+    const itemHeight = 20.0;
+    final maxHeight = widget.height - 8;
+    final fullHeight = row.values.length * itemHeight + 2;
+    final listHeight = fullHeight > maxHeight ? maxHeight : fullHeight;
+    var listTop = row.top + 22;
+    if (listTop + listHeight > widget.height - 4) {
+      listTop = row.top - listHeight;
+    }
+    if (listTop < 4) listTop = 4;
+    final maxTop = widget.height - listHeight - 4;
+    if (maxTop >= 4 && listTop > maxTop) listTop = maxTop;
 
-  Widget _modeDropdown() {
-    final values = _modeList;
-    final top = 36.0 + (widget.showEnvRows ? 48 : 0);
+    final selected = row.index.clamp(0, row.values.length - 1);
     return Positioned(
       left: 72,
-      top: top + 22,
+      top: listTop,
       width: 100,
       child: Container(
+        constraints: BoxConstraints(maxHeight: maxHeight),
         decoration: BoxDecoration(
           color: const Color(0xFF0B1723),
           border: Border.all(color: DuelColors.accent),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < values.length; i++)
-              DuelHit(
-                onTap: () {
-                  DuelSounds.tabSwitch();
-                  setState(() {
-                    _modeOpen = false;
-                    _update(_v.copyWith(mode: i));
-                  });
-                },
-                child: Container(
-                  height: 20,
-                  alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  color: i == _v.mode
-                      ? DuelColors.accent.withValues(alpha: 0.12)
-                      : Colors.transparent,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          values[i],
-                          style: DuelType.sans(
-                            8.5,
-                            color: i == _v.mode
-                                ? DuelColors.accent
-                                : DuelColors.textPrimary,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < row.values.length; i++)
+                DuelHit(
+                  key: ValueKey('rule-option-${row.label}-$i'),
+                  onTap: () {
+                    DuelSounds.tabSwitch();
+                    setState(() => _openLabel = null);
+                    row.onSelected!(i);
+                  },
+                  child: Container(
+                    height: itemHeight,
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    color: i == selected
+                        ? DuelColors.accent.withValues(alpha: 0.12)
+                        : Colors.transparent,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            row.values[i],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: DuelType.sans(
+                              8.5,
+                              color: i == selected
+                                  ? DuelColors.accent
+                                  : DuelColors.textPrimary,
+                            ),
                           ),
                         ),
-                      ),
-                      if (i == _v.mode)
-                        Text('✓',
-                            style: DuelType.sans(8, color: DuelColors.accent)),
-                    ],
+                        if (i == selected)
+                          Text(
+                            '✓',
+                            style: DuelType.sans(8, color: DuelColors.accent),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -417,8 +491,10 @@ class _RoomRulePanelState extends State<RoomRulePanel> {
             Positioned(
               right: 6,
               top: 5,
-              child: Text('▾',
-                  style: DuelType.latin(7, color: DuelColors.textGhost)),
+              child: Text(
+                '▾',
+                style: DuelType.latin(7, color: DuelColors.textGhost),
+              ),
             ),
         ],
       ),

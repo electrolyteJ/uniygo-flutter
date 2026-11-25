@@ -11,7 +11,8 @@ bool _banlistLoaded = false;
 Future<void> preloadBanlist(String lflistUrl) async {
   if (_banlistLoaded) return;
   try {
-    console.log('加载禁限卡表中...', name: 'DuelRoomStore');
+
+    console.log('加载禁限卡表中...', name: 'DuelRoomStore',time:DateTime.now());
     final response = await http.get(Uri.parse(lflistUrl));
     if (response.statusCode != 200) {
       throw Exception('HTTP ${response.statusCode}');

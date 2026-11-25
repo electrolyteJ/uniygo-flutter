@@ -1,10 +1,15 @@
 /// 练习页签：人机对决 / 残局挑战 / 新手引导 + 规则面板 + 残局选择层。
 library;
 
+import 'package:account_mycard/account_mycard.dart';
+import 'package:biz/service_singleton.dart';
 import 'package:duelink_ai_edo/duelink_puzzle.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'package:ygo_settings/theme/duel_sound.dart';
+import '../../config/route.dart';
+import '../../config/servers.dart';
 import '../../util/start_util.dart';
 import '../models/mode_models.dart';
 import '../widgets/floating_cards.dart';
@@ -13,7 +18,6 @@ import '../widgets/match_dial.dart';
 import '../widgets/room_rule_panel.dart';
 import 'puzzle_panel.dart';
 import 'ai_duel_launch.dart';
-import 'puzzle_launch.dart';
 
 class TrainTab extends StatefulWidget {
   const TrainTab({super.key});
@@ -56,7 +60,7 @@ class _TrainTabState extends State<TrainTab> {
     DuelSounds.dialogOpen();
     setState(() {
       _puzzleOpen = true;
-      _puzzleFuture ??= loadPuzzles();
+      _puzzleFuture ??= ServiceSingleton.instance.puzzleService.listPuzzles();
     });
   }
 
@@ -70,8 +74,6 @@ class _TrainTabState extends State<TrainTab> {
           await startAiDuel(context, _config);
         case 'practice-puzzle':
           _openPuzzlePicker();
-        default:
-          await startDuelRoom(context, _entry);
       }
     } finally {
       _busy = false;
@@ -121,4 +123,27 @@ class _TrainTabState extends State<TrainTab> {
       ],
     );
   }
+}
+void startPuzzle(BuildContext context, PuzzleInfo info) {
+  final script = info.scriptName;
+  if (script.isEmpty) {
+    return;
+  }
+  var puzzle = DuelEnvironment.puzzle;
+  // 残局环境：URI 路径携带残局脚本（puzzle://local/<category>/<file>.lua），
+  // 路径段逐个编码以兼容空格/方括号等特殊字符。
+  final rel = script.startsWith('puzzle/') ? script.substring(7) : script;
+  final encoded = rel.split('/').map(Uri.encodeComponent).join('/');
+  Uri? uri = Uri.tryParse('${puzzle.schema}://${puzzle.host}/$encoded');
+  final api = context.read<MyCardAccountApi>();
+  final username = api.account?.username.isNotEmpty == true ? api.account?.username : "Guest";
+  router.go(
+    Routes.duelRoom,
+    extra: {
+      'uri': uri,
+      'serverPassword': '',
+      'username': username,
+      'roomName': '残局',
+    },
+  );
 }

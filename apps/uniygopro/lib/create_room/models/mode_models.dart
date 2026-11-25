@@ -364,7 +364,6 @@ abstract final class RoomRuleOptions {
   static const List<String> hands = ['4', '5', '6'];
   static const List<String> draws = ['1', '2', '3'];
   static const List<String> times = ['60 秒', '120 秒', '180 秒', '无限制'];
-  static const List<String> banlists = ['默认'];
 
   static const List<String> freeEnvNames = ['Koishi', 'mycard', 'mercury233'];
   static const List<String> freeServers = [

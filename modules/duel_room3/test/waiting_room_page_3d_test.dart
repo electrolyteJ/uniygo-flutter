@@ -268,6 +268,25 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('2v2 小窗口：选手卡内容缩放不溢出', (tester) async {
+    tester.view.physicalSize = const Size(1158, 535);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      subject(
+        players: const [
+          PlayerInfo(name: '海马濑人', pos: 0, ready: true, host: true),
+          PlayerInfo(name: '剑斗士 K', pos: 1, ready: true),
+          PlayerInfo(name: '城之内', pos: 2, ready: false),
+          PlayerInfo(name: '偷摸灵兽幽灵', pos: 3, ready: true),
+        ],
+      ),
+    );
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('有房间邀码：显示邀请入口并可查看邀码', (tester) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1.0;

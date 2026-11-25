@@ -71,8 +71,7 @@ class _CreateRoomPageState extends State<CreateRoomPage>
   /// 老二维码（只有 room）退回当前模式的环境，仍未定时按 233 处理
   /// （233 房间串是唯一自解释的邀码）。
   DuelEnvironment get _joinFallbackEnv =>
-      ModeSelection.instance.current.environment ??
-      DuelEnvironment.mercury233;
+      ModeSelection.instance.current.environment ?? DuelEnvironment.mercury233;
 
   void _back() {
     DuelSounds.pageTransition();
@@ -95,6 +94,25 @@ class _CreateRoomPageState extends State<CreateRoomPage>
         backdrop: DuelBackdropKind.page,
         child: Stack(
           children: [
+            // 页壳左上角只留一个回退 icon，避免压住各页签的舞台。
+            Positioned(
+              left: 12,
+              top: 4,
+              child: DuelHit(
+                key: const ValueKey('create-room-back'),
+                onTap: _back,
+                borderRadius: BorderRadius.circular(14),
+                child: const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: Icon(
+                    Icons.arrow_back_rounded,
+                    size: 20,
+                    color: DuelColors.textMuted,
+                  ),
+                ),
+              ),
+            ),
             Positioned.fill(
               child: TabBarView(
                 controller: _tabs,
@@ -107,14 +125,8 @@ class _CreateRoomPageState extends State<CreateRoomPage>
                 ],
               ),
             ),
-            _header(),
             // 加入房间挂在页壳上：四个页签都能扫码/粘贴邀码进房。
-            JoinRoomButton(
-              fallbackEnv: _joinFallbackEnv,
-              left: 616,
-              top: 8,
-              width: 132,
-            ),
+            JoinRoomButton(fallbackEnv: _joinFallbackEnv,),
             Positioned(left: 0, right: 0, bottom: 0, child: _bottomTabs()),
           ],
         ),
@@ -122,55 +134,10 @@ class _CreateRoomPageState extends State<CreateRoomPage>
     );
   }
 
-  Widget _header() {
-    return Stack(
-      children: [
-        Positioned(
-          left: 16,
-          top: 6,
-          child: DuelHit(
-            key: const ValueKey('create-room-back'),
-            onTap: _back,
-            borderRadius: BorderRadius.circular(2),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-              child: Text(
-                '← 返回大厅',
-                style: DuelType.sans(10, color: DuelColors.textMuted),
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          left: 100,
-          top: 6,
-          child: Text('对战', style: DuelType.sans(16, height: 1.2)),
-        ),
-        Positioned(
-          left: 100,
-          top: 26,
-          child: Text(
-            '选择模式后开始匹配',
-            style: DuelType.sans(8.5, color: DuelColors.textFaint),
-          ),
-        ),
-        Positioned(
-          right: 18,
-          top: 11,
-          child: Text(
-            '白金 III · 1,842',
-            style: DuelType.latin(10, color: DuelColors.gold),
-          ),
-        ),
-      ],
-    );
-  }
-
-
   /// 底部页签：Flutter TabBar（样式对齐设计稿：文字 + 短下划线）。
   Widget _bottomTabs() {
     return Container(
-      height: 58,
+      height: 40,
       decoration: const BoxDecoration(
         color: Color(0xFF070D16),
         border: Border(top: BorderSide(color: DuelColors.divider)),
@@ -194,7 +161,7 @@ class _CreateRoomPageState extends State<CreateRoomPage>
           for (var i = 0; i < _labels.length; i++)
             Tab(
               key: ValueKey('create-room-tab-$i'),
-              height: 57,
+              height: 39,
               text: _labels[i],
             ),
         ],

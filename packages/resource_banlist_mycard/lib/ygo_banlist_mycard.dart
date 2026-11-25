@@ -8,12 +8,12 @@ export 'src/deck_validator.dart';
 export 'src/banlist_service.dart';
 
 @OnServiceRegister()
-onServiceRegister() {
+void onServiceRegister() {
   console.log('ygo_banlist_mycard.dart onServiceRegister');
   preloadBanlist(
     'https://cdn02.moecube.com:444/ygopro-database/zh-CN/lflist.conf',
   );
 }
+
 @Service(IBanlistService)
 IBanlistService createMyCardBanListService() => BanlistService();
-

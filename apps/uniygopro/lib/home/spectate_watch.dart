@@ -11,7 +11,7 @@ import 'package:provider/provider.dart';
 
 import '../config/servers.dart';
 import '../login/mycard_gate.dart';
-import 'spectate_service.dart';
+import 'services/spectate_service.dart';
 
 /// 准备进入观战；用户取消登录或失败返回 null（错误已提示）。
 Future<Map<String, Object?>?> prepareSpectateWatch(

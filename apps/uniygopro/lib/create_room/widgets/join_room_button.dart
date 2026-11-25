@@ -71,20 +71,10 @@ Future<void> joinRoomByInviteText(
 
 /// 「加入房间」按钮：扫码 / 粘贴邀请码后直接进房。
 class JoinRoomButton extends StatelessWidget {
-  const JoinRoomButton({
-    super.key,
-    required this.fallbackEnv,
-    this.left = 644,
-    this.top = 280,
-    this.width = 184,
-  });
+  const JoinRoomButton({super.key, required this.fallbackEnv});
 
   /// 当前页签选中的环境（邀请信息没带服务器提示时用它）。
   final DuelEnvironment fallbackEnv;
-
-  final double left;
-  final double top;
-  final double width;
 
   Future<void> _onTap(BuildContext context) async {
     DuelSounds.dialogOpen();
@@ -96,9 +86,9 @@ class JoinRoomButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      left: left,
-      top: top,
-      width: width,
+      right: 10,
+      top: 8,
+      width: 80,
       height: 30,
       child: DuelHit(
         key: const ValueKey('create-room-join'),
@@ -112,12 +102,13 @@ class JoinRoomButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.qr_code_scanner, size: 13, color: DuelColors.accent),
-              const SizedBox(width: 6),
-              Text(
-                '加入房间 · 扫码',
-                style: DuelType.sans(9, color: DuelColors.textBody),
+              const Icon(
+                Icons.qr_code_scanner,
+                size: 13,
+                color: DuelColors.accent,
               ),
+              const SizedBox(width: 6),
+              Text('加入房间', style: DuelType.sans(9, color: DuelColors.textBody)),
             ],
           ),
         ),

@@ -70,7 +70,7 @@ class _HomePageState extends State<HomePage> {
       context.push(Routes.createRoom, extra: 'start');
       return;
     }
-    await startDuelRoom(context, mode);
+    await startDuelRoom(context);
   }
 
   void _openWatch() {
@@ -188,25 +188,6 @@ class _HomePageState extends State<HomePage> {
                         style: DuelType.serif(14, height: 1),
                       ),
                     ),
-                    Positioned(
-                      left: -4,
-                      top: -5,
-                      child: Container(
-                        width: 22,
-                        height: 14,
-                        color: DuelColors.gold,
-                        alignment: Alignment.center,
-                        child: Text(
-                          isGuest ? '1' : '42',
-                          style: DuelType.latin(
-                            8,
-                            color: DuelColors.inkOnAccent,
-                            weight: FontWeight.w700,
-                            height: 1,
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -219,22 +200,8 @@ class _HomePageState extends State<HomePage> {
                 left: 54,
                 top: 18,
                 child: Text(
-                  isGuest ? '未登录 · 点击登录' : '白金 II · Lv.42',
+                  isGuest ? '未登录 · 点击登录' : '已登录 · MyCard',
                   style: DuelType.sans(9, color: DuelColors.textMuted),
-                ),
-              ),
-              Positioned(
-                left: 54,
-                top: 34,
-                child: Stack(
-                  children: [
-                    Container(width: 110, height: 3, color: DuelColors.divider),
-                    Container(
-                      width: isGuest ? 0 : 58,
-                      height: 3,
-                      color: DuelColors.accent,
-                    ),
-                  ],
                 ),
               ),
             ],

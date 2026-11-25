@@ -57,7 +57,7 @@ void parseLflistConf(String content) {
 
   console.log(
     '禁限卡表已加载: ${lflistHashToTable.length} 个卡表',
-    name: 'DuelRoomStore',
+    name: 'DuelRoomStore', time:DateTime.now()
   );
 }
 

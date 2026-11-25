@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 
 import 'package:ygo_settings/theme/duel_theme.dart';
 
-import 'room_rule_panel.dart';
+import '../widgets/room_rule_panel.dart';
 
 /// 一行只读规则：左侧标签 + 右侧取值。
 typedef RoomFixedRule = ({String label, String value});

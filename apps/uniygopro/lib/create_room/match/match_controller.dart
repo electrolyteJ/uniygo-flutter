@@ -4,6 +4,7 @@
 library;
 
 import 'dart:async';
+import 'dart:developer' as console;
 
 import 'package:account_mycard/account_mycard.dart';
 import 'package:flutter/widgets.dart';
@@ -14,15 +15,13 @@ import '../../config/route.dart';
 import '../../login/mycard_gate.dart';
 import 'package:ygo_settings/theme/duel_sound.dart';
 import '../../util/snack_bar_util.dart';
-import '../match_store.dart';
-import 'match_service.dart';
+import '../services/match_service.dart';
 
 /// 匹配流程控制器（ChangeNotifier，页面监听后 setState）。
 class MatchController extends ChangeNotifier {
   bool _matching = false;
   int _elapsed = 0;
   MatchService? _service;
-  MatchStore? _store;
   Timer? _elapsedTimer;
 
   /// 取消 / 重入令牌：回调回来时若已不是当前这一轮，直接丢弃。
@@ -38,22 +37,17 @@ class MatchController extends ChangeNotifier {
     required String title,
   }) async {
     if (_matching) return;
-    final store = context.read<MatchStore>();
-    if (!store.tryStartSearching(arena)) return;
-
     // await 之后页面/弹层可能已卸载，先把路由与 API 取出来。
     final router = GoRouter.of(context);
     final api = context.read<MyCardAccountApi>();
     final token = ++_token;
 
-    _store = store;
     _beginMatching();
     DuelSounds.matchStart();
 
     try {
       final account = await requireMyCardAccount(context, reason: title);
       if (account == null || token != _token) {
-        store.stopSearching();
         _finishMatching();
         return;
       }
@@ -70,18 +64,23 @@ class MatchController extends ChangeNotifier {
       _service = null;
       _finishMatching();
       DuelSounds.matchFound();
-      store.isSearching = false;
+      int port = -1;
+      // websocket 连接8912/7912；socket连接8911/7911
+      if (arena == "athletic") {
+        port = 8912;
+      } else {
+        port = 7912;
+      }
       router.go(Routes.duelRoom, extra: <String, Object?>{
-        'uri': Uri.tryParse('wss://${result.address}:${result.port}'),
+        'uri': Uri.tryParse('wss://${result.address}:$port'),
         'serverPassword': result.password,
         'username': account.username,
-        'roomName': '',
+        'roomName': '匹配房',
       });
     } catch (e) {
       if (token != _token) return;
       _service?.dispose();
       _service = null;
-      store.stopSearching();
       _finishMatching();
       DuelSounds.error();
       if (context.mounted) {
@@ -95,7 +94,6 @@ class MatchController extends ChangeNotifier {
     _token++;
     _service?.dispose();
     _service = null;
-    _store?.stopSearching();
     _finishMatching();
     DuelSounds.dialogClose();
   }
@@ -123,11 +121,6 @@ class MatchController extends ChangeNotifier {
   void dispose() {
     _elapsedTimer?.cancel();
     _service?.dispose();
-    final store = _store;
-    // unmount 阶段不能同步 notifyListeners（widget tree 已锁）。
-    if (store != null && store.isSearching) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => store.stopSearching());
-    }
     super.dispose();
   }
 }

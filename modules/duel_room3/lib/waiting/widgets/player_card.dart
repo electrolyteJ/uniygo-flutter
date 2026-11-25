@@ -111,256 +111,276 @@ class PlayerCard extends ConsumerWidget {
           // 844×390 设计画布下卡片高度只有 ~150，压缩头像与间距避免溢出。
           final compact = constraints.maxHeight < 210;
           final avatarSize = compact ? 30.0 : 46.0;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
+          // 2v2 / 大字体会把卡片内容撑高：整体按可用高度等比缩小，
+          // 避免 RenderFlex overflow（卡片内容保持完整可见）。
+          return FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: constraints.maxWidth,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Row(
+                    children: [
+                      Text(
+                        isSelf ? '房主' : '对手',
+                        style: HudTheme.caption.copyWith(
+                          fontSize: 7.5,
+                          color: isSelf ? duelCyan : duelSub,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (roomId != null)
+                        Text(
+                          '房间号 #$roomId',
+                          style: HudTheme.caption.copyWith(
+                            fontSize: 7,
+                            color: duelSub,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Container(height: 1, color: duelLine),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Container(
+                        width: avatarSize,
+                        height: avatarSize,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF0A1F2F), duelCyan],
+                          ),
+                          border: Border.all(
+                            color: ready ? duelHeal : duelCyan,
+                            width: 2,
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          (player != null && player.name.isNotEmpty)
+                              ? player.name.characters.first
+                              : '?',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: compact ? 15 : 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              player?.name ?? (isSelf ? '我' : '对手'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: HudTheme.body.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: isSelf ? duelCyan : duelTextColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (ready)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: duelHeal.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: duelHeal),
+                          ),
+                          child: Text(
+                            '已准备',
+                            style: HudTheme.caption.copyWith(
+                              color: duelHeal,
+                              fontSize: 9,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: compact ? 6 : 12),
+                  Container(height: 1, color: duelLine),
+                  SizedBox(height: compact ? 6 : 10),
+                  Row(
+                    children: [
+                      Text('出战卡组', style: HudTheme.caption),
+                      const Spacer(),
+                      if (isSelf)
+                        PopupMenuButton<String>(
+                          key: const ValueKey('waiting-deck-change'),
+                          tooltip: '切换卡组',
+                          enabled: room.availableDecks.isNotEmpty,
+                          color: duelPanel,
+                          onSelected: (name) {
+                            if (name == '__edit__') {
+                              onEditDeck();
+                              return;
+                            }
+                            ref
+                                .read(duelRoomProvider.notifier)
+                                .selectDeck(name);
+                          },
+                          itemBuilder: (_) => [
+                            for (final d in room.availableDecks)
+                              PopupMenuItem(
+                                value: d.deckName,
+                                child: Text(d.deckName),
+                              ),
+                            const PopupMenuDivider(),
+                            const PopupMenuItem(
+                              value: '__edit__',
+                              child: Text('编辑卡组…'),
+                            ),
+                          ],
+                          child: Text(
+                            '变更',
+                            style: HudTheme.caption.copyWith(color: duelCyan),
+                          ),
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: compact ? 2 : 6),
                   Text(
-                    isSelf ? '房主' : '对手',
+                    deck ?? '未选择卡组',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: HudTheme.body.copyWith(fontSize: 12),
+                  ),
+                  Text(
+                    () {
+                      final info = room.availableDecks
+                          .where((d) => d.deckName == room.selectedDeckName)
+                          .firstOrNull;
+                      if (info == null) return '主 — · 额 — · 副 —';
+                      return '主 ${info.mainCount} · 额 ${info.extraCount} · 副 ${info.sideCount}';
+                    }(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: HudTheme.caption.copyWith(
-                      fontSize: 7.5,
-                      color: isSelf ? duelCyan : duelSub,
+                      fontSize: 7,
+                      color: duelFaint,
                     ),
                   ),
-                  const Spacer(),
-                  if (roomId != null)
+                  if (!compact) ...[
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: invalid == null || invalid.isEmpty
+                          ? null
+                          : () => onShowDeckCheck(),
+                      child: Row(
+                        children: [
+                          Icon(
+                            valid ? Icons.verified : Icons.error_outline,
+                            size: 13,
+                            color: valid
+                                ? duelHeal
+                                : (invalid == null ? duelSub : duelDanger),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              invalid == null
+                                  ? '卡组未校验'
+                                  : (valid
+                                        ? '卡组校验通过'
+                                        : '卡组不合法 ${invalid.length} 项'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: HudTheme.caption.copyWith(
+                                fontSize: 10,
+                                color: valid
+                                    ? duelHeal
+                                    : (invalid == null ? duelSub : duelDanger),
+                              ),
+                            ),
+                          ),
+                          if (invalid != null && invalid.isNotEmpty)
+                            const Icon(
+                              Icons.chevron_right,
+                              size: 14,
+                              color: duelDanger,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  SizedBox(height: compact ? 4 : 8),
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: compact ? 2 : 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: duelGold.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: duelGold.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Text(
+                      'LP ${opts?.startLp ?? 8000}',
+                      style: HudTheme.caption.copyWith(color: duelGold),
+                    ),
+                  ),
+                  if (isSelf || _others.length <= 1) ...[
+                    const SizedBox(height: 2),
                     Text(
-                      '房间号 #$roomId',
+                      isSelf
+                          ? (roomId == null ? '房间号 —' : '房间号 #$roomId')
+                          : '空位 ${_others.length} / 1',
                       style: HudTheme.caption.copyWith(
                         fontSize: 7,
                         color: duelSub,
                       ),
                     ),
+                  ],
+                  if (!isSelf && !compact && _others.length > 1) ...[
+                    const SizedBox(height: 2),
+                    for (final p in _others.skip(1))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 0),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 5,
+                              height: 5,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: p.ready ? duelHeal : duelSub,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                p.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: HudTheme.caption.copyWith(fontSize: 10),
+                              ),
+                            ),
+                            Text(
+                              p.ready ? '已准备' : '未准备',
+                              style: HudTheme.caption.copyWith(fontSize: 9),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ],
               ),
-              const SizedBox(height: 4),
-              Container(height: 1, color: duelLine),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Container(
-                    width: avatarSize,
-                    height: avatarSize,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF0A1F2F), duelCyan],
-                      ),
-                      border: Border.all(
-                        color: ready ? duelHeal : duelCyan,
-                        width: 2,
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      (player != null && player.name.isNotEmpty)
-                          ? player.name.characters.first
-                          : '?',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: compact ? 15 : 20,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          player?.name ?? (isSelf ? '我' : '对手'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: HudTheme.body.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: isSelf ? duelCyan : duelTextColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (ready)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: duelHeal.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: duelHeal),
-                      ),
-                      child: Text(
-                        '已准备',
-                        style: HudTheme.caption.copyWith(
-                          color: duelHeal,
-                          fontSize: 9,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              SizedBox(height: compact ? 6 : 12),
-              Container(height: 1, color: duelLine),
-              SizedBox(height: compact ? 6 : 10),
-              Row(
-                children: [
-                  Text('出战卡组', style: HudTheme.caption),
-                  const Spacer(),
-                  if (isSelf)
-                    PopupMenuButton<String>(
-                      key: const ValueKey('waiting-deck-change'),
-                      tooltip: '切换卡组',
-                      enabled: room.availableDecks.isNotEmpty,
-                      color: duelPanel,
-                      onSelected: (name) {
-                        if (name == '__edit__') {
-                          onEditDeck();
-                          return;
-                        }
-                        ref.read(duelRoomProvider.notifier).selectDeck(name);
-                      },
-                      itemBuilder: (_) => [
-                        for (final d in room.availableDecks)
-                          PopupMenuItem(
-                            value: d.deckName,
-                            child: Text(d.deckName),
-                          ),
-                        const PopupMenuDivider(),
-                        const PopupMenuItem(
-                          value: '__edit__',
-                          child: Text('编辑卡组…'),
-                        ),
-                      ],
-                      child: Text(
-                        '变更',
-                        style: HudTheme.caption.copyWith(color: duelCyan),
-                      ),
-                    ),
-                ],
-              ),
-              SizedBox(height: compact ? 2 : 6),
-              Text(
-                deck ?? '未选择卡组',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: HudTheme.body.copyWith(fontSize: 12),
-              ),
-              Text(
-                () {
-                  final info = room.availableDecks
-                      .where((d) => d.deckName == room.selectedDeckName)
-                      .firstOrNull;
-                  if (info == null) return '主 — · 额 — · 副 —';
-                  return '主 ${info.mainCount} · 额 ${info.extraCount} · 副 ${info.sideCount}';
-                }(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: HudTheme.caption.copyWith(fontSize: 7, color: duelFaint),
-              ),
-              if (!compact) ...[
-                const SizedBox(height: 8),
-                InkWell(
-                  onTap: invalid == null || invalid.isEmpty
-                      ? null
-                      : () => onShowDeckCheck(),
-                  child: Row(
-                    children: [
-                      Icon(
-                        valid ? Icons.verified : Icons.error_outline,
-                        size: 13,
-                        color: valid
-                            ? duelHeal
-                            : (invalid == null ? duelSub : duelDanger),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          invalid == null
-                              ? '卡组未校验'
-                              : (valid
-                                    ? '卡组校验通过'
-                                    : '卡组不合法 ${invalid.length} 项'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: HudTheme.caption.copyWith(
-                            fontSize: 10,
-                            color: valid
-                                ? duelHeal
-                                : (invalid == null ? duelSub : duelDanger),
-                          ),
-                        ),
-                      ),
-                      if (invalid != null && invalid.isNotEmpty)
-                        const Icon(
-                          Icons.chevron_right,
-                          size: 14,
-                          color: duelDanger,
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-              if (compact) const SizedBox(height: 4) else const Spacer(),
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: compact ? 2 : 4,
-                ),
-                decoration: BoxDecoration(
-                  color: duelGold.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: duelGold.withValues(alpha: 0.5)),
-                ),
-                child: Text(
-                  'LP ${opts?.startLp ?? 8000}',
-                  style: HudTheme.caption.copyWith(color: duelGold),
-                ),
-              ),
-              if (isSelf || _others.length <= 1) ...[
-                const SizedBox(height: 2),
-                Text(
-                  isSelf
-                      ? (roomId == null ? '房间号 —' : '房间号 #$roomId')
-                      : '空位 ${_others.length} / 1',
-                  style: HudTheme.caption.copyWith(fontSize: 7, color: duelSub),
-                ),
-              ],
-              if (!isSelf && !compact && _others.length > 1) ...[
-                const SizedBox(height: 2),
-                for (final p in _others.skip(1))
-                  Padding(
-                    padding: const EdgeInsets.only(top: 0),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 5,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: p.ready ? duelHeal : duelSub,
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Text(
-                            p.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: HudTheme.caption.copyWith(fontSize: 10),
-                          ),
-                        ),
-                        Text(
-                          p.ready ? '已准备' : '未准备',
-                          style: HudTheme.caption.copyWith(fontSize: 9),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ],
+            ),
           );
         },
       ),
