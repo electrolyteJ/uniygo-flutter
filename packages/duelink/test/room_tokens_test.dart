@@ -1,7 +1,7 @@
 /// RoomTokens（233 服 AI 主机密码 token）编解码单元测试。
 ///
 /// 对照基准：https://ygo233.com/usage（房名代码 / AI 主机密码说明）
-/// 与 apps/uniygopro Mercury233RoomStringCodec.buildTokens 的历史输出。
+/// 与历史建房表单的输出（房间串见 [RoomPassword.encodeMercury233]）。
 library;
 
 import 'package:duelink/duelink.dart';

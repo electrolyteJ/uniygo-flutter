@@ -29,6 +29,71 @@ void main() {
     });
   });
 
+  group('RoomPassword.encodeMercury233（233 服明文房间串）', () {
+    test('单局 + 默认规则：只有 MR5 + 房间名', () {
+      expect(
+        RoomPassword.encodeMercury233(
+          options: const RoomOptions(mode: RoomMode.single),
+          roomName: '测试房',
+        ),
+        'MR5#测试房',
+      );
+    });
+
+    test('非默认参数按服务器解析顺序拼 token，禁限插在 DR 之后', () {
+      final value = RoomPassword.encodeMercury233(
+        options: const RoomOptions(
+          mode: RoomMode.match,
+          duelRule: DuelRule.mr4,
+          rule: 2,
+          timeLimit: 120,
+          startLp: 4000,
+          startHand: 4,
+          drawCount: 2,
+          noCheckDeck: true,
+          noShuffleDeck: true,
+        ),
+        banlistToken: 'NF',
+        roomName: '房',
+      );
+      expect(value, 'M,MR4,OT,TM120,LP4000,ST4,DR2,NF,NC,NS#房');
+    });
+
+    test('房间名去首尾空格；默认 RoomOptions 是 match（M）', () {
+      expect(
+        RoomPassword.encodeMercury233(
+          options: const RoomOptions(mode: RoomMode.single),
+          roomName: '  房  ',
+        ),
+        'MR5#房',
+      );
+      expect(
+        RoomPassword.encodeMercury233(
+          options: const RoomOptions(),
+          roomName: '房',
+        ),
+        'M,MR5#房',
+      );
+    });
+
+    test('与 AI 主机密码的区别：房间串带 #房间名，AI 密码带 AI 前缀', () {
+      const options = RoomOptions(mode: RoomMode.match, duelRule: DuelRule.mr2020);
+      final roomString = RoomPassword.encodeMercury233(
+        options: options,
+        roomName: 'room',
+      );
+      final aiPassword = RoomTokens.encodeAiPassword(options);
+      expect(roomString, contains('#'));
+      expect(roomString, startsWith('M,MR5'));
+      expect(aiPassword, startsWith('AI,'));
+      expect(aiPassword, isNot(contains('#')));
+    });
+
+    test('超长阈值 20 由本类提供', () {
+      expect(RoomPassword.mercury233MaxLength, 20);
+    });
+  });
+
   group('encodeCreate / encodeJoin 动作位（对照 RoomAction 枚举）', () {
     // 解码 base64 前 6 字节，把 XOR 还原后检查 buf[1] 高 4 位动作位。
     int actionNibble(String encoded, int secret) {

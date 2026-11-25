@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'room_options.dart';
+import 'room_tokens.dart';
 
 /// 房间操作类型
 enum _RoomAction {
@@ -73,6 +74,33 @@ class RoomPassword {
     String suffix = roomId.replaceFirst("\\s", "\ufeff");
     final b64 = base64Encode(buf);
     return '$b64$suffix';
+  }
+
+  // ── 233 服（明文房间串）────────────────────────────────────────────
+
+  /// 233 服房间串最大长度（服务器解析上限，超出会被拒绝）。
+  static const int mercury233MaxLength = 20;
+
+  /// 编码 233 服建房密码（房间串）。
+  ///
+  /// 233 服的「密码」不是加密 buffer，而是明文房间串
+  /// `MR5,LP4000,NC#房间名`：服务器按串解析房间规则，同一串即同一间房，
+  /// 因此它同时是建房凭证与加入凭证（好友复制粘贴即可）。
+  ///
+  /// token 由 [RoomTokens.build] 生成——与 AI 主机密码共用同一套定义，
+  /// 不在别处手拼；禁限 token（LF<n>/NF）不属于 [RoomOptions]（协议层只有
+  /// lflist hash），由 [banlistToken] 传入并按顺序插在 DR 之后。
+  /// 没有任何 token 时只返回房间名（单局 + 默认规则的最短形态）。
+  ///
+  /// 空房间名、超长截断属展示层文案，调用方用 [mercury233MaxLength] 判断。
+  static String encodeMercury233({
+    required RoomOptions options,
+    String roomName = '',
+    String banlistToken = '',
+  }) {
+    final tokens = RoomTokens.build(options, banlistToken: banlistToken);
+    final name = roomName.trim();
+    return tokens.isEmpty ? name : '${tokens.join(',')}#$name';
   }
 
   /// XOR 加密 6 字节 buffer（对齐 neos-ts encryptBuffer）
