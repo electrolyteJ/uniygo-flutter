@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../hud/hud_theme.dart';
+import '../invite/duel_invite.dart';
 import 'widgets/room_info_panel.dart';
 import 'widgets/duel_style.dart';
 import 'widgets/room_actions.dart';
@@ -74,11 +75,21 @@ Future<void> _onConfirmSiding(BuildContext context, WidgetRef ref) async {
 
 /// 05 对战-等候：顶部状态栏 + 左右选手卡 + 中央阶段区 + 规则条 + 操作栏。
 class WaitingRoomPage3D extends ConsumerStatefulWidget {
-  const WaitingRoomPage3D({super.key, this.roomId, this.roomName});
+  const WaitingRoomPage3D({
+    super.key,
+    this.roomId,
+    this.roomName,
+    this.serverHost,
+    this.serverPort,
+  });
 
   /// 建房/进房链路携带的房间邀码与房间名（路由参数注入，避免房间状态被阶段刷新重置）。
   final String? roomId;
   final String? roomName;
+
+  /// 房间所在服务器（写进邀请二维码，扫码方据此推断环境）。
+  final String? serverHost;
+  final int? serverPort;
 
   @override
   ConsumerState<WaitingRoomPage3D> createState() => _WaitingRoomPage3DState();
@@ -152,6 +163,8 @@ class _WaitingRoomPage3DState extends ConsumerState<WaitingRoomPage3D> {
                       stage: stage,
                       roomId: _roomId,
                       roomName: _roomName,
+                      serverHost: widget.serverHost,
+                      serverPort: widget.serverPort,
                     ),
                     const SizedBox(height: 12),
                     Expanded(
@@ -339,12 +352,18 @@ class _WaitingTopBar extends ConsumerWidget {
     required this.stage,
     required this.roomId,
     required this.roomName,
+    this.serverHost,
+    this.serverPort,
   });
 
   final DuelRoomState room;
   final RoomStage stage;
   final String? roomId;
   final String? roomName;
+
+  /// 房间所在服务器（写进邀请二维码，扫码方据此推断环境）。
+  final String? serverHost;
+  final int? serverPort;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -360,7 +379,12 @@ class _WaitingTopBar extends ConsumerWidget {
             key: const ValueKey('waiting-invite'),
             tooltip: '邀请好友',
             icon: const Icon(Icons.person_add_alt, color: _dCyan, size: 20),
-            onPressed: () => _showInviteDialog(context, roomId!),
+            onPressed: () => _showInviteDialog(
+              context,
+              roomId!,
+              host: serverHost,
+              port: serverPort,
+            ),
           ),
         IconButton(
           key: const ValueKey('waiting-settings'),
@@ -398,9 +422,14 @@ class _WaitingTopBar extends ConsumerWidget {
 /// 选手卡：头像 / 昵称 / 段位 / 出战卡组（可切换）/ 卡组校验 / LP / 准备态。
 
 /// 05a4 房间邀请：房间号 + 二维码 + 复制房间号/分享链接。
-void _showInviteDialog(BuildContext context, String roomId) {
-  // 深链格式；对方扫码后可直接拿到邀码。
-  final link = 'uniygo://duel?room=$roomId';
+void _showInviteDialog(
+  BuildContext context,
+  String roomId, {
+  String? host,
+  int? port,
+}) {
+  // 深链格式；对方扫码后可直接拿到邀码（h/p 帮助扫码方选出同一环境）。
+  final link = DuelInvite.buildLink(roomId, host: host, port: port);
   void copy(String text, String toast) {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(toast)));

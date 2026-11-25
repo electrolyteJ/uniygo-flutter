@@ -13,6 +13,23 @@
 - **MDPro3 风格 UI**：底部扇形手牌、左右竖向 LP 条、右侧阶段轨道、
   左侧滑入卡片详情、操作胶囊条、全新等待室
 - **交互**：射线拾取立牌/地砖 → 就地选择/放置选择/操作菜单/区域检视
+- **房间邀请**：等候厅二维码邀请 + 扫码/粘贴邀码加入（见下文「房间邀请与扫码」）
+
+## 房间邀请与扫码
+
+- 等候厅邀请弹窗的二维码内容是深链
+  `uniygo://duel?room=<邀码>&h=<host>&p=<port>`（`invite/duel_invite.dart`）。
+  `h`/`p` 是房主所在服务器，扫码方据此选用同一环境；老二维码只有 `room`，
+  解析时允许缺失。
+- `invite/qr_scan_dialog.dart` 的 `showRoomQrScanDialog()`：Android/iOS 用
+  `mobile_scanner` 实时取景扫二维码；macOS/Windows/Linux/Web 自动退化为
+  「粘贴邀请码」，也可以传 `cameraSupported: false` 强制走粘贴。
+- 模块只返回扫到的原文；解析、选环境、真正进房都由宿主负责。
+  uniygopro 把入口挂在建房页页壳右上角「加入房间 · 扫码」
+  （`apps/uniygopro/lib/create_room/widgets/join_room_button.dart`）。
+- 相机权限：Android `CAMERA`（同时声明
+  `<uses-feature android:name="android.hardware.camera" android:required="false">`，
+  无相机设备仍可安装）；iOS `NSCameraUsageDescription`。
 
 ## 状态层
 

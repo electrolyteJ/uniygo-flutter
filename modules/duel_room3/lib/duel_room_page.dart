@@ -245,6 +245,9 @@ class _DuelRoomViewState extends ConsumerState<_DuelRoomView> {
         : WaitingRoomPage3D(
             roomId: widget.args['roomId'] as String?,
             roomName: widget.args['roomName'] as String?,
+            // 邀请二维码带上服务器地址，扫码方据此推断环境。
+            serverHost: (widget.args['uri'] as Uri?)?.host,
+            serverPort: (widget.args['uri'] as Uri?)?.port,
           );
     return PopScope(
       canPop: false,
