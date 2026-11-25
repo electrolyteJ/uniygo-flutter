@@ -1,4 +1,4 @@
-/// 自由房间页签：环境 rail + 规则面板 + 一个圆盘动作（建房）+ 加入房间 + 最近房间。
+/// 自由房间页签：环境 rail + 规则面板 + 一个圆盘动作（建房）。
 library;
 
 import 'package:flutter/material.dart';

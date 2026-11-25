@@ -2,7 +2,6 @@
 library;
 
 import 'dart:async';
-import 'dart:developer' as console;
 import 'dart:math' as math;
 
 import 'package:account_mycard/account_mycard.dart';

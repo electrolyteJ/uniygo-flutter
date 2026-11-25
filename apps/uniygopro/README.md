@@ -1,5 +1,5 @@
 apps/uniygopro/lib 页面域目录（参考 modules/duel_room1 的按域拆分）
-apps/uniygopro/lib/create_room 建房页 + 房间表单/模型 + MatchStore/MatchService
+apps/uniygopro/lib/create_room 建房页（匹配/好友/练习/自由四页签）+ 模式与房间模型 + MatchStore/MatchService
 apps/uniygopro/lib/home 主页、比赛观看、设置弹层 + 观战服务
 apps/uniygopro/lib/login 登录页 + MyCard 认证弹窗/门控
 apps/uniygopro/lib/splash 开屏页
@@ -29,7 +29,7 @@ apps/uniygopro/lib/widgets 其他通用组件
   成功后带参数进入决斗房间；主页匹配条的「开始匹配」会进入本页并自动开始。
   好友对战：左侧模式 + 规则设置（卡片允许/大师规则/初始 LP/手牌/抽卡/时限/禁限卡表/复选框）；
   408 环境规则由服务端锁定，同一位置改为只读的固定规则文案，不提供改动项；
-  练习：对局设置（大师规则/初始 LP/不切洗）；自由房间：环境签 + 环境设置面板，中央盘创建/进入房间。
+  练习：对局设置（大师规则/初始 LP/不切洗）；自由房间：环境签 + 环境设置面板，中央盘创建房间。
 - 「比赛观看」为页面内弹层（home/watch_sheet.dart，数据来自 SpectateService）；
   「设置」为页面内弹层（画面/音效/对局/账号，账号页可退出登录）。
   对局页覆盖旧版全部选项：决斗场地 2D/3D、连锁1 动画、自动怪兽/魔陷位、
