@@ -3,22 +3,23 @@ import 'dart:convert';
 import 'package:duelink/duelink.dart';
 
 import '../../config/servers.dart';
-import '../models/mercury233_room_spec.dart';
 
 /// 创建房间历史记录。
 ///
-/// 标准环境记录 [password] + [options]；mercury233 房间串 DSL 环境记录
-/// [mercurySpec]（密码为空）。
+/// 统一形态：协议参数存 [options]，进房凭证存 [password]——
+/// - mycard 私密房：[password] 是私密房 ID（房主 external_id 派生，恒定），
+///   仅用于展示/分享，回填时不参与编码（u16Secret 每次都要重新取）；
+/// - mercury233：房间串（`token#房名`）本身就是进房凭证，整串存 [password]；
+/// - koishi / 408：普通房间密码或随机邀码。
 ///
-/// 注意：mycard 私密房的 [password] 字段语义为**私密房 ID**（由房主
-/// external_id 派生，同一用户恒定），用于展示/分享给朋友；历史回填时
-/// 不参与编码（u16Secret 时间轮换，须重新获取），房间名称仅作本地标记。
+/// 旧版本把 233 的规则塞在独立的 `mercurySpec` 对象里（[password] 留空）。
+/// 该对象已并入 [options] + [roomName] + [password]；读取旧 JSON 时多余的
+/// `mercurySpec` 字段会被忽略，房间名仍可从顶层 [roomName] 还原。
 class CreatedRoomRecord {
   final DuelEnvironment env;
   final String roomName;
   final String password;
   final RoomOptions? options;
-  final Mercury233RoomSpec? mercurySpec;
   final DateTime createdAt;
 
   CreatedRoomRecord({
@@ -26,22 +27,18 @@ class CreatedRoomRecord {
     required this.roomName,
     this.password = '',
     this.options,
-    this.mercurySpec,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
   /// 列表展示标题。
   String get title {
     if (roomName.isNotEmpty) return roomName;
-    if (mercurySpec != null && mercurySpec!.roomName.isNotEmpty) {
-      return mercurySpec!.roomName;
-    }
     return password.isNotEmpty ? password : '未命名房间';
   }
 
   /// 列表展示摘要（规则参数）。
   String get summary {
-    final o = options ?? mercurySpec?.toRoomOptions();
+    final o = options;
     if (o == null) return env.displayName;
     final mode = switch (o.mode) {
       RoomMode.single => '单局',
@@ -60,7 +57,6 @@ class CreatedRoomRecord {
     roomName: roomName,
     password: password,
     options: options,
-    mercurySpec: mercurySpec,
   );
 
   Map<String, dynamic> toJson() => {
@@ -68,7 +64,6 @@ class CreatedRoomRecord {
     'roomName': roomName,
     'password': password,
     if (options != null) 'options': _optionsToJson(options!),
-    if (mercurySpec != null) 'mercurySpec': mercurySpec!.toJson(),
     'createdAt': createdAt.millisecondsSinceEpoch,
   };
 
@@ -81,11 +76,6 @@ class CreatedRoomRecord {
       password: (json['password'] ?? '') as String,
       options: json['options'] is Map<String, dynamic>
           ? _optionsFromJson(json['options'] as Map<String, dynamic>)
-          : null,
-      mercurySpec: json['mercurySpec'] is Map<String, dynamic>
-          ? Mercury233RoomSpec.fromJson(
-              json['mercurySpec'] as Map<String, dynamic>,
-            )
           : null,
       createdAt: DateTime.fromMillisecondsSinceEpoch(
         (json['createdAt'] ?? 0) as int,

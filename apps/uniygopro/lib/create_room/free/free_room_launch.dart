@@ -16,8 +16,6 @@ import '../../config/servers.dart';
 import '../../util/snack_bar_util.dart';
 import '../match_store.dart';
 import '../models/mode_models.dart';
-import '../models/mercury233_room_spec.dart';
-import '../models/mercury233_room_string_codec.dart';
 import '../widgets/room_rule_panel.dart';
 import 'created_room_record.dart';
 import 'room_history_store.dart';
@@ -114,7 +112,7 @@ Future<void> createFreeRoom(
   }
 
   if (env == DuelEnvironment.mercury233) {
-    // 233 的进房凭证是「代码#房间名」，房间列表不公开、同串即同房，
+    // 233 的进房凭证是「token#房间名」明文房间串：房间列表不公开、同串即同房，
     // 因此房间名必须随机，避免两间规则相同的房撞成同一间。
     final modeLabel = switch (options.mode) {
       RoomMode.tag => '2v2',
@@ -122,30 +120,41 @@ Future<void> createFreeRoom(
       _ => '单局',
     };
     // 房间串总长上限 20：房间名用「模式-6位随机」，唯一且够短。
-    final effectiveName = modeLabel + '-' + randomRoomCode();
-    final spec = Mercury233RoomSpec(options: options, roomName: effectiveName);
-    final result = Mercury233RoomStringCodec.build(spec);
-    if (result.error != null) {
-      if (context.mounted) showSnackBar(context, result.error!);
+    final effectiveName = '$modeLabel-${randomRoomCode()}';
+    final roomString = RoomPassword.encodeMercury233(
+      options: options,
+      roomName: effectiveName,
+    );
+    if (roomString.length > RoomPassword.mercury233MaxLength) {
+      if (context.mounted) {
+        showSnackBar(
+          context,
+          '房间串不能超过 ${RoomPassword.mercury233MaxLength} 个字符',
+        );
+      }
       return;
     }
     final store = context.read<MatchStore>();
-    final name = effectiveName;
     unawaited(
       RoomHistoryStore.add(
-        CreatedRoomRecord(env: env, roomName: name, mercurySpec: spec),
+        CreatedRoomRecord(
+          env: env,
+          roomName: effectiveName,
+          password: roomString,
+          options: options,
+        ),
       ),
     );
-    // 233 房间串就是进房凭证：邀码直接用它，好友复制后粘贴到「加入房间」即可。
+    // 房间串就是进房凭证：邀码直接用它，好友复制后粘贴到「加入房间」即可。
     _enter(
       context,
       store,
       env,
       options,
-      name,
-      result.value,
+      effectiveName,
+      roomString,
       null,
-      roomId: result.value,
+      roomId: roomString,
     );
     return;
   }

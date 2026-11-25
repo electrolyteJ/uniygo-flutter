@@ -10,12 +10,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uniygopro/config/servers.dart';
 import 'package:uniygopro/create_room/free/created_room_record.dart';
 import 'package:deck_editor1/deck_editor1.dart';
-import 'package:uniygopro/create_room/models/mercury233_room_spec.dart';
-import 'package:uniygopro/create_room/models/mercury233_room_string_codec.dart';
 import 'package:uniygopro/create_room/match_store.dart';
 import 'package:uniygopro/create_room/free/room_history_store.dart';
 import 'package:resource_data/card_info.dart' as pkg;
-import 'package:resource_data/lf_table.dart';
 
 pkg.CardInfo _card(int code, {String name = '', int type = 0x1}) =>
     pkg.CardInfo(code: code, type: type, name: name);
@@ -98,97 +95,6 @@ void main() {
     });
   });
 
-  group('Mercury233RoomStringCodec', () {
-    test('结构化构建（默认 + 非默认）', () {
-      const spec = Mercury233RoomSpec(roomName: '测试房');
-      final result = Mercury233RoomStringCodec.build(spec);
-      expect(result.error, isNull);
-      expect(result.value, 'MR5#测试房');
-
-      final custom = Mercury233RoomStringCodec.build(
-        const Mercury233RoomSpec(
-          roomName: '房',
-          options: RoomOptions(
-            mode: RoomMode.single,
-            duelRule: DuelRule.mr4,
-            rule: 2,
-            startLp: 4000,
-            noCheckDeck: true,
-          ),
-        ),
-      );
-      expect(custom.error, isNull);
-      expect(custom.value, 'MR4,OT,LP4000,NC#房');
-    });
-
-    test('手动房间串与校验', () {
-      final manual = Mercury233RoomStringCodec.build(
-        const Mercury233RoomSpec(
-          manualRoomStringEnabled: true,
-          manualRoomString: 'M#abc',
-        ),
-      );
-      expect(manual.value, 'M#abc');
-      expect(manual.error, isNull);
-
-      final blank = Mercury233RoomStringCodec.build(
-        const Mercury233RoomSpec(
-          manualRoomStringEnabled: true,
-          manualRoomString: '  ',
-        ),
-      );
-      expect(blank.error, '房间串不能为空');
-
-      final tooLong = Mercury233RoomStringCodec.build(
-        const Mercury233RoomSpec(roomName: '12345678901234567890123'),
-      );
-      expect(tooLong.error, isNotNull);
-    });
-  });
-
-  group('Mercury233RoomSpec', () {
-    test('toRoomOptions 映射 rule', () {
-      const spec = Mercury233RoomSpec(
-        options: RoomOptions(mode: RoomMode.match, rule: 4, noCheckDeck: true),
-      );
-      final options = spec.toRoomOptions();
-      expect(options.mode, RoomMode.match);
-      expect(options.rule, 4);
-      expect(options.noCheckDeck, isTrue);
-    });
-
-    test('toJson/fromJson 往返', () {
-      const spec = Mercury233RoomSpec(
-        roomName: 'X',
-        options: RoomOptions(
-          mode: RoomMode.single,
-          duelRule: DuelRule.mr3,
-          rule: 1,
-          startLp: 1000,
-          startHand: 3,
-          timeLimit: 240,
-        ),
-      );
-      final restored = Mercury233RoomSpec.fromJson(spec.toJson());
-      expect(restored.roomName, 'X');
-      expect(restored.duelRule, DuelRule.mr3);
-      expect(restored.rule, 1);
-      expect(restored.startLp, 1000);
-      expect(restored.startHand, 3);
-      expect(restored.timeLimit, 240);
-    });
-
-    test('buildMercury233BanlistOptions', () {
-      expect(buildMercury233BanlistOptions(const []).length, 2);
-      final options = buildMercury233BanlistOptions([
-        const LfTable(name: '2024.04', date: '2024-04-01'),
-        const LfTable(name: '', date: ''),
-      ]);
-      expect(options.length, 3); // 2 张表 + 无禁限
-      expect(options[0].label, '2024.04');
-      expect(options[1].label, '禁限卡表 2');
-    });
-  });
 
   group('CreatedRoomRecord', () {
     CreatedRoomRecord standard() => CreatedRoomRecord(
@@ -198,21 +104,54 @@ void main() {
       options: const RoomOptions(mode: RoomMode.match, startLp: 8000),
     );
 
+    // 233 记录：房间串即进房凭证，整串存 password；options 与 roomName 同级。
     CreatedRoomRecord mercury() => CreatedRoomRecord(
       env: DuelEnvironment.mercury233,
-      roomName: '',
-      mercurySpec: const Mercury233RoomSpec(roomName: '233房'),
+      roomName: 'BO3-123456',
+      password: 'M,MR5#BO3-123456',
+      options: const RoomOptions(mode: RoomMode.single),
     );
 
     test('title/summary 分支', () {
       expect(standard().title, '标准房');
-      expect(mercury().title, '233房');
+      expect(mercury().title, 'BO3-123456');
       expect(
         CreatedRoomRecord(env: DuelEnvironment.koishi, roomName: '').title,
         '未命名房间',
       );
+      expect(
+        CreatedRoomRecord(
+          env: DuelEnvironment.koishi,
+          roomName: '',
+          password: 'abc',
+        ).title,
+        'abc',
+      );
       expect(standard().summary, contains('Match'));
       expect(mercury().summary, contains('单局'));
+      // 没有 options 时回退到环境名
+      expect(
+        CreatedRoomRecord(env: DuelEnvironment.koishi, roomName: 'x').summary,
+        DuelEnvironment.koishi.displayName,
+      );
+    });
+
+    test('旧 JSON（带 mercurySpec）仍可读，多余字段被忽略', () {
+      // 旧版本把 233 规则放在 mercurySpec 里、password 留空。
+      final legacy = {
+        'env': 'mercury233',
+        'roomName': '旧房',
+        'password': '',
+        'mercurySpec': {'roomName': '旧房', 'mode': 0, 'startLp': 8000},
+        'createdAt': 1700000000000,
+      };
+      final restored = CreatedRoomRecord.fromJson(legacy);
+      expect(restored.roomName, '旧房');
+      expect(restored.title, '旧房');
+      expect(restored.options, isNull);
+      expect(restored.createdAt.millisecondsSinceEpoch, 1700000000000);
+      // 再写回时只剩新格式
+      expect(restored.toJson().containsKey('mercurySpec'), isFalse);
     });
 
     test('toJson/fromJson 往返 + identity 稳定', () {
@@ -320,7 +259,8 @@ void main() {
       final record = CreatedRoomRecord(
         env: DuelEnvironment.mercury233,
         roomName: '历史房',
-        mercurySpec: const Mercury233RoomSpec(roomName: '历史房'),
+        password: 'MR5#历史房',
+        options: const RoomOptions(mode: RoomMode.single),
       );
       await RoomHistoryStore.add(record);
       var loaded = await RoomHistoryStore.load();
