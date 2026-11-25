@@ -175,6 +175,9 @@ void main() {
     for (final label in ['匹配', '好友对战', '练习', '自由房间']) {
       expect(find.text(label), findsWidgets);
     }
+    // 「加入房间」挂在页壳上：任意页签都能扫码/粘贴邀码进房。
+    expect(find.byKey(const ValueKey('create-room-join')), findsOneWidget);
+    expect(find.text('加入房间 · 扫码'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     // 好友对战页签 → 规则设置面板 + 创建房间
@@ -214,11 +217,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('Koishi 通用环境'), findsOneWidget);
     expect(find.text('mycard 环境'), findsOneWidget);
-    // 自由房间收敛成「面板设参数 + 圆盘一个动作」；加入房间入口已移除（等待室提供）。
+    // 自由房间收敛成「面板设参数 + 圆盘建房」。
     expect(find.text('规则设置'), findsOneWidget);
     expect(find.text('三局两胜'), findsOneWidget);
     expect(find.text('最近房间'), findsNothing);
-    expect(find.byKey(const ValueKey('free-join-room')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

@@ -9,6 +9,9 @@
 	<true/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- 扫码加入房间：相机取景读取好友的邀请二维码 -->
+	<key>NSCameraUsageDescription</key>
+	<string>扫描好友邀请二维码以加入对战房间</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

@@ -2,6 +2,9 @@
     <!-- 联机对战/卡组/账号接口必需：debug/profile manifest 仅覆盖开发构建，
          release 构建必须在这里显式声明，否则发布版无法联网。 -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 扫码加入房间：等候厅邀请二维码由 duel_room3 的 mobile_scanner 取景读取。 -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <application
         android:label="uniygopro"
         android:resizeableActivity="true"

@@ -17,6 +17,8 @@ import 'package:ygo_settings/theme/duel_sound.dart';
 import 'package:ygo_settings/theme/duel_theme.dart';
 import 'free/free_tab.dart';
 import 'friend/friend_tab.dart';
+import 'package:uniygopro/config/servers.dart';
+import 'widgets/join_room_button.dart';
 import 'match/match_tab.dart';
 import 'models/mode_models.dart';
 import 'train/train_tab.dart';
@@ -65,6 +67,13 @@ class _CreateRoomPageState extends State<CreateRoomPage>
     super.dispose();
   }
 
+  /// 扫码/邀码加入的兜底环境：邀请二维码带服务器地址时用不到它；
+  /// 老二维码（只有 room）退回当前模式的环境，仍未定时按 233 处理
+  /// （233 房间串是唯一自解释的邀码）。
+  DuelEnvironment get _joinFallbackEnv =>
+      ModeSelection.instance.current.environment ??
+      DuelEnvironment.mercury233;
+
   void _back() {
     DuelSounds.pageTransition();
     if (context.canPop()) {
@@ -99,6 +108,13 @@ class _CreateRoomPageState extends State<CreateRoomPage>
               ),
             ),
             _header(),
+            // 加入房间挂在页壳上：四个页签都能扫码/粘贴邀码进房。
+            JoinRoomButton(
+              fallbackEnv: _joinFallbackEnv,
+              left: 616,
+              top: 8,
+              width: 132,
+            ),
             Positioned(left: 0, right: 0, bottom: 0, child: _bottomTabs()),
           ],
         ),
