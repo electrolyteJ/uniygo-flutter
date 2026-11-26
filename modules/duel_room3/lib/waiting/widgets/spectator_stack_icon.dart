@@ -1,11 +1,15 @@
-/// 观战位入口（05a 等候房）：叠放头像，点击打开观战列表弹窗。
+/// 观战位入口（05a8 观战者视角 · 观战头像堆叠）。
 ///
-/// 有几个观战者就叠几个头像（不受观战位上限约束）；0 人时显示一个空位占位。
+/// 按设计稿 05a8 的「观战头像堆叠」：20px 圆形头像、相邻重叠 6px、
+/// 底色描边分隔；右侧跟「观战 N」人数。有几个观战者就叠几个头像。
 library;
 
 import 'package:flutter/material.dart';
 
 import 'duel_style.dart';
+
+/// 堆叠头像配色（设计稿：暗青 / 青 / 绿三色循环）。
+const List<Color> _avatarPalette = [duelTeal, duelCyan, duelHeal];
 
 class SpectatorStackIcon extends StatelessWidget {
   const SpectatorStackIcon({
@@ -25,75 +29,60 @@ class SpectatorStackIcon extends StatelessWidget {
     double s(double v) => v * k;
 
     final shown = count < 0 ? 0 : count;
-    final avatar = s(16);
-    final overlap = avatar * 0.55;
-    final stackWidth =
-        shown == 0 ? avatar : avatar + (shown - 1) * (avatar - overlap);
+    final avatar = s(20);
+    final step = s(14); // 20px 头像重叠 6px
+    final stackWidth = shown == 0 ? avatar : avatar + (shown - 1) * step;
 
-    Widget slot(int index) => Container(
+    Widget avatarCircle(int index) => Container(
       key: ValueKey('spectator-avatar-' + index.toString()),
       width: avatar,
       height: avatar,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFF16303F),
-        border: Border.all(color: duelCyan, width: 0.8),
+        color: _avatarPalette[index % _avatarPalette.length],
+        // 与页面底色一致的描边，制造叠放的分隔边。
+        border: Border.all(color: duelBg, width: s(1.5)),
       ),
-      alignment: Alignment.center,
-      child: Icon(Icons.person, size: avatar * 0.6, color: duelCyan),
     );
 
-    Widget emptySlot() => Container(
+    Widget emptyCircle() => Container(
       width: avatar,
       height: avatar,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFF09121C),
-        border: Border.all(color: duelLine, width: 0.8),
-      ),
-      alignment: Alignment.center,
-      child: Icon(
-        Icons.person_outline,
-        size: avatar * 0.6,
-        color: duelSub,
+        color: duelTeal.withValues(alpha: 0.35),
+        border: Border.all(color: duelLine, width: s(1)),
       ),
     );
 
-    return Tooltip(
-      message: '观战 ' + count.toString(),
-      child: InkWell(
-        key: const ValueKey('waiting-spectators-entry'),
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(2 * k),
-        child: Container(
-          padding: EdgeInsets.symmetric(horizontal: s(6), vertical: s(3)),
-          decoration: BoxDecoration(
-            color: duelPanel,
-            borderRadius: BorderRadius.circular(2 * k),
-            border: Border.all(color: duelLine),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: stackWidth,
-                height: avatar,
-                child: Stack(
-                  children: [
-                    if (shown == 0)
-                      emptySlot()
-                    else
-                      for (var i = 0; i < shown; i++)
-                        Positioned(
-                          left: i * (avatar - overlap),
-                          child: slot(i),
-                        ),
-                  ],
-                ),
+    return InkWell(
+      key: const ValueKey('waiting-spectators-entry'),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(2 * k),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: s(2)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: stackWidth,
+              height: avatar,
+              child: Stack(
+                children: [
+                  if (shown == 0)
+                    emptyCircle()
+                  else
+                    for (var i = 0; i < shown; i++)
+                      Positioned(left: i * step, child: avatarCircle(i)),
+                ],
               ),
-              Icon(Icons.chevron_right, size: s(11), color: duelSub),
-            ],
-          ),
+            ),
+            SizedBox(width: s(6)),
+            Text(
+              '观战 ' + shown.toString(),
+              style: TextStyle(fontSize: s(7.5), color: duelMuted),
+            ),
+          ],
         ),
       ),
     );

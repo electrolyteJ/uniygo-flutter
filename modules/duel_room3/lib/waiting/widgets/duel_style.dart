@@ -12,6 +12,7 @@ const duelTextColor = Color(0xFFEAF2FF);
 const duelSub = Color(0xFF6F7A8C);
 const duelMuted = Color(0xFF8A93A8);
 const duelFaint = Color(0xFF5A6A7E);
+const duelTeal = Color(0xFF1E4962);
 const duelHeal = Color(0xFF5FD08A);
 const duelInk = Color(0xFF041017);
 const duelDanger = Color(0xFFFF6B6B);

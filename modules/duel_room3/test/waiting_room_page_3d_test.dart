@@ -162,10 +162,11 @@ void main() {
       find.byKey(const ValueKey('waiting-spectators-entry')),
       findsOneWidget,
     );
-    // 有几个观战就叠几个头像（没有“/ 2”上限文案）。
+    // 有几个观战就叠几个头像（没有“/ 2”上限文案），右侧标「观战 N」。
     expect(find.byKey(const ValueKey('spectator-avatar-0')), findsOneWidget);
     expect(find.byKey(const ValueKey('spectator-avatar-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('spectator-avatar-2')), findsNothing);
+    expect(find.text('观战 2'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('waiting-spectators-entry')));
     await tester.pumpAndSettle();
