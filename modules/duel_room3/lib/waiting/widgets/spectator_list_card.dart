@@ -1,4 +1,4 @@
-/// 05a5 观战列表浮层：观战位 1/2 + 空态 + 底部观战规则提示。
+/// 05a5 观战列表浮层：按实际观战人数逐行展示（不再固定 2 个观战位）。
 library;
 
 import 'package:flutter/material.dart';
@@ -22,14 +22,20 @@ class SpectatorListCard extends StatelessWidget {
     final k = (MediaQuery.sizeOf(context).width / 844).clamp(0.85, 2.4);
     double s(double v) => v * k;
 
+    final count = observerCount < 0 ? 0 : observerCount;
+    const rowHeight = 30.0;
+    const rowStep = 38.0;
+    const rowsTop = 108.0;
+    final rowsBottom = rowsTop + count * rowStep;
+    final panelHeight = count == 0 ? 256.0 : rowsBottom + 40;
+
     Widget slot(int index) {
-      final occupied = index < observerCount;
-      final isSelfSlot = occupied && selfIsObserver && index == 0;
+      final isSelfSlot = selfIsObserver && index == 0;
       return Padding(
         padding: EdgeInsets.only(bottom: s(8)),
         child: Container(
           width: s(232),
-          height: s(30),
+          height: s(rowHeight),
           padding: EdgeInsets.symmetric(horizontal: s(10)),
           decoration: BoxDecoration(
             color: const Color(0xFF09121C),
@@ -43,19 +49,13 @@ class SpectatorListCard extends StatelessWidget {
                 style: TextStyle(fontSize: s(8.5), color: duelSub),
               ),
               const Spacer(),
-              if (occupied)
-                Text(
-                  isSelfSlot ? '你' : '观战玩家',
-                  style: TextStyle(
-                    fontSize: s(8.5),
-                    color: isSelfSlot ? duelCyan : duelTextColor,
-                  ),
-                )
-              else
-                Text(
-                  '空位',
-                  style: TextStyle(fontSize: s(8.5), color: duelFaint),
+              Text(
+                isSelfSlot ? '你' : '观战玩家',
+                style: TextStyle(
+                  fontSize: s(8.5),
+                  color: isSelfSlot ? duelCyan : duelTextColor,
                 ),
+              ),
             ],
           ),
         ),
@@ -64,7 +64,7 @@ class SpectatorListCard extends StatelessWidget {
 
     return SizedBox(
       width: s(260),
-      height: s(286),
+      height: s(panelHeight),
       child: Container(
         decoration: BoxDecoration(
           color: duelPanel,
@@ -100,31 +100,37 @@ class SpectatorListCard extends StatelessWidget {
               left: s(14),
               top: s(30),
               child: Text(
-                '观战 ' + observerCount.toString() + ' / 2 · 仅好友可观看',
+                '观战 ' + count.toString() + ' · 仅好友可观看',
                 style: TextStyle(fontSize: s(7), color: duelFaint),
               ),
             ),
-            Positioned(
-              left: s(14),
-              top: s(108),
-              child: Text(
-                observerCount == 0 ? '暂无观战玩家' : '观战玩家',
-                style: TextStyle(fontSize: s(8.5), color: duelSub),
+            if (count == 0) ...[
+              Positioned(
+                left: s(14),
+                top: s(108),
+                child: Text(
+                  '暂无观战玩家',
+                  style: TextStyle(fontSize: s(8.5), color: duelSub),
+                ),
               ),
-            ),
-            Positioned(
-              left: s(14),
-              top: s(126),
-              child: Text(
-                observerCount == 0 ? '邀请好友观战后可在此查看' : '仅好友可观看本局',
-                style: TextStyle(fontSize: s(7), color: duelFaint),
+              Positioned(
+                left: s(14),
+                top: s(126),
+                child: Text(
+                  '邀请好友观战后可在此查看',
+                  style: TextStyle(fontSize: s(7), color: duelFaint),
+                ),
               ),
-            ),
-            Positioned(left: s(14), top: s(152), child: slot(0)),
-            Positioned(left: s(14), top: s(190), child: slot(1)),
+            ] else
+              for (var i = 0; i < count; i++)
+                Positioned(
+                  left: s(14),
+                  top: s(rowsTop + i * rowStep),
+                  child: slot(i),
+                ),
             Positioned(
               left: s(14),
-              top: s(256),
+              top: s(panelHeight - 24),
               width: s(232),
               child: Text(
                 '观战者仅可查看双方手牌以外的场面',

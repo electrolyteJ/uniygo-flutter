@@ -1,7 +1,6 @@
-/// 观战位入口（05a 等候房）：叠放头像 + 人数，点击打开观战列表弹窗。
+/// 观战位入口（05a 等候房）：叠放头像，点击打开观战列表弹窗。
 ///
-/// 观战人数与 [DuelRoomState.observerCount] 一致：有几个观战者就叠几个头像；
-/// 0 人时显示一个空位占位。
+/// 有几个观战者就叠几个头像（不受观战位上限约束）；0 人时显示一个空位占位。
 library;
 
 import 'package:flutter/material.dart';
@@ -13,14 +12,10 @@ class SpectatorStackIcon extends StatelessWidget {
     super.key,
     required this.count,
     required this.onTap,
-    this.maxSlots = 2,
   });
 
   /// 当前观战人数。
   final int count;
-
-  /// 观战位上限（用于文案 N / maxSlots）。
-  final int maxSlots;
 
   final VoidCallback onTap;
 
@@ -29,39 +24,49 @@ class SpectatorStackIcon extends StatelessWidget {
     final k = (MediaQuery.sizeOf(context).width / 844).clamp(0.85, 2.4);
     double s(double v) => v * k;
 
-    final shown = count.clamp(0, maxSlots);
+    final shown = count < 0 ? 0 : count;
     final avatar = s(16);
     final overlap = avatar * 0.55;
     final stackWidth =
         shown == 0 ? avatar : avatar + (shown - 1) * (avatar - overlap);
 
-    Widget slot({bool filled = false}) => Container(
+    Widget slot(int index) => Container(
+      key: ValueKey('spectator-avatar-' + index.toString()),
       width: avatar,
       height: avatar,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: filled ? const Color(0xFF16303F) : const Color(0xFF09121C),
-        border: Border.all(
-          color: filled ? duelCyan : duelLine,
-          width: 0.8,
-        ),
+        color: const Color(0xFF16303F),
+        border: Border.all(color: duelCyan, width: 0.8),
+      ),
+      alignment: Alignment.center,
+      child: Icon(Icons.person, size: avatar * 0.6, color: duelCyan),
+    );
+
+    Widget emptySlot() => Container(
+      width: avatar,
+      height: avatar,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF09121C),
+        border: Border.all(color: duelLine, width: 0.8),
       ),
       alignment: Alignment.center,
       child: Icon(
-        filled ? Icons.person : Icons.person_outline,
+        Icons.person_outline,
         size: avatar * 0.6,
-        color: filled ? duelCyan : duelSub,
+        color: duelSub,
       ),
     );
 
     return Tooltip(
-      message: '观战列表 ' + count.toString() + ' / ' + maxSlots.toString(),
+      message: '观战 ' + count.toString(),
       child: InkWell(
         key: const ValueKey('waiting-spectators-entry'),
         onTap: onTap,
         borderRadius: BorderRadius.circular(2 * k),
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: s(7), vertical: s(3)),
+          padding: EdgeInsets.symmetric(horizontal: s(6), vertical: s(3)),
           decoration: BoxDecoration(
             color: duelPanel,
             borderRadius: BorderRadius.circular(2 * k),
@@ -76,22 +81,14 @@ class SpectatorStackIcon extends StatelessWidget {
                 child: Stack(
                   children: [
                     if (shown == 0)
-                      slot()
+                      emptySlot()
                     else
                       for (var i = 0; i < shown; i++)
                         Positioned(
                           left: i * (avatar - overlap),
-                          child: slot(filled: true),
+                          child: slot(i),
                         ),
                   ],
-                ),
-              ),
-              SizedBox(width: s(6)),
-              Text(
-                '观战 ' + count.toString() + ' / ' + maxSlots.toString(),
-                style: TextStyle(
-                  fontSize: s(7.5),
-                  color: count > 0 ? duelTextColor : duelSub,
                 ),
               ),
               Icon(Icons.chevron_right, size: s(11), color: duelSub),

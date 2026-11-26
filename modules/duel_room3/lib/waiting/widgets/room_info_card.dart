@@ -200,7 +200,7 @@ class RoomInfoCard extends StatelessWidget {
                   '限时',
                   '${o?.timeLimit ?? 0} 秒',
                   '观战',
-                  '$room.observerCount / 2',
+                  room.observerCount.toString(),
                 ),
                 Positioned(
                   left: 16 * k,

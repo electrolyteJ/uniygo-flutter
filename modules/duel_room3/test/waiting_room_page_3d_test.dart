@@ -162,12 +162,18 @@ void main() {
       find.byKey(const ValueKey('waiting-spectators-entry')),
       findsOneWidget,
     );
-    expect(find.text('观战 2 / 2'), findsOneWidget);
+    // 有几个观战就叠几个头像（没有“/ 2”上限文案）。
+    expect(find.byKey(const ValueKey('spectator-avatar-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('spectator-avatar-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('spectator-avatar-2')), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('waiting-spectators-entry')));
     await tester.pumpAndSettle();
     expect(find.text('观战列表'), findsOneWidget);
-    expect(find.text('观战 2 / 2 · 仅好友可观看'), findsOneWidget);
+    expect(find.text('观战 2 · 仅好友可观看'), findsOneWidget);
+    expect(find.text('观战位 1'), findsOneWidget);
+    expect(find.text('观战位 2'), findsOneWidget);
+    expect(find.text('观战位 3'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -186,8 +192,9 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('等待玩家加入…'), findsOneWidget);
-    // 观战入口人数随观战者增加。
-    expect(find.text('观战 1 / 2'), findsOneWidget);
+    // 观战入口头像随观战人数增加（1 人 → 1 个头像）。
+    expect(find.byKey(const ValueKey('spectator-avatar-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('spectator-avatar-1')), findsNothing);
     expect(find.text('转为决斗者'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
