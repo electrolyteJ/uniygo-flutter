@@ -61,7 +61,7 @@ void main() {
       );
 
       service.setPlayerName('TestPlayer');
-      service.enterRoom(RoomPassword.encodeJoin());
+      service.enterRoom(MyCardRoomPassword.encodeJoin());
 
       // 提交 20 张卡的主卡组
       final deck = buildTestDeck();
@@ -242,7 +242,7 @@ void main() {
       expect(service.connectionState, isA<ConnectionConnected>());
 
       service.setPlayerName('QuickTest');
-      service.enterRoom(RoomPassword.encodeJoin());
+      service.enterRoom(MyCardRoomPassword.encodeJoin());
       final deck = buildTestDeck();
       service.submitDeck(encodeDeck(deck), Uint8List(0));
       service.ready();
@@ -333,7 +333,7 @@ void main() {
       expect(service.connectionState, isA<ConnectionConnected>());
 
       service.setPlayerName('ObserverTest');
-      service.enterRoom(RoomPassword.encodeJoin());
+      service.enterRoom(MyCardRoomPassword.encodeJoin());
       service.submitDeck(encodeDeck(buildTestDeck()), Uint8List(0));
       service.ready();
 
@@ -408,7 +408,7 @@ void main() {
       expect(service.connectionState, isA<ConnectionConnected>());
 
       service.setPlayerName('AgentFallbackTest');
-      service.enterRoom(RoomPassword.encodeJoin());
+      service.enterRoom(MyCardRoomPassword.encodeJoin());
       service.submitDeck(encodeDeck(buildTestDeck()), Uint8List(0));
       service.ready();
       service.startDuel();

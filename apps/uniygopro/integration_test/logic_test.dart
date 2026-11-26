@@ -11,6 +11,7 @@ import 'package:uniygopro/config/servers.dart';
 import 'package:uniygopro/create_room/free/created_room_record.dart';
 import 'package:deck_editor1/deck_editor1.dart';
 import 'package:uniygopro/create_room/free/room_history_store.dart';
+import 'package:uniygopro/create_room/models/room_rule_config.dart';
 import 'package:resource_data/card_info.dart' as pkg;
 
 pkg.CardInfo _card(int code, {String name = '', int type = 0x1}) =>
@@ -100,15 +101,15 @@ void main() {
       env: DuelEnvironment.mycard,
       roomName: '标准房',
       password: 'pw',
-      options: const RoomOptions(mode: RoomMode.match, startLp: 8000),
+      config: const RoomRuleConfig(mode: 1), // 三局两胜 → Match
     );
 
-    // 233 记录：房间串即进房凭证，整串存 password；options 与 roomName 同级。
+    // 233 记录：房间串即进房凭证，整串存 password；config 与 roomName 同级。
     CreatedRoomRecord mercury() => CreatedRoomRecord(
       env: DuelEnvironment.mercury233,
       roomName: 'BO3-123456',
       password: 'M,MR5#BO3-123456',
-      options: const RoomOptions(mode: RoomMode.single),
+      config: const RoomRuleConfig(mode: 0), // 单局
     );
 
     test('title/summary 分支', () {
@@ -128,7 +129,7 @@ void main() {
       );
       expect(standard().summary, contains('Match'));
       expect(mercury().summary, contains('单局'));
-      // 没有 options 时回退到环境名
+      // 没有 config 时回退到环境名
       expect(
         CreatedRoomRecord(env: DuelEnvironment.koishi, roomName: 'x').summary,
         DuelEnvironment.koishi.displayName,
@@ -147,10 +148,38 @@ void main() {
       final restored = CreatedRoomRecord.fromJson(legacy);
       expect(restored.roomName, '旧房');
       expect(restored.title, '旧房');
-      expect(restored.options, isNull);
+      expect(restored.config, isNull);
       expect(restored.createdAt.millisecondsSinceEpoch, 1700000000000);
       // 再写回时只剩新格式
       expect(restored.toJson().containsKey('mercurySpec'), isFalse);
+    });
+
+    test('旧 JSON 的 options（RoomOptions 字段）折算为 config', () {
+      final legacy = {
+        'env': 'mercury233',
+        'roomName': '旧房',
+        'password': 'M,MR5#旧房',
+        'options': {
+          'lfTableHash': 0,
+          'rule': 2,
+          'mode': 2, // RoomMode.tag → 双打
+          'duelRule': 4, // MR4
+          'noCheckDeck': true,
+          'noShuffleDeck': false,
+          'startLp': 4000,
+          'startHand': 4,
+          'drawCount': 2,
+          'timeLimit': 120,
+        },
+        'createdAt': 1700000000000,
+      };
+      final restored = CreatedRoomRecord.fromJson(legacy);
+      final config = restored.config!;
+      expect(config.mode, 2); // 双打
+      expect(config.master, 1); // MR4
+      expect(config.rule, 2);
+      expect(config.noCheck, isTrue);
+      expect(restored.summary, contains('4000'));
     });
 
     test('toJson/fromJson 往返 + identity 稳定', () {
@@ -207,7 +236,7 @@ void main() {
         env: DuelEnvironment.mercury233,
         roomName: '历史房',
         password: 'MR5#历史房',
-        options: const RoomOptions(mode: RoomMode.single),
+        config: const RoomRuleConfig(mode: 0), // 单局
       );
       await RoomHistoryStore.add(record);
       var loaded = await RoomHistoryStore.load();

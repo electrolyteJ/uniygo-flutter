@@ -32,7 +32,7 @@ import 'waiting/waiting_room_page.dart';
 class DuelRoomPage3D extends StatelessWidget {
   const DuelRoomPage3D({super.key, required this.args});
 
-  /// 建房/匹配参数快照（由 MatchStore.toDuelRoomParams 生成），经路由 extra 传入。
+  /// 建房/匹配参数快照，经路由 extra 传入（uri / 密码 / 用户名 / 房名等）。
   final Map<String, Object?> args;
 
   @override

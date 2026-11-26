@@ -14,7 +14,7 @@ class RoomInfoCard extends StatelessWidget {
     required this.room,
     this.roomId,
     required this.lfTable,
-    required this.onClose,
+    this.onClose,
     required this.onOpenBanlist,
     required this.onShowDeckCheck,
   });
@@ -24,7 +24,9 @@ class RoomInfoCard extends StatelessWidget {
   final DuelRoomState room;
   final String? roomId;
   final LfTable? lfTable;
-  final VoidCallback onClose;
+
+  /// 关闭回调；为 null 时不显示右上角关闭按钮（常驻卡片场景）。
+  final VoidCallback? onClose;
   final VoidCallback? onOpenBanlist;
 
   @override
@@ -147,17 +149,22 @@ class RoomInfoCard extends StatelessWidget {
                       style: TextStyle(fontSize: 8.5 * k, color: duelCyan),
                     ),
                   ),
-                Positioned(
-                  right: 8 * k,
-                  top: 6 * k,
-                  child: GestureDetector(
-                    onTap: onClose,
-                    child: Padding(
-                      padding: EdgeInsets.all(4 * k),
-                      child: Icon(Icons.close, size: 12 * k, color: duelMuted),
+                if (onClose != null)
+                  Positioned(
+                    right: 8 * k,
+                    top: 6 * k,
+                    child: GestureDetector(
+                      onTap: onClose,
+                      child: Padding(
+                        padding: EdgeInsets.all(4 * k),
+                        child: Icon(
+                          Icons.close,
+                          size: 12 * k,
+                          color: duelMuted,
+                        ),
+                      ),
                     ),
                   ),
-                ),
                 Positioned(
                   left: 16 * k,
                   top: 32 * k,

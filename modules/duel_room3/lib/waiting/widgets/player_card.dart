@@ -52,6 +52,37 @@ class PlayerCard extends ConsumerWidget {
     final valid = invalid != null && invalid.isEmpty;
     final ready = player?.ready ?? false;
 
+    // 转为观战后，自己的席位回到「等待玩家加入」（不再是可准备状态）。
+    if (isSelf && !room.selfType.isDuelist) {
+      return Container(
+        key: const ValueKey('waiting-self-observer'),
+        decoration: BoxDecoration(
+          color: duelPanel,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: duelLine),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.visibility_outlined,
+              size: 40,
+              color: duelSub.withValues(alpha: 0.6),
+            ),
+            const SizedBox(height: 12),
+            const Text('等待玩家加入…', style: HudTheme.caption),
+            const SizedBox(height: 6),
+            Text(
+              '你正在观战 · 点「转为决斗者」回到席位',
+              textAlign: TextAlign.center,
+              style: HudTheme.caption.copyWith(color: duelSub),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (!isSelf && player == null) {
       return Container(
         key: const ValueKey('waiting-opponent-empty'),

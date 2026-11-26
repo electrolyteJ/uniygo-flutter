@@ -14,7 +14,7 @@ library;
 /// - koishi 是 srvpro 系服务器，建房用房间串 DSL：`<选项>#<房间名>`，
 ///   选项逗号分隔（M/T=模式, MR5=大师规则2020, NC=不检查卡组, NS=不洗牌）。
 ///   双方用**完全相同的房间串**才能匹配到同一房间。整条 ≤ 20 字符。
-///   （neos-ts 的 base64 RoomPassword.encodeCreate 是 mycard 专用，koishi
+///   （neos-ts 的 base64 MyCardRoomPassword.encodeCreate 是 mycard 专用，koishi
 ///   不识别——会静默创建默认参数的房间，卡组检查开启导致含禁卡的卡组被拒。）
 /// - 服务器把提交列表**前部**作为牌库顶（实测：NS 不洗牌时起手 5 张 =
 ///   列表前 5 张），剧本卡必须放在列表最前面。

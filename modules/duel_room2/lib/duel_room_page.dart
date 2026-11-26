@@ -33,7 +33,7 @@ import 'package:biz/duel/field/select_window_state.dart';
 class DuelRoomPage extends StatelessWidget {
   const DuelRoomPage({super.key, required this.args});
 
-  /// 建房/匹配参数快照（由 MatchStore.toDuelRoomParams 生成），经路由 extra 传入。
+  /// 建房/匹配参数快照，经路由 extra 传入（uri / 密码 / 用户名 / 房名等）。
   final Map<String, Object?> args;
 
   @override

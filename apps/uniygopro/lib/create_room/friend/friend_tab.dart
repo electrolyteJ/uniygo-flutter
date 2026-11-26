@@ -69,21 +69,14 @@ class _FriendTabState extends State<FriendTab> {
               ? DuelEnvironment.env408
               : DuelEnvironment.mercury233);
       final mode = switch (_entry.id) {
-        'friend-tag' => 0, // 双打 2v2
+        'friend-tag' => 2, // 双打 2v2
         'friend-match' => 1, // 三局两胜
-        _ => 2, // 单局
-      };
-      final name = switch (_entry.id) {
-        'friend-tag' => '好友对战 · 2v2',
-        'friend-match' => '好友对战 · 三局两胜',
-        'friend-408' => '好友对战 · 408',
-        _ => '好友对战 · 单局',
+        _ => 0, // 单局
       };
       await createFreeRoom(
         context,
         env: env,
         config: _config.copyWith(mode: mode),
-        roomName: name,
       );
     } finally {
       _busy = false;
@@ -119,6 +112,7 @@ class _FriendTabState extends State<FriendTab> {
             value: _config,
             onChanged: (v) => setState(() => _config = v),
             showAutoDeath: true,
+            mercury233Banlist: !is408,
             checksTop: 232,
           ),
       ],

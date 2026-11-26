@@ -44,17 +44,20 @@ void main() {
     List<PlayerInfo>? players,
     List<String>? invalidation,
     String? roomId,
+    int observerCount = 0,
+    PlayerType selfType = PlayerType.player1,
   }) {
     return DuelRoomState(
       stage:
           stage ??
-          const RoomInLobby(
-            selfType: PlayerType.player1,
+          RoomInLobby(
+            selfType: selfType,
             isHost: true,
             options: RoomOptions(),
           ),
-      selfType: PlayerType.player1,
+      selfType: selfType,
       isHost: true,
+      observerCount: observerCount,
       players:
           players ??
           const [PlayerInfo(name: '海马濑人', pos: 0, ready: true, host: true)],
@@ -72,6 +75,8 @@ void main() {
     List<PlayerInfo>? players,
     List<String>? invalidation,
     String? roomId,
+    int observerCount = 0,
+    PlayerType selfType = PlayerType.player1,
   }) {
     YgoSoundService.enabled = false;
     addTearDown(() => YgoSoundService.enabled = true);
@@ -85,6 +90,8 @@ void main() {
               players: players,
               invalidation: invalidation,
               roomId: roomId,
+              observerCount: observerCount,
+              selfType: selfType,
             ),
           ),
         ),
@@ -118,12 +125,13 @@ void main() {
 
     expect(find.text('海马濑人'), findsOneWidget);
     expect(find.text('出战卡组'), findsOneWidget);
-    expect(find.text('等待对手'), findsOneWidget);
+    // 大厅阶段中央直接展示房间信息卡（不再有「等待对手」舞台）。
+    expect(find.text('房间信息'), findsWidgets);
     expect(find.text('等待对手加入…'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('设置与房间信息入口可用', (tester) async {
+  testWidgets('设置入口可用，房间信息卡直接展示', (tester) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -135,11 +143,52 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('waiting-settings')));
     expect(opened, isTrue);
 
-    expect(find.byKey(const ValueKey('waiting-room-info')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('waiting-room-info')));
-    await tester.pumpAndSettle();
+    // 无浮层入口：信息卡直接可读。
+    expect(find.byKey(const ValueKey('waiting-room-info')), findsNothing);
     expect(find.text('房间信息'), findsWidgets);
     expect(find.text('禁限表'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('观战入口：头像堆叠人数 + 点击打开观战列表弹窗', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(subject(observerCount: 2));
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('waiting-spectators-entry')),
+      findsOneWidget,
+    );
+    expect(find.text('观战 2 / 2'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('waiting-spectators-entry')));
+    await tester.pumpAndSettle();
+    expect(find.text('观战列表'), findsOneWidget);
+    expect(find.text('观战 2 / 2 · 仅好友可观看'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('转为观战：自己的席位显示等待玩家加入', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      subject(observerCount: 1, selfType: PlayerType.observer),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('waiting-self-observer')),
+      findsOneWidget,
+    );
+    expect(find.text('等待玩家加入…'), findsOneWidget);
+    // 观战入口人数随观战者增加。
+    expect(find.text('观战 1 / 2'), findsOneWidget);
+    expect(find.text('转为决斗者'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -152,7 +201,7 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('等待对手'), findsOneWidget);
+    expect(find.text('房间信息'), findsWidgets);
   });
 
   testWidgets('05b 猜拳：手势位 + 石头/剪刀/布 + 出拳提示', (tester) async {
@@ -241,8 +290,7 @@ void main() {
     await tester.pumpWidget(subject());
     await tester.pump();
 
-    await tester.tap(find.byKey(const ValueKey('waiting-room-info')));
-    await tester.pumpAndSettle();
+    // 信息卡常驻：禁限表行直接可见。
     expect(find.text('禁限表'), findsOneWidget);
     expect(find.text('不限制'), findsOneWidget);
     expect(tester.takeException(), isNull);

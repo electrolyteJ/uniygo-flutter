@@ -15,11 +15,12 @@ import 'package:go_router/go_router.dart';
 import '../duel_room_exit.dart';
 import '../hud/hud_theme.dart';
 import '../invite/duel_invite.dart';
-import 'widgets/room_info_panel.dart';
 import 'widgets/duel_style.dart';
 import 'widgets/room_actions.dart';
 import 'widgets/player_card.dart';
 import 'widgets/room_info_card.dart';
+import 'widgets/spectator_list_card.dart';
+import 'widgets/spectator_stack_icon.dart';
 import 'widgets/side_decking_panel.dart';
 
 Future<void> _onEditDeck(BuildContext context, WidgetRef ref) async {
@@ -87,25 +88,42 @@ class WaitingRoomPage3D extends ConsumerStatefulWidget {
 }
 
 class _WaitingRoomPage3DState extends ConsumerState<WaitingRoomPage3D> {
-  bool _infoOpen = true;
-
   /// 路由参数优先；状态里也带一份（测试/预览场景无路由参数）。
   String? get _roomId => widget.roomId ?? ref.read(duelRoomProvider).roomId;
   String? get _roomName =>
       widget.roomName ?? ref.read(duelRoomProvider).roomName;
   LfTable? _lfTable;
+  int _lfTableHash = 0;
 
-  Future<void> _openInfo(DuelRoomState room) async {
-    final hash = room.roomOptions?.lfTableHash ?? 0;
-    if (hash != 0) {
-      try {
-        _lfTable = await ref.read(duelRoomProvider.notifier).getLfTable(hash);
-      } catch (_) {
-        _lfTable = null;
-      }
+  /// 房间信息卡常驻展示，需要提前加载禁限卡表（显示卡表名 + 可点开详情）。
+  Future<void> _ensureLfTable(int hash) async {
+    if (hash == 0 || hash == _lfTableHash) return;
+    _lfTableHash = hash;
+    LfTable? table;
+    try {
+      table = await ref.read(duelRoomProvider.notifier).getLfTable(hash);
+    } catch (_) {
+      table = null;
     }
     if (!mounted) return;
-    setState(() => _infoOpen = true);
+    setState(() => _lfTable = table);
+  }
+
+  /// 观战列表弹窗（点右侧叠放头像入口打开）。
+  Future<void> _openSpectators(DuelRoomState room) {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: SpectatorListCard(
+          observerCount: room.observerCount,
+          selfIsObserver: !room.selfType.isDuelist,
+          onClose: () => Navigator.of(dialogContext).pop(),
+        ),
+      ),
+    );
   }
 
   void _openBanlist() {
@@ -122,6 +140,13 @@ class _WaitingRoomPage3DState extends ConsumerState<WaitingRoomPage3D> {
   Widget build(BuildContext context) {
     final room = ref.watch(duelRoomProvider);
     final stage = room.stage;
+    // 房间信息卡直接展示：卡表 hash 就绪后异步补加载。
+    final lfHash = room.roomOptions?.lfTableHash ?? 0;
+    if (lfHash != 0 && lfHash != _lfTableHash) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _ensureLfTable(lfHash),
+      );
+    }
     final size = MediaQuery.sizeOf(context);
     final k = (math.min(size.width / 844, size.height / 390)).clamp(0.85, 2.4);
     final inPhase =
@@ -182,20 +207,19 @@ class _WaitingRoomPage3DState extends ConsumerState<WaitingRoomPage3D> {
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
-                                _WaitingStage(
-                                  room: room,
-                                  stage: stage,
-                                  roomId: _roomId,
-                                ),
-                                if (_infoOpen)
+                                if (inPhase)
+                                  _WaitingStage(
+                                    room: room,
+                                    stage: stage,
+                                    roomId: _roomId,
+                                  )
+                                else
                                   FittedBox(
                                     fit: BoxFit.scaleDown,
                                     child: RoomInfoCard(
                                       room: room,
                                       roomId: _roomId,
                                       lfTable: _lfTable,
-                                      onClose: () =>
-                                          setState(() => _infoOpen = false),
                                       onOpenBanlist: _lfTable == null
                                           ? null
                                           : _openBanlist,
@@ -203,6 +227,7 @@ class _WaitingRoomPage3DState extends ConsumerState<WaitingRoomPage3D> {
                                           _showDeckCheckDialog(context, room),
                                     ),
                                   ),
+
                               ],
                             ),
                           ),
@@ -226,45 +251,24 @@ class _WaitingRoomPage3DState extends ConsumerState<WaitingRoomPage3D> {
                         ],
                       ),
                     ),
-                    if (size.height > 520) ...[
-                      const SizedBox(height: 6),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Padding(
-                          padding: EdgeInsets.only(right: size.width * 0.10),
-                          child: SizedBox(
-                            width: 126 * k,
-                            height: 26 * k,
-                            child: OutlinedButton(
-                              key: const ValueKey('waiting-room-info'),
-                              onPressed: () => _openInfo(room),
-                              style: OutlinedButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                visualDensity: VisualDensity.compact,
-                                side: const BorderSide(color: duelLine),
-                                foregroundColor: duelSub,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                              child: Text(
-                                '房间信息',
-                                style: TextStyle(
-                                  fontSize: 8.5 * k,
-                                  color: duelSub,
-                                ),
-                              ),
-                            ),
+                    const SizedBox(height: 6),
+                    if (inPhase) _PhaseStatusBar(room: room, stage: stage),
+                    // 观战入口：页面右侧、准备按钮上方，头像堆叠 + 人数。
+                    if (!inPhase)
+                      Padding(
+                        padding: EdgeInsets.only(bottom: 6 * k),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: SpectatorStackIcon(
+                            count: room.observerCount,
+                            onTap: () => _openSpectators(room),
                           ),
                         ),
                       ),
-                    ],
-                    const SizedBox(height: 6),
-                    if (inPhase) _PhaseStatusBar(room: room, stage: stage),
-                    const SizedBox(height: 8),
-                    RoomActions(room: room, stage: stage),
+                    RoomActions(
+                      room: room,
+                      stage: stage,
+                    ),
                   ],
                 ),
               ),
@@ -521,7 +525,10 @@ Future<void> _showDeckPicker(
     context: context,
     builder: (ctx) => AlertDialog(
       backgroundColor: duelPanel,
-      title: const Text('出战卡组', style: TextStyle(fontSize: 14, color: duelTextColor)),
+      title: const Text(
+        '出战卡组',
+        style: TextStyle(fontSize: 14, color: duelTextColor),
+      ),
       content: SizedBox(
         width: 320,
         child: SingleChildScrollView(
@@ -551,7 +558,10 @@ Future<void> _showDeckPicker(
                   ),
                 ),
               if (room.availableDecks.isEmpty)
-                Text('暂无可用卡组', style: TextStyle(fontSize: 10, color: duelFaint)),
+                Text(
+                  '暂无可用卡组',
+                  style: TextStyle(fontSize: 10, color: duelFaint),
+                ),
             ],
           ),
         ),
@@ -597,7 +607,9 @@ void _showDeckCheckDialog(BuildContext context, DuelRoomState room) {
                 const SizedBox(width: 6),
                 Text(
                   ok ? '校验通过' : '${issues.length} 项未通过',
-                  style: HudTheme.body.copyWith(color: ok ? duelHeal : duelDanger),
+                  style: HudTheme.body.copyWith(
+                    color: ok ? duelHeal : duelDanger,
+                  ),
                 ),
               ],
             ),

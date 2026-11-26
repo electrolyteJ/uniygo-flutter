@@ -12,19 +12,18 @@ class BanlistOption {
   final int hash;
 }
 
-/// 233 服房间串/AI 密码使用的卡表选项：除 hash 外还有 LF<n>/NF token。
+/// 233 服使用的卡表选项：服务端序号 [lfTableIndex] + 本地卡表 hash。
 ///
-/// 参考历史实现 buildMercury233BanlistOptions：卡表按服务端顺序编号，
-/// token 为 LF1、LF2…，lfTableHash 由 [LfTable.hash] 直传。
+/// 序号即房间串 `LF<n>` 的 `n`（服务端列表顺序，1 起）；0 表示「无禁限」NF。
 class Mercury233BanlistOption {
   const Mercury233BanlistOption({
     required this.label,
-    required this.token,
+    required this.lfTableIndex,
     required this.lfTableHash,
   });
 
   final String label;
-  final String token;
+  final int lfTableIndex;
   final int lfTableHash;
 }
 
@@ -35,18 +34,18 @@ List<Mercury233BanlistOption> buildMercury233BanlistOptions(
   final ordered = tables.toList();
   if (ordered.isEmpty) {
     return const [
-      Mercury233BanlistOption(label: '默认禁限', token: 'LF1', lfTableHash: 0),
-      Mercury233BanlistOption(label: '无禁限', token: 'NF', lfTableHash: 0),
+      Mercury233BanlistOption(label: '默认禁限', lfTableIndex: 1, lfTableHash: 0),
+      Mercury233BanlistOption(label: '无禁限', lfTableIndex: 0, lfTableHash: 0),
     ];
   }
   return [
     for (var i = 0; i < ordered.length; i++)
       Mercury233BanlistOption(
         label: ordered[i].name.isEmpty ? '禁限卡表 ${i + 1}' : ordered[i].name,
-        token: 'LF${i + 1}',
+        lfTableIndex: i + 1,
         lfTableHash: ordered[i].hash,
       ),
-    const Mercury233BanlistOption(label: '无禁限', token: 'NF', lfTableHash: 0),
+    const Mercury233BanlistOption(label: '无禁限', lfTableIndex: 0, lfTableHash: 0),
   ];
 }
 
@@ -89,18 +88,41 @@ class BanlistCatalog {
     return options;
   }
 
+  /// 下拉索引 → lfTableHash。
+  ///
+  /// 末尾多出的「无禁限」索引用 [noBanlistHash]（0）表示：
+  /// 233 服据此编码 NF，其余协议按“不校验禁限”处理。
   static int hashAt(int index) {
-    if (options.isEmpty) return 0;
+    if (options.isEmpty) return noBanlistHash;
+    if (index >= options.length) return noBanlistHash;
     return options[index.clamp(0, options.length - 1)].hash;
   }
 
-  /// 233 服的禁限 token：按服务端原始顺序把 hash 映射成 LF<n>。
-  static String mercury233TokenForHash(int hash) {
-    if (hash == 0) return '';
+  /// 233 服「不使用禁限卡表」（无禁限）对应的 lfTableHash。
+  static const int noBanlistHash = 0;
+
+
+  /// 233 禁限下拉的标签：卡表名 + 「无禁限」。
+  ///
+  /// 索引与 [options] 对齐，末尾多出的一项表示「不使用禁限卡表」（NF）。
+  static List<String> get mercury233Labels => [
+    for (final option in options) option.name,
+    '无禁限',
+  ];
+
+  /// 233 卡片表序号（服务端列表顺序，1 起）：
+  ///
+  /// * `> 0`：服务器第 n 个卡表 → 房间串 `LF<n>`；
+  /// * `0`：不使用禁限卡表（[noBanlistHash]）→ `NF`；
+  /// * `-1`：卡表未加载 / 未知，不写禁限 token，走服务端默认卡表。
+  static int mercury233IndexAt(int index) {
+    if (options.isEmpty) return -1;
+    if (index >= options.length) return 0;
+    final hash = options[index].hash;
     for (var i = 0; i < tables.length; i++) {
-      if (tables[i].hash == hash) return 'LF${i + 1}';
+      if (tables[i].hash == hash) return i + 1;
     }
-    return '';
+    return -1;
   }
 
   static int _compareName(String a, String b) {

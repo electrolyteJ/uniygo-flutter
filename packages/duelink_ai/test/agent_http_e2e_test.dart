@@ -77,7 +77,7 @@ void main() {
 
       // ---- 房间流程：进房 → 提交卡组 → 准备 → 开局 → 猜拳 → 先攻 ----
       service.setPlayerName('HttpE2E');
-      service.enterRoom(RoomPassword.encodeJoin());
+      service.enterRoom(MyCardRoomPassword.encodeJoin());
       service.submitDeck(encodeDeck(buildTestDeck()), Uint8List(0));
       service.ready();
       service.startDuel();

@@ -5,7 +5,7 @@
 library;
 
 import 'package:account_mycard/account_mycard.dart';
-import 'package:duelink/duelink.dart' show RoomPassword;
+import 'package:duelink/duelink.dart' show MyCardRoomPassword;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -25,7 +25,7 @@ Future<Map<String, Object?>?> prepareSpectateWatch(
   try {
     final u16Secret = await context.read<MyCardAccountApi>().fetchU16Secret();
     if (!context.mounted) return null;
-    final password = RoomPassword.encodeJoin(
+    final password = MyCardRoomPassword.encodeJoin(
       roomId: room.id,
       secret: u16Secret,
       isPrivate: false,

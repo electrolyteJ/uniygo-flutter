@@ -11,7 +11,11 @@ import 'chat_sheet.dart';
 import 'duel_style.dart';
 
 class RoomActions extends ConsumerWidget {
-  const RoomActions({super.key, required this.room, required this.stage});
+  const RoomActions({
+    super.key,
+    required this.room,
+    required this.stage,
+  });
 
   final DuelRoomState room;
   final RoomStage stage;
@@ -58,24 +62,15 @@ class RoomActions extends ConsumerWidget {
                 const SizedBox(width: 8),
               ],
               if (inLobby && isDuelist) ...[
-                if (MediaQuery.sizeOf(context).height > 520) ...[
-                  OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: duelSub,
-                      side: const BorderSide(color: duelLine),
-                    ),
-                    onPressed: null,
-                    child: Text('观战 ${room.observerCount} / 2'),
-                  ),
-                  const SizedBox(width: 12),
-                ],
                 OutlinedButton(
                   style: OutlinedButton.styleFrom(
                     foregroundColor: duelTextColor,
                     side: const BorderSide(color: duelLine),
                   ),
-                  onPressed: notifier.becomeObserver,
-                  child: const Text('转为观战'),
+                  onPressed: isDuelist
+                      ? notifier.becomeObserver
+                      : notifier.becomeDuelist,
+                  child: Text(isDuelist ? '转为观战' : '转为决斗者'),
                 ),
                 const SizedBox(width: 12),
                 FilledButton(

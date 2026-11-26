@@ -3,8 +3,8 @@ library duelink;
 export 'src/base_duel_service.dart' show BaseDuelService;
 export 'src/model/player.dart';
 export 'src/model/room_options.dart';
-export 'src/model/room_password.dart';
-export 'src/model/room_tokens.dart';
+export 'src/model/room_233.dart';
+export 'src/model/room_mycard.dart';
 export 'src/model/room_stage.dart';
 export 'src/constants.dart';
 export 'src/protocol/packet.dart';
@@ -172,7 +172,7 @@ abstract class IDuelService implements IService {
 
   /// 进入房间。
   ///
-  /// [password] 由 [RoomPassword.encodeJoin] 或 [RoomPassword.encodeCreate] 生成。
+  /// [password] 由 [MyCardRoomPassword.encodeJoin] 或 [MyCardRoomPassword.encodeCreate] 生成。
   void enterRoom(String password);
 
   /// 提交卡组。

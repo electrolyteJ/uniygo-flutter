@@ -205,15 +205,15 @@ class AiConnection implements DuelConnection {
         _name = msg.playerInfo?.name ?? _name;
         break;
       case CTOS_JOIN_GAME:
-        final parsed = RoomTokens.tryParseAiPassword(msg.joinGame?.passwd ?? '');
+        final parsed = Room233Password.tryParseAiHostPassword(msg.joinGame?.passwd ?? '');
         console.log('AiConnection: parsed room tokens: $parsed');
         if (parsed != null) {
           // 本地 AI 的规则经 AI,<tokens> 密码下发（与 233 服同源）；
           // agent/agentServer 等模型装配参数仍沿用 connect() 的 URI 解析值。
           _roomOptions = _roomOptions.copyWith(
             rule: parsed.rule,
-            mode: parsed.mode,
-            duelRule: parsed.duelRule,
+            mode: RoomMode.of(parsed.mode),
+            duelRule: DuelRule.of(parsed.duelRule),
             noCheckDeck: parsed.noCheckDeck,
             noShuffleDeck: parsed.noShuffleDeck,
             startLp: parsed.startLp,

@@ -19,28 +19,6 @@ import '../widgets/room_rule_panel.dart';
 import 'created_room_record.dart';
 import 'room_history_store.dart';
 
-/// 面板配置 → 房间参数（自由房间只暴露赛制/大师规则/LP/手牌/抽卡/时限）。
-RoomOptions roomOptionsOf(RoomRuleConfig config) {
-  return RoomOptions(
-    lfTableHash: BanlistCatalog.hashAt(config.banlist),
-    // RoomRuleConfig.mode：0=双打 2v2 / 1=三局两胜 / 2=单局。
-    mode: switch (config.mode) {
-      0 => RoomMode.tag,
-      1 => RoomMode.match,
-      _ => RoomMode.single,
-    },
-    rule: config.rule,
-    duelRule: config.master == 1 ? DuelRule.mr4 : DuelRule.mr2020,
-    noCheckDeck: config.noCheck,
-    noShuffleDeck: config.noShuffle,
-    startLp: int.tryParse(RoomRuleOptions.lps[config.lp]) ?? 8000,
-    startHand: int.tryParse(RoomRuleOptions.hands[config.hand]) ?? 5,
-    drawCount: int.tryParse(RoomRuleOptions.draws[config.draw]) ?? 1,
-    timeLimit:
-        int.tryParse(RoomRuleOptions.times[config.time].replaceAll(' 秒', '')) ??
-        0,
-  );
-}
 
 /// 6 位随机邀码：服务端不提供房间号时用于本地邀请展示。
 String randomRoomCode() {
@@ -48,26 +26,12 @@ String randomRoomCode() {
   return List.generate(6, (_) => rnd.nextInt(10)).join();
 }
 
-GameServer get _server =>
-    gameServers.firstWhere((s) => s.type == ServerType.freeRoom);
-
-/// 按环境匹配服务器（408 有独立域名/端口）。
-GameServer _serverFor(DuelEnvironment env) {
-  for (final s in gameServers) {
-    if (s.host == env.host && s.port == env.port) return s;
-  }
-  return _server;
-}
-
 /// 圆盘动作：按环境建房（Koishi 不能建房，退化为加入公共房）。
 Future<void> createFreeRoom(
   BuildContext context, {
   required DuelEnvironment env,
   required RoomRuleConfig config,
-  String? roomName,
 }) async {
-  final options = roomOptionsOf(config);
-
   if (env == DuelEnvironment.mycard) {
     final account = await requireMyCardAccount(
       context,
@@ -79,68 +43,79 @@ Future<void> createFreeRoom(
     final externalId = account.externalId != 0
         ? account.externalId
         : account.id;
-    final roomId = '${RoomPassword.privateRoomId(externalId)}';
-    final password = RoomPassword.encodeCreate(
-      options: options,
+    final roomId = '${MyCardRoomPassword.derivePrivateRoomId(externalId)}';
+    final roomName = 'MyCard 私密房 $roomId';
+    final password = MyCardRoomPassword.encodeCreate(
+      mode: config.mode, // 0=单局 / 1=三局两胜 / 2=双打
+      duelRule: config.duelRuleValue,
+      rule: config.rule,
+      noCheckDeck: config.noCheck,
+      noShuffleDeck: config.noShuffle,
+      autoDeath: config.autoDeath,
+      startLp: config.startLpValue,
+      startHand: config.startHandValue,
+      drawCount: config.drawCountValue,
       roomId: roomId,
       secret: u16,
       isPrivate: true,
     );
-    final name = 'MyCard 私密房 $roomId';
     unawaited(
       RoomHistoryStore.add(
         CreatedRoomRecord(
           env: env,
-          roomName: name,
+          roomName: roomName,
           password: roomId,
-          options: options,
+          config: config,
         ),
       ),
     );
-    _enter(
-      context,
-      env,
-      options,
-      name,
-      password,
-      account.username,
-      roomId: roomId,
-    );
+    _enter(context, env, roomName, password, account.username, roomId: roomId);
     return;
   }
 
   if (env == DuelEnvironment.mercury233) {
     // 233 的进房凭证是「token#房间名」明文房间串：房间列表不公开、同串即同房，
     // 因此房间名必须随机，避免两间规则相同的房撞成同一间。
-    final modeLabel = switch (options.mode) {
-      RoomMode.tag => '2v2',
-      RoomMode.match => 'BO3',
-      _ => '单局',
+    final modeLabel = switch (config.mode) {
+      0 => '单局',
+      1 => 'BO3',
+      _ => '2v2',
     };
     // 房间串总长上限 20：房间名用「模式-6位随机」，唯一且够短。
-    final effectiveName = '$modeLabel-${randomRoomCode()}';
-    final roomString = RoomPassword.encodeMercury233(
-      options: options,
-      roomName: effectiveName,
-      // 233 服只认 LF<n>/NF token；用选中卡表的 hash 反查服务端编号。
-      banlistToken: BanlistCatalog.mercury233TokenForHash(options.lfTableHash),
+    final roomString = Room233Password.encodeRoomPassword(
+      roomName: '$modeLabel-${randomRoomCode()}',
+      // 233 卡表序号（>0 → LFn，0 → NF，-1 → 不写）。
+      lfTableIndex: BanlistCatalog.mercury233IndexAt(config.banlist),
+      mode: config.mode, // 0=单局 / 1=三局两胜 / 2=双打
+      duelRule: config.duelRuleValue,
+      rule: config.rule,
+      timeLimit: config.timeLimitValue,
+      startLp: config.startLpValue,
+      startHand: config.startHandValue,
+      drawCount: config.drawCountValue,
+      noCheckDeck: config.noCheck,
+      noShuffleDeck: config.noShuffle,
     );
-    if (roomString.length > RoomPassword.mercury233MaxLength) {
+    // encodeRoomPassword 会自动截断房间名以满足 20 字符上限；
+    // 返回空串说明 token 本身已占满上限，只能提示精简规则。
+    if (roomString.isEmpty) {
       if (context.mounted) {
-        showSnackBar(
-          context,
-          '房间串不能超过 ${RoomPassword.mercury233MaxLength} 个字符',
-        );
+        showSnackBar(context, '当前规则选项过多，无法生成 233 房间串');
       }
       return;
     }
+    // 以房间串里实际生效的名字为准（历史记录/展示与密码一致）。
+    final hashIndex = roomString.indexOf('#');
+    final effectiveName = hashIndex >= 0
+        ? roomString.substring(hashIndex + 1)
+        : roomString;
     unawaited(
       RoomHistoryStore.add(
         CreatedRoomRecord(
           env: env,
           roomName: effectiveName,
           password: roomString,
-          options: options,
+          config: config,
         ),
       ),
     );
@@ -149,15 +124,7 @@ Future<void> createFreeRoom(
         ? api.account?.username
         : "Guest";
     // 房间串就是进房凭证：邀码直接用它，好友复制后粘贴到「加入房间」即可。
-    _enter(
-      context,
-      env,
-      options,
-      effectiveName,
-      roomString,
-      username,
-      roomId: roomString,
-    );
+    _enter(context, env, effectiveName, roomString, username, roomId: roomString);
     return;
   }
 
@@ -167,16 +134,7 @@ Future<void> createFreeRoom(
         ? api.account?.username
         : "Guest";
     final code = randomRoomCode();
-    _enter(
-      context,
-      env,
-      options,
-      '408 房间 $code',
-      code,
-      username,
-      roomId: code,
-      server: _serverFor(env),
-    );
+    _enter(context, env, '408 房间 $code', code, username, roomId: code);
     return;
   }
 
@@ -203,7 +161,7 @@ Future<void> joinFreeRoom(
     if (!context.mounted) return;
     final u16 = await context.read<MyCardAccountApi>().fetchU16Secret();
     username = account.username;
-    pass = RoomPassword.encodeJoin(
+    pass = MyCardRoomPassword.encodeJoin(
       roomId: roomId,
       secret: u16,
       isPrivate: true,
@@ -217,7 +175,6 @@ Future<void> joinFreeRoom(
   _enter(
     context,
     env,
-    null,
     '',
     pass,
     username,
@@ -229,23 +186,17 @@ Future<void> joinFreeRoom(
 void _enter(
   BuildContext context,
   DuelEnvironment env,
-  RoomOptions? options,
   String roomName,
   String password,
   String? username, {
   String? roomId,
-  GameServer? server,
 }) {
-  Uri? uri = Uri.tryParse('${env.schema}://${env.host}:${env.port}');
-  if (context.mounted) {
-    router.go(
-      Routes.duelRoom,
-      extra: {
-        'uri': uri,
-        'serverPassword': '',
-        'username': username,
-        'roomName': roomName,
-      },
-    );
-  }
+  if (!context.mounted) return;
+  router.go(Routes.duelRoom, extra: <String, Object?>{
+    'uri': Uri.tryParse('${env.schema}://${env.host}:${env.port}'),
+    'serverPassword': password,
+    'username': username,
+    'roomName': roomName,
+    'roomId': roomId,
+  });
 }

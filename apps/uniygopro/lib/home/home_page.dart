@@ -83,7 +83,7 @@ class _HomePageState extends State<HomePage> {
     setState(() => _watchOpen = false);
   }
 
-  void _onWatch(Map<String, Object?>? request) {
+  void _onWatch(Map<String, Object?> request) {
     setState(() => _watchOpen = false);
     context.go(Routes.duelRoom, extra: request);
   }

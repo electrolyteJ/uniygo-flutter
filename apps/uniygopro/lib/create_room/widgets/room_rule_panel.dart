@@ -11,80 +11,12 @@ import 'package:ygo_settings/theme/duel_sound.dart';
 import 'package:ygo_settings/theme/duel_theme.dart';
 import '../models/banlist_options.dart';
 import '../models/mode_models.dart';
+import '../models/room_rule_config.dart';
 
-/// 房间规则值（各页签共用）。
-@immutable
-class RoomRuleConfig {
-  const RoomRuleConfig({
-    this.collapsed = false,
-    this.mode = 2,
-    this.env = 0,
-    this.rule = 0,
-    this.master = 0,
-    this.lp = 1,
-    this.hand = 1,
-    this.draw = 0,
-    this.time = 2,
-    this.banlist = 0,
-    this.noCheck = false,
-    this.noShuffle = false,
-    this.autoDeath = false,
-  });
+// 规则值模型独立在 models/room_rule_config.dart；这里 re-export
+// 以兼容既有 `import 'widgets/room_rule_panel.dart'` 的调用方。
+export '../models/room_rule_config.dart';
 
-  final bool collapsed;
-
-  /// 赛制：0=双打 2v2 / 1=三局两胜 / 2=单局。
-  final int mode;
-
-  /// 自由房间环境序号（0=Koishi / 1=mycard / 2=mercury233）。
-  final int env;
-
-  final int rule;
-  final int master;
-  final int lp;
-  final int hand;
-  final int draw;
-  final int time;
-  final int banlist;
-
-  final bool noCheck;
-  final bool noShuffle;
-  final bool autoDeath;
-
-  RoomRuleConfig copyWith({
-    bool? collapsed,
-    int? mode,
-    int? env,
-    int? rule,
-    int? master,
-    int? lp,
-    int? hand,
-    int? draw,
-    int? time,
-    int? banlist,
-    bool? noCheck,
-    bool? noShuffle,
-    bool? autoDeath,
-  }) {
-    return RoomRuleConfig(
-      collapsed: collapsed ?? this.collapsed,
-      mode: mode ?? this.mode,
-      env: env ?? this.env,
-      rule: rule ?? this.rule,
-      master: master ?? this.master,
-      lp: lp ?? this.lp,
-      hand: hand ?? this.hand,
-      draw: draw ?? this.draw,
-      time: time ?? this.time,
-      banlist: banlist ?? this.banlist,
-      noCheck: noCheck ?? this.noCheck,
-      noShuffle: noShuffle ?? this.noShuffle,
-      autoDeath: autoDeath ?? this.autoDeath,
-    );
-  }
-}
-
-/// 房间规则面板。
 class RoomRulePanel extends StatefulWidget {
   const RoomRulePanel({
     super.key,
@@ -96,9 +28,11 @@ class RoomRulePanel extends StatefulWidget {
     this.showAutoDeath = false,
     this.showCardRule = true,
     this.showBanlist = true,
+    this.mercury233Banlist = false,
     this.checksTop = 232,
     this.height = 276,
     this.modeOptions,
+    this.modeValues,
     this.envNames = const [],
     this.serverNames = const [],
   });
@@ -116,6 +50,9 @@ class RoomRulePanel extends StatefulWidget {
   /// 是否显示「40 分钟自动超时」勾选（好友对战）。
   final bool showAutoDeath;
 
+  /// 禁限下拉是否使用 233 服选项（卡表 LF 序号 + 「无禁限」NF）。
+  final bool mercury233Banlist;
+
   /// 是否显示「卡片允许」行（自由房间不展示）。
   final bool showCardRule;
 
@@ -128,8 +65,11 @@ class RoomRulePanel extends StatefulWidget {
   /// 展开态高度（自由房间在下面还要放历史列表，所以更矮）。
   final double height;
 
-  /// 赛制下拉的选项（缺省：双打 / 三局两胜 / 单局）。
+  /// 赛制下拉的标签（缺省：单局 / 三局两胜 / 双打，与 [modeValues] 一一对应）。
   final List<String>? modeOptions;
+
+  /// 赛制下拉各项对应的 [RoomRuleConfig.mode] 值（缺省：0 / 1 / 2）。
+  final List<int>? modeValues;
 
   final List<String> envNames;
   final List<String> serverNames;
@@ -155,7 +95,9 @@ class _OptionRow {
 }
 
 class _RoomRulePanelState extends State<RoomRulePanel> {
-  static const List<String> _modes = ['双打 2v2', '三局两胜', '单局'];
+  // 赛制顺序与 RoomRuleConfig.mode 一致：0=单局 / 1=三局两胜 / 2=双打。
+  static const List<String> _modes = ['单局', '三局两胜', '双打 2v2'];
+  static const List<int> _defaultModeValues = [0, 1, 2];
 
   /// 当前展开的下拉行（按 label 唯一标识）；null 表示全部收起。
   String? _openLabel;
@@ -206,11 +148,13 @@ class _RoomRulePanelState extends State<RoomRulePanel> {
     }
 
     if (widget.showModeRow) {
+      // 下拉显示的是「值」在子集里的位置，避免裁剪选项时索引错位。
+      final selected = _modeValues.indexOf(_v.mode);
       addOption(
         '赛制',
         _modeList,
-        _v.mode.clamp(0, _modeList.length - 1),
-        (i) => _update(_v.copyWith(mode: i)),
+        selected >= 0 ? selected : 0,
+        (i) => _update(_v.copyWith(mode: _modeValues[i])),
       );
     }
 
@@ -230,7 +174,11 @@ class _RoomRulePanelState extends State<RoomRulePanel> {
       RoomRuleOptions.hands,
       RoomRuleOptions.draws,
       RoomRuleOptions.times,
-      if (widget.showBanlist) [for (final option in _banlists) option.name],
+      if (widget.showBanlist)
+        // 卡表未加载时退回空列表，避免「无禁限」占位误当默认项。
+        widget.mercury233Banlist && BanlistCatalog.options.isNotEmpty
+            ? BanlistCatalog.mercury233Labels
+            : [for (final option in _banlists) option.name],
     ];
     final indices = <int>[
       if (widget.showCardRule) _v.rule,
@@ -393,6 +341,8 @@ class _RoomRulePanelState extends State<RoomRulePanel> {
   }
 
   List<String> get _modeList => widget.modeOptions ?? _modes;
+
+  List<int> get _modeValues => widget.modeValues ?? _defaultModeValues;
 
   /// 展开的下拉多选：沿用赛制原来的 100×20 紧凑列表样式。
   Widget _optionsOverlay(_OptionRow row) {

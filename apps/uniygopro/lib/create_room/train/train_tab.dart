@@ -109,6 +109,7 @@ class _TrainTabState extends State<TrainTab> {
           value: _config,
           onChanged: (v) => setState(() => _config = v),
           showModeRow: true,
+          mercury233Banlist: true,
           checksTop: 236,
         ),
         if (_puzzleOpen)
@@ -137,13 +138,10 @@ void startPuzzle(BuildContext context, PuzzleInfo info) {
   Uri? uri = Uri.tryParse('${puzzle.schema}://${puzzle.host}/$encoded');
   final api = context.read<MyCardAccountApi>();
   final username = api.account?.username.isNotEmpty == true ? api.account?.username : "Guest";
-  router.go(
-    Routes.duelRoom,
-    extra: {
-      'uri': uri,
-      'serverPassword': '',
-      'username': username,
-      'roomName': '残局',
-    },
-  );
+  router.go(Routes.duelRoom, extra: <String, Object?>{
+    'uri': uri,
+    'serverPassword': '',
+    'username': username,
+    'roomName': '残局',
+  });
 }

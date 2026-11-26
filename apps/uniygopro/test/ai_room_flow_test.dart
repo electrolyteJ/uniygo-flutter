@@ -157,7 +157,7 @@ void main() {
 
     // ── 2. 进房 → 提交卡组 → 准备 ──
     service.setPlayerName('FlowTest');
-    service.enterRoom(RoomPassword.encodeJoin());
+    service.enterRoom(MyCardRoomPassword.encodeJoin());
     service.submitDeck(_encodeDeck(_buildTestDeck()), Uint8List(0));
     service.ready();
     // ready 只是就绪标记（对齐线上服务器与 duelink_ai 的房间流程语义），

@@ -129,7 +129,7 @@ enum DuelEnvironment {
   /// 是否为残局挑战环境
   bool get isPuzzle => this == puzzle;
 
-  /// 是否使用编码密码（RoomPassword），MyCard 服务器需要解码参数
+  /// 是否使用编码密码（MyCardRoomPassword），MyCard 服务器需要解码参数
   bool get useEncodedPassword => this == mycard;
 
   bool get usesRoomStringDsl =>

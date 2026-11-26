@@ -94,7 +94,8 @@ class _FreeTabState extends State<FreeTab> {
             ModeSelection.instance.select(_entry);
           },
           showModeRow: true,
-          modeOptions: const ['三局两胜', '单局'],
+          modeOptions: const ['单局', '三局两胜'],
+          modeValues: const [0, 1],
           showCardRule: false,
           showBanlist: false,
           checksTop: 180,

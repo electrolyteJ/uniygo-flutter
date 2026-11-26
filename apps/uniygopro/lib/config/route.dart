@@ -39,6 +39,7 @@ Future<void> restore() => DuelRoomRendererPreference.restore();
 
 bool get _is3D =>
     DuelRoomRendererPreference.current.value == DuelRoomRenderer.room3d;
+
 final router = GoRouter(
   initialLocation: Routes.splash,
   // 路由切换后重新压一遍沉浸式（Android 弹窗后会还回导航栏）。
@@ -58,10 +59,11 @@ final router = GoRouter(
       redirect: (_, state) =>
           state.extra is Map<String, Object?> ? null : Routes.home,
       builder: (_, state) {
+        final args = state.extra! as Map<String, Object?>;
         if (_is3D) {
-          return DuelRoomPage3D(args: state.extra! as Map<String, Object?>);
+          return DuelRoomPage3D(args: args);
         } else {
-          return DuelRoomPage(args: state.extra! as Map<String, Object?>);
+          return DuelRoomPage(args: args);
         }
       },
     ),

@@ -9,7 +9,6 @@ library;
 
 import 'package:biz/duel/room/duel_room_state.dart' show SidingZone;
 import 'package:biz/widgets/banlist_detail_dialog.dart';
-import 'package:duel_room3/waiting/widgets/room_info_panel.dart';
 import 'package:duel_room3/waiting/widgets/side_decking_panel.dart';
 import 'package:duelink/duelink.dart' show DuelRule, RoomMode, RoomOptions;
 import 'package:flutter/material.dart';
@@ -208,58 +207,4 @@ void main() {
     });
   });
 
-  group('RoomInfoPanel', () {
-    const opts = RoomOptions(
-      mode: RoomMode.single,
-      rule: 0,
-      duelRule: DuelRule.mr2020,
-      startLp: 8000,
-      startHand: 5,
-      drawCount: 1,
-      timeLimit: 180,
-      noCheckDeck: false,
-      noShuffleDeck: false,
-      lfTableHash: 0,
-    );
-
-    testWidgets('渲染房间信息项', (tester) async {
-      await tester.pumpWidget(
-        _wrap(
-          RoomInfoPanel(opts: opts, cardLoader: (_) async => null),
-        ),
-      );
-
-      expect(find.text('单局模式 · OCG'), findsOneWidget);
-      expect(find.text('大师规则 2020'), findsOneWidget);
-      expect(find.text('LP: 8000  手牌: 5  抽卡: 1'), findsOneWidget);
-      expect(find.text('限时: 180秒'), findsOneWidget);
-      expect(find.text('禁限卡表: 不限制'), findsOneWidget);
-      expect(find.text('检查卡组: 是'), findsOneWidget);
-      expect(find.text('切洗卡组: 是'), findsOneWidget);
-    });
-
-    testWidgets('禁限卡表行点击弹详情弹窗', (tester) async {
-      const lfTable = LfTable(
-        name: '2024.10 禁限卡表',
-        date: '2024-10-01',
-        lfInfos: {
-          1: LfInfo(code: 89631139, limit: LfType.forbidden, name: '青眼白龙'),
-        },
-      );
-      await tester.pumpWidget(
-        _wrap(
-          RoomInfoPanel(
-            opts: opts,
-            lfTable: lfTable,
-            cardLoader: (_) async => null,
-          ),
-        ),
-      );
-
-      expect(find.text('禁限卡表: 2024.10 禁限卡表'), findsOneWidget);
-      await tester.tap(find.text('禁限卡表: 2024.10 禁限卡表'));
-      await tester.pumpAndSettle();
-      expect(find.byType(BanlistDetailDialog), findsOneWidget);
-    });
-  });
 }
