@@ -227,7 +227,6 @@ class _WaitingRoomPage3DState extends ConsumerState<WaitingRoomPage3D> {
                                           _showDeckCheckDialog(context, room),
                                     ),
                                   ),
-
                               ],
                             ),
                           ),
@@ -256,7 +255,8 @@ class _WaitingRoomPage3DState extends ConsumerState<WaitingRoomPage3D> {
                     // 观战入口：页面右侧、准备按钮上方，头像堆叠 + 人数。
                     if (!inPhase)
                       Padding(
-                        padding: EdgeInsets.only(bottom: 6 * k),
+                        // 设计稿位置：右侧距页面边 52（页面内边距 16 + 36）。
+                        padding: EdgeInsets.only(bottom: 6 * k, right: 36 * k),
                         child: Align(
                           alignment: Alignment.centerRight,
                           child: SpectatorStackIcon(
@@ -265,10 +265,7 @@ class _WaitingRoomPage3DState extends ConsumerState<WaitingRoomPage3D> {
                           ),
                         ),
                       ),
-                    RoomActions(
-                      room: room,
-                      stage: stage,
-                    ),
+                    RoomActions(room: room, stage: stage),
                   ],
                 ),
               ),
