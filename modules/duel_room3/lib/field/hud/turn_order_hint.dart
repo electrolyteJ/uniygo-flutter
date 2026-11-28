@@ -11,9 +11,19 @@ import '../../theme/hud_theme.dart';
 /// stage 进入 RoomInDuel 时挂载，onDismiss 回调里把本组件从树中移除。
 /// room1 用 3200ms 停留，本房按需求收敛到约 2 秒（2000ms 停留 + 400ms 淡出）。
 class TurnOrderHint extends StatefulWidget {
-  const TurnOrderHint({super.key, required this.isFirst, this.onDismiss});
+  const TurnOrderHint({
+    super.key,
+    required this.isFirst,
+    this.isDuelist = true,
+    this.onDismiss,
+  });
 
   final bool isFirst;
+
+  /// 当前玩家是否为决斗者。观战者没有先后攻立场（`isFirst` 只是
+  /// 座位对齐的副产品），文案改用「先攻方 / 后攻方」。
+  final bool isDuelist;
+
   final VoidCallback? onDismiss;
 
   @override
@@ -55,7 +65,9 @@ class _TurnOrderHintState extends State<TurnOrderHint> {
   Widget build(BuildContext context) {
     final accent = widget.isFirst ? HudTheme.cyan : HudTheme.gold;
     final icon = widget.isFirst ? Icons.flash_on : Icons.shield;
-    final label = widget.isFirst ? '你先攻' : '你后攻';
+    final label = widget.isDuelist
+        ? (widget.isFirst ? '你先攻' : '你后攻')
+        : (widget.isFirst ? '先攻方' : '后攻方');
     final subtitle = widget.isFirst ? 'First Turn' : 'Second Turn';
     return AnimatedOpacity(
       opacity: _opacity,

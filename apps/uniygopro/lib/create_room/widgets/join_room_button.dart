@@ -3,8 +3,8 @@ library;
 
 import 'package:flutter/material.dart';
 
-import 'package:duel_room3/invite/duel_invite.dart';
-import 'package:duel_room3/invite/qr_scan_dialog.dart';
+import 'package:duel_room3/util/invite/duel_invite.dart';
+import 'package:duel_room3/util/invite/qr_scan_dialog.dart';
 import 'package:ygo_settings/theme/duel_controls.dart';
 import 'package:ygo_settings/theme/duel_sound.dart';
 import 'package:ygo_settings/theme/duel_theme.dart';

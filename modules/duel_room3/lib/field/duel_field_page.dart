@@ -7,6 +7,7 @@ import 'package:biz/duel/field/duel_field_state.dart';
 import 'package:biz/duel/field/field_overlay_state.dart';
 import 'package:biz/duel/field/select_window_state.dart';
 import 'package:biz/duel/models/select_state.dart';
+import 'package:biz/duel/room/duel_room_state.dart';
 import 'package:biz/widgets/card_image.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flame/game.dart' show GameWidget;
@@ -14,7 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'bridge/duel_3d_bridge.dart';
-import '../duel_room_exit.dart';
+import '../util/duel_room_exit.dart';
 import 'hud/action_bar.dart';
 import 'hud/card_detail_panel.dart';
 import 'hud/confirm_cards_dialog.dart';
@@ -28,6 +29,15 @@ import 'hud/phase_rail.dart';
 import 'hud/zone_count_bar.dart';
 import 'scene3d/duel_3d_game.dart';
 import '../theme/cyber_skin.dart';
+
+/// 中立座位称谓：观战者没有「我方 / 对方」的立场，改用 ENG-1 / ENG-2
+/// 指代引擎玩家编号。
+///
+/// 观战者视角下 `board.myController` 恒为 1，`selfLp` / `opponentLp`
+/// 只是座位对齐的副产品——沿用「我方 / 对方」会把屏幕左侧的玩家
+/// 说成「我方」，纯属误导。决斗者仍沿用「我方 / 对方」。
+String _seatLabel(int enginePlayer, {required bool isDuelist}) =>
+    isDuelist ? (enginePlayer == 0 ? '我方' : '对方') : 'ENG-${enginePlayer + 1}';
 
 /// 3D 决斗场地页：flame_3d 场景 + MDPro3 风格 HUD 叠层。
 ///
@@ -278,8 +288,20 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
     final fieldActions = ref.watch(fieldActionMenuProvider);
     final handActions = ref.watch(handActionMenuProvider);
     final phaseActions = ref.watch(phaseActionMenuProvider);
+    // match 比分：房间状态累计的跨局战绩。观战者不计分，第 1 局（0:0）也不显示。
+    final room = ref.watch(duelRoomProvider);
+    // 观战者没有立场：比分不显示，「我方 / 对方」也要换成中性称谓。
+    final isDuelist = room.selfType.isDuelist;
+    final showMatchScore = isDuelist && room.matchGamesPlayed > 0;
 
     final isMyTurn = board.currentPlayer == board.myController;
+    // 观战者的 isMyTurn 没有「轮到我」的含义，只表示「当前行动方是否
+    // 那个座位对齐出来的 myController」；提示语必须中性化。
+    final mySeatLabel = _seatLabel(board.myController, isDuelist: isDuelist);
+    final oppSeatLabel = _seatLabel(
+      1 - board.myController,
+      isDuelist: isDuelist,
+    );
     final selectN = ref.read(selectWindowProvider.notifier);
     final selfName = board.playerNameOf(board.myController);
     final oppName = board.playerNameOf(1 - board.myController);
@@ -391,6 +413,18 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
             ),
           ),
 
+          // 上中：match 比分（BO3）。只在决斗者且已打过至少一局时显示；
+          // 第 1 局（0:0）画出来只是噪音，还会和回合信息抢视线。
+          if (showMatchScore)
+            Positioned(
+              top: 12,
+              left: 0,
+              right: 0,
+              child: IgnorePointer(
+                child: Center(child: _MatchScoreBadge(room: room)),
+              ),
+            ),
+
           // 右侧阶段轨道
           Positioned(
             right: 12,
@@ -398,7 +432,10 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
             child: PhaseRail(
               current: board.phase,
               isMyTurn: isMyTurn,
-              phaseActions: phaseActions,
+              // 阶段动作会直接回包给服务端；观战者 myController 是座位
+              // 对齐出来的，一旦误判成「轮到我」就会弹出「阶段操作」菜单
+              // 并替决斗者发出操作。轨道仍显示（只读观赏），只摘掉动作。
+              phaseActions: isDuelist ? phaseActions : const [],
               onActionTap: (entry) => entry.onTap(),
             ),
           ),
@@ -417,7 +454,8 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
                   ),
                   decoration: HudTheme.panel(radius: 16),
                   child: Text(
-                    '回合 ${board.turnCount} · ${isMyTurn ? "我方" : "对方"}',
+                    '回合 ${board.turnCount} · '
+                    '${isMyTurn ? mySeatLabel : oppSeatLabel}',
                     style: HudTheme.caption.copyWith(
                       color: isMyTurn ? HudTheme.cyan : HudTheme.gold,
                       fontWeight: FontWeight.w700,
@@ -452,13 +490,13 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _TurnTimerBadge(
-                        label: '我方',
+                        label: mySeatLabel,
                         seconds: board.selfTimeLeft,
                         accent: HudTheme.cyan,
                       ),
                       const SizedBox(width: 6),
                       _TurnTimerBadge(
-                        label: '对方',
+                        label: oppSeatLabel,
                         seconds: board.opponentTimeLeft,
                         accent: HudTheme.gold,
                       ),
@@ -505,12 +543,16 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
                   tooltip: '决斗日志',
                   onTap: () => setState(() => _logDrawerOpen = true),
                 ),
-                const SizedBox(width: 8),
-                _HudIconButton(
-                  icon: Icons.flag_outlined,
-                  tooltip: '投降',
-                  onTap: () => surrenderDialog(context: context, ref: ref),
-                ),
+                // 「投降」是决斗者的动作。观战者点了会真的向服务端发
+                // CTOS_SURRENDER，把别人的对局结束掉——必须整颗隐藏。
+                if (isDuelist) ...[
+                  const SizedBox(width: 8),
+                  _HudIconButton(
+                    icon: Icons.flag_outlined,
+                    tooltip: '投降',
+                    onTap: () => surrenderDialog(context: context, ref: ref),
+                  ),
+                ],
               ],
             ),
           ),
@@ -608,10 +650,10 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
                     vertical: 6,
                   ),
                   decoration: HudTheme.panel(radius: 16),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(
+                      const SizedBox(
                         width: 12,
                         height: 12,
                         child: CircularProgressIndicator(
@@ -619,8 +661,9 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
                           color: HudTheme.cyan,
                         ),
                       ),
-                      SizedBox(width: 8),
-                      Text('对方行动中…', style: HudTheme.caption),
+                      const SizedBox(width: 8),
+                      // 观战者不是「在等对方」，只是在旁观当前行动方。
+                      Text('$oppSeatLabel 行动中…', style: HudTheme.caption),
                     ],
                   ),
                 ),
@@ -692,6 +735,66 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
             Positioned.fill(
               child: _ZoneBrowser(zoneKey: overlay.openZoneBrowserKey!),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 场地页顶部的 match 比分徽标：`1 : 0` + 局号。
+///
+/// 刻意做得小且半透明：场地页的信息主体是牌面与 LP，比分只是「这场打到
+/// 第几局、谁领先」的参考。领先方用金色，落后方用次级灰。
+class _MatchScoreBadge extends StatelessWidget {
+  const _MatchScoreBadge({required this.room});
+
+  final DuelRoomState room;
+
+  @override
+  Widget build(BuildContext context) {
+    final myLead = room.myMatchWins > room.opponentMatchWins;
+    final oppLead = room.opponentMatchWins > room.myMatchWins;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+      decoration: HudTheme.panel(radius: 16),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${room.myMatchWins}',
+            style: TextStyle(
+              color: myLead ? HudTheme.gold : HudTheme.textSecondary,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'JetBrains Mono',
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              ':',
+              style: HudTheme.caption.copyWith(
+                color: HudTheme.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Text(
+            '${room.opponentMatchWins}',
+            style: TextStyle(
+              color: oppLead ? HudTheme.gold : HudTheme.textSecondary,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'JetBrains Mono',
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(width: 1, height: 12, color: HudTheme.panelBorder),
+          const SizedBox(width: 10),
+          Text(
+            '第 ${room.matchGameNumber} 局',
+            style: HudTheme.caption.copyWith(color: HudTheme.textSecondary),
+          ),
         ],
       ),
     );
@@ -917,13 +1020,17 @@ class _ZoneBrowser extends ConsumerWidget {
     );
     final overlayN = ref.read(fieldOverlayProvider.notifier);
     final boardN = ref.read(duelFieldProvider.notifier);
+    // 观战者没有「己方 / 对方」，用引擎编号代替。
+    final isDuelist = ref.watch(
+      duelRoomProvider.select((s) => s.selfType.isDuelist),
+    );
     final title = switch (zoneKey) {
-      'self_grave' => '己方墓地',
-      'opp_grave' => '对方墓地',
-      'self_removed' => '己方除外',
-      'opp_removed' => '对方除外',
-      'self_extra' => '己方额外卡组',
-      'opp_extra' => '对方额外卡组',
+      'self_grave' => '${_seatLabel(0, isDuelist: isDuelist)}墓地',
+      'opp_grave' => '${_seatLabel(1, isDuelist: isDuelist)}墓地',
+      'self_removed' => '${_seatLabel(0, isDuelist: isDuelist)}除外',
+      'opp_removed' => '${_seatLabel(1, isDuelist: isDuelist)}除外',
+      'self_extra' => '${_seatLabel(0, isDuelist: isDuelist)}额外卡组',
+      'opp_extra' => '${_seatLabel(1, isDuelist: isDuelist)}额外卡组',
       _ => zoneKey,
     };
     return Row(

@@ -1,4 +1,4 @@
-import 'package:duel_room3/invite/duel_invite.dart';
+import 'package:duel_room3/util/invite/duel_invite.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:uniygopro/config/servers.dart';
 import 'package:uniygopro/create_room/widgets/join_room_button.dart';

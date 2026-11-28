@@ -178,5 +178,31 @@ void main() {
       await tester.pump(const Duration(milliseconds: 2100));
       await tester.pump(const Duration(milliseconds: 500));
     });
+
+    testWidgets('观战者不出现「你」：改为先攻方 / 后攻方', (tester) async {
+      await tester.pumpWidget(
+        _wrap(const TurnOrderHint(isFirst: true, isDuelist: false)),
+      );
+      await tester.pump();
+      expect(find.text('先攻方'), findsOneWidget);
+      // 观战者没有任何「你」的立场。
+      expect(find.text('你先攻'), findsNothing);
+      expect(find.textContaining('你'), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 2100));
+      await tester.pump(const Duration(milliseconds: 500));
+    });
+
+    testWidgets('观战者后攻同样是中性文案', (tester) async {
+      await tester.pumpWidget(
+        _wrap(const TurnOrderHint(isFirst: false, isDuelist: false)),
+      );
+      await tester.pump();
+      expect(find.text('后攻方'), findsOneWidget);
+      expect(find.text('你后攻'), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 2100));
+      await tester.pump(const Duration(milliseconds: 500));
+    });
   });
 }

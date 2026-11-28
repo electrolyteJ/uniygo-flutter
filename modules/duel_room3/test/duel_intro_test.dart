@@ -1,6 +1,8 @@
-import 'package:duel_room3/loading/intro/duel_intro_overlay.dart';
-import 'package:duel_room3/loading/intro/duel_intro_timeline.dart';
-import 'package:duel_room3/loading/intro/intro_phases.dart';
+import 'package:duel_room3/loading/duel_field_loading_page.dart';
+import 'package:duel_room3/loading/models/duel_intro_timeline.dart';
+import 'package:duel_room3/loading/widgets/intro_painters.dart';
+import 'package:duel_room3/loading/widgets/intro_phases.dart';
+import 'package:duel_room3/theme/cyber_intro_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -105,14 +107,28 @@ void main() {
       expect(DuelIntroTimeline.ordinalOf(DuelIntroPhase.vs), 3);
       expect(DuelIntroPhase.values.length, 3);
     });
+
+    test('进度区间首尾相接且只增不减', () {
+      // 页面级进度条要在跨相位时保持连续：0→64 / 64→92 / 92→99。
+      final ranges = DuelIntroPhase.values.map(progressRangeOf).toList();
+      expect(ranges.first.$1, 0);
+      for (var i = 1; i < ranges.length; i++) {
+        expect(
+          ranges[i].$1,
+          ranges[i - 1].$2,
+          reason: '第 $i 段起点应等于上一段终点（进度条不可回退）',
+        );
+      }
+      expect(ranges.last.$2, closeTo(0.99, 1e-9));
+    });
   });
 
-  group('DuelIntroOverlay 播放与跳过', () {
+  group('DuelFieldLoadingPage 播放与跳过', () {
     testWidgets('默认允许跳过：设计稿要求全程可跳过', (tester) async {
       var finished = 0;
       await tester.pumpWidget(
         MaterialApp(
-          home: DuelIntroOverlay(data: _data, onFinished: () => finished++),
+          home: DuelFieldLoadingPage(data: _data, onFinished: () => finished++),
         ),
       );
       await tester.pump();
@@ -126,7 +142,7 @@ void main() {
       var finished = 0;
       await tester.pumpWidget(
         MaterialApp(
-          home: DuelIntroOverlay(data: _data, onFinished: () => finished++),
+          home: DuelFieldLoadingPage(data: _data, onFinished: () => finished++),
         ),
       );
 
@@ -142,7 +158,7 @@ void main() {
       var finished = 0;
       await tester.pumpWidget(
         MaterialApp(
-          home: DuelIntroOverlay(
+          home: DuelFieldLoadingPage(
             data: _data,
             skippable: false,
             onFinished: () => finished++,
@@ -163,11 +179,7 @@ void main() {
       var finished = 0;
       await tester.pumpWidget(
         MaterialApp(
-          home: DuelIntroOverlay(
-            data: _data,
-            skippable: true,
-            onFinished: () => finished++,
-          ),
+          home: DuelFieldLoadingPage(data: _data, onFinished: () => finished++),
         ),
       );
       await tester.pump();
@@ -185,7 +197,7 @@ void main() {
       var finished = 0;
       await tester.pumpWidget(
         MaterialApp(
-          home: DuelIntroOverlay(
+          home: DuelFieldLoadingPage(
             data: _data,
             autoPlay: false,
             onFinished: () => finished++,
@@ -198,16 +210,92 @@ void main() {
     });
   });
 
+  group('页面级常驻框架', () {
+    /// 整个页面里百分比标签的个数 —— 必须恒为 1（只有一份进度条）。
+    int barCount(WidgetTester tester) => find
+        .byWidgetPredicate((w) => w is MonoLabel && w.text.endsWith(' %'))
+        .evaluate()
+        .length;
+
+    testWidgets('进度条始终只有一份', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DuelFieldLoadingPage(data: _data, onFinished: () {}),
+        ),
+      );
+      expect(barCount(tester), 1, reason: 'tunnel 相位只有一条进度条');
+      expect(find.byType(IntroProgressBar), findsOneWidget);
+
+      // 逐相位推进，每个相位都仍只有一份。
+      for (final at in [_ms(1000), _ms(2000)]) {
+        await tester.pump(Duration(milliseconds: at));
+        expect(find.byType(IntroProgressBar), findsOneWidget);
+        expect(barCount(tester), 1);
+      }
+    });
+
+    testWidgets('百分比跨相位单调不减（进度条不回退）', (tester) async {
+      var finished = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DuelFieldLoadingPage(data: _data, onFinished: () => finished++),
+        ),
+      );
+
+      String percentText() {
+        final label = tester
+            .widgetList<MonoLabel>(find.byType(MonoLabel))
+            .firstWhere((w) => w.text.endsWith(' %'));
+        return label.text;
+      }
+
+      int percentOf(String s) => int.parse(s.replaceAll('%', '').trim());
+
+      final seen = <int>[percentOf(percentText())];
+      // 每 300ms 采一次，跨过 tunnel/field/vs 三个相位。
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 300));
+        seen.add(percentOf(percentText()));
+      }
+
+      for (var i = 1; i < seen.length; i++) {
+        expect(
+          seen[i],
+          greaterThanOrEqualTo(seen[i - 1]),
+          reason: '进度不应回退：$seen',
+        );
+      }
+      expect(seen.last, greaterThan(seen.first), reason: '进度确实在前进');
+    });
+
+    testWidgets('进度条填充色恒定青色，不随相位换色', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DuelFieldLoadingPage(data: _data, onFinished: () {}),
+        ),
+      );
+      final colors = <Color>{};
+      for (var i = 0; i < 3; i++) {
+        colors.add(
+          tester.widget<IntroProgressBar>(find.byType(IntroProgressBar)).color,
+        );
+        await tester.pump(Duration(milliseconds: _ms(1000)));
+      }
+      expect(colors, {CyberIntroTokens.cyan}, reason: '设计稿四帧进度条颜色一致');
+    });
+  });
+
   group('各相位冒烟', () {
     Future<void> pumpPhase(
       WidgetTester tester,
       DuelIntroPhase phase,
-      double t,
-    ) async {
+      double t, {
+      DuelIntroSceneData data = _data,
+    }) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: buildIntroPhase(phase: phase, t: t, data: _data),
+            body: buildIntroPhase(phase: phase, t: t, data: data),
           ),
         ),
       );
@@ -230,6 +318,22 @@ void main() {
       expect(find.text('SEAT B  ◂  RIVAL'), findsOneWidget);
     });
 
+    testWidgets('观战者 field 相位不出现 YOU / RIVAL', (tester) async {
+      const spectator = DuelIntroSceneData(
+        myName: '混沌龙博士',
+        opponentName: '剑斗士 K',
+        iGoFirst: true,
+        isSpectator: true,
+      );
+      await pumpPhase(tester, DuelIntroPhase.field, 1, data: spectator);
+      expect(find.text('DUEL FIELD'), findsWidgets);
+      expect(find.text('SEAT A'), findsOneWidget);
+      expect(find.text('SEAT B'), findsOneWidget);
+      // 旧实现把这两个标签写死，观战者会把引擎玩家 1 误读成自己。
+      expect(find.text('YOU  ▸  SEAT A'), findsNothing);
+      expect(find.text('SEAT B  ◂  RIVAL'), findsNothing);
+    });
+
     testWidgets('vs 显示 VS、DUEL START 与双方先后攻', (tester) async {
       await pumpPhase(tester, DuelIntroPhase.vs, 1);
       expect(find.text('VS'), findsWidgets);
@@ -239,28 +343,36 @@ void main() {
       expect(find.text('决斗开始  ·  双方 LP 8000'), findsOneWidget);
     });
 
-    testWidgets('每个相位底栏都带状态文案与相位角标', (tester) async {
-      const stages = {
-        DuelIntroPhase.tunnel: '正在载入  ·  场地数据',
-        DuelIntroPhase.field: '正在载入  ·  场地成形',
-        DuelIntroPhase.vs: '正在载入  ·  引擎预热',
-      };
-      for (final entry in stages.entries) {
-        await pumpPhase(tester, entry.key, 1);
+    testWidgets('相位画面不再自带进度条（进度条归页面）', (tester) async {
+      for (final phase in DuelIntroPhase.values) {
+        await pumpPhase(tester, phase, 0.5);
         expect(
-          find.text(entry.value),
-          findsOneWidget,
-          reason: '${entry.key} 底栏文案',
-        );
-        final n = DuelIntroTimeline.ordinalOf(
-          entry.key,
-        ).toString().padLeft(2, '0');
-        expect(
-          find.text('PHASE $n / 03'),
-          findsOneWidget,
-          reason: '${entry.key} 角标',
+          find.byType(IntroProgressBar),
+          findsNothing,
+          reason: '${phase.name} 不应各画一份进度条',
         );
       }
+    });
+  });
+
+  group('DuelIntroSceneData 席位标签', () {
+    const spectator = DuelIntroSceneData(
+      myName: '混沌龙博士',
+      opponentName: '剑斗士 K',
+      iGoFirst: true,
+      isSpectator: true,
+    );
+
+    test('决斗者保留 YOU / RIVAL', () {
+      expect(_data.leftSeatTag, 'YOU  ▸  SEAT A');
+      expect(_data.rightSeatTag, 'SEAT B  ◂  RIVAL');
+    });
+
+    test('观战者退化为纯席位号', () {
+      expect(spectator.leftSeatTag, 'SEAT A');
+      expect(spectator.rightSeatTag, 'SEAT B');
+      expect(spectator.leftSeatTag, isNot(contains('YOU')));
+      expect(spectator.rightSeatTag, isNot(contains('RIVAL')));
     });
   });
 }

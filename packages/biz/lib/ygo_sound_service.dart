@@ -109,10 +109,106 @@ class YgoSoundService {
   Future<void> playDamageStep() => _playDuel('damage_step.wav');
   Future<void> playShuffleDeck() => _playDuel('shuffle_deck.wav');
 
-  void dispose() {
-    for (final player in _pool.values) {
-      player.dispose();
+  // ──────────────────────────────────────────
+  // BGM（背景音乐）
+  // ──────────────────────────────────────────
+  //
+  // BGM 与一次性音效是**两套资源**：音效走 [_pool] 复用池、句柄短命；
+  // BGM 独占一个播放器、循环播放、跨页面存活，必须能单独停止或替换。
+  // 混在一起会让「停 BGM」把音效池一起动掉（反之亦然）。
+
+  /// BGM 目录：`assets/sounds/bgm/`。
+  static const _bgmBasePath = 'sounds/bgm/';
+
+  AudioPlayer? _bgmPlayer;
+
+  /// 当前正在播放（或正在切）的 BGM 资源名，用于幂等判断。
+  String? _currentBgm;
+
+  /// 淡出起点音量（与最近一次 [playBgm] 的 volume 对齐）。
+  double _bgmVolume = 0.55;
+
+  /// 当前 BGM 资源名（测试与调试观测用）。
+  String? get currentBgm => _currentBgm;
+
+  /// 播放 BGM（默认循环）。
+  ///
+  /// 幂等：已经在播同一首时直接返回，重复调用不会重启曲目——页面重建
+  /// （`initState` 重新走一遍）是常态，若每次都重启，玩家会听到音乐
+  /// 反复从头开始。
+  ///
+  /// [loop] 为 false 时播完即止，适合短促的入场曲：入场音乐是「一段过场」，
+  /// 播完就该静下来，不是持久的环境音。
+  Future<void> playBgm(
+    String assetName, {
+    bool loop = true,
+    double volume = 0.55,
+  }) async {
+    if (!enabled) return;
+    // 同一首已在播：不重启（见上方幂等说明）。
+    if (_currentBgm == assetName && _bgmPlayer?.state == PlayerState.playing) {
+      return;
     }
-    _pool.clear();
+    final player = _bgmPlayer ??= AudioPlayer();
+    try {
+      await player.setReleaseMode(loop ? ReleaseMode.loop : ReleaseMode.stop);
+      await player.setVolume(volume);
+      await player.play(AssetSource('$_bgmBasePath$assetName'), volume: volume);
+      _currentBgm = assetName;
+      _bgmVolume = volume;
+    } catch (e) {
+      console.log('Bgm play failed: $assetName: $e');
+    }
+  }
+
+  /// 切换 BGM；与 [playBgm] 的区别是**允许从同一首重启**。
+  ///
+  /// 用于「同一首曲子换个段落」的场景：目标曲已经在播时也强制从头播。
+  Future<void> switchBgm(
+    String assetName, {
+    bool loop = true,
+    double volume = 0.55,
+  }) async {
+    _currentBgm = null;
+    await playBgm(assetName, loop: loop, volume: volume);
+  }
+
+  /// 停止并清空当前 BGM。
+  ///
+  /// 离开对局/房间销毁时调用：BGM 播放器是长命的，不主动停会一直响到
+  /// 进程结束（页面销毁不会带走 Service 实例）。
+  Future<void> stopBgm() async {
+    _currentBgm = null;
+    final player = _bgmPlayer;
+    if (player == null) return;
+    try {
+      await player.stop();
+    } catch (e) {
+      console.log('Bgm stop failed: $e');
+    }
+  }
+
+  /// 淡出后停止（退出房间时的收尾，避免音乐戛然而止）。
+  Future<void> fadeOutBgm({
+    Duration duration = const Duration(milliseconds: 600),
+  }) async {
+    final player = _bgmPlayer;
+    if (player == null || _currentBgm == null) return;
+    _currentBgm = null;
+    const steps = 12;
+    final stepMs = duration.inMilliseconds ~/ steps;
+    for (var i = steps; i >= 0; i--) {
+      try {
+        await player.setVolume(_bgmVolume * i / steps);
+      } catch (_) {
+        break;
+      }
+      if (i > 0) await Future<void>.delayed(Duration(milliseconds: stepMs));
+    }
+    try {
+      await player.stop();
+    } catch (e) {
+      console.log('Bgm fade-out stop failed: $e');
+    }
   }
 }

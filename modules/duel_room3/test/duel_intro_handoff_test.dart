@@ -1,7 +1,7 @@
 import 'package:duel_room3/field/duel_field_page.dart';
-import 'package:duel_room3/loading/intro/duel_intro_overlay.dart';
-import 'package:duel_room3/loading/intro/duel_intro_timeline.dart';
-import 'package:duel_room3/loading/intro/intro_phases.dart';
+import 'package:duel_room3/loading/duel_field_loading_page.dart';
+import 'package:duel_room3/loading/models/duel_intro_timeline.dart';
+import 'package:duel_room3/loading/widgets/intro_phases.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,7 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// 1. `DuelFieldPage3D` **自己**创建 3D（构造签名里没有 `game` 参数）——
 ///    页面之间不共享实例，加载页不预热 3D；
-/// 2. `DuelIntroOverlay` 按时间轴演完即交接（设计稿 2700ms，全程可跳过）。
+/// 2. `DuelFieldLoadingPage` 按时间轴演完即交接（设计稿 2700ms，全程可跳过）。
 const _sceneData = DuelIntroSceneData(
   myName: '混沌龙博士',
   opponentName: '剑斗士 K',
@@ -52,7 +52,7 @@ void main() {
       var finished = 0;
       await tester.pumpWidget(
         MaterialApp(
-          home: DuelIntroOverlay(
+          home: DuelFieldLoadingPage(
             data: _sceneData,
             onFinished: () => finished++,
           ),

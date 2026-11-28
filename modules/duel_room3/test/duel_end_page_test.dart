@@ -108,6 +108,31 @@ void main() {
     expect(find.text('玩家A 获胜'), findsOneWidget);
   });
 
+  testWidgets('观战者：名字缺失时不能兜底成「自己 / 对手」', (tester) async {
+    await pumpWith(
+      tester,
+      result: const {
+        'didWin': false,
+        'winPlayer': 0,
+        'reason': 0x01,
+        // 故意不给 selfName / opponentName，逼出兜底分支。
+        'selfLp': 8000,
+        'opponentLp': 0,
+      },
+      room: const DuelRoomState(
+        selfType: PlayerType.observer,
+        stage: RoomDuelEnded(),
+      ),
+    );
+
+    expect(find.text('玩家 1'), findsOneWidget);
+    expect(find.text('玩家 2'), findsOneWidget);
+    // 观战者不占任何一方的席位，这两个词都不该出现。
+    expect(find.text('自己'), findsNothing);
+    expect(find.text('对手'), findsNothing);
+    expect(find.text('决斗结束'), findsOneWidget);
+  });
+
   testWidgets('平局：中性文案与平局决胜原因', (tester) async {
     await pumpWith(
       tester,

@@ -250,4 +250,52 @@ void main() {
     await Future<void>.delayed(hold + margin);
     expect(readState().stage, isA<RoomNotJoined>(), reason: '过期阶段不得复活');
   });
+
+  group('isFirstTurn 生命周期', () {
+    test('进入 RoomSelectingTurn 时清空上一局的先攻结果', () async {
+      // 第一局：猜拳 → 结果 → 先攻 = true。isFirstTurn 在此被写下。
+      svc.emitStage(const RoomSelectingHand());
+      await pump();
+      svc.emitStage(const RoomHandResult(myHand: 2, opponentHand: 1));
+      await pump();
+      svc.emitStage(const RoomInDuel(isFirstTurn: true));
+      await pump();
+      await Future<void>.delayed(hold + margin);
+      expect(readState().isFirstTurn, isTrue);
+
+      // 局间换备：stage 变了，isFirstTurn 仍是上一局的旧值。
+      svc.emitStage(const RoomSideDecking());
+      await pump();
+      expect(
+        readState().isFirstTurn,
+        isTrue,
+        reason: '换备阶段不清空（场地页可能还要读）',
+      );
+
+      // 第二局重新进入选先后攻：必须清空，否则界面会把「旧值非 null」
+      // 误判成「已经有人选了」，两个按钮永久禁用、卡在等待页。
+      svc.emitStage(const RoomSelectingTurn());
+      await pump();
+      expect(
+        readState().isFirstTurn,
+        isNull,
+        reason: '新一局开始时上一局的先攻结果必须清空',
+      );
+    });
+
+    test('清空后由服务器随 RoomInDuel 重新下发', () async {
+      svc.emitStage(const RoomInDuel(isFirstTurn: false));
+      await pump();
+      expect(readState().isFirstTurn, isFalse);
+
+      svc.emitStage(const RoomSelectingTurn());
+      await pump();
+      expect(readState().isFirstTurn, isNull);
+
+      // 第二局的先攻结果可以和上一局不同。
+      svc.emitStage(const RoomInDuel(isFirstTurn: true));
+      await pump();
+      expect(readState().isFirstTurn, isTrue);
+    });
+  });
 }

@@ -53,11 +53,62 @@ class DuelMessageRouter extends _$DuelMessageRouter {
   /// 泵队列中是否有待消费的 MSG_WIN（见 [_hasPendingWin]）。
   bool get hasPendingWin => _hasPendingWin;
 
+  /// 房间页请求压住消息消费的总闸。
+  ///
+  /// 与 [MessagePump.paused] 是两层：泵上的暂停可以为了「断连收尾」被临时
+  /// 打开（[flushPendingMessages]），总闸不会——它代表「入场演出还没给画面」。
+  bool _consumptionGated = false;
+
+  /// 是否正压着消息（房间页兜底判定 / 测试 / 诊断观测用）。
+  ///
+  /// 写成方法而非 getter：`avoid_public_notifier_properties` 只约束属性，
+  /// 不约束方法，不必为一个只读标志放宽整个 Notifier 的 lint。
+  bool isConsumptionGated() => _consumptionGated;
+
+  /// 连泵带音效一起压住 / 放开（见同名的公开方法）。
+  void _applyGate() {
+    final pump = _pump;
+    if (pump == null) return;
+    if (_consumptionGated) {
+      if (!pump.paused) {
+        pump.paused = true;
+        console.log(
+          'router: message consumption paused (pending=${pump.pendingCount})',
+        );
+      }
+      return;
+    }
+    if (pump.paused) {
+      pump.paused = false;
+      pump.resume();
+      console.log(
+        'router: message consumption resumed (pending=${pump.pendingCount})',
+      );
+    }
+  }
+
   /// 断连结算收尾：把泵里排队的消息同步静音消费完（含 MSG_WIN），
   /// 终局状态（duelResult 等）立即落位，结算弹窗不用等节奏泵排空，
   /// 也不播断连后的「鬼魂动画」。
+  ///
+  /// 先解除暂停再清场：连接已经断了，入场演出不可能再播完，
+  /// 此时 `flushSilent` 如果因为 paused 直接返回，MSG_WIN 会永远留在
+  /// 队列里 —— duelResult 不落位，结算页不出现，退出导航也拿不到结果。
+  ///
+  /// 闸门（[_consumptionGated]）还压着时，清场只落状态不出声：消费入口
+  /// 会转成静默，随后立刻把暂停补回去——画面还在入场，声音得等它。
   void flushPendingMessages() {
-    _pump?.flushSilent();
+    final pump = _pump;
+    if (pump == null) return;
+    final gated = _consumptionGated;
+    pump.paused = false;
+    pump.flushSilent();
+    if (gated) {
+      // flushSilent 连定时器一起取消了；paused 的 setter 会从空闲态自动
+      // 补一拍，让排空链在暂停期间继续空转（见 MessagePump.paused）。
+      // 注意不能调 resume()：它在 _paused 为 true 时直接返回。
+      pump.paused = true;
+    }
   }
 
   DuelFieldState get _board => ref.read(duelFieldProvider);
@@ -96,6 +147,10 @@ class DuelMessageRouter extends _$DuelMessageRouter {
     _pump = MessagePump(consume: _handleServerMessage);
     _hasPendingWin = false;
     _applyReplaySettings();
+    // 重建的泵默认是「未暂停」：入场演出期间（总闸还压着）被重进房间/重连
+    // 时会话，必须把闸门重新落到新泵上，否则新泵不认旧闸，消息照常消费——
+    // 加载页里又会出现召唤/发动的音效。
+    _applyGate();
     _msgSub = service.onServerMessage.listen(_onServerMessage);
   }
 
@@ -105,6 +160,34 @@ class DuelMessageRouter extends _$DuelMessageRouter {
     _pump
       ?..speedFactor = s.replaySpeedFactor
       ..jumpToCurrent = s.spectateJumpToCurrent && _isObserverDuel;
+  }
+
+  /// 压住/放开决斗消息消费（入场演出期间用）。
+  ///
+  /// 为什么要压：房间页在 `connect()` 成功后立刻 `start()`，而入场演出
+  /// （Seamless Loading Screen）还要放约 2.7 秒。这期间服务器已经在推
+  /// `MSG_SUMMON` / `MSG_CHAINING` 等，若照常消费，玩家会**在加载页听到
+  /// 对方召唤怪兽、发动卡片**——画面还停在入场，音效已经跑到对局里了。
+  ///
+  /// 压的方式是暂停泵而不是 `clear()`：这些消息是场地页的初始状态来源，
+  /// 丢掉会导致落地时少了几只怪兽。暂停只是攒在队列里，演出结束后
+  /// [resumeMessageConsumption] 按原节奏放出来。
+  ///
+  /// **这是一个总闸，不是一次性的泵开关**：闸门状态自己记着，`start()`
+  /// 重建泵、`flushPendingMessages()` 临时开泵等路径都会按它复位（见
+  /// [_applyGate]）。泵上的 paused 只是闸门的投影，别在别处直接改。
+  void pauseMessageConsumption() {
+    _consumptionGated = true;
+    _applyGate();
+  }
+
+  /// 放开消费；若有积压，泵会接着按节奏排空。
+  ///
+  /// 幂等，且必须能被重复调用无副作用：正常路径（入场回调）与兜底路径
+  /// （tab 已切离加载页 / 硬超时）都会调它。
+  void resumeMessageConsumption() {
+    _consumptionGated = false;
+    _applyGate();
   }
 
   /// 服务器消息入口（入队前的唯一分叉）：
@@ -148,7 +231,11 @@ class DuelMessageRouter extends _$DuelMessageRouter {
   /// 不会影响共享实例上的其它音效。
   void _handleServerMessage(YgoStocMsg msg, {bool silent = false}) {
     if (msg.gameMsg?.func == MSG_WIN) _hasPendingWin = false;
-    if (!silent) return _dispatchServerMessage(msg);
+    // 总闸压着时一律静默消费：状态照写（场地页落地时局面正确），
+    // 但一声不吭——音效属于「已经看到画面的玩家」，闸门没开就还没看到。
+    // 这条覆盖 flushPendingMessages 的抢跑路径（它为了落位结算会临时
+    // 打开泵的 paused），否则断连清场的音效会漏到加载页/猜拳页上。
+    if (!silent && !_consumptionGated) return _dispatchServerMessage(msg);
     _sound.suppress = true;
     try {
       _dispatchServerMessage(msg);

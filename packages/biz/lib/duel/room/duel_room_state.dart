@@ -98,7 +98,13 @@ class DuelRoomState {
     this.submittedDeck,
     this.sidingDeck,
     this.sidingBaseline,
+    this.sidingSnapshot,
+    this.sidingSubmitted = false,
     this.sidingInitFailed = false,
+    this.myMatchWins = 0,
+    this.opponentMatchWins = 0,
+    this.matchDraws = 0,
+    this.sidingStartedAt,
     this.errorMessage,
   });
 
@@ -140,12 +146,53 @@ class DuelRoomState {
   /// 本次换备的基准构成（进入换备阶段时初始化，仅该阶段非 null）。
   final ResolvedDeck? sidingBaseline;
 
+  /// 已提交的卡组快照（本次换备 `confirmSiding` 成功后写入）。
+  ///
+  /// 与 [sidingDeck] 的区别：[sidingDeck] 是「正在编辑的草稿」，提交后
+  /// 玩家仍可继续拖动，本字段冻结的是**服务端已收到的那一份**。等待对手
+  /// 界面用它展示「换备后卡组」（＋换入 / －换出），草稿再变也不会影响。
+  /// 为 null 表示本次换备还没有成功提交过。
+  final ResolvedDeck? sidingSnapshot;
+
+  /// 本次换备是否已成功提交（等待对手期间为 true）。
+  ///
+  /// 提交失败、或提交后又改动草稿时会置回 false，界面据此在
+  /// 「编辑卡组」与「等待对手」两种形态间切换。
+  final bool sidingSubmitted;
+
   /// 换备数据初始化是否失败（仅 RoomSideDecking 阶段有意义）。
   ///
   /// 与 [errorMessage] 的区别：errorMessage 会被页面 SnackBar 消费后
   /// 清除，无法作为持久失败状态；该标志保持到重试成功或离开换备阶段，
   /// 供换备面板展示失败文案与重试入口。
   final bool sidingInitFailed;
+
+  /// 本场 match 中我方已赢下的局数（换备页 / 场地页 / 结算页的比分来源）。
+  ///
+  /// **为什么客户端自己数**：YGOPro 协议只有单局粒度——`MSG_WIN` 给出
+  /// `winPlayer`（0/1，平局为 PLAYER_NONE），但从不汇总「本场已赢几局」。
+  /// 服务端的 match 胜负判定不回传给客户端，客户端只能自己累计。
+  ///
+  /// 累计入口是 [DuelRoomNotifier.recordMatchResult]，由房间页在
+  /// `duelFieldProvider.duelResult` 首次出现时调用一次（换备阶段结算页
+  /// 关闭、下一局开始前完成）。
+  ///
+  /// 已知偏差：断线重连后本机状态从零开始，看不到断线前已打的局。这是
+  /// 协议层面的信息缺失，无法弥补；UI 上的 `GAME n / 3` 因此可能偏小。
+  final int myMatchWins;
+
+  /// 本场 match 中对手已赢下的局数。见 [myMatchWins]。
+  final int opponentMatchWins;
+
+  /// 本场 match 中的平局数（`MSG_WIN` 的 winPlayer 为 PLAYER_NONE）。
+  final int matchDraws;
+
+  /// 换备阶段开始的本机时刻（本地计时基准，仅 [RoomSideDecking] 非 null）。
+  ///
+  /// 服务端**不下发**换备时限：等待太久会被服务端直接断开 socket（房间
+  /// 随之关闭），所以客户端只能自己倒计时提醒玩家。基准取「进入换备阶段
+  /// 的那一刻」，`SideDeckingPage3D` 据此渲染倒计时。
+  final DateTime? sidingStartedAt;
 
   final String? errorMessage;
 
@@ -171,7 +218,13 @@ class DuelRoomState {
     Object? submittedDeck = _sentinel,
     Object? sidingDeck = _sentinel,
     Object? sidingBaseline = _sentinel,
+    Object? sidingSnapshot = _sentinel,
+    bool? sidingSubmitted,
     bool? sidingInitFailed,
+    int? myMatchWins,
+    int? opponentMatchWins,
+    int? matchDraws,
+    Object? sidingStartedAt = _sentinel,
     Object? errorMessage = _sentinel,
   }) {
     return DuelRoomState(
@@ -210,7 +263,17 @@ class DuelRoomState {
       sidingBaseline: identical(sidingBaseline, _sentinel)
           ? this.sidingBaseline
           : sidingBaseline as ResolvedDeck?,
+      sidingSnapshot: identical(sidingSnapshot, _sentinel)
+          ? this.sidingSnapshot
+          : sidingSnapshot as ResolvedDeck?,
+      sidingSubmitted: sidingSubmitted ?? this.sidingSubmitted,
       sidingInitFailed: sidingInitFailed ?? this.sidingInitFailed,
+      myMatchWins: myMatchWins ?? this.myMatchWins,
+      opponentMatchWins: opponentMatchWins ?? this.opponentMatchWins,
+      matchDraws: matchDraws ?? this.matchDraws,
+      sidingStartedAt: identical(sidingStartedAt, _sentinel)
+          ? this.sidingStartedAt
+          : sidingStartedAt as DateTime?,
       errorMessage: identical(errorMessage, _sentinel)
           ? this.errorMessage
           : errorMessage as String?,
@@ -278,7 +341,140 @@ class DuelRoomState {
         siding.extra.length == baseline.extra.length &&
         siding.side.length == baseline.side.length;
   }
+
+  /// 换牌清单：相对基准的换入 / 换出卡码统计。
+  ///
+  /// 语义：主卡组与额外卡组合起来算「出战区」。相对基准，出战区少掉的
+  /// 卡就是被换出的（进了副卡组），多出来的就是从副卡组换入的。按卡码
+  /// 聚合（同一张换两张只出现一行 `×2`）。
+  ///
+  /// 顺序稳定：换入按当前副卡组出现顺序，换出按基准主卡组 → 额外卡组
+  /// 顺序——跟「你从副卡组拿了什么、又把什么放回去」的思考顺序一致。
+  ({List<({int code, int count})> inCards, List<({int code, int count})> outCards})
+  get sidingSwapList {
+    final current = sidingDeck;
+    final baseline = sidingBaseline;
+    if (current == null || baseline == null) {
+      return (inCards: const [], outCards: const []);
+    }
+
+    /// 出战区（主 + 额外）按卡码计数。
+    Map<int, int> countBattle(ResolvedDeck deck) {
+      final m = <int, int>{};
+      for (final c in deck.main) {
+        m[c.code] = (m[c.code] ?? 0) + 1;
+      }
+      for (final c in deck.extra) {
+        m[c.code] = (m[c.code] ?? 0) + 1;
+      }
+      return m;
+    }
+
+    final cur = countBattle(current);
+    final base = countBattle(baseline);
+
+    // 换入 / 换出的「卡码 → 张数」差值表。
+    final delta = <int, int>{};
+    for (final code in {...cur.keys, ...base.keys}) {
+      final d = (cur[code] ?? 0) - (base[code] ?? 0);
+      if (d != 0) delta[code] = d;
+    }
+    if (delta.isEmpty) {
+      return (inCards: const [], outCards: const []);
+    }
+
+    // 换入：出战区多出来的。按副卡组当前顺序输出，保证与右侧副卡组
+    // 列表的阅读顺序一致。
+    final inCards = <({int code, int count})>[];
+    final emitted = <int>{};
+    for (final c in current.side) {
+      if (!emitted.contains(c.code) && (delta[c.code] ?? 0) > 0) {
+        emitted.add(c.code);
+        inCards.add((code: c.code, count: delta[c.code]!));
+      }
+    }
+    // 换入的卡也可能不在副卡组里（理论上不会，兜底避免漏显示）。
+    for (final entry in delta.entries) {
+      if (entry.value > 0 && emitted.add(entry.key)) {
+        inCards.add((code: entry.key, count: entry.value));
+      }
+    }
+
+    // 换出：出战区少掉的。按基准主卡组 → 额外卡组顺序输出。
+    final outCards = <({int code, int count})>[];
+    final outSeen = <int>{};
+    for (final c in [...baseline.main, ...baseline.extra]) {
+      if (!outSeen.contains(c.code) && (delta[c.code] ?? 0) < 0) {
+        outSeen.add(c.code);
+        outCards.add((code: c.code, count: -delta[c.code]!));
+      }
+    }
+    for (final entry in delta.entries) {
+      if (entry.value < 0 && outSeen.add(entry.key)) {
+        outCards.add((code: entry.key, count: -entry.value));
+      }
+    }
+
+    return (inCards: inCards, outCards: outCards);
+  }
+
+  /// 换备是否做过调整（换牌清单非空）。
+  bool get hasSidingChanges {
+    final list = sidingSwapList;
+    return list.inCards.isNotEmpty || list.outCards.isNotEmpty;
+  }
+
+  /// 自己是否已提交换备。
+  bool get isSidingSubmitted => sidingSubmitted;
+
+  /// 对手（另一侧决斗位）是否已就绪。
+  ///
+  /// 换备阶段 YGOPro 只下发每个座位的 ready 位，不下发对手的换备细节，
+  /// 因此界面只能展示「换备中 / 已提交」。找不到对手座位时按未就绪处理。
+  bool get isOpponentReady {
+    final mySlot = selfType.slot;
+    if (mySlot < 0 || mySlot > 3) return false;
+    final opponents = players.where(
+      (p) => p.pos >= 0 && p.pos <= 3 && (p.pos % 2) != (mySlot % 2),
+    );
+    return opponents.isNotEmpty && opponents.every((p) => p.ready);
+  }
+
+  // ── match 比分（BO3）────────────────────────────────────────────────
+
+  /// 已打完的局数（含平局）。
+  int get matchGamesPlayed => myMatchWins + opponentMatchWins + matchDraws;
+
+  /// 当前是第几局（1 起）。已打完 0 局时是第 1 局；换备必然发生在下一局之前。
+  int get matchGameNumber => matchGamesPlayed + 1;
+
+  /// 当前局号展示文本：`GAME 1 / 3`。
+  ///
+  /// 只在还没打完两胜时显示为 BO3；超过 3 局（异常累计，如断线重连后
+  /// 计数错位）时上限跟着实际局数走，避免出现 `GAME 4 / 3`。
+  String get matchGameLabel {
+    final current = matchGameNumber;
+    final bestOf = current > 3 ? current : 3;
+    return 'GAME $current / $bestOf';
+  }
+
+  /// 本场是否已分出胜负（任一方拿到 2 胜）。
+  ///
+  /// 平局不计胜场，所以 BO3 理论上可能打超过 3 局；调用方不要用它推算
+  /// 「还剩几局」，只用来判断要不要继续显示比分板。
+  bool get isMatchOver => myMatchWins >= 2 || opponentMatchWins >= 2;
+
+  /// 比分展示文本（`1 : 0`）。
+  String get matchScoreLabel => '$myMatchWins : $opponentMatchWins';
 }
+
+/// 是否额外卡组类型（融合 / 同调 / 超量 / 连接）。
+///
+/// 换备规则的核心判定：这类卡只能在「额外卡组 ↔ 副卡组」之间移动，
+/// 普通卡只能在「主卡组 ↔ 副卡组」之间移动。协议层面放宽成任意移动会被
+/// 服务端按 `error_type=2 副卡组错误` 整包驳回。
+bool _isExtraDeckType(CardInfo card) =>
+    card.isFusion || card.isSynchro || card.isXyz || card.isLink;
 
 /// 房间级连接生命周期钩子：房间 ProviderScope 销毁时兜底断开 socket。
 ///
@@ -644,6 +840,36 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
     state = state.copyWith(errorMessage: message);
   }
 
+  /// 累计一局的 match 比分（换备页 / 场地页 / 结算页的比分来源）。
+  ///
+  /// **幂等**：同一份 `duelResult` 实例只累加一次。调用方是对
+  /// `duelResult` 的监听，而重建、热重载、换备往返都可能让它重复到达；
+  /// 不做幂等就会把 1:0 数成 2:0。
+  ///
+  /// 平局（[isDraw]）只增加 [DuelRoomState.matchDraws]，不给任何一方加胜场
+  /// ——BO3 里平局不结束比赛，服务端会重开一局。
+  ///
+  /// 返回是否真的累加了（重复调用返回 false，便于调用方跳过后续副作用）。
+  bool recordMatchResult({
+    required bool didWin,
+    required bool isDraw,
+    Object? result,
+  }) {
+    if (result != null && identical(_lastScoredResult, result)) return false;
+    if (isDraw) {
+      state = state.copyWith(matchDraws: state.matchDraws + 1);
+    } else if (didWin) {
+      state = state.copyWith(myMatchWins: state.myMatchWins + 1);
+    } else {
+      state = state.copyWith(opponentMatchWins: state.opponentMatchWins + 1);
+    }
+    if (result != null) _lastScoredResult = result;
+    return true;
+  }
+
+  /// 已计过分的 `duelResult` 实例（见 [recordMatchResult] 的幂等说明）。
+  Object? _lastScoredResult;
+
   String _errorMessage(int type, int code) {
     switch (type) {
       case 1:
@@ -751,11 +977,17 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
     if (roomStage is! RoomSideDecking &&
         (state.sidingDeck != null ||
             state.sidingBaseline != null ||
-            state.sidingInitFailed)) {
+            state.sidingSnapshot != null ||
+            state.sidingSubmitted ||
+            state.sidingInitFailed ||
+            state.sidingStartedAt != null)) {
       next = next.copyWith(
         sidingDeck: null,
         sidingBaseline: null,
+        sidingSnapshot: null,
+        sidingSubmitted: false,
         sidingInitFailed: false,
+        sidingStartedAt: null,
       );
     }
     switch (roomStage) {
@@ -804,6 +1036,14 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
         );
         break;
       case RoomSelectingTurn():
+        // 上一局的先攻结果必须在这里清空。
+        //
+        // [isFirstTurn] 只在 RoomInDuel 时被服务器下发（见下方分支），
+        // 全生命周期没有别处会把它置回 null。match 模式第二局重新进入
+        // 猜拳 → 选先后攻时，它还是上一局的旧值（非 null），
+        // 界面据此判定「已经有人选了」→ 两个按钮永久禁用、文案卡在
+        // 「等待对手选择先后攻」。清空后由服务器随 MSG_START 重新下发。
+        next = next.copyWith(isFirstTurn: null);
         // 开关打开立即随机；否则按界面倒计时 10 秒兜底自动选。
         _autoTurnTimer?.cancel();
         if (state.autoTurnOrderEnabled) {
@@ -827,6 +1067,9 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
         break;
       case RoomSideDecking():
         // match 模式局间换备：初始化换备编辑状态（异步解析卡信息）。
+        // 起始时刻用于换备页的本地倒计时（服务端不下发时限，但等太久
+        // 会被服务端断开 socket，需要给玩家一个剩余时间参考）。
+        next = next.copyWith(sidingStartedAt: DateTime.now());
         unawaited(_enterSideDecking());
         break;
 
@@ -879,6 +1122,8 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
         side: [...comp.side],
       ),
       sidingBaseline: baseline,
+      sidingSnapshot: null,
+      sidingSubmitted: false,
       sidingInitFailed: false,
     );
   }
@@ -924,6 +1169,65 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
     return result;
   }
 
+  /// 换备：主卡组 ↔ 副卡组的**原子互换**（一次 setState 完成两步）。
+  ///
+  /// 为什么需要它：换备界面的操作是「点一张主卡 + 点一张副卡 = 互换」，
+  /// 而 [moveSidingCard] 一次只挪一张。连着调两次会踩到同一个坑——第一次
+  /// 调用已经重建了 state，第二次调用里的 `index` 仍按**旧列表**解释，
+  /// 于是把错误的卡挪走（副卡组先少一张，主卡组的下标就整体前移）。
+  ///
+  /// [battleIndex] 是主卡组/额外卡组分区内的下标，[sideIndex] 是副卡组内的。
+  /// 任一张是额外卡组类型就自动走额外卡组分区（YGOPro 不允许主↔额外互换）。
+  ///
+  /// 返回是否执行了互换。
+  bool swapSidingCards({
+    required int battleIndex,
+    required int sideIndex,
+    SidingZone battleZone = SidingZone.main,
+  }) {
+    if (state.stage is! RoomSideDecking) return false;
+    final siding = state.sidingDeck;
+    if (siding == null) return false;
+
+    final battle = switch (battleZone) {
+      SidingZone.main => siding.main,
+      SidingZone.extra => siding.extra,
+      SidingZone.side => siding.side,
+    };
+    if (battleZone == SidingZone.side) return false;
+    if (battleIndex < 0 || battleIndex >= battle.length) return false;
+    if (sideIndex < 0 || sideIndex >= siding.side.length) return false;
+
+    final fromBattle = battle[battleIndex];
+    final fromSide = siding.side[sideIndex];
+    // 分区与卡类型必须匹配：额外卡组类型只能进额外卡组，反之亦然。
+    final fromBattleIsExtra = _isExtraDeckType(fromBattle);
+    final fromSideIsExtra = _isExtraDeckType(fromSide);
+    if (fromSideIsExtra != (battleZone == SidingZone.extra)) return false;
+    if (fromBattleIsExtra != fromSideIsExtra) return false;
+
+    final main = [...siding.main];
+    final extra = [...siding.extra];
+    final side = [...siding.side];
+
+    // 从出战区摘掉、把副卡放进去（放同一位置，保持卡组顺序稳定）。
+    switch (battleZone) {
+      case SidingZone.main:
+        main[battleIndex] = fromSide;
+      case SidingZone.extra:
+        extra[battleIndex] = fromSide;
+      case SidingZone.side:
+        return false;
+    }
+    side[sideIndex] = fromBattle;
+
+    state = state.copyWith(
+      sidingDeck: (main: main, extra: extra, side: side),
+      sidingSubmitted: false,
+    );
+    return true;
+  }
+
   /// 换备：把 [from] 分区下标 [index] 处的卡移动到 [to] 分区。
   ///
   /// 只允许 主卡组↔副卡组、额外卡组↔副卡组；主卡组↔额外卡组非法
@@ -946,8 +1250,7 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
     final card = fromList[index];
     // YGOPro 规则兜底：额外卡组类型只能 额外↔副，其余卡只能 主↔副。
     // 面板按类型隐藏按钮，这里拦截绕过面板的非法移动。
-    final isExtraType =
-        card.isFusion || card.isSynchro || card.isXyz || card.isLink;
+    final isExtraType = _isExtraDeckType(card);
     if (to == SidingZone.main && isExtraType) return false;
     if (to == SidingZone.extra && !isExtraType) return false;
     final main = [...siding.main];
@@ -969,11 +1272,18 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
       case SidingZone.side:
         side.add(card);
     }
-    state = state.copyWith(sidingDeck: (main: main, extra: extra, side: side));
+    state = state.copyWith(
+      sidingDeck: (main: main, extra: extra, side: side),
+      // 提交后再拖卡 = 重新进入编辑态，界面从「等待对手」退回编辑版式。
+      sidingSubmitted: false,
+    );
     return true;
   }
 
   /// 换备：放弃当前编辑，恢复为基准构成。
+  ///
+  /// 同时清掉提交标记：重置后草稿与基准一致，界面应退回编辑版式
+  /// （服务端那边仍收着上一份提交，所以「重新提交」按钮依然可用）。
   void resetSiding() {
     if (state.stage is! RoomSideDecking) return;
     final baseline = state.sidingBaseline;
@@ -984,6 +1294,7 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
         extra: [...baseline.extra],
         side: [...baseline.side],
       ),
+      sidingSubmitted: false,
     );
   }
 
@@ -1040,6 +1351,14 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
         extra: [...siding.extra],
         side: [...siding.side],
       ),
+      // 冻结提交时的构成：等待对手界面展示「换备后卡组」，此后玩家继续
+      // 拖动草稿也不会影响这份快照。
+      sidingSnapshot: (
+        main: [...siding.main],
+        extra: [...siding.extra],
+        side: [...siding.side],
+      ),
+      sidingSubmitted: true,
     );
     return null;
   }

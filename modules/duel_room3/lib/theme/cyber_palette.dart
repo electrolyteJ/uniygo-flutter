@@ -31,20 +31,17 @@ abstract final class CyberPalette {
   static const Color textPrimary = Color(0xFFEAF6FF);
   static const Color textSecondary = Color(0xFF7E8CA8);
 
-  /// 3D 场景专用：光束 / 命中 / 闪光 / 网格。
+  /// 3D 场景专用：光束 / 命中 / 网格。
   static const Color beam = Color(0xFF7DF9FF);
   static const Color impact = Color(0xFFFF5C9E);
-  static const Color flash = Color(0xFFFFFFFF);
   static const Color gridLine = Color(0xFF1B6C86);
   static const Color gridAccent = Color(0xFF8E2270);
 
   /// 经典皮肤回落色。
   static const Color classicCyan = Color(0xFF37E2FF);
   static const Color classicCyanDim = Color(0xFF1B7FA8);
-  static const Color classicGold = Color(0xFFFFD75A);
   static const Color classicHeal = Color(0xFF7CFF6B);
   static const Color classicDanger = Color(0xFFFF5A5A);
   static const Color classicBeam = Color(0xFF9FE8FF);
   static const Color classicImpact = Color(0xFFFFB347);
-  static const Color classicVoid = Color(0xFF05070F);
 }

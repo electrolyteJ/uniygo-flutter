@@ -379,4 +379,114 @@ void main() {
       });
     });
   });
+
+  // ── 入场演出闸门：加载页还在台上时，画面外一声不吭 ──
+  //
+  // 线上症状：随机对战在大厅等人超过 8 秒后，加载页刚开播就听到对面
+  // 召唤 / 发动卡片。根因是「暂停」只是泵上的一次性标志，会被断连清场、
+  // pump 重建、房间页的帧后兜底等路径悄悄顶开。闸门把这些路径统一收口。
+  group('DuelMessageRouter 入场闸门', () {
+    test('闸门压着时消息只入队，放开后按节奏补齐（不丢状态）', () {
+      container = makeContainer();
+      fakeAsync((async) {
+        final router = container.read(duelMessageRouterProvider.notifier);
+        router.start();
+        router.pauseMessageConsumption();
+
+        service.emit(_startMsg());
+        service.emit(_phaseMsg(PHASE_DRAW));
+        expect(router.isConsumptionGated(), isTrue);
+        expect(field().phase, DuelPhase.idle, reason: '一条都不许消费');
+
+        // 入场演出 2.7 秒：画面外不该有任何动静。
+        async.elapse(const Duration(seconds: 3));
+        expect(field().phase, DuelPhase.idle);
+
+        router.resumeMessageConsumption();
+        expect(router.isConsumptionGated(), isFalse);
+        async.elapse(Duration.zero);
+        expect(field().startLp, 8000, reason: 'MSG_START 补齐，初始事实不丢');
+        async.elapse(const Duration(milliseconds: 120));
+        expect(field().phase, DuelPhase.dp, reason: '阶段消息按原顺序补齐');
+        async.elapse(const Duration(seconds: 10));
+      });
+    });
+
+    test('闸门压着时断连清场：状态落位但音效全静默，且闸门不被顶开', () {
+      final sound = _RecordingSoundService();
+      container = makeContainer(sound: sound);
+      fakeAsync((async) {
+        final router = container.read(duelMessageRouterProvider.notifier);
+        router.start();
+        router.pauseMessageConsumption();
+
+        service.emit(_startMsg());
+        service.emit(_phaseMsg(PHASE_DRAW));
+        service.emit(_phaseMsg(PHASE_MAIN1));
+
+        // 房间页在 RoomNotJoined + hold 命中时的收尾路径：它会临时把
+        // pump.paused 打开以同步排空，绝不能因此把声音漏到加载页上。
+        router.flushPendingMessages();
+
+        expect(field().phase, DuelPhase.m1, reason: '静默清场仍要把状态落位');
+        expect(sound.newPhaseSuppressStates, hasLength(2));
+        expect(sound.newPhaseSuppressStates.every((s) => s), isTrue,
+            reason: '闸门压着时即便清场，音效也必须静默');
+        expect(router.isConsumptionGated(), isTrue,
+            reason: '清场不能把总闸顶开');
+
+        // 画面还没来：后续消息继续攒着，不出声。
+        service.emit(_phaseMsg(PHASE_BATTLE));
+        async.elapse(const Duration(seconds: 3));
+        expect(sound.newPhaseSuppressStates, hasLength(2));
+
+        router.resumeMessageConsumption();
+        async.elapse(const Duration(seconds: 10));
+      });
+    });
+
+    test('闸门压着时重建泵（重连 / 重进房）：新泵仍被压住', () {
+      final sound = _RecordingSoundService();
+      container = makeContainer(sound: sound);
+      fakeAsync((async) {
+        final router = container.read(duelMessageRouterProvider.notifier);
+        router.start();
+        router.pauseMessageConsumption();
+
+        // start() 可重入：旧泵连同它的 paused 标志一起被销毁。
+        router.start();
+
+        service.emit(_startMsg());
+        service.emit(_phaseMsg(PHASE_DRAW));
+        expect(field().phase, DuelPhase.idle, reason: '新泵默认不暂停，闸门必须补上');
+        expect(sound.newPhaseSuppressStates, isEmpty,
+            reason: '重建后不能直通出声');
+
+        router.resumeMessageConsumption();
+        async.elapse(const Duration(seconds: 5));
+        expect(field().phase, DuelPhase.dp);
+      });
+    });
+
+    test('重复 pause / resume 幂等：不叠加、不重复消费', () {
+      container = makeContainer();
+      fakeAsync((async) {
+        final router = container.read(duelMessageRouterProvider.notifier);
+        router.start();
+        router.pauseMessageConsumption();
+        router.pauseMessageConsumption();
+
+        service.emit(_startMsg());
+        service.emit(_phaseMsg(PHASE_DRAW));
+        async.elapse(const Duration(seconds: 3));
+        expect(field().phase, DuelPhase.idle);
+
+        router.resumeMessageConsumption();
+        router.resumeMessageConsumption();
+        async.elapse(const Duration(seconds: 5));
+        expect(field().startLp, 8000);
+        expect(field().phase, DuelPhase.dp);
+      });
+    });
+  });
 }

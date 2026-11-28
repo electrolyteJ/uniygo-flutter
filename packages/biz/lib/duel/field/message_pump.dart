@@ -36,6 +36,54 @@ class MessagePump<T> {
   /// 触发「跳到当前局面」静默清场的积压阈值。
   static const int kJumpBacklogThreshold = 20;
 
+  /// 暂停消费：消息照常入队，但不出队、不派发。
+  ///
+  /// 用途是**入场演出期间压住决斗消息**——演出还没完，玩家已经在加载页
+  /// 听到对方召唤怪兽/发动卡片，视觉与听觉对不上。暂停而不是 `clear()`：
+  /// clear 会丢掉这些消息，场地页落地时状态就是错的（少召唤了怪兽）；
+  /// 暂停只是把它们攒在队列里，恢复后按节奏放出来。
+  ///
+  /// 恢复方式是**两步**：先 `paused = false`，再调 [resume] 抢一拍立刻开播。
+  /// 只做第一步也能恢复（排空链在暂停期间自续，见 [_drainOne]），只是最多
+  /// 晚一个节奏档位；两步都做则无延迟。
+  bool get paused => _paused;
+  bool _paused = false;
+
+  /// 暂停消费；重复调用无副作用。
+  ///
+  /// **不取消在飞的定时器**：排空链（`_timer → _drainOne → _timer`）由
+  /// [_drainOne] 自己续，暂停只让每一拍变成空转。若在这里 cancel，链就断在
+  /// 了暂停那一刻，必须完全依赖外部正确调用 [resume] 才能复活——这正是
+  /// 「进入场地页对面完全不动」的成因。让它自续排，是让暂停成为**可逆的
+  /// 状态**而不是一次不可恢复的中断。
+  set paused(bool value) {
+    if (_paused == value) return;
+    _paused = value;
+    // 从空闲态进入暂停：没有链可续，主动起一拍，让暂停期间入队的消息
+    // 也有排空机会（恢复后不必等外部 resume 才动）。
+    if (value && _timer == null && !_disposed) {
+      _timer = Timer(paceTiers.first.interval, _drainOne);
+    }
+  }
+
+  /// 恢复消费：改回 [paused] = false 后调用。
+  ///
+  /// 幂等：重复调用、或队列已空时都是无操作。
+  ///
+  /// 暂停期间排空链仍在自续（见 [paused]），所以这里**抢一拍**：把暂停
+  /// 期空转排下的定时器换成立即触发，让积压消息马上开始放，而不是再等
+  /// 一个 120ms 的上限。
+  void resume() {
+    if (_disposed || _paused) return;
+    if (_queue.isEmpty) return;
+    if (_timer != null) {
+      // 在飞的只是暂停期的空转拍，换成零延时立刻消费。
+      _timer!.cancel();
+      _timer = null;
+    }
+    _timer = Timer(Duration.zero, _drainOne);
+  }
+
   /// 节奏档位（按消费后的剩余积压量选择下一条间隔），从松到紧排列。
   static const List<({int maxBacklog, Duration interval})> paceTiers = [
     (maxBacklog: 20, interval: Duration(milliseconds: 120)),
@@ -60,11 +108,14 @@ class MessagePump<T> {
   void enqueue(T message) {
     if (_disposed) return;
     _queue.add(message);
+    if (paused) return;
     if (jumpToCurrent && _queue.length > kJumpBacklogThreshold) {
       // 跳到当前局面：取消节奏，同步静音清空积压；随后排一个冷却窗口，
       // 避免爆发中后续消息穿透直通（每条都带音效就乱了）。
       flushSilent();
       if (_disposed) return;
+      // flushSilent 把定时器也取消了，这里重新挂一拍：既维持后续消息的
+      // 节奏窗口，也保证排空链在任何情况下都不会停在 flush 之后。
       _timer = Timer(intervalForBacklog(1), _drainOne);
       return;
     }
@@ -76,7 +127,11 @@ class MessagePump<T> {
   /// 两个用途：观战「跳到当前局面」的追平清场；断连结算收尾——
   /// 服务器在关连接前的最后一个 TCP 段里发了 MSG_WIN 时，不等节奏
   /// 泵慢慢排空，直接落位到终局状态（duelResult 立即可读）。
+  ///
+  /// 暂停期间调用无效（入场演出还在放，不能抢跑）；调用方应在 resume
+  /// 之后再决定是否清场。
   void flushSilent() {
+    if (paused) return;
     _timer?.cancel();
     _timer = null;
     while (_queue.isNotEmpty && !_disposed) {
@@ -101,6 +156,20 @@ class MessagePump<T> {
 
   void _drainOne() {
     _timer = null;
+    if (_disposed) return;
+    // 暂停期间到点的定时器：不消费，**但要续排自己**，不能让排空链断掉。
+    //
+    // 这里曾经直接 `return`，把 `_timer` 留在 null —— 等于「暂停期间定时器
+    // 空烧后排在链尾的那一条被吃掉」。恢复时 `resume()` 虽然会补排一次，
+    // 但只要任何一处忘了 resume（或 resume 早于最后一条消息入队），队列就
+    // 再没有东西推进，表现为「进入场地页对面完全不动」。
+    //
+    // 改成自续排：暂停只是把节奏变成 120ms 一轮的「空转」，链一直在手上，
+    // 恢复后下一秒自动消费。开销可忽略（一轮一次空比较）。
+    if (paused) {
+      _timer = Timer(paceTiers.first.interval, _drainOne);
+      return;
+    }
     if (_queue.isEmpty) return;
     _consumeOne(_queue.removeFirst(), silent: false);
     if (_disposed) {
@@ -110,7 +179,7 @@ class MessagePump<T> {
     // 每次消费后都排冷却窗口（队列空按最小积压档）：窗口内到达的
     // 消息入队等待，窗口到期后队列为空则泵回到空闲（下一条直通）。
     // 若只在队列非空时排定时器，爆发循环里每条消息都会看到空闲泵而被
-    // 同步直通，节奏彻底失效。
+    // 同步直通，节奏彻底失效——所以队列空时也要挂这一拍。
     final backlog = _queue.isEmpty ? 1 : _queue.length;
     _timer = Timer(intervalForBacklog(backlog), _drainOne);
   }

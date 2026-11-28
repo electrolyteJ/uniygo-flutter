@@ -95,14 +95,19 @@ class Duel3DBridge {
       if (_gate.isReady) return; // detach 后迟到回调防御
       final pending = _gate.markReadyAndTakePending();
       if (pending != null) {
-        game.standees.applySnapshot(mapFieldCards(pending.fieldCards));
+        // 场景就绪时场上可能已经打完半个回合：直接落位，不补播入场动画，
+        // 否则会像「加载页里突然在召唤」。
+        game.standees.applySnapshot(
+          mapFieldCards(pending.fieldCards),
+          animateAdded: false,
+        );
       }
       final r = _ref;
       if (r != null) _syncHighlights(r);
     });
     // B2：listenManual 不推存量——主动回放初始快照与高亮，
     // 观战者中途进房（MSG_RELOAD_FIELD 先于 attach）也能拿到场面。
-    _onFieldChanged(null, ref.read(duelFieldProvider));
+    _onFieldChanged(null, ref.read(duelFieldProvider), animateAdded: false);
     _syncHighlights(ref);
   }
 
@@ -117,12 +122,19 @@ class Duel3DBridge {
 
   // ───────────────────────── 场地快照 ─────────────────────────
 
-  void _onFieldChanged(DuelFieldState? prev, DuelFieldState next) {
+  void _onFieldChanged(
+    DuelFieldState? prev,
+    DuelFieldState next, {
+    bool animateAdded = true,
+  }) {
     // B1 闸：场景未就绪——快照缓存最新一帧（ready 后重放），
     // tick 事件特效直接丢弃。
     if (!_gate.offerSnapshot(next)) return;
     // 立牌摆放
-    game.standees.applySnapshot(mapFieldCards(next.fieldCards));
+    game.standees.applySnapshot(
+      mapFieldCards(next.fieldCards),
+      animateAdded: animateAdded,
+    );
 
     // 召唤特效
     if (prev != null &&

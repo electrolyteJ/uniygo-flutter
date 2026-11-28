@@ -39,7 +39,10 @@ class StandeeController extends Component3D {
   }
 
   /// 应用新快照：diff 后增删改。
-  void applySnapshot(Map<String, StandeeCardView> next) {
+  void applySnapshot(
+    Map<String, StandeeCardView> next, {
+    bool animateAdded = true,
+  }) {
     final diff = diffStandeeCards(_snapshot, next);
     if (diff.isEmpty) return;
     _snapshot = Map.of(next);
@@ -54,7 +57,7 @@ class StandeeController extends Component3D {
       }
     }
     for (final entry in diff.added.entries) {
-      _spawn(entry.key, entry.value);
+      _spawn(entry.key, entry.value, animate: animateAdded);
     }
     for (final entry in diff.updated.entries) {
       _byKey[entry.key]?.applyCard(
@@ -74,7 +77,7 @@ class StandeeController extends Component3D {
     _byKey.clear();
   }
 
-  void _spawn(String key, StandeeCardView view) {
+  void _spawn(String key, StandeeCardView view, {bool animate = true}) {
     final slot = slotByKey[key];
     if (slot == null) return; // 手牌/额外等区域不立牌
     final standee = CardStandee(
@@ -86,7 +89,7 @@ class StandeeController extends Component3D {
     standee.position.setFrom(Field3DLayout.standeeCenter(slot));
     _byKey[key] = standee;
     add(standee);
-    standee.playEntrance(StandeeEntrance.appear);
+    if (animate) standee.playEntrance(StandeeEntrance.appear);
   }
 
   /// 射线拾取：命中最近立牌的卡槽 key，未命中返回 null。

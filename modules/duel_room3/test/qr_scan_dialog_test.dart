@@ -1,4 +1,4 @@
-import 'package:duel_room3/waiting/invite/qr_scan_dialog.dart';
+import 'package:duel_room3/util/invite/qr_scan_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

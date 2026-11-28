@@ -1,5 +1,6 @@
-import 'package:duel_room3/loading/intro/duel_intro_timeline.dart';
-import 'package:duel_room3/loading/intro/intro_phases.dart';
+import 'package:duel_room3/loading/duel_field_loading_page.dart';
+import 'package:duel_room3/loading/models/duel_intro_timeline.dart';
+import 'package:duel_room3/loading/widgets/intro_phases.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -67,7 +68,18 @@ void main() {
     );
   });
 
-  testWidgets('进度条填充宽度随 t 单调增长', (tester) async {
+  testWidgets('页面级进度条填充宽度随演出单调增长', (tester) async {
+    tester.view.physicalSize = viewport * 2;
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: DuelFieldLoadingPage(data: data, onFinished: () {}),
+      ),
+    );
+
     /// 取加载条槽（#16263A 的 3px 细条）里填充层的宽度。
     double fillWidthAt(WidgetTester tester) {
       // 填充层是带 boxShadow 的 DecoratedBox，宽度由 LayoutBuilder 算出。
@@ -84,13 +96,22 @@ void main() {
       return maxW;
     }
 
-    await pumpPhase(tester, DuelIntroPhase.tunnel, t: 0.2);
-    final early = fillWidthAt(tester);
+    // 进度条挂在页面层级，跨相位也只有一条：这里横跨 tunnel → field → vs
+    // 三段采样，宽度必须单调增长（相位切换不能让条回退）。
+    final widths = <double>[fillWidthAt(tester)];
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 400));
+      widths.add(fillWidthAt(tester));
+    }
 
-    await pumpPhase(tester, DuelIntroPhase.tunnel, t: 0.9);
-    final late = fillWidthAt(tester);
-
-    expect(late, greaterThan(early), reason: '进度条应随 t 增长');
-    expect(late, lessThanOrEqualTo(viewport.width));
+    for (var i = 1; i < widths.length; i++) {
+      expect(
+        widths[i],
+        greaterThanOrEqualTo(widths[i - 1]),
+        reason: '进度条宽度不应回退：$widths',
+      );
+    }
+    expect(widths.last, greaterThan(widths.first), reason: '进度条确实在前进');
+    expect(widths.last, lessThanOrEqualTo(viewport.width));
   });
 }
