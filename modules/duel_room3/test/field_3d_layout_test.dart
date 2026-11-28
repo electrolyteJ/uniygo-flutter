@@ -1,4 +1,4 @@
-import 'package:duel_room3/scene3d/field_3d_layout.dart';
+import 'package:duel_room3/field/scene3d/field_3d_layout.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -16,8 +16,9 @@ void main() {
       expect(oppM1.slotKeys, ['1_4_0']);
       // myController=1 时交换
       final swapped = Field3DLayout.buildSlots(1);
-      expect(swapped.firstWhere((s) => s.label == 'self_m_0').slotKeys,
-          ['1_4_0']);
+      expect(swapped.firstWhere((s) => s.label == 'self_m_0').slotKeys, [
+        '1_4_0',
+      ]);
     });
 
     test('EMZ 槽位携带双方 key，序列镜像（与 duel_room1 语义一致）', () {
@@ -30,15 +31,23 @@ void main() {
 
     test('行位置：己方在 +Z，对方在 -Z，EMZ 在 0', () {
       final slots = Field3DLayout.buildSlots(0);
-      expect(slots.firstWhere((s) => s.label == 'self_m_0').center.z,
-          closeTo(Field3DLayout.monsterRowZ, 1e-5));
-      expect(slots.firstWhere((s) => s.label == 'opp_m_0').center.z,
-          closeTo(-Field3DLayout.monsterRowZ, 1e-5));
+      expect(
+        slots.firstWhere((s) => s.label == 'self_m_0').center.z,
+        closeTo(Field3DLayout.monsterRowZ, 1e-5),
+      );
+      expect(
+        slots.firstWhere((s) => s.label == 'opp_m_0').center.z,
+        closeTo(-Field3DLayout.monsterRowZ, 1e-5),
+      );
       expect(slots.firstWhere((s) => s.label == 'emz_1').center.z, 0);
-      expect(slots.firstWhere((s) => s.label == 'self_st_0').center.z,
-          closeTo(Field3DLayout.spellTrapRowZ, 1e-5));
-      expect(slots.firstWhere((s) => s.label == 'opp_st_0').center.z,
-          closeTo(-Field3DLayout.spellTrapRowZ, 1e-5));
+      expect(
+        slots.firstWhere((s) => s.label == 'self_st_0').center.z,
+        closeTo(Field3DLayout.spellTrapRowZ, 1e-5),
+      );
+      expect(
+        slots.firstWhere((s) => s.label == 'opp_st_0').center.z,
+        closeTo(-Field3DLayout.spellTrapRowZ, 1e-5),
+      );
     });
 
     test('所有槽位 x/z 不重叠', () {
@@ -55,8 +64,14 @@ void main() {
     test('攻击表示不横置，守备表示横置 90°', () {
       expect(Field3DLayout.standeeRoll(posFaceupAttack), 0.0);
       expect(Field3DLayout.standeeRoll(posFacedownAttack), 0.0);
-      expect(Field3DLayout.standeeRoll(posFaceupDefense), closeTo(-1.5708, 1e-3));
-      expect(Field3DLayout.standeeRoll(posFacedownDefense), closeTo(-1.5708, 1e-3));
+      expect(
+        Field3DLayout.standeeRoll(posFaceupDefense),
+        closeTo(-1.5708, 1e-3),
+      );
+      expect(
+        Field3DLayout.standeeRoll(posFacedownDefense),
+        closeTo(-1.5708, 1e-3),
+      );
     });
 
     test('里侧判定', () {

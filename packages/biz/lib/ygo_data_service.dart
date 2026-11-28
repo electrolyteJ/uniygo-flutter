@@ -29,12 +29,12 @@ class YgoDataService implements IService,IDeckService, ICardService, IBanlistSer
   }
 
   @override
-  Future<Map<int, LfTable>> getAllLfTable() async {
+  Map<int, LfTable> getAllLfTable()  {
     return _banlistService.getAllLfTable();
   }
 
   @override
-  Future<LfTable?> getLfTable(int code) {
+  LfTable? getLfTable(int code) {
     return _banlistService.getLfTable(code);
   }
 

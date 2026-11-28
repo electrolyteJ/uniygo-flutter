@@ -10,7 +10,6 @@ import 'package:duelink/duelink.dart' hide ConnectionState;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:resource_data/lf_table.dart';
 
 import 'package:duel_room1/layout/duel_room_layout.dart';
 import 'package:biz/widgets/overlay_panel.dart';
@@ -187,7 +186,6 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
                     isAllReady: room.isAllReady,
                     autoHandEnabled: room.autoHandEnabled,
                     autoTurnOrderEnabled: room.autoTurnOrderEnabled,
-                    autoDuelEnabled: room.autoDuelEnabled,
                     toggleReady: (context) => _onToggleReady(context, ref),
                     onToggleAutoHand: (v) => unawaited(
                       _onToggleAutomation(ref, v, roomCtl.setAutoHandEnabled),
@@ -199,10 +197,6 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
                         roomCtl.setAutoTurnOrderEnabled,
                       ),
                     ),
-                    onToggleAutoDuel: (v) => unawaited(
-                      _onToggleAutomation(ref, v, roomCtl.setAutoDuelEnabled),
-                    ),
-                    onStartDuel: roomCtl.startDuel,
                     onBecomeDuelist: roomCtl.becomeDuelist,
                     onBecomeObserver: roomCtl.becomeObserver,
                   ),
@@ -344,22 +338,13 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
             onConfirm: () => _onConfirmSiding(context, ref),
           ),
         if (opts != null)
-          FutureBuilder<LfTable?>(
-            future: roomCtl.getLfTable(opts.lfTableHash),
-            builder: (context, snapshot) {
-              // 三态区分：加载中 / 失败 / 数据
-              // （数据为 null 才是「不限制」），避免
-              // 加载失败被渲染成误导性的「不限制」。
-              return RoomInfoPanel(
-                opts: opts,
-                lfTable: snapshot.data,
-                lfTableLoading:
-                    snapshot.connectionState != ConnectionState.done &&
-                    !snapshot.hasError,
-                lfTableFailed: snapshot.hasError,
-                cardLoader: dataService.getCard,
-              );
-            },
+          // 卡表已是同步读取：直接传值，不再走 FutureBuilder。
+          RoomInfoPanel(
+            opts: opts,
+            lfTable: roomCtl.getLfTable(opts.lfTableHash),
+            lfTableLoading: false,
+            lfTableFailed: false,
+            cardLoader: dataService.getCard,
           ),
       ],
     );
@@ -372,18 +357,14 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
     required bool isAllReady,
     required bool autoHandEnabled,
     required bool autoTurnOrderEnabled,
-    required bool autoDuelEnabled,
     required ValueChanged<BuildContext> toggleReady,
     required ValueChanged<bool> onToggleAutoHand,
     required ValueChanged<bool> onToggleAutoTurnOrder,
-    required ValueChanged<bool> onToggleAutoDuel,
-    required VoidCallback onStartDuel,
     required VoidCallback onBecomeDuelist,
     required VoidCallback onBecomeObserver,
   }) {
     /// godot RoomOverlay 按钮的强调色。
     const _accentReady = Color(0xFF1A8C4C); // 准备：绿
-    const _accentStart = Color(0xFF996600); // 开始决斗：橙
     // tag 模式 2/3 号位（player3/player4）同样是决斗者。
     final isPlayer = selfType.isDuelist;
     // 不设底色：等待室已改为半透明弹窗，面板背景由弹窗容器提供。
@@ -403,13 +384,6 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
               spacing: 12,
               runSpacing: 4,
               children: [
-                if (isHost)
-                  AutomationSwitch(
-                    label: '自动加入决斗',
-                    value: autoDuelEnabled,
-                    enabled: !isSelfReady,
-                    onChanged: (value) => onToggleAutoDuel(value),
-                  ),
                 AutomationSwitch(
                   label: '自动猜拳',
                   value: autoHandEnabled,
@@ -440,7 +414,7 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
                       // 标签同步隐藏避免误导。
                       label: isSelfReady
                           ? '取消准备'
-                          : (isHost && autoDuelEnabled ? '准备&决斗' : '准备'),
+                          : '准备',
                       icon: isSelfReady ? Icons.cancel : Icons.check_circle,
                       accent: _accentReady,
                       active: isSelfReady,
@@ -461,14 +435,6 @@ class _WaitingRoomPageState extends ConsumerState<WaitingRoomPage> {
                       icon: Icons.person_add,
                       accent: Colors.amber,
                       onPressed: onBecomeDuelist,
-                    ),
-                  if (isHost && !autoDuelEnabled)
-                    RoomButton(
-                      maxWidth: constraints.maxWidth,
-                      label: '开始决斗',
-                      icon: Icons.play_arrow,
-                      accent: _accentStart,
-                      onPressed: isAllReady ? onStartDuel : null,
                     ),
                 ],
               ),

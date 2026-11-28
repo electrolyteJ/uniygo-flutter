@@ -311,13 +311,20 @@ class _DesignMediaQuery extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final real = MediaQuery.of(context);
+    // 整棵树由 [_ScaledApp] 的 FittedBox 从设计尺寸缩放到窗口：把真实键盘
+    // 高度换算回设计坐标透传下去，弹层（聊天/对话框）才能贴着键盘顶部排布，
+    // 而不是被软键盘整个盖住。没有键盘时就是 0，行为与原来一致。
+    final keyboardInset = real.size.height <= 0
+        ? 0.0
+        : real.viewInsets.bottom * kAppDesignSize.height / real.size.height;
     return MediaQuery(
-      data: MediaQuery.of(context).copyWith(
+      data: real.copyWith(
         size: kAppDesignSize,
         // 设计分辨率内不含设备安全区（刘海/状态栏），页面自行处理留白。
         padding: EdgeInsets.zero,
         viewPadding: EdgeInsets.zero,
-        viewInsets: EdgeInsets.zero,
+        viewInsets: EdgeInsets.only(bottom: keyboardInset),
       ),
       child: child,
     );

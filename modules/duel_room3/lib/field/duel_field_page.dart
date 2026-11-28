@@ -7,35 +7,42 @@ import 'package:biz/duel/field/duel_field_state.dart';
 import 'package:biz/duel/field/field_overlay_state.dart';
 import 'package:biz/duel/field/select_window_state.dart';
 import 'package:biz/duel/models/select_state.dart';
-import 'package:biz/duel/room/duel_room_state.dart';
 import 'package:biz/widgets/card_image.dart';
 import 'package:duelink/duelink.dart';
 import 'package:flame/game.dart' show GameWidget;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../bridge/duel_3d_bridge.dart';
+import 'bridge/duel_3d_bridge.dart';
 import '../duel_room_exit.dart';
-import '../hud/action_bar.dart';
-import '../hud/card_detail_panel.dart';
-import '../hud/confirm_cards_dialog.dart';
-import '../hud/confirm_floating_card.dart';
-import '../hud/cyber_overlay.dart';
-import '../hud/duel_overlays.dart';
-import '../hud/hand_bar.dart';
-import '../hud/hud_theme.dart';
-import '../hud/lp_bar.dart';
-import '../hud/phase_rail.dart';
-import '../hud/turn_order_hint.dart';
-import '../hud/zone_count_bar.dart';
-import '../scene3d/duel_3d_game.dart';
+import 'hud/action_bar.dart';
+import 'hud/card_detail_panel.dart';
+import 'hud/confirm_cards_dialog.dart';
+import 'hud/confirm_floating_card.dart';
+import 'hud/cyber_overlay.dart';
+import 'hud/duel_overlays.dart';
+import 'hud/hand_bar.dart';
+import '../theme/hud_theme.dart';
+import 'hud/lp_bar.dart';
+import 'hud/phase_rail.dart';
+import 'hud/zone_count_bar.dart';
+import 'scene3d/duel_3d_game.dart';
 import '../theme/cyber_skin.dart';
 
 /// 3D 决斗场地页：flame_3d 场景 + MDPro3 风格 HUD 叠层。
+///
+/// **自己创建并持有 [Duel3DGame]**（见 [_DuelFieldPage3DState._ensureGame]）。
+/// 页面之间不共享 3D 实例：房间页用 [TabBarView] 切「等候 → 加载 → 场地」，
+/// 而 `TabBarView` 底层是不保活的 `PageView`，跨页传递实例会踩到 flame
+/// 「同一 `Game` 不能被两个 `GameWidget` 同时持有」的单值约束
+/// （`Game._gameRenderBox`）。让本页独占装配，链路最简单。
 class DuelFieldPage3D extends ConsumerStatefulWidget {
-  const DuelFieldPage3D({super.key, required this.players});
+  const DuelFieldPage3D({super.key, required this.players, this.onSceneReady});
 
   final List<PlayerInfo> players;
+
+  /// 3D 场景首帧就绪（GPU 预载 + 场景装配都完成）时回调一次。
+  final VoidCallback? onSceneReady;
 
   @override
   ConsumerState<DuelFieldPage3D> createState() => _DuelFieldPage3DState();
@@ -45,8 +52,8 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
   Duel3DGame? _game;
   Duel3DBridge? _bridge;
   bool _logDrawerOpen = false;
-  bool _showTurnOrderHint = false;
-  bool _isFirstTurn = false;
+
+  Duel3DGame get _gameOrThrow => _game!;
 
   DuelFieldState get _board => ref.read(duelFieldProvider);
   DuelFieldNotifier get _boardN => ref.read(duelFieldProvider.notifier);
@@ -55,14 +62,14 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
   FieldOverlayState get _overlay => ref.read(fieldOverlayProvider);
   FieldOverlayNotifier get _overlayN => ref.read(fieldOverlayProvider.notifier);
 
-  @override
-  void dispose() {
-    _bridge?.detach();
-    super.dispose();
-  }
-
   bool _gpuReady = false;
   Object? _gpuError;
+
+  /// 场景首帧就绪是否已回调过（保证只回调一次）。
+  bool _sceneReadyNotified = false;
+
+  /// 就绪回调是否已经排进帧后队列（避免 loadingBuilder 每帧重复排队）。
+  bool _warmingScheduled = false;
 
   /// 手势容器坐标基准（取它自己的 RenderBox，而非外层页面容器——
   /// 树结构变化时后者会静默错位）。
@@ -77,22 +84,34 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
     unawaited(CyberSkin.restore());
   }
 
+  @override
+  void dispose() {
+    _bridge?.detach();
+    super.dispose();
+  }
+
   /// 先预载 shader（GpuBackend）再挂载 GameWidget，避免首帧
   /// 材质初始化竞态（Failed to initialize ShaderLibrary）。
   /// 失败进错误态（可重试；ensureGpuBackend 失败后会复位缓存）。
+  ///
+  /// 预载完只算「GPU 能用」；要等 GameWidget 真正上屏出过一帧
+  /// （[_markSceneReady]）才算场景就绪。
   void _initGpu() {
     Duel3DGame.ensureGpuBackend()
         .then((_) {
-          if (mounted) setState(() => _gpuReady = true);
+          if (!mounted) return;
+          setState(() => _gpuReady = true);
         })
         .catchError((Object e) {
           if (mounted) setState(() => _gpuError = e);
         });
   }
 
-  /// 等待 myController 就绪后创建 Game（场地页挂载时已 RoomInDuel，
-  /// myController 已由 MSG_START 的 playerType 确定——selfType 锚定
-  /// 的是 mySeat 而非 controller；防御性再等一帧）。
+  /// 创建 3D 实例并接上状态桥（幂等：`build` 每帧调用）。
+  ///
+  /// 场地页挂载时已 `RoomInDuel`，`myController` 由 `MSG_START` 的
+  /// `playerType` 确定——`selfType` 锚定的是 `mySeat` 而非 controller，
+  /// 这里不做二次推断，直接用 board 已解析的结果。
   void _ensureGame() {
     if (_game != null) return;
     final board = _board;
@@ -101,6 +120,26 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
     game.onStandeeTap = _handleStandeeTap;
     _game = game;
     _bridge = Duel3DBridge(game: game)..attach(ref);
+  }
+
+  /// 场景首帧已上屏：通知外部（可为 null）。
+  void _markSceneReady() {
+    if (_sceneReadyNotified) return;
+    _sceneReadyNotified = true;
+    widget.onSceneReady?.call();
+  }
+
+  /// GameWidget 首帧装配中的探针（见 [GameWidget.loadingBuilder]）。
+  ///
+  /// 第一次被调用说明「已经挂上树、开始装配」，本帧之后场景就是可看的，
+  /// 于是在帧后回调 [_markSceneReady]。用标志位保证只排一次队。
+  void _onWarming() {
+    if (_warmingScheduled || _sceneReadyNotified) return;
+    _warmingScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _markSceneReady();
+    });
   }
 
   // ───────────────────────── 交互 ─────────────────────────
@@ -196,15 +235,6 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
     if (_overlay.showInspector) _overlayN.dismissInspector();
   }
 
-  /// 挂载先后攻提示浮层。观战者由 build 里的 ref.listen 过滤，
-  /// 这里只做去重与状态记录；提示自身负责淡入 → 停留 → 淡出，
-  /// 并在 onDismiss 回调里复位显示状态。
-  void _revealTurnOrderHint(bool isFirst) {
-    if (!mounted || _showTurnOrderHint) return;
-    _isFirstTurn = isFirst;
-    setState(() => _showTurnOrderHint = true);
-  }
-
   /// 顶部浮动确认卡的定位：owner == myController 时视为己方（底部手牌上方），
   /// 否则视为对方（顶部）。room3 无 room1 的 fieldAnchors 锚点，这里用固定
   /// 偏移贴近对应半场（右 150 避开右侧 LP 条 / 阶段轨道）。
@@ -240,19 +270,8 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
 
   @override
   Widget build(BuildContext context) {
-    // 先后攻提示：随房间 stage 进入 RoomInDuel 触发（isFirstTurn 与 stage
-    // 由服务器同帧下发）。match 多局之间 isFirstTurn 可能同值、select 不触发，
-    // 故监听 stage 变迁而非 isFirstTurn 值本身（对照 room1 的做法）。
-    ref.listen(duelRoomProvider.select((s) => s.stage), (prev, next) {
-      if (next is! RoomInDuel || prev is RoomInDuel) return;
-      final room = ref.read(duelRoomProvider);
-      final isFirst = room.isFirstTurn;
-      if (isFirst == null || room.selfType == PlayerType.observer) return;
-      _revealTurnOrderHint(isFirst);
-    });
-
     _ensureGame();
-    final game = _game!;
+    final game = _gameOrThrow;
     final board = ref.watch(duelFieldProvider);
     final overlay = ref.watch(fieldOverlayProvider);
     final select = ref.watch(selectWindowProvider);
@@ -264,7 +283,8 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
     final selectN = ref.read(selectWindowProvider.notifier);
     final selfName = board.playerNameOf(board.myController);
     final oppName = board.playerNameOf(1 - board.myController);
-    final canCancel = overlay.hasAnyOverlayOpen ||
+    final canCancel =
+        overlay.hasAnyOverlayOpen ||
         overlay.showInspector ||
         select.inlineSelectedCount > 0;
 
@@ -279,7 +299,11 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline, color: HudTheme.danger, size: 40),
+                  const Icon(
+                    Icons.error_outline,
+                    color: HudTheme.danger,
+                    size: 40,
+                  ),
                   const SizedBox(height: 10),
                   Text(
                     '3D 渲染初始化失败',
@@ -302,9 +326,7 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
               ),
             )
           else if (!_gpuReady)
-            const Center(
-              child: CircularProgressIndicator(color: HudTheme.cyan),
-            )
+            const Center(child: CircularProgressIndicator(color: HudTheme.cyan))
           else
             Positioned.fill(
               child: GestureDetector(
@@ -317,9 +339,21 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
                   if (box == null) return;
                   game.handleTap(details.localPosition, box.size);
                 },
-                child: GameWidget(game: game),
+                child: GameWidget(
+                  game: game,
+                  // 场景装配完成（Game.load + mount 都跑完）即认为可交接。
+                  // 用 loadingBuilder 当探针而不是另加 `onLoad`——flame 的
+                  // GameWidget 没有这个回调；loadingBuilder 只在装配中的
+                  // 那些帧被调用，装配完就换成正式画面，正好是就绪信号。
+                  loadingBuilder: (context) {
+                    // 首帧装配期间的占位。这里不能直接 setState：本回调
+                    // 运行在 build 内部。交给 `_warming` 队列在帧后置位。
+                    _onWarming();
+                    return const SizedBox.expand();
+                  },
+                ),
               ),
-          ),
+            ),
 
           // 赛博 HUD 后处理：只覆盖 3D 场景层，HUD 文字保持清晰。
           // IgnorePointer 内置于 CyberOverlay，不影响射线拾取。
@@ -442,7 +476,8 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
                     removedCount: board.oppRemoved,
                     onExtraTap: () => _overlayN.openZoneBrowser('opp_extra'),
                     onGraveTap: () => _overlayN.openZoneBrowser('opp_grave'),
-                    onRemovedTap: () => _overlayN.openZoneBrowser('opp_removed'),
+                    onRemovedTap: () =>
+                        _overlayN.openZoneBrowser('opp_removed'),
                   ),
                 ),
               ],
@@ -516,7 +551,8 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
                       removedCount: board.selfRemoved,
                       onExtraTap: () => _overlayN.openZoneBrowser('self_extra'),
                       onGraveTap: () => _overlayN.openZoneBrowser('self_grave'),
-                      onRemovedTap: () => _overlayN.openZoneBrowser('self_removed'),
+                      onRemovedTap: () =>
+                          _overlayN.openZoneBrowser('self_removed'),
                     ),
                   ),
                 ),
@@ -539,8 +575,7 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
                 HandBar(
                   cards: board.selfHand,
                   selectedSequence: overlay.selectedHandSequence,
-                  selectableSequences:
-                      selectN.inlineSelectableHandSequences,
+                  selectableSequences: selectN.inlineSelectableHandSequences,
                   checkedSequences: selectN.inlineSelectedHandSequences,
                   onCardTap: _handleHandCardTap,
                 ),
@@ -647,31 +682,15 @@ class _DuelFieldPage3DState extends ConsumerState<DuelFieldPage3D> {
           // 日志/聊天抽屉
           if (_logDrawerOpen)
             Positioned.fill(
-              child: _LogDrawer(onClose: () => setState(() => _logDrawerOpen = false)),
+              child: _LogDrawer(
+                onClose: () => setState(() => _logDrawerOpen = false),
+              ),
             ),
 
           // 区域浏览器
           if (overlay.openZoneBrowserKey != null)
             Positioned.fill(
               child: _ZoneBrowser(zoneKey: overlay.openZoneBrowserKey!),
-            ),
-
-          // 先后攻提示（B4）：居中短暂展示，IgnorePointer 不拦截手势；
-          // TurnOrderHint 自身负责淡入 → 停留 → 淡出 → onDismiss。
-          if (_showTurnOrderHint)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Center(
-                  child: TurnOrderHint(
-                    isFirst: _isFirstTurn,
-                    onDismiss: () {
-                      if (mounted) {
-                        setState(() => _showTurnOrderHint = false);
-                      }
-                    },
-                  ),
-                ),
-              ),
             ),
         ],
       ),
@@ -925,10 +944,7 @@ class _ZoneBrowser extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        '$title（${entries.length}）',
-                        style: HudTheme.title,
-                      ),
+                      Text('$title（${entries.length}）', style: HudTheme.title),
                       const Spacer(),
                       InkWell(
                         onTap: overlayN.closeZoneBrowser,
@@ -949,11 +965,11 @@ class _ZoneBrowser extends ConsumerWidget {
                         : GridView.builder(
                             gridDelegate:
                                 const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 82,
-                              childAspectRatio: 59 / 86,
-                              mainAxisSpacing: 8,
-                              crossAxisSpacing: 8,
-                            ),
+                                  maxCrossAxisExtent: 82,
+                                  childAspectRatio: 59 / 86,
+                                  mainAxisSpacing: 8,
+                                  crossAxisSpacing: 8,
+                                ),
                             itemCount: entries.length,
                             itemBuilder: (context, index) {
                               final entry = entries[index];
@@ -1004,9 +1020,9 @@ class _ZoneBrowser extends ConsumerWidget {
                                             child: Container(
                                               padding:
                                                   const EdgeInsets.symmetric(
-                                                horizontal: 3,
-                                                vertical: 1,
-                                              ),
+                                                    horizontal: 3,
+                                                    vertical: 1,
+                                                  ),
                                               decoration: BoxDecoration(
                                                 color: HudTheme.cyan,
                                                 borderRadius:

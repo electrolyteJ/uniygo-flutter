@@ -109,12 +109,10 @@ typedef ShowYgoSettingsDialog =
       BuildContext context, {
 
       /// 等候厅三项开关的当前房间值（不传则读本机偏好）。
-      bool? autoDuel,
       bool? autoHand,
       bool? autoTurnOrder,
 
       /// 等候厅三项开关的即时回调（传了就对当前房间立即生效）。
-      ValueChanged<bool>? onAutoDuelChanged,
       ValueChanged<bool>? onAutoHandChanged,
       ValueChanged<bool>? onAutoTurnOrderChanged,
     });

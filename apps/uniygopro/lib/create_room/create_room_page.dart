@@ -92,6 +92,8 @@ class _CreateRoomPageState extends State<CreateRoomPage>
       // BottomNavigationBar 画不出设计稿的短下划线。
       body: DuelStage(
         backdrop: DuelBackdropKind.page,
+        // 页签里的输入/弹层（邀码粘贴、MyCard 登录）跟随键盘避让。
+        avoidKeyboard: true,
         child: Stack(
           children: [
             // 页壳左上角只留一个回退 icon，避免压住各页签的舞台。

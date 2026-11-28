@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 const duelBg = Color(0xFF05060F);
 const duelPanel = Color(0xFF060D15);
 const duelLine = Color(0xFF152539);
+
+/// 按钮描边（设计稿 #2A4763，比分隔线更亮）。
+const duelBtnLine = Color(0xFF2A4763);
 const duelCyan = Color(0xFF37E1FF);
 const duelGold = Color(0xFFFFD75A);
 const duelTextColor = Color(0xFFEAF2FF);

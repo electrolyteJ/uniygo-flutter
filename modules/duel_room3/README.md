@@ -18,10 +18,10 @@
 ## 房间邀请与扫码
 
 - 等候厅邀请弹窗的二维码内容是深链
-  `uniygo://duel?room=<邀码>&h=<host>&p=<port>`（`invite/duel_invite.dart`）。
+  `uniygo://duel?room=<邀码>&h=<host>&p=<port>`（`waiting/invite/duel_invite.dart`）。
   `h`/`p` 是房主所在服务器，扫码方据此选用同一环境；老二维码只有 `room`，
   解析时允许缺失。
-- `invite/qr_scan_dialog.dart` 的 `showRoomQrScanDialog()`：Android/iOS 用
+- `waiting/invite/qr_scan_dialog.dart` 的 `showRoomQrScanDialog()`：Android/iOS 用
   `mobile_scanner` 实时取景扫二维码；macOS/Windows/Linux/Web 自动退化为
   「粘贴邀请码」，也可以传 `cameraSupported: false` 强制走粘贴。
 - 模块只返回扫到的原文；解析、选环境、真正进房都由宿主负责。
@@ -64,15 +64,15 @@ flutter run -d macos --enable-flutter-gpu -t apps/uniygopro/lib/main.dart
 
 - `theme/cyber_palette.dart` + `theme/cyber_skin.dart`：赛博色板与
   「演出增强层」开关（shared_preferences 持久化，默认开）
-- `hud/hud_theme.dart`：HUD 常量整体换成深黑蓝 + 亮青 + 品红/酸绿
-- `hud/cyber_overlay.dart`：扫描线 / 雨丝 / 噪点 / 暗角 / 故障条 /
+- `theme/hud_theme.dart`：HUD 常量整体换成深黑蓝 + 亮青 + 品红/酸绿
+- `field/hud/cyber_overlay.dart`：扫描线 / 雨丝 / 噪点 / 暗角 / 故障条 /
   四角切角线框（纯 Flutter CustomPaint，内置 IgnorePointer）
-- `scene3d/arena_component.dart`：矩形悬浮平台 + 双层霓虹边框 +
+- `field/scene3d/arena_component.dart`：矩形悬浮平台 + 双层霓虹边框 +
   法阵环 + 四角光柱 + 城市天际线穹顶 + 无限延伸地面网格
-- `scene3d/zone_grid_component.dart`：32 槽霓虹配色 + 逐格流动微光
-- `scene3d/fx/effects_manager.dart`：召唤门三层 / 双光柱 / 地面冲击波 /
+- `field/scene3d/zone_grid_component.dart`：32 槽霓虹配色 + 逐格流动微光
+- `field/scene3d/fx/effects_manager.dart`：召唤门三层 / 双光柱 / 地面冲击波 /
   双色光束 / 双层命中闪光 / 异色粒子
-- `scene3d/duel_3d_game.dart`：品红 + 亮青双色侧光
+- `field/scene3d/duel_3d_game.dart`：品红 + 亮青双色侧光
 - `field/duel_field_page.dart`：叠层挂载 + 右上角闪电按钮即时切换
 
 开关控制的是**动态演出强度**，关掉后回到接近经典的观感；皮肤底板
@@ -85,7 +85,8 @@ flutter run -d macos --enable-flutter-gpu -t apps/uniygopro/lib/main.dart
 无法按材质设 additive，也没有 bloom 后处理，因此霓虹辉光靠高饱和
 自发光色 + 多层叠加近似，做不到 HTML 原型里 `lighter` 合成的真辉光；
 真辉光仍需设计文档里列的自定义 Material + shaderbundle spike。
-Web 端依旧不支持（`kIsWeb` 降级到 `room2d`）。
+Web 端不支持：本模块**只服务原生平台**，内部不做 `kIsWeb` 判断。
+「Web 走哪个页面」由宿主的降级路由决定（`duel_room2`）。
 
 ## 已知简化（v1）
 

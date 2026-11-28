@@ -66,7 +66,7 @@ class _StubDeckService extends IDeckService {
 
 class _StubBanlistService extends IBanlistService {
   @override
-  Future<LfTable?> getLfTable(int hash) async => null;
+  LfTable? getLfTable(int hash) => null;
 }
 
 /// 内存假决斗服务：测试直接向房间阶段流发事件。

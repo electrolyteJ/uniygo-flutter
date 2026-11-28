@@ -15,6 +15,8 @@ import '../models/mode_models.dart';
 import '../widgets/floating_cards.dart';
 import '../widgets/mode_rail.dart';
 import '../widgets/match_dial.dart';
+import '../util/banlist_util.dart';
+import '../models/rule_rows.dart';
 import '../widgets/room_rule_panel.dart';
 import 'puzzle_panel.dart';
 import 'ai_duel_launch.dart';
@@ -44,6 +46,8 @@ class _TrainTabState extends State<TrainTab> {
     final current = ModeSelection.instance.current;
     final index = _tab.entries.indexWhere((e) => identical(e, current));
     if (index >= 0) _selected = index;
+    // 默认选「无禁限」（下拉最后一项）。
+    _config = _config.copyWith(banlist: BanlistUtil.noBanlistIndex);
   }
 
   void _selectEntry(int index) {
@@ -51,7 +55,7 @@ class _TrainTabState extends State<TrainTab> {
     DuelSounds.tabSwitch();
     setState(() {
       _selected = index;
-      _config = const RoomRuleConfig();
+      _config = RoomRuleConfig(banlist: BanlistUtil.noBanlistIndex);
     });
     ModeSelection.instance.select(_entry);
   }
@@ -106,10 +110,38 @@ class _TrainTabState extends State<TrainTab> {
         ),
         RoomRulePanel(
           title: '规则设置',
-          value: _config,
-          onChanged: (v) => setState(() => _config = v),
-          showModeRow: true,
-          mercury233Banlist: true,
+          rows: [
+            modeRow(_config, (v) => setState(() => _config = v)),
+            ...baseRuleRows(
+              _config,
+              (v) => setState(() => _config = v),
+            ),
+            banlistRow(
+              _config,
+              (v) => setState(() => _config = v),
+              BanlistUtil.getMercury233Labels(),
+            ),
+          ],
+          checks: [
+            RuleCheckSpec(
+              key: 'noCheck',
+              label: '不检查卡组',
+              value: _config.noCheck,
+              onChanged: (v) =>
+                  setState(() => _config = _config.copyWith(noCheck: v)),
+            ),
+            RuleCheckSpec(
+              key: 'noShuffle',
+              label: '不切洗卡组',
+              value: _config.noShuffle,
+              onChanged: (v) =>
+                  setState(() => _config = _config.copyWith(noShuffle: v)),
+            ),
+          ],
+          collapsed: _config.collapsed,
+          onToggleCollapsed: () => setState(
+            () => _config = _config.copyWith(collapsed: !_config.collapsed),
+          ),
           checksTop: 236,
         ),
         if (_puzzleOpen)

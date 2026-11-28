@@ -36,7 +36,7 @@ class RoomInfoCard extends StatelessWidget {
     final mode = switch (o?.mode) {
       RoomMode.single => '单局模式',
       RoomMode.match => '三局两胜',
-      RoomMode.tag => '双打模式',
+      RoomMode.tag => '双打 2v2',
       null => '—',
     };
     final rule = switch (o?.rule) {
@@ -136,19 +136,10 @@ class RoomInfoCard extends StatelessWidget {
                   left: 16 * k,
                   top: 12 * k,
                   child: Text(
-                    '房间信息',
+                    '房间#${roomId}',
                     style: TextStyle(fontSize: 10.5 * k, color: duelTextColor),
                   ),
                 ),
-                if (roomId != null)
-                  Positioned(
-                    right: 30 * k,
-                    top: 13 * k,
-                    child: Text(
-                      '房间 #$roomId',
-                      style: TextStyle(fontSize: 8.5 * k, color: duelCyan),
-                    ),
-                  ),
                 if (onClose != null)
                   Positioned(
                     right: 8 * k,
@@ -191,17 +182,11 @@ class RoomInfoCard extends StatelessWidget {
                 row(
                   90,
                   '初始',
-                  'LP ${o?.startLp ?? 8000} · 手牌 ${o?.startHand ?? 5} · 抽卡 ${o?.drawCount ?? 1}',
+                  '手牌 ${o?.startHand ?? 5} · 抽卡 ${o?.drawCount ?? 1}',
                   '切洗卡组',
                   o?.noShuffleDeck == true ? '否' : '是',
                 ),
-                row(
-                  114,
-                  '限时',
-                  '${o?.timeLimit ?? 0} 秒',
-                  '观战',
-                  room.observerCount.toString(),
-                ),
+                row(114, '限时', '${o?.timeLimit ?? 0} 秒', "", ""),
                 Positioned(
                   left: 16 * k,
                   top: 146 * k,

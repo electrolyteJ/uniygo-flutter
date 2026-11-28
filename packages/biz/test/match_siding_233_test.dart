@@ -75,7 +75,7 @@ class _StubDeckService extends IDeckService {
 
 class _StubBanlistService extends IBanlistService {
   @override
-  Future<LfTable?> getLfTable(int hash) async => null;
+  LfTable? getLfTable(int hash) => null;
 }
 
 /// 出站包间谍：打印关键的房间/对局动作，证明包确实发出。

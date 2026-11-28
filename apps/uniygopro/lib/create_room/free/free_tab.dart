@@ -9,6 +9,7 @@ import '../models/mode_models.dart';
 import '../widgets/floating_cards.dart';
 import '../widgets/match_dial.dart';
 import '../widgets/mode_rail.dart';
+import '../models/rule_rows.dart';
 import '../widgets/room_rule_panel.dart';
 import 'free_room_launch.dart';
 
@@ -67,6 +68,14 @@ class _FreeTabState extends State<FreeTab> {
     }
   }
 
+  void _applyConfig(RoomRuleConfig v) {
+    setState(() {
+      _config = v;
+      _selected = v.env;
+    });
+    ModeSelection.instance.select(_entry);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -85,19 +94,37 @@ class _FreeTabState extends State<FreeTab> {
         ),
         RoomRulePanel(
           title: '规则设置',
-          value: _config,
-          onChanged: (v) {
-            setState(() {
-              _config = v;
-              _selected = v.env;
-            });
-            ModeSelection.instance.select(_entry);
-          },
-          showModeRow: true,
-          modeOptions: const ['单局', '三局两胜'],
-          modeValues: const [0, 1],
-          showCardRule: false,
-          showBanlist: false,
+          rows: [
+            modeRow(
+              _config,
+              (v) => _applyConfig(v),
+              options: const ['单局', '三局两胜'],
+              values: const [0, 1],
+            ),
+            ...baseRuleRows(
+              _config,
+              (v) => _applyConfig(v),
+              includeCardRule: false,
+            ),
+          ],
+          checks: [
+            RuleCheckSpec(
+              key: 'noCheck',
+              label: '不检查卡组',
+              value: _config.noCheck,
+              onChanged: (v) => _applyConfig(_config.copyWith(noCheck: v)),
+            ),
+            RuleCheckSpec(
+              key: 'noShuffle',
+              label: '不切洗卡组',
+              value: _config.noShuffle,
+              onChanged: (v) => _applyConfig(_config.copyWith(noShuffle: v)),
+            ),
+          ],
+          collapsed: _config.collapsed,
+          onToggleCollapsed: () => _applyConfig(
+            _config.copyWith(collapsed: !_config.collapsed),
+          ),
           checksTop: 180,
           height: 204,
         ),

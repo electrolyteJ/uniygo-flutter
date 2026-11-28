@@ -34,8 +34,6 @@ void main() {
       VoidCallback? onSignOut,
       bool? autoHand,
       ValueChanged<bool>? onAutoHandChanged,
-      bool? autoDuel,
-      ValueChanged<bool>? onAutoDuelChanged,
     }) {
       return MaterialApp(
         home: Scaffold(
@@ -49,9 +47,7 @@ void main() {
                 accountUsername: isLoggedIn ? 'kaiba' : null,
                 onClose: onClose,
                 onSignOut: onSignOut,
-                autoDuel: autoDuel,
                 autoHand: autoHand,
-                onAutoDuelChanged: onAutoDuelChanged,
                 onAutoHandChanged: onAutoHandChanged,
                 onGoLogin: () {},
                 onOpenPreview: (_) {},
@@ -118,7 +114,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('等候厅'), findsOneWidget);
-      expect(find.text('自动加入决斗'), findsOneWidget);
       expect(find.text('自动猜拳'), findsOneWidget);
       expect(find.text('自动选先后手'), findsOneWidget);
       expect(find.text('决斗场地'), findsOneWidget);
@@ -142,7 +137,6 @@ void main() {
 
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getBool('duel.auto_hand_enabled'), isTrue);
-      expect(prefs.getBool('duel.auto_duel_enabled'), isFalse);
     });
 
     testWidgets('画面页：分辨率/画质/帧率只读展示自动值', (tester) async {
@@ -163,9 +157,7 @@ void main() {
 
     testWidgets('保存：注入等候厅回调时音效开关依然落盘', (tester) async {
       SharedPreferences.setMockInitialValues({});
-      await tester.pumpWidget(
-        buildDialog(onClose: () {}, onAutoDuelChanged: (_) {}),
-      );
+      await tester.pumpWidget(buildDialog(onClose: () {}));
       await tester.pump();
 
       await tester.tap(find.text('音效'));
@@ -204,25 +196,22 @@ void main() {
       expect(prefs.getBool('home_settings.ai_server_233'), isFalse);
       expect(prefs.getInt('home_settings.ai_model'), 0);
       expect(prefs.getBool('duel.auto_hand_enabled'), isFalse);
-      expect(prefs.getBool('duel.auto_duel_enabled'), isFalse);
     });
 
     testWidgets('恢复默认：注入了房间回调时同时作用到当前房间', (tester) async {
       SharedPreferences.setMockInitialValues({});
-      bool? duel;
-      await tester.pumpWidget(
-        buildDialog(
-          onClose: () {},
-          autoDuel: true,
-          onAutoDuelChanged: (v) => duel = v,
-        ),
-      );
+      await tester.pumpWidget(buildDialog(onClose: () {}));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const ValueKey('settings-secondary')));
       await tester.pumpAndSettle();
 
-      expect(duel, isFalse, reason: '恢复默认应把当前房间的开关也关掉');
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        prefs.getBool('duel.auto_hand_enabled'),
+        isFalse,
+        reason: '恢复默认应把等候厅自动开关也重置',
+      );
     });
 
     testWidgets('等候厅开关：初值来自当前房间并即时回调', (tester) async {

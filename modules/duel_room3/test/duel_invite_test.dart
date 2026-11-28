@@ -1,4 +1,4 @@
-import 'package:duel_room3/invite/duel_invite.dart';
+import 'package:duel_room3/waiting/invite/duel_invite.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

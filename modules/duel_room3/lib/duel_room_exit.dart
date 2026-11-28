@@ -129,7 +129,7 @@ Future<void> backHome(
   // 断开不依赖 widget：即使等待/断开期间页面被销毁也照常执行，
   // 让服务器收到断连并下发 RoomNotJoined，触发兜底导航。
   await duelService.disconnect();
-  // 结算由房间内 DuelResultOverlay 展示（MSG_WIN 触发），退出一律回首页；
+  // 结算由房间第 ④ 页 DuelEndPage 展示（MSG_WIN 触发），退出一律回首页；
   // 不再读 duelResult 跳结算页（宿主未注册该路由，结算由房间内 overlay 展示）。
   // 若本函数持有的页面已销毁（对局页随卸载失效），ref 不可再用，
   // 这里直接返回，由 leaveRoomAfterNotJoined 用房间页自身的 ref 完成导航。
@@ -160,6 +160,6 @@ Future<void> leaveRoomAfterNotJoined(
     await ref.read(duelServiceProvider).disconnect();
     if (!context.mounted) return;
   }
-  // 结算由房间内 DuelResultOverlay 展示（MSG_WIN 触发），离房一律回首页。
+  // 结算由房间第 ④ 页 DuelEndPage 展示（MSG_WIN 触发），离房一律回首页。
   context.go('/');
 }

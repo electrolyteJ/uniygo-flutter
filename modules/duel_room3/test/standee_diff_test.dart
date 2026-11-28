@@ -1,13 +1,17 @@
-import 'package:duel_room3/scene3d/standee_diff.dart';
+import 'package:duel_room3/field/scene3d/standee_diff.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-StandeeCardView card(String key, int code, {int position = 1, int overlay = 0}) =>
-    StandeeCardView(
-      zoneKey: key,
-      code: code,
-      position: position,
-      overlayCount: overlay,
-    );
+StandeeCardView card(
+  String key,
+  int code, {
+  int position = 1,
+  int overlay = 0,
+}) => StandeeCardView(
+  zoneKey: key,
+  code: code,
+  position: position,
+  overlayCount: overlay,
+);
 
 void main() {
   test('空 → 有：全部 added', () {

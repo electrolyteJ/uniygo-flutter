@@ -45,7 +45,7 @@ class BanlistService extends IBanlistService {
   }
 
   @override
-  Future<Map<int, LfTable>> getAllLfTable() async {
+  Map<int, LfTable> getAllLfTable()  {
     if (!_banlistLoaded) {
       throw Exception('Banlist not loaded. Call preloadBanlist() first.');
     }
@@ -53,7 +53,7 @@ class BanlistService extends IBanlistService {
   }
 
   @override
-  Future<LfTable?> getLfTable(int code) async {
+  LfTable? getLfTable(int code)  {
     if (!_banlistLoaded) {
       throw Exception('Banlist not loaded. Call preloadBanlist() first.');
     }

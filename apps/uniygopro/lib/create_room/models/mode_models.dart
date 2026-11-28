@@ -347,28 +347,3 @@ class ModeSelection extends ChangeNotifier {
     notifyListeners();
   }
 }
-
-/// 规则面板共用的选项表（设计稿取值；面板与逻辑共用同一份）。
-abstract final class RoomRuleOptions {
-  static const List<String> cardRules = [
-    'OCG',
-    'TCG',
-    'OT 混',
-    '自制卡',
-    '专有卡禁止',
-    '所有卡片',
-  ];
-
-  static const List<String> masterRules = ['MR 2020', 'MR 2019', '新大师规则'];
-  static const List<String> lps = ['4000', '8000', '12000'];
-  static const List<String> hands = ['4', '5', '6'];
-  static const List<String> draws = ['1', '2', '3'];
-  static const List<String> times = ['60 秒', '120 秒', '180 秒', '无限制'];
-
-  static const List<String> freeEnvNames = ['Koishi', 'mycard', 'mercury233'];
-  static const List<String> freeServers = [
-    'momobako:7211',
-    'moenext:7912',
-    'ygo233:233',
-  ];
-}

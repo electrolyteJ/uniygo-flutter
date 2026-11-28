@@ -6,8 +6,8 @@
 /// 静默不亮。修复后内部统一翻译为 slot.id。
 library;
 
-import 'package:duel_room3/scene3d/field_3d_layout.dart';
-import 'package:duel_room3/scene3d/zone_grid_component.dart';
+import 'package:duel_room3/field/scene3d/field_3d_layout.dart';
+import 'package:duel_room3/field/scene3d/zone_grid_component.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

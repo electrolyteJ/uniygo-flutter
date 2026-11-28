@@ -13,11 +13,8 @@ import '../../login/mycard_gate.dart';
 import '../../config/route.dart';
 import '../../config/servers.dart';
 import '../../util/snack_bar_util.dart';
-import '../models/banlist_options.dart';
-import '../models/mode_models.dart';
+import '../util/banlist_util.dart';
 import '../widgets/room_rule_panel.dart';
-import 'created_room_record.dart';
-import 'room_history_store.dart';
 
 
 /// 6 位随机邀码：服务端不提供房间号时用于本地邀请展示。
@@ -59,16 +56,6 @@ Future<void> createFreeRoom(
       secret: u16,
       isPrivate: true,
     );
-    unawaited(
-      RoomHistoryStore.add(
-        CreatedRoomRecord(
-          env: env,
-          roomName: roomName,
-          password: roomId,
-          config: config,
-        ),
-      ),
-    );
     _enter(context, env, roomName, password, account.username, roomId: roomId);
     return;
   }
@@ -85,7 +72,7 @@ Future<void> createFreeRoom(
     final roomString = Room233Password.encodeRoomPassword(
       roomName: '$modeLabel-${randomRoomCode()}',
       // 233 卡表序号（>0 → LFn，0 → NF，-1 → 不写）。
-      lfTableIndex: BanlistCatalog.mercury233IndexAt(config.banlist),
+      lfTableIndex: BanlistUtil.mercury233IndexAt(config.banlist),
       mode: config.mode, // 0=单局 / 1=三局两胜 / 2=双打
       duelRule: config.duelRuleValue,
       rule: config.rule,
@@ -109,16 +96,6 @@ Future<void> createFreeRoom(
     final effectiveName = hashIndex >= 0
         ? roomString.substring(hashIndex + 1)
         : roomString;
-    unawaited(
-      RoomHistoryStore.add(
-        CreatedRoomRecord(
-          env: env,
-          roomName: effectiveName,
-          password: roomString,
-          config: config,
-        ),
-      ),
-    );
     final api = context.read<MyCardAccountApi>();
     final username = api.account?.username.isNotEmpty == true
         ? api.account?.username

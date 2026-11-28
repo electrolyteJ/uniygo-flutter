@@ -1,11 +1,16 @@
-import 'package:duel_room3/scene3d/raycast_3d.dart';
+import 'package:duel_room3/field/scene3d/raycast_3d.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 
 void main() {
   // 与默认相机一致的 view/proj（position (0,7.6,8.8) → target (0,0,-0.4)，fovY 50）。
   final view = Matrix4.identity();
-  setViewMatrix(view, Vector3(0, 7.6, 8.8), Vector3(0, 0, -0.4), Vector3(0, 1, 0));
+  setViewMatrix(
+    view,
+    Vector3(0, 7.6, 8.8),
+    Vector3(0, 0, -0.4),
+    Vector3(0, 1, 0),
+  );
   const aspect = 16 / 9;
   final proj = Matrix4.identity();
   setPerspectiveMatrix(proj, 50 * 3.14159265 / 180, aspect, 0.1, 200);
@@ -42,11 +47,20 @@ void main() {
   group('intersectAabb', () {
     test('命中返回正 t，未命中返回 null', () {
       final box = Aabb3.minMax(Vector3(-0.5, 0, -0.5), Vector3(0.5, 1, 0.5));
-      final hitRay = Ray3D(origin: Vector3(0, 0.5, 3), direction: Vector3(0, 0, -1));
+      final hitRay = Ray3D(
+        origin: Vector3(0, 0.5, 3),
+        direction: Vector3(0, 0, -1),
+      );
       expect(intersectAabb(hitRay, box), closeTo(2.5, 1e-6));
-      final missRay = Ray3D(origin: Vector3(5, 0.5, 3), direction: Vector3(0, 0, -1));
+      final missRay = Ray3D(
+        origin: Vector3(5, 0.5, 3),
+        direction: Vector3(0, 0, -1),
+      );
       expect(intersectAabb(missRay, box), isNull);
-      final backRay = Ray3D(origin: Vector3(0, 0.5, -3), direction: Vector3(0, 0, -1));
+      final backRay = Ray3D(
+        origin: Vector3(0, 0.5, -3),
+        direction: Vector3(0, 0, -1),
+      );
       expect(intersectAabb(backRay, box), isNull);
     });
   });

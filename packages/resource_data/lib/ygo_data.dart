@@ -73,13 +73,13 @@ abstract class IBanlistService implements IService {
     );
   }
 
-  Future<Map<int, LfTable>> getAllLfTable() async {
+  Map<int, LfTable> getAllLfTable()  {
     throw UnimplementedError(
       'getAllLfTable is not implemented in IBanlistService',
     );
   }
 
-  Future<LfTable?> getLfTable(int hash) async {
+  LfTable? getLfTable(int hash)  {
     throw UnimplementedError(
       'getLfTable is not implemented in IBanlistService',
     );

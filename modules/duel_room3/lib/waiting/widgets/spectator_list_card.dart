@@ -1,4 +1,6 @@
-/// 05a5 观战列表浮层：按实际观战人数逐行展示（不再固定 2 个观战位）。
+/// 05a5 观战列表浮层：人数 + 观战者列表 + 底部观战规则提示。
+///
+/// 只渲染实际观战者：有多少人就有多少条，不再补空位。
 library;
 
 import 'package:flutter/material.dart';
@@ -21,50 +23,44 @@ class SpectatorListCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final k = (MediaQuery.sizeOf(context).width / 844).clamp(0.85, 2.4);
     double s(double v) => v * k;
-
     final count = observerCount < 0 ? 0 : observerCount;
-    const rowHeight = 30.0;
-    const rowStep = 38.0;
-    const rowsTop = 108.0;
-    final rowsBottom = rowsTop + count * rowStep;
-    final panelHeight = count == 0 ? 256.0 : rowsBottom + 40;
 
-    Widget slot(int index) {
-      final isSelfSlot = selfIsObserver && index == 0;
-      return Padding(
-        padding: EdgeInsets.only(bottom: s(8)),
-        child: Container(
-          width: s(232),
-          height: s(rowHeight),
-          padding: EdgeInsets.symmetric(horizontal: s(10)),
-          decoration: BoxDecoration(
-            color: const Color(0xFF09121C),
-            borderRadius: BorderRadius.circular(s(2)),
-            border: Border.all(color: isSelfSlot ? duelCyan : duelLine),
-          ),
-          child: Row(
-            children: [
-              Text(
-                '观战位 ' + (index + 1).toString(),
-                style: TextStyle(fontSize: s(8.5), color: duelSub),
+    Widget row(int index) {
+      final isSelf = selfIsObserver && index == 0;
+      return Container(
+        width: s(232),
+        height: s(30),
+        margin: EdgeInsets.only(bottom: s(6)),
+        padding: EdgeInsets.symmetric(horizontal: s(10)),
+        decoration: BoxDecoration(
+          color: const Color(0xFF09121C),
+          borderRadius: BorderRadius.circular(s(2)),
+          border: Border.all(color: isSelf ? duelCyan : duelLine),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.person, size: s(16), color: isSelf ? duelCyan : duelSub),
+            SizedBox(width: s(6)),
+            Text(
+              isSelf ? '你' : '观战玩家 ${index + 1}',
+              style: TextStyle(
+                fontSize: s(8.5),
+                color: isSelf ? duelCyan : duelTextColor,
               ),
-              const Spacer(),
-              Text(
-                isSelfSlot ? '你' : '观战玩家',
-                style: TextStyle(
-                  fontSize: s(8.5),
-                  color: isSelfSlot ? duelCyan : duelTextColor,
-                ),
-              ),
-            ],
-          ),
+            ),
+            const Spacer(),
+            Text(
+              '观战位 ${index + 1}',
+              style: TextStyle(fontSize: s(8), color: duelFaint),
+            ),
+          ],
         ),
       );
     }
 
     return SizedBox(
       width: s(260),
-      height: s(panelHeight),
+      height: s(286),
       child: Container(
         decoration: BoxDecoration(
           color: duelPanel,
@@ -122,15 +118,21 @@ class SpectatorListCard extends StatelessWidget {
                 ),
               ),
             ] else
-              for (var i = 0; i < count; i++)
-                Positioned(
-                  left: s(14),
-                  top: s(rowsTop + i * rowStep),
-                  child: slot(i),
+              Positioned(
+                left: s(14),
+                top: s(48),
+                width: s(232),
+                height: s(190),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [for (var i = 0; i < count; i++) row(i)],
+                  ),
                 ),
+              ),
             Positioned(
               left: s(14),
-              top: s(panelHeight - 24),
+              top: s(256),
               width: s(232),
               child: Text(
                 '观战者仅可查看双方手牌以外的场面',

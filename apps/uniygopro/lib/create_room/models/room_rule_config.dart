@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import 'mode_models.dart';
-
 /// 房间规则值（建房/好友对战/人机/自由房间各页签共用）。
 ///
 /// 纯数据模型：字段都是 UI 下拉的索引或开关；与协议层 RoomOptions 解耦，
@@ -14,10 +12,10 @@ class RoomRuleConfig {
     this.env = 0,
     this.rule = 0,
     this.master = 0,
-    this.lp = 1,
-    this.hand = 1,
-    this.draw = 0,
-    this.time = 2,
+    this.lp = 8000,
+    this.hand = 5,
+    this.draw = 1,
+    this.time = 180,
     this.banlist = 0,
     this.noCheck = false,
     this.noShuffle = false,
@@ -49,17 +47,17 @@ class RoomRuleConfig {
   /// 大师规则：1=MR4，其它=MR2020。
   int get duelRuleValue => master == 1 ? 4 : 5;
 
-  int get startLpValue =>
-      int.tryParse(RoomRuleOptions.lps[lp]) ?? 8000;
+  /// 初始 LP（直接存数值）。
+  int get startLpValue => lp;
 
-  int get startHandValue =>
-      int.tryParse(RoomRuleOptions.hands[hand]) ?? 5;
+  /// 初始手牌。
+  int get startHandValue => hand;
 
-  int get drawCountValue =>
-      int.tryParse(RoomRuleOptions.draws[draw]) ?? 1;
+  /// 每回合抽卡数。
+  int get drawCountValue => draw;
 
-  int get timeLimitValue =>
-      int.tryParse(RoomRuleOptions.times[time].replaceAll(' 秒', '')) ?? 0;
+  /// 每回合时限（秒）；0 表示无限制。
+  int get timeLimitValue => time;
 
   RoomRuleConfig copyWith({
     bool? collapsed,

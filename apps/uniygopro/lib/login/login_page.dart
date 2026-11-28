@@ -134,6 +134,8 @@ class _LoginPageState extends State<LoginPage> {
       resizeToAvoidBottomInset: false,
       body: DuelStage(
         backdrop: DuelBackdropKind.login,
+        // 账号密码输入在卡片中段：键盘弹起时整页收进键盘上方，输入区不被盖住。
+        avoidKeyboard: true,
         child: Stack(
           children: [
             _brand(),

@@ -19,17 +19,43 @@ const Size kDuelDesignSize = Size(844, 390);
 /// 背景装饰的三种变体。
 enum DuelBackdropKind { splash, login, home, page }
 
+/// 键盘在页面设计稿（[kDuelDesignSize]）坐标系里的高度。
+///
+/// 应用画布是 1280×800（见 app.dart），页面画布 844×390 再由 [DuelStage]
+/// 拉伸铺满；MediaQuery 里的键盘高度是 1280×800 坐标，这里按高度比换算回
+/// 页面坐标，页面才能把内容收进键盘上方的剩余区域。
+double keyboardInsetInDuelCanvas(BuildContext context) {
+  final data = MediaQuery.of(context);
+  if (data.size.height <= 0) return 0;
+  return data.viewInsets.bottom * kDuelDesignSize.height / data.size.height;
+}
+
 /// 页面骨架：背景铺满，[child] 按 844×390 设计坐标铺满可用区域。
 class DuelStage extends StatelessWidget {
-  const DuelStage({super.key, required this.backdrop, required this.child});
+  const DuelStage({
+    super.key,
+    required this.backdrop,
+    required this.child,
+    this.avoidKeyboard = false,
+  });
 
   final DuelBackdropKind backdrop;
 
   /// 以 844×390 为坐标系的页面内容。
   final Widget child;
 
+  /// 键盘弹起时把整页画布收进键盘上方的剩余区域（等比缩小、顶部对齐），
+  /// 避免输入区被软键盘盖住。没有键盘时与 [BoxFit.fill] 的表现一致。
+  final bool avoidKeyboard;
+
   @override
   Widget build(BuildContext context) {
+    final keyboard = avoidKeyboard ? keyboardInsetInDuelCanvas(context) : 0.0;
+    final page = SizedBox(
+      width: kDuelDesignSize.width,
+      height: kDuelDesignSize.height,
+      child: child,
+    );
     return Material(
       color: DuelColors.base,
       child: Stack(
@@ -37,13 +63,15 @@ class DuelStage extends StatelessWidget {
         children: [
           DuelBackdrop(kind: backdrop),
           Positioned.fill(
-            child: FittedBox(
-              fit: BoxFit.fill,
-              child: SizedBox(
-                width: kDuelDesignSize.width,
-                height: kDuelDesignSize.height,
-                child: child,
-              ),
+            child: Padding(
+              padding: EdgeInsets.only(bottom: keyboard),
+              child: keyboard > 0
+                  ? FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.topCenter,
+                      child: page,
+                    )
+                  : FittedBox(fit: BoxFit.fill, child: page),
             ),
           ),
         ],

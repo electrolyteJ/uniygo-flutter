@@ -2,7 +2,7 @@ import 'package:biz/duel/room/duel_room_state.dart' show SidingZone;
 import 'package:flutter/material.dart';
 import 'package:resource_data/card_info.dart' show CardInfo;
 
-import '../../hud/hud_theme.dart';
+import '../../theme/hud_theme.dart';
 
 /// 换备面板（match 模式局间换 Side Deck），交互与文案对齐 duel_room1，
 /// 外观改用 HudTheme 赛博暗色主题。

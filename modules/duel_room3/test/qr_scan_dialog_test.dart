@@ -1,4 +1,4 @@
-import 'package:duel_room3/invite/qr_scan_dialog.dart';
+import 'package:duel_room3/waiting/invite/qr_scan_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,9 +9,8 @@ void main() {
       builder: (ctx) => Scaffold(
         body: Center(
           child: TextButton(
-            onPressed: () async => onDone(
-              await showRoomQrScanDialog(ctx, cameraSupported: false),
-            ),
+            onPressed: () async =>
+                onDone(await showRoomQrScanDialog(ctx, cameraSupported: false)),
             child: const Text('scan'),
           ),
         ),

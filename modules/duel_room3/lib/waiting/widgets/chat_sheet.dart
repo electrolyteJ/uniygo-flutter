@@ -5,7 +5,7 @@ import 'package:biz/duel/chat/duel_chat_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../hud/hud_theme.dart';
+import '../../theme/hud_theme.dart';
 import 'duel_style.dart';
 
 class ChatSheet extends ConsumerStatefulWidget {
@@ -27,56 +27,67 @@ class ChatSheetState extends ConsumerState<ChatSheet> {
   @override
   Widget build(BuildContext context) {
     final messages = ref.watch(duelChatProvider).messages;
-    return Container(
-      height: 360,
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: duelPanel,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: duelLine),
-      ),
-      child: Column(
-        children: [
-          const Text('聊天', style: HudTheme.title),
-          const Divider(color: duelLine),
-          Expanded(
-            child: ListView(
-              reverse: true,
-              children: [
-                for (final msg in messages.reversed)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text(
-                      '${msg.name}: ${msg.message}',
-                      style: HudTheme.body,
+    // 软键盘弹起时整条抽屉贴着键盘顶部：让出 insets，并把高度收进键盘上方
+    // 的剩余空间（应用在 app.dart 里已把真实键盘高度换算成设计坐标）。
+    final insets = MediaQuery.viewInsetsOf(context).bottom;
+    final available = MediaQuery.sizeOf(context).height - insets - 24;
+    final height = available < 180
+        ? 180.0
+        : (available > 360 ? 360.0 : available);
+    return Padding(
+      padding: EdgeInsets.only(bottom: insets),
+      child: Container(
+        key: const ValueKey('chat-sheet-panel'),
+        height: height,
+        margin: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: duelPanel,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: duelLine),
+        ),
+        child: Column(
+          children: [
+            const Text('聊天', style: HudTheme.title),
+            const Divider(color: duelLine),
+            Expanded(
+              child: ListView(
+                reverse: true,
+                children: [
+                  for (final msg in messages.reversed)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Text(
+                        '${msg.name}: ${msg.message}',
+                        style: HudTheme.body,
+                      ),
                     ),
+                ],
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _input,
+                    style: HudTheme.body,
+                    decoration: const InputDecoration(
+                      hintText: '发送消息…',
+                      hintStyle: HudTheme.caption,
+                      isDense: true,
+                    ),
+                    onSubmitted: _send,
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send, size: 18),
+                  color: duelCyan,
+                  onPressed: () => _send(_input.text),
+                ),
               ],
             ),
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _input,
-                  style: HudTheme.body,
-                  decoration: const InputDecoration(
-                    hintText: '发送消息…',
-                    hintStyle: HudTheme.caption,
-                    isDense: true,
-                  ),
-                  onSubmitted: _send,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.send, size: 18),
-                color: duelCyan,
-                onPressed: () => _send(_input.text),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

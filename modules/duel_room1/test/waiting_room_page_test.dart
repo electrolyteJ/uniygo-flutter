@@ -45,7 +45,7 @@ class _FakeDeckService extends IDeckService {
 
 class _FakeBanlistService extends IBanlistService {
   @override
-  Future<LfTable?> getLfTable(int hash) async => null;
+  LfTable? getLfTable(int hash)  => null;
 }
 
 YgoDataService get _fakeDataService => YgoDataService(
@@ -77,7 +77,7 @@ class _FakeDuelRoomNotifier extends DuelRoomNotifier {
   Future<String?> confirmSiding() async => null;
 
   @override
-  Future<LfTable?> getLfTable(int hash) async => null;
+  LfTable? getLfTable(int hash)  => null;
 }
 
 void main() {

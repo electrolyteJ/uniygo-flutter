@@ -6,7 +6,7 @@
 /// 精确回位。
 library;
 
-import 'package:duel_room3/scene3d/camera_rig.dart';
+import 'package:duel_room3/field/scene3d/camera_rig.dart';
 import 'package:flame_3d/camera.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
@@ -51,7 +51,9 @@ void main() {
       final camera = newCamera();
       final rig = CameraRig();
       final shotPos = Vector3(1, 4, 5);
-      rig.flyTo(CameraShot(position: shotPos, target: Vector3.zero(), duration: 0.4));
+      rig.flyTo(
+        CameraShot(position: shotPos, target: Vector3.zero(), duration: 0.4),
+      );
       rig.shake(intensity: 0.4, duration: 0.2);
       for (var i = 0; i < 20; i++) {
         rig.tick(camera, 0.05);

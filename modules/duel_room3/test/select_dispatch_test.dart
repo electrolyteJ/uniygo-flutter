@@ -9,7 +9,7 @@
 library;
 
 import 'package:biz/duel/models/select_state.dart';
-import 'package:duel_room3/hud/select_dispatch.dart';
+import 'package:duel_room3/field/hud/select_dispatch.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 SelectState _select({
@@ -89,9 +89,7 @@ void main() {
         InlineSelectAction.finish,
       );
       expect(
-        inlineSelectAction(
-          _select(type: SelectType.unselect),
-        ),
+        inlineSelectAction(_select(type: SelectType.unselect)),
         InlineSelectAction.none,
       );
     });
@@ -112,10 +110,7 @@ void main() {
         inlineSelectAction(_select(type: SelectType.sum, max: 0)),
         InlineSelectAction.confirm,
       );
-      expect(
-        inlineSelectAction(_select(max: 2)),
-        InlineSelectAction.confirm,
-      );
+      expect(inlineSelectAction(_select(max: 2)), InlineSelectAction.confirm);
       expect(inlineSelectAction(_select()), InlineSelectAction.none);
     });
 

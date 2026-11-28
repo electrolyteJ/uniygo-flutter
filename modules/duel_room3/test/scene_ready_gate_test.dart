@@ -7,7 +7,7 @@
 /// 类承载全部关键语义。）
 library;
 
-import 'package:duel_room3/bridge/duel_3d_bridge.dart';
+import 'package:duel_room3/field/bridge/duel_3d_bridge.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

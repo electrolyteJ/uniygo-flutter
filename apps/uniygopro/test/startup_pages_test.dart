@@ -232,7 +232,12 @@ void main() {
     expect(find.text('mycard 环境'), findsOneWidget);
     // 自由房间收敛成「面板设参数 + 圆盘建房」。
     expect(find.text('规则设置'), findsOneWidget);
+    // 赛制是下拉：展开后才有「三局两胜」选项。
+    await tester.tap(find.text('单局').first);
+    await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('三局两胜'), findsOneWidget);
+    await tester.tap(find.text('三局两胜').first);
+    await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('最近房间'), findsNothing);
     expect(tester.takeException(), isNull);
   });

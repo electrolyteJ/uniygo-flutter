@@ -278,7 +278,6 @@ class WaitingRoomPage extends ConsumerWidget {
           isAllReady: room.isAllReady,
           autoHandEnabled: room.autoHandEnabled,
           autoTurnOrderEnabled: room.autoTurnOrderEnabled,
-          autoDuelEnabled: room.autoDuelEnabled,
           toggleReady: (ctx) => _onToggleReady(ctx, ref),
           // setAuto* 的 Future 在此有意不 await（开关回调是同步签名）：
           // 错误已在 notifier/`_onToggleAutomation` 内处理，用 unawaited 表明意图。
@@ -288,10 +287,6 @@ class WaitingRoomPage extends ConsumerWidget {
           onToggleAutoTurnOrder: (v) => unawaited(
             _onToggleAutomation(ref, v, roomCtl.setAutoTurnOrderEnabled),
           ),
-          onToggleAutoDuel: (v) => unawaited(
-            _onToggleAutomation(ref, v, roomCtl.setAutoDuelEnabled),
-          ),
-          onStartDuel: roomCtl.startDuel,
           onBecomeDuelist: roomCtl.becomeDuelist,
           onBecomeObserver: roomCtl.becomeObserver,
         ),

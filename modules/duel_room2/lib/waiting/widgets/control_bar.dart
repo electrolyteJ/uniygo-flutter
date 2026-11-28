@@ -9,12 +9,9 @@ class ControlBar extends StatelessWidget {
   final bool isAllReady;
   final bool autoHandEnabled;
   final bool autoTurnOrderEnabled;
-  final bool autoDuelEnabled;
   final ValueChanged<BuildContext> toggleReady;
   final ValueChanged<bool> onToggleAutoHand;
   final ValueChanged<bool> onToggleAutoTurnOrder;
-  final ValueChanged<bool> onToggleAutoDuel;
-  final VoidCallback onStartDuel;
   final VoidCallback onBecomeDuelist;
   final VoidCallback onBecomeObserver;
 
@@ -27,12 +24,9 @@ class ControlBar extends StatelessWidget {
     required this.isAllReady,
     required this.autoHandEnabled,
     required this.autoTurnOrderEnabled,
-    required this.autoDuelEnabled,
     required this.toggleReady,
     required this.onToggleAutoHand,
     required this.onToggleAutoTurnOrder,
-    required this.onToggleAutoDuel,
-    required this.onStartDuel,
     required this.onBecomeDuelist,
     required this.onBecomeObserver,
   });
@@ -55,13 +49,6 @@ class ControlBar extends StatelessWidget {
               spacing: 8,
               runSpacing: 4,
               children: [
-                if (isHost)
-                  buildAutomationSwitch(
-                    label: '自动加入决斗',
-                    value: autoDuelEnabled,
-                    enabled: !isSelfReady,
-                    onChanged: (value) => onToggleAutoDuel(value),
-                  ),
                 buildAutomationSwitch(
                   label: '自动猜拳',
                   value: autoHandEnabled,
@@ -88,7 +75,7 @@ class ControlBar extends StatelessWidget {
                     isSelfReady ? Icons.cancel : Icons.check_circle,
                     size: 18,
                   ),
-                  label: Text(isSelfReady ? '取消准备' : (autoDuelEnabled ? '准备&决斗' : '准备')),
+                  label: Text(isSelfReady ? '取消准备' : '准备'),
                   style: FilledButton.styleFrom(
                     backgroundColor: isSelfReady
                         ? Colors.blueGrey.shade600
@@ -125,18 +112,6 @@ class ControlBar extends StatelessWidget {
                 ),
               ),
             if (selfType == PlayerType.observer) const SizedBox(width: 8),
-            if (isHost && !autoDuelEnabled)
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: isAllReady ? onStartDuel : null,
-                  icon: const Icon(Icons.play_arrow, size: 18),
-                  label: const Text('开始决斗'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.amber.shade700,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -144,5 +119,5 @@ class ControlBar extends StatelessWidget {
   }
 }
 @Preview(name: 'ControlBar', size: Size(400, 120), brightness: Brightness.dark)
-Widget previewControlBar() => ControlBar(isHost: true, selfType: PlayerType.player1, isSelfReady: false, isAllReady: false, autoHandEnabled: false, autoTurnOrderEnabled: false, autoDuelEnabled: false, toggleReady: (_) {}, onToggleAutoHand: (_) {}, onToggleAutoTurnOrder: (_) {}, onToggleAutoDuel: (_) {}, onStartDuel: () {}, onBecomeDuelist: () {}, onBecomeObserver: () {});
+Widget previewControlBar() => ControlBar(isHost: true, selfType: PlayerType.player1, isSelfReady: false, isAllReady: false, autoHandEnabled: false, autoTurnOrderEnabled: false, toggleReady: (_) {}, onToggleAutoHand: (_) {}, onToggleAutoTurnOrder: (_) {}, onBecomeDuelist: () {}, onBecomeObserver: () {});
 

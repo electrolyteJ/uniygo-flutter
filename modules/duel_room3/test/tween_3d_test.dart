@@ -1,4 +1,4 @@
-import 'package:duel_room3/scene3d/tween_3d.dart';
+import 'package:duel_room3/field/scene3d/tween_3d.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 
@@ -39,12 +39,7 @@ void main() {
 
   test('TweenEngine3D 完成自动移除', () {
     final engine = TweenEngine3D();
-    engine.addScalar(ScalarTween(
-      from: 0,
-      to: 1,
-      duration: 0.2,
-      apply: (_) {},
-    ));
+    engine.addScalar(ScalarTween(from: 0, to: 1, duration: 0.2, apply: (_) {}));
     expect(engine.isIdle, isFalse);
     engine.tick(0.3);
     expect(engine.isIdle, isTrue);

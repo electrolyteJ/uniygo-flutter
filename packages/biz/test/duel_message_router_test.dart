@@ -53,7 +53,7 @@ class _StubDeckService extends IDeckService {
 
 class _StubBanlistService extends IBanlistService {
   @override
-  Future<LfTable?> getLfTable(int hash) async => null;
+  LfTable? getLfTable(int hash) => null;
 }
 
 /// 同步广播消息流的假决斗服务：emit 即送达 listener（无事件循环跳跃），

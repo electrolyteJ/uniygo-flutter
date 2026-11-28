@@ -155,10 +155,8 @@ void showGlobalSettingsDialog(
 /// notifier，再以纯参数注入弹窗，弹窗内部不再 watch 跨树 provider。
 void showYgoSettingsDialog(
   BuildContext context, {
-  bool? autoDuel,
   bool? autoHand,
   bool? autoTurnOrder,
-  ValueChanged<bool>? onAutoDuelChanged,
   ValueChanged<bool>? onAutoHandChanged,
   ValueChanged<bool>? onAutoTurnOrderChanged,
 }) {
@@ -185,10 +183,8 @@ void showYgoSettingsDialog(
               onAutoSpellTrapChanged: notifier.setAutoSpellTrapPosition,
               onSpectateJumpChanged: notifier.setSpectateJumpToCurrent,
               onReplaySpeedFactorChanged: notifier.setReplaySpeedFactor,
-              autoDuel: autoDuel,
               autoHand: autoHand,
               autoTurnOrder: autoTurnOrder,
-              onAutoDuelChanged: onAutoDuelChanged,
               onAutoHandChanged: onAutoHandChanged,
               onAutoTurnOrderChanged: onAutoTurnOrderChanged,
             ),

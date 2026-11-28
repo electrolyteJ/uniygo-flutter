@@ -65,7 +65,7 @@ class _StubDeckService extends IDeckService {
 
 class _StubBanlistService extends IBanlistService {
   @override
-  Future<LfTable?> getLfTable(int hash) async => null;
+  LfTable? getLfTable(int hash) => null;
 }
 
 class _FakeDuelService implements IDuelService {

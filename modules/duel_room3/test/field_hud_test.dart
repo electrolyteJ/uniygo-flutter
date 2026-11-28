@@ -11,10 +11,10 @@
 /// 属既有徽章区扩展，不在此单独测试）。
 library;
 
-import 'package:duel_room3/hud/confirm_cards_dialog.dart';
-import 'package:duel_room3/hud/confirm_floating_card.dart';
-import 'package:duel_room3/hud/turn_order_hint.dart';
-import 'package:duel_room3/hud/zone_count_bar.dart';
+import 'package:duel_room3/field/hud/confirm_cards_dialog.dart';
+import 'package:duel_room3/field/hud/confirm_floating_card.dart';
+import 'package:duel_room3/field/hud/turn_order_hint.dart';
+import 'package:duel_room3/field/hud/zone_count_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -157,9 +157,7 @@ void main() {
     testWidgets('先攻显示文案并在约 2 秒后淡出回调', (tester) async {
       var dismissed = false;
       await tester.pumpWidget(
-        _wrap(
-          TurnOrderHint(isFirst: true, onDismiss: () => dismissed = true),
-        ),
+        _wrap(TurnOrderHint(isFirst: true, onDismiss: () => dismissed = true)),
       );
       await tester.pump(); // 首帧后置 opacity=1
       expect(find.text('你先攻'), findsOneWidget);

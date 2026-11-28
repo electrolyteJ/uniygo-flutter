@@ -1,3 +1,4 @@
+import 'package:biz/duel/chat/duel_chat_state.dart';
 import 'package:biz/duel/room/duel_room_state.dart';
 import 'package:biz/service_providers.dart';
 import 'package:biz/ygo_sound_service.dart';
@@ -8,6 +9,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:resource_data/lf_table.dart';
+
+/// 只记录发出的聊天内容，避免真的走 duelService。
+class _FakeChatNotifier extends DuelChatNotifier {
+  _FakeChatNotifier(this.sent);
+
+  final List<String> sent;
+
+  @override
+  DuelChatState build() => const DuelChatState();
+
+  @override
+  void sendChat(String text) => sent.add(text);
+}
 
 class _FakeRoomNotifier extends DuelRoomNotifier {
   _FakeRoomNotifier(this._state);
@@ -32,7 +46,7 @@ class _FakeRoomNotifier extends DuelRoomNotifier {
   Future<String?> confirmSiding() async => null;
 
   @override
-  Future<LfTable?> getLfTable(int hash) async => null;
+  LfTable? getLfTable(int hash) => null;
 }
 
 void main() {
@@ -46,6 +60,7 @@ void main() {
     String? roomId,
     int observerCount = 0,
     PlayerType selfType = PlayerType.player1,
+    RoomMode mode = RoomMode.match,
   }) {
     return DuelRoomState(
       stage:
@@ -53,7 +68,7 @@ void main() {
           RoomInLobby(
             selfType: selfType,
             isHost: true,
-            options: RoomOptions(),
+            options: RoomOptions(mode: mode),
           ),
       selfType: selfType,
       isHost: true,
@@ -61,7 +76,7 @@ void main() {
       players:
           players ??
           const [PlayerInfo(name: '海马濑人', pos: 0, ready: true, host: true)],
-      roomOptions: const RoomOptions(),
+      roomOptions: RoomOptions(mode: mode),
       invalidationDeckResult: invalidation,
       roomId: roomId,
       isFirstTurn: firstTurn,
@@ -77,6 +92,9 @@ void main() {
     String? roomId,
     int observerCount = 0,
     PlayerType selfType = PlayerType.player1,
+    RoomMode mode = RoomMode.match,
+    bool isAiRoom = false,
+    List<String>? sentChat,
   }) {
     YgoSoundService.enabled = false;
     addTearDown(() => YgoSoundService.enabled = true);
@@ -92,10 +110,13 @@ void main() {
               roomId: roomId,
               observerCount: observerCount,
               selfType: selfType,
+              mode: mode,
             ),
           ),
         ),
         ygoSoundServiceProvider.overrideWith((ref) => YgoSoundService()),
+        if (sentChat != null)
+          duelChatProvider.overrideWith(() => _FakeChatNotifier(sentChat)),
         if (onOpenSettings != null)
           showYgoSettingsDialogProvider.overrideWithValue(
             (
@@ -110,7 +131,9 @@ void main() {
           ),
       ],
       child: MaterialApp(
-        home: Scaffold(body: WaitingRoomPage3D(roomId: roomId)),
+        home: Scaffold(
+          body: WaitingRoomPage3D(roomId: roomId, isAiRoom: isAiRoom),
+        ),
       ),
     );
   }
@@ -124,10 +147,18 @@ void main() {
     await tester.pump();
 
     expect(find.text('海马濑人'), findsOneWidget);
-    expect(find.text('出战卡组'), findsOneWidget);
+    expect(find.text('更换'), findsOneWidget);
     // 大厅阶段中央直接展示房间信息卡（不再有「等待对手」舞台）。
     expect(find.text('房间信息'), findsWidgets);
-    expect(find.text('等待对手加入…'), findsOneWidget);
+    expect(find.text('等待加入…'), findsOneWidget);
+    // 设计稿底栏：聊天 + 转为观战 / 开始决斗 / 准备。
+    expect(find.byKey(const ValueKey('waiting-chat')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('waiting-become-observer')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('waiting-start-duel')), findsNothing);
+    expect(find.byKey(const ValueKey('waiting-ready')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -178,7 +209,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('转为观战：自己的席位显示等待玩家加入', (tester) async {
+  testWidgets('转为观战：左侧展示队伍 1 玩家与观战提示', (tester) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -188,14 +219,25 @@ void main() {
     );
     await tester.pump();
 
+    // 观战者左侧不再是空态：展示队伍 1 的玩家 + 观战提示。
+    final ally = find.byKey(const ValueKey('waiting-ally-card'));
+    expect(ally, findsOneWidget);
     expect(
-      find.byKey(const ValueKey('waiting-self-observer')),
+      find.descendant(of: ally, matching: find.text('海马濑人')),
       findsOneWidget,
     );
-    expect(find.text('等待玩家加入…'), findsOneWidget);
+    expect(find.text('你正在观战 · 点「转为决斗者」回到席位'), findsOneWidget);
+    expect(find.byKey(const ValueKey('waiting-self-observer')), findsNothing);
     // 观战入口人数随观战者增加（转为观战后 1 人）。
     expect(find.text('观战 1'), findsOneWidget);
     expect(find.text('转为决斗者'), findsOneWidget);
+
+    // 观战列表只渲染实际人数：1 人只有 1 条，不再补空位。
+    await tester.tap(find.byKey(const ValueKey('waiting-spectators-entry')));
+    await tester.pumpAndSettle();
+    expect(find.text('观战位 1'), findsOneWidget);
+    expect(find.text('观战位 2'), findsNothing);
+    expect(find.text('空位'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -224,7 +266,7 @@ void main() {
     expect(find.text('剪刀'), findsOneWidget);
     expect(find.text('布'), findsOneWidget);
     expect(find.text('双方选择中 · 倒计时结束后自动出拳'), findsOneWidget);
-    expect(find.text('双方已连接 · 出拳决定先后攻'), findsOneWidget);
+    expect(find.text('双方已连接 · 出拳决定先后攻'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -303,13 +345,14 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('2v2：对手卡展示第二名对手', (tester) async {
+  testWidgets('2v2：队友展示在我方卡，对手卡只放对方队伍', (tester) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(
       subject(
+        mode: RoomMode.tag,
         players: const [
           PlayerInfo(name: '海马濑人', pos: 0, ready: true, host: true),
           PlayerInfo(name: '剑斗士 K', pos: 1, ready: true),
@@ -319,7 +362,152 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('城之内'), findsOneWidget);
+    // tag 分队：座位 0/2 同队，座位 2 的队友必须出现在左侧我方卡。
+    final ally = find.byKey(const ValueKey('waiting-ally-card'));
+    final enemy = find.byKey(const ValueKey('waiting-enemy-card'));
+    expect(
+      find.descendant(of: ally, matching: find.text('城之内')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: enemy, matching: find.text('剑斗士 K')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: enemy, matching: find.text('城之内')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('2v2：从 3 号位入局时我方卡以自己为首位并带队友', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      subject(
+        mode: RoomMode.tag,
+        selfType: PlayerType.player3,
+        players: const [
+          PlayerInfo(name: '海马濑人', pos: 0, ready: true, host: true),
+          PlayerInfo(name: '剑斗士 K', pos: 1, ready: true),
+          PlayerInfo(name: '城之内', pos: 2, ready: false),
+        ],
+      ),
+    );
+    await tester.pump();
+
+    final ally = find.byKey(const ValueKey('waiting-ally-card'));
+    expect(
+      find.descendant(of: ally, matching: find.text('城之内')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: ally, matching: find.text('海马濑人')),
+      findsOneWidget,
+    );
+    // 自己的卡组区跟随自己，队友行不喧宾夺主。
+    expect(find.text('更换'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('2v2 观战：左右两列分别显示两支队伍', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      subject(
+        mode: RoomMode.tag,
+        selfType: PlayerType.observer,
+        observerCount: 1,
+        players: const [
+          PlayerInfo(name: '海马濑人', pos: 0, ready: true, host: true),
+          PlayerInfo(name: '剑斗士 K', pos: 1, ready: true),
+          PlayerInfo(name: '城之内', pos: 2, ready: true),
+          PlayerInfo(name: '偷摸灵兽幽灵', pos: 3, ready: false),
+        ],
+      ),
+    );
+    await tester.pump();
+
+    final ally = find.byKey(const ValueKey('waiting-ally-card'));
+    final enemy = find.byKey(const ValueKey('waiting-enemy-card'));
+    expect(
+      find.descendant(of: ally, matching: find.text('城之内')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: enemy, matching: find.text('偷摸灵兽幽灵')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: enemy, matching: find.text('城之内')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('2v2：未加入的座位展示空位等待', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      subject(
+        mode: RoomMode.tag,
+        players: const [
+          PlayerInfo(name: '海马濑人', pos: 0, ready: true, host: true),
+        ],
+      ),
+    );
+    await tester.pump();
+
+    final ally = find.byKey(const ValueKey('waiting-ally-card'));
+    final enemy = find.byKey(const ValueKey('waiting-enemy-card'));
+    // 我方少一个队友：显示队友空位。
+    expect(
+      find.descendant(of: ally, matching: find.textContaining('等待队友加入')),
+      findsOneWidget,
+    );
+    // 对手两名都未加入：两个对手空位。
+    expect(
+      find.descendant(of: enemy, matching: find.textContaining('等待对手 1加入')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: enemy, matching: find.textContaining('等待对手 2加入')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('2v2：已加入一名对手时只补剩余空位', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      subject(
+        mode: RoomMode.tag,
+        players: const [
+          PlayerInfo(name: '海马濑人', pos: 0, ready: true, host: true),
+          PlayerInfo(name: '剑斗士 K', pos: 1, ready: true),
+        ],
+      ),
+    );
+    await tester.pump();
+
+    final enemy = find.byKey(const ValueKey('waiting-enemy-card'));
+    expect(
+      find.descendant(of: enemy, matching: find.text('剑斗士 K')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: enemy, matching: find.textContaining('等待对手 2加入')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -330,6 +518,7 @@ void main() {
 
     await tester.pumpWidget(
       subject(
+        mode: RoomMode.tag,
         players: const [
           PlayerInfo(name: '海马濑人', pos: 0, ready: true, host: true),
           PlayerInfo(name: '剑斗士 K', pos: 1, ready: true),
@@ -350,7 +539,7 @@ void main() {
     await tester.pumpWidget(subject(roomId: '462890'));
     await tester.pump();
 
-    expect(find.text('邀码 462890 · 点击邀请好友'), findsOneWidget);
+    // 新选手卡不再内嵌邀码文案，邀请入口统一在顶栏图标。
     final invite = find.byKey(const ValueKey('waiting-invite'));
     expect(invite, findsOneWidget);
 
@@ -376,5 +565,44 @@ void main() {
 
     expect(find.byKey(const ValueKey('waiting-invite')), findsNothing);
     expect(find.text('预计 10 秒内匹配'), findsOneWidget);
+  });
+
+  testWidgets('人机房间：底栏「呼叫 AI」发送 /ai', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final sent = <String>[];
+    await tester.pumpWidget(subject(isAiRoom: true, sentChat: sent));
+    await tester.pump();
+
+    final callAi = find.byKey(const ValueKey('waiting-call-ai'));
+    expect(callAi, findsOneWidget);
+    // 呼叫 AI 在「转为观战」左边。
+    expect(
+      tester.getCenter(callAi).dx,
+      lessThan(
+        tester
+            .getCenter(find.byKey(const ValueKey('waiting-become-observer')))
+            .dx,
+      ),
+    );
+
+    await tester.tap(callAi);
+    await tester.pump();
+    expect(sent, ['/ai']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('非人机房间：不显示「呼叫 AI」', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(subject());
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('waiting-call-ai')), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }

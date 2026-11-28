@@ -16,7 +16,7 @@ import 'package:biz/service_providers.dart';
 import 'package:biz/ygo_data_service.dart';
 import 'package:biz/ygo_sound_service.dart';
 import 'package:duelink/duelink.dart' hide CardInfo;
-import 'package:duel_room3/hud/duel_overlays.dart';
+import 'package:duel_room3/field/hud/duel_overlays.dart';
 import 'package:flutter/material.dart' hide ConnectionState;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -53,7 +53,7 @@ class _StubDeckService extends IDeckService {
 
 class _StubBanlistService extends IBanlistService {
   @override
-  Future<LfTable?> getLfTable(int hash) async => null;
+  LfTable? getLfTable(int hash) => null;
 }
 
 /// 记录回包的假决斗服务。
@@ -84,8 +84,11 @@ class _RecordingDuelService implements IDuelService {
   @override
   void enterRoom(String password) {}
   @override
-  void submitDeck(Uint8List mainDeck, Uint8List extraDeck,
-      [Uint8List? sideDeck]) {}
+  void submitDeck(
+    Uint8List mainDeck,
+    Uint8List extraDeck, [
+    Uint8List? sideDeck,
+  ]) {}
   @override
   void ready() {}
   @override
@@ -119,17 +122,19 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     svc = _RecordingDuelService();
-    container = ProviderContainer(overrides: [
-      duelServiceProvider.overrideWithValue(svc),
-      dataServiceProvider.overrideWithValue(
-        YgoDataService(
-          cardService: _StubCardService(),
-          deckService: _StubDeckService(),
-          banlistService: _StubBanlistService(),
+    container = ProviderContainer(
+      overrides: [
+        duelServiceProvider.overrideWithValue(svc),
+        dataServiceProvider.overrideWithValue(
+          YgoDataService(
+            cardService: _StubCardService(),
+            deckService: _StubDeckService(),
+            banlistService: _StubBanlistService(),
+          ),
         ),
-      ),
-      ygoSoundServiceProvider.overrideWithValue(YgoSoundService()),
-    ]);
+        ygoSoundServiceProvider.overrideWithValue(YgoSoundService()),
+      ],
+    );
   });
   tearDown(() => container.dispose());
 
@@ -149,9 +154,7 @@ void main() {
   }
 
   group('是否弹窗', () {
-    testWidgets('「是」「否」按钮恒显，点「否」回 selectEffectYn(0)', (
-      tester,
-    ) async {
+    testWidgets('「是」「否」按钮恒显，点「否」回 selectEffectYn(0)', (tester) async {
       await pumpOverlay(tester);
       // cancelable=false（biz 从不对 yesNo 设置 cancelable）：
       // 旧实现此时不显示「否」，玩家无法拒绝发动效果。
@@ -283,8 +286,7 @@ void main() {
       expect(
         find.byWidgetPredicate(
           (w) =>
-              w is Container &&
-              w.color == Colors.black.withValues(alpha: 0.65),
+              w is Container && w.color == Colors.black.withValues(alpha: 0.65),
         ),
         findsOneWidget,
       );
@@ -365,9 +367,7 @@ void main() {
       expect(submitted, [2, 0, 1]); // 保序
     });
 
-    testWidgets('unselect：点卡即 toggle，finishable 时显示「完成」', (
-      tester,
-    ) async {
+    testWidgets('unselect：点卡即 toggle，finishable 时显示「完成」', (tester) async {
       final toggled = <int>[];
       var finished = false;
       await tester.pumpWidget(

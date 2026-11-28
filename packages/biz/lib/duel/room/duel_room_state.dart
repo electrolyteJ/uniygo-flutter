@@ -94,7 +94,6 @@ class DuelRoomState {
     this.availableDecks = const [],
     this.autoHandEnabled = false,
     this.autoTurnOrderEnabled = false,
-    this.autoDuelEnabled = false,
     this.invalidationDeckResult,
     this.submittedDeck,
     this.sidingDeck,
@@ -123,7 +122,6 @@ class DuelRoomState {
 
   final bool autoHandEnabled;
   final bool autoTurnOrderEnabled;
-  final bool autoDuelEnabled;
 
   final List<DeckInfo> availableDecks;
 
@@ -169,7 +167,6 @@ class DuelRoomState {
     List<DeckInfo>? availableDecks,
     bool? autoHandEnabled,
     bool? autoTurnOrderEnabled,
-    bool? autoDuelEnabled,
     Object? invalidationDeckResult = _sentinel,
     Object? submittedDeck = _sentinel,
     Object? sidingDeck = _sentinel,
@@ -201,7 +198,6 @@ class DuelRoomState {
       availableDecks: availableDecks ?? this.availableDecks,
       autoHandEnabled: autoHandEnabled ?? this.autoHandEnabled,
       autoTurnOrderEnabled: autoTurnOrderEnabled ?? this.autoTurnOrderEnabled,
-      autoDuelEnabled: autoDuelEnabled ?? this.autoDuelEnabled,
       invalidationDeckResult: identical(invalidationDeckResult, _sentinel)
           ? this.invalidationDeckResult
           : invalidationDeckResult as List<String>?,
@@ -315,7 +311,6 @@ void roomConnectionLifetime(Ref ref) {
 class DuelRoomNotifier extends _$DuelRoomNotifier {
   static const _autoHandPrefKey = 'duel.auto_hand_enabled';
   static const _autoTurnOrderPrefKey = 'duel.auto_turn_order_enabled';
-  static const _autoDuelPrefKey = 'duel.auto_duel_enabled';
 
   IDuelService get _duelService => ref.read(duelServiceProvider);
   YgoDataService get _dataService => ref.read(dataServiceProvider);
@@ -326,6 +321,7 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
   /// 自动猜拳延时器：手动出拳或退出房间时必须取消，
   /// 否则玩家已手动出拳后定时器仍会再自动出一次拳。
   Timer? _autoHandTimer;
+  Timer? _autoTurnTimer;
   bool _disposed = false;
 
   /// 猜拳结果（RoomHandResult）的最短展示时长。
@@ -369,6 +365,7 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
       _roomStageSub?.cancel();
       _msgSub?.cancel();
       _autoHandTimer?.cancel();
+      _autoTurnTimer?.cancel();
       _handResultHoldTimer?.cancel();
     });
     loadDecks();
@@ -387,7 +384,6 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
       state = state.copyWith(
         autoHandEnabled: prefs.getBool(_autoHandPrefKey) ?? false,
         autoTurnOrderEnabled: prefs.getBool(_autoTurnOrderPrefKey) ?? false,
-        autoDuelEnabled: prefs.getBool(_autoDuelPrefKey) ?? false,
       );
     } catch (e) {
       if (_disposed) return;
@@ -419,15 +415,6 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
   }
 
   /// 设置自动加入决斗开关。语义同 [setAutoHandEnabled]。
-  Future<bool> setAutoDuelEnabled(bool value) async {
-    if (state.isSelfReady && value != state.autoDuelEnabled) {
-      return false;
-    }
-    state = state.copyWith(autoDuelEnabled: value);
-    await _persistAutoPref(_autoDuelPrefKey, value);
-    return true;
-  }
-
   /// 持久化自动操作开关；失败走 errorMessage 渠道，不抛未处理异常。
   Future<void> _persistAutoPref(String key, bool value) async {
     try {
@@ -453,6 +440,8 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
   }
 
   void sendTp(bool first) {
+    _autoTurnTimer?.cancel();
+    _autoTurnTimer = null;
     console.log('Sending TP result: ${first ? 'first' : 'second'}');
     // 不做乐观状态更新：先后攻由服务器裁决（AI 可能覆盖选择，如
     // SIMPLE_AI 强制人类先攻）。提前设置 stage/isFirstTurn 会导致：
@@ -567,7 +556,7 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
     final options = state.roomOptions;
     if (options == null || options.noCheckDeck) return null;
     try {
-      final lfTable = await _dataService.getLfTable(options.lfTableHash);
+      final lfTable = _dataService.getLfTable(options.lfTableHash);
       if (lfTable == null) return null;
       final validator = DeckValidator(lfInfos: lfTable.lfInfos);
       return validator.validate(main, extra, side);
@@ -780,26 +769,33 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
           isHost: roomStage.isHost,
           roomOptions: roomStage.options,
         );
-        // 自动加入决斗：房主开启 autoDuelEnabled，双方准备后自动 startDuel
-        if (next.isHost && next.autoDuelEnabled && next.isAllReady) {
+        // 自动加入决斗：双方准备后由房主自动 startDuel。
+        if (next.isHost && next.isAllReady) {
           console.log('Auto duel enabled and all ready, starting duel...');
           _duelService.startDuel();
         }
         break;
       case RoomSelectingHand():
-        if (state.autoHandEnabled) {
-          // 定时器由 _autoHandTimer 持有：手动出拳（sendHand）与
-          // scope 销毁时都会取消，避免过期回调重复出拳。
-          _autoHandTimer?.cancel();
-          _autoHandTimer = Timer(const Duration(milliseconds: 700), () {
+        // 平局会重新进入猜拳：清掉上一局的出拳结果，否则 UI 认为
+        // 「已出拳」而禁用按钮，双方会一直卡在等待对方出拳。
+        next = next.copyWith(myHandResult: null, opponentHandResult: null);
+        // 倒计时结束自动出拳：开关打开时提前到 700ms，否则按界面倒计时 5s。
+        // 定时器由 _autoHandTimer 持有：手动出拳（sendHand）与 scope 销毁时
+        // 都会取消，避免过期回调重复出拳。
+        _autoHandTimer?.cancel();
+        _autoHandTimer = Timer(
+          state.autoHandEnabled
+              ? const Duration(milliseconds: 700)
+              : const Duration(seconds: 5),
+          () {
             _autoHandTimer = null;
-            if (_disposed) return;
+            if (_disposed || state.myHandResult != null) return;
             final hands = HandType.values
                 .where((hand) => hand != HandType.unknown)
                 .toList();
             sendHand(hands[random.nextInt(hands.length)]);
-          });
-        }
+          },
+        );
         break;
       case RoomHandResult():
         next = next.copyWith(
@@ -808,8 +804,16 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
         );
         break;
       case RoomSelectingTurn():
+        // 开关打开立即随机；否则按界面倒计时 10 秒兜底自动选。
+        _autoTurnTimer?.cancel();
         if (state.autoTurnOrderEnabled) {
           sendTp(random.nextBool());
+        } else {
+          _autoTurnTimer = Timer(const Duration(seconds: 10), () {
+            _autoTurnTimer = null;
+            if (_disposed || state.isFirstTurn != null) return;
+            sendTp(random.nextBool());
+          });
         }
         break;
       case RoomInDuel():
@@ -1040,22 +1044,8 @@ class DuelRoomNotifier extends _$DuelRoomNotifier {
     return null;
   }
 
-  /// 按 lfTableHash 缓存的禁限表 Future，避免每次 build 重建 future
-  /// 导致 FutureBuilder 反复重跑。
-  final Map<int, Future<LfTable?>> _lfTableFutures = {};
-
-  /// 获取禁限卡表。
-  ///
-  /// 以 [hash] 为 key 做记忆化：页面每次 build 都拿同一个 future，
-  /// FutureBuilder 不会反复重跑。禁限表未加载时底层会抛异常，
-  /// 该错误被保留在 future 中，由 UI 依 `snapshot.hasError`
-  /// 显示「加载失败」而不是误导性的「不限制」。
-  Future<LfTable?> getLfTable(int hash) {
-    return _lfTableFutures.putIfAbsent(
-      hash,
-      () => _dataService.getLfTable(hash),
-    );
-  }
+  /// 获取禁限卡表（同步；卡表服务已本地缓存）。
+  LfTable? getLfTable(int hash) => _dataService.getLfTable(hash);
 
   Future<List<CardInfo>> _resolveCards(List<DeckCard> deckCards) async {
     final result = <CardInfo>[];

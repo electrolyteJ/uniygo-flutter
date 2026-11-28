@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:biz/duel/field/duel_field_state.dart' show teamOfSeat;
 import 'package:biz/duel/room/duel_room_state.dart';
 import 'package:biz/service_providers.dart';
 import 'package:biz/widgets/banlist_detail_dialog.dart';
@@ -13,8 +14,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../duel_room_exit.dart';
-import '../hud/hud_theme.dart';
-import '../invite/duel_invite.dart';
+import '../theme/hud_theme.dart';
+import 'invite/duel_invite.dart';
+import 'widgets/duel_backdrop.dart';
 import 'widgets/duel_style.dart';
 import 'widgets/room_actions.dart';
 import 'widgets/player_card.dart';
@@ -65,6 +67,25 @@ Future<void> _onConfirmSiding(BuildContext context, WidgetRef ref) async {
   }
 }
 
+/// 一侧阵营的座位：ocgcore 约定 tag（双打）按 `pos % 2` 分队
+/// （座位 0/2 = 队伍 0，1/3 = 队伍 1），1v1 每队恰有一个座位。
+///
+/// [selfFirst] 传入自己的座位号时，把自己排在该侧首位，队友依次跟在后面，
+/// 保证从任何座位入局都能看到「我 + 队友」这一列。
+List<PlayerInfo> _sideSeats(DuelRoomState room, int team, {int? selfFirst}) {
+  final seats = <PlayerInfo>[
+    for (final p in room.players)
+      if (p.pos >= 0 && p.pos <= 3 && teamOfSeat(p.pos) == team) p,
+  ]..sort((a, b) => a.pos.compareTo(b.pos));
+  if (selfFirst == null) return seats;
+  final mineIndex = seats.indexWhere((p) => p.pos == selfFirst);
+  if (mineIndex > 0) {
+    final mine = seats.removeAt(mineIndex);
+    seats.insert(0, mine);
+  }
+  return seats;
+}
+
 /// 05 对战-等候：顶部状态栏 + 左右选手卡 + 中央阶段区 + 规则条 + 操作栏。
 class WaitingRoomPage3D extends ConsumerStatefulWidget {
   const WaitingRoomPage3D({
@@ -73,6 +94,7 @@ class WaitingRoomPage3D extends ConsumerStatefulWidget {
     this.roomName,
     this.serverHost,
     this.serverPort,
+    this.isAiRoom = false,
   });
 
   /// 建房/进房链路携带的房间邀码与房间名（路由参数注入，避免房间状态被阶段刷新重置）。
@@ -83,6 +105,9 @@ class WaitingRoomPage3D extends ConsumerStatefulWidget {
   final String? serverHost;
   final int? serverPort;
 
+  /// 人机对战房间：底栏额外提供「呼叫 AI」（往聊天室发 /ai 让 AI 入座）。
+  final bool isAiRoom;
+
   @override
   ConsumerState<WaitingRoomPage3D> createState() => _WaitingRoomPage3DState();
 }
@@ -90,8 +115,6 @@ class WaitingRoomPage3D extends ConsumerStatefulWidget {
 class _WaitingRoomPage3DState extends ConsumerState<WaitingRoomPage3D> {
   /// 路由参数优先；状态里也带一份（测试/预览场景无路由参数）。
   String? get _roomId => widget.roomId ?? ref.read(duelRoomProvider).roomId;
-  String? get _roomName =>
-      widget.roomName ?? ref.read(duelRoomProvider).roomName;
   LfTable? _lfTable;
   int _lfTableHash = 0;
 
@@ -101,7 +124,7 @@ class _WaitingRoomPage3DState extends ConsumerState<WaitingRoomPage3D> {
     _lfTableHash = hash;
     LfTable? table;
     try {
-      table = await ref.read(duelRoomProvider.notifier).getLfTable(hash);
+      table = ref.read(duelRoomProvider.notifier).getLfTable(hash);
     } catch (_) {
       table = null;
     }
@@ -153,119 +176,139 @@ class _WaitingRoomPage3DState extends ConsumerState<WaitingRoomPage3D> {
         stage is RoomSelectingHand ||
         stage is RoomHandResult ||
         stage is RoomSelectingTurn;
+    // 只有在需要玩家手动出拳/手动选先后攻时才显示倒计时进度条；
+    // 开了自动出拳 / 自动先后攻时不需要倒计时。
+    final showPhaseProgress =
+        (stage is RoomSelectingHand && !room.autoHandEnabled) ||
+        (stage is RoomSelectingTurn && !room.autoTurnOrderEnabled);
     final seatW = (inPhase ? 252.0 : 190.0) * k;
-    final seatH = (inPhase ? 210.0 : 196.0) * k;
+    // 席位按阵营分列：自己所在的队伍永远在左（队友跟在身后），观战者左列
+    // 固定为队伍 1。2v2 时左右各两个座位，1v1 各一个。
+    final selfSeat = room.selfType.isDuelist ? room.selfType.slot : null;
+    final leftTeam = selfSeat == null ? 0 : teamOfSeat(selfSeat);
+    final leftSeats = _sideSeats(room, leftTeam, selfFirst: selfSeat);
+    final rightSeats = _sideSeats(room, 1 - leftTeam);
 
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF0A1220), Color(0xFF05070F)],
-        ),
-      ),
+    // 设计稿 324:680 底纹：纯色 + 同心圆 + 两条横向分隔线。
+    // 内容占满整页并垂直居中；顶栏与底栏悬浮覆盖，不再占用上下空间。
+    return DuelRoomBackdrop(
       child: MediaQuery(
         data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(k)),
         child: SafeArea(
           child: Stack(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _WaitingTopBar(
-                      room: room,
-                      stage: stage,
-                      roomId: _roomId,
-                      roomName: _roomName,
-                      serverHost: widget.serverHost,
-                      serverPort: widget.serverPort,
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            width: seatW,
-                            height: seatH,
-                            child: PlayerCard(
-                              room: room,
-                              roomId: _roomId,
-                              isSelf: true,
-                              onChangeDeck: () =>
-                                  _showDeckPicker(context, ref, room),
-                              onEditDeck: () => _onEditDeck(context, ref),
-                              onShowDeckCheck: () =>
-                                  _showDeckCheckDialog(context, room),
-                              onInvite: () {},
-                            ),
-                          ),
-                          SizedBox(width: 12 * k),
-                          Expanded(
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                if (inPhase)
-                                  _WaitingStage(
-                                    room: room,
-                                    stage: stage,
-                                    roomId: _roomId,
-                                  )
-                                else
-                                  FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    child: RoomInfoCard(
-                                      room: room,
-                                      roomId: _roomId,
-                                      lfTable: _lfTable,
-                                      onOpenBanlist: _lfTable == null
-                                          ? null
-                                          : _openBanlist,
-                                      onShowDeckCheck: () =>
-                                          _showDeckCheckDialog(context, room),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(width: 12 * k),
-                          SizedBox(
-                            width: seatW,
-                            height: seatH,
-                            child: PlayerCard(
-                              room: room,
-                              roomId: _roomId,
-                              isSelf: false,
-                              onChangeDeck: () {},
-                              onEditDeck: () {},
-                              onShowDeckCheck: () {},
-                              onInvite: () {
-                                final id = _roomId;
-                                if (id != null) _showInviteDialog(context, id);
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    if (inPhase) _PhaseStatusBar(room: room, stage: stage),
-                    // 观战入口：页面右侧、准备按钮上方，头像堆叠 + 人数。
-                    if (!inPhase)
-                      Padding(
-                        // 设计稿位置：右侧距页面边 52（页面内边距 16 + 36）。
-                        padding: EdgeInsets.only(bottom: 6 * k, right: 36 * k),
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: SpectatorStackIcon(
-                            count: room.observerCount,
-                            onTap: () => _openSpectators(room),
-                          ),
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: seatW,
+                        child: PlayerCard(
+                          room: room,
+                          roomId: _roomId,
+                          seats: leftSeats,
+                          isAlly: true,
+                          selfSlot: selfSeat,
+                          onChangeDeck: () =>
+                              _showDeckPicker(context, ref, room),
+                          onEditDeck: () => _onEditDeck(context, ref),
+                          onShowDeckCheck: () =>
+                              _showDeckCheckDialog(context, room),
+                          onInvite: () {},
                         ),
                       ),
-                    RoomActions(room: room, stage: stage),
+                      SizedBox(width: 12 * k),
+                      Expanded(
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            if (inPhase)
+                              _WaitingStage(
+                                room: room,
+                                stage: stage,
+                                roomId: _roomId,
+                              )
+                            else
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: RoomInfoCard(
+                                  room: room,
+                                  roomId: _roomId,
+                                  lfTable: _lfTable,
+                                  onOpenBanlist: _lfTable == null
+                                      ? null
+                                      : _openBanlist,
+                                  onShowDeckCheck: () =>
+                                      _showDeckCheckDialog(context, room),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: 12 * k),
+                      SizedBox(
+                        width: seatW,
+                        child: PlayerCard(
+                          room: room,
+                          roomId: _roomId,
+                          seats: rightSeats,
+                          isAlly: false,
+                          selfSlot: selfSeat,
+                          onChangeDeck: () {},
+                          onEditDeck: () {},
+                          onShowDeckCheck: () {},
+                          onInvite: () {
+                            final id = _roomId;
+                            if (id != null) {
+                              _showInviteDialog(context, id);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 10,
+                left: 16,
+                right: 16,
+                child: _WaitingTopBar(
+                  room: room,
+                  stage: stage,
+                  roomId: _roomId,
+                  serverHost: widget.serverHost,
+                  serverPort: widget.serverPort,
+                ),
+              ),
+              if (!inPhase)
+                Positioned(
+                  right: 52 * k,
+                  bottom: 72 * k,
+                  child: SpectatorStackIcon(
+                    count: room.observerCount,
+                    onTap: () => _openSpectators(room),
+                  ),
+                ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (showPhaseProgress)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _PhaseStatusBar(room: room, stage: stage),
+                      ),
+                    RoomActions(
+                      room: room,
+                      stage: stage,
+                      isAiRoom: widget.isAiRoom,
+                    ),
                   ],
                 ),
               ),
@@ -343,7 +386,6 @@ class _WaitingTopBar extends ConsumerWidget {
     required this.room,
     required this.stage,
     required this.roomId,
-    required this.roomName,
     this.serverHost,
     this.serverPort,
   });
@@ -351,7 +393,6 @@ class _WaitingTopBar extends ConsumerWidget {
   final DuelRoomState room;
   final RoomStage stage;
   final String? roomId;
-  final String? roomName;
 
   /// 房间所在服务器（写进邀请二维码，扫码方据此推断环境）。
   final String? serverHost;
@@ -359,65 +400,98 @@ class _WaitingTopBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Row(
-      children: [
-        IconButton(
-          key: const ValueKey('waiting-exit'),
-          tooltip: '退出房间',
-          icon: const Icon(Icons.arrow_back, color: duelSub, size: 20),
-          onPressed: () => backHomeDialog(
-            context: context,
-            ref: ref,
-            title: '退出房间',
-            content: '是否确认退出当前房间？',
+    final k = (MediaQuery.sizeOf(context).width / 844).clamp(0.85, 2.4);
+    double s(double v) => v * k;
+
+    Widget square({
+      required Key key,
+      IconData? icon,
+      String? glyph,
+      required VoidCallback onTap,
+      Color color = duelSub,
+    }) {
+      return InkWell(
+        key: key,
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(s(2)),
+        child: Container(
+          width: s(28),
+          height: s(28),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(s(2)),
+            border: Border.all(color: duelBtnLine),
           ),
+          child: icon != null
+              ? Icon(icon, size: s(15), color: color)
+              : Text(
+                  glyph ?? '',
+                  style: TextStyle(fontSize: s(15), color: color),
+                ),
         ),
-        Text(
-          roomName ?? '对战房间',
-          style: HudTheme.body.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const Spacer(),
-        if (roomId != null)
-          IconButton(
-            key: const ValueKey('waiting-invite'),
-            tooltip: '邀请好友',
-            icon: const Icon(Icons.person_add_alt, color: duelCyan, size: 20),
-            onPressed: () => _showInviteDialog(
-              context,
-              roomId!,
-              host: serverHost,
-              port: serverPort,
+      );
+    }
+
+    // 设计稿：右侧两个 28×28 图标距页面右边 30（页面内边距 16 + 14）。
+    return Padding(
+      padding: EdgeInsets.only(right: s(14)),
+      child: Row(
+        children: [
+          InkWell(
+            key: const ValueKey('waiting-exit'),
+            onTap: () => backHomeDialog(
+              context: context,
+              ref: ref,
+              title: '退出房间',
+              content: '是否确认退出当前房间？',
+            ),
+            borderRadius: BorderRadius.circular(s(2)),
+            child: Padding(
+              padding: EdgeInsets.all(s(6)),
+              child: Icon(Icons.arrow_back, color: duelSub, size: s(14)),
             ),
           ),
-        IconButton(
-          key: const ValueKey('waiting-settings'),
-          tooltip: '设置',
-          icon: const Icon(Icons.settings_outlined, color: duelSub, size: 20),
-          onPressed: () {
-            final open = ref.read(showYgoSettingsDialogProvider);
-            if (open == null) {
-              ScaffoldMessenger.of(
+          const Spacer(),
+          if (roomId != null) ...[
+            square(
+              key: const ValueKey('waiting-invite'),
+              icon: Icons.person_add_alt,
+              color: duelCyan,
+              onTap: () => _showInviteDialog(
                 context,
-              ).showSnackBar(const SnackBar(content: Text('设置功能不可用')));
-              return;
-            }
-            final notifier = ref.read(duelRoomProvider.notifier);
-            // 传当前房间值 + 即时回调：改完立刻作用到本局等候厅。
-            open(
-              context,
-              autoDuel: room.autoDuelEnabled,
-              autoHand: room.autoHandEnabled,
-              autoTurnOrder: room.autoTurnOrderEnabled,
-              onAutoDuelChanged: (v) =>
-                  unawaited(notifier.setAutoDuelEnabled(v)),
-              onAutoHandChanged: (v) =>
-                  unawaited(notifier.setAutoHandEnabled(v)),
-              onAutoTurnOrderChanged: (v) =>
-                  unawaited(notifier.setAutoTurnOrderEnabled(v)),
-            );
-          },
-        ),
-      ],
+                roomId!,
+                host: serverHost,
+                port: serverPort,
+              ),
+            ),
+            SizedBox(width: s(6)),
+          ],
+          square(
+            key: const ValueKey('waiting-settings'),
+            icon: Icons.settings_outlined,
+            color: duelMuted,
+            onTap: () {
+              final open = ref.read(showYgoSettingsDialogProvider);
+              if (open == null) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('设置功能不可用')));
+                return;
+              }
+              final notifier = ref.read(duelRoomProvider.notifier);
+              // 传当前房间值 + 即时回调：改完立刻作用到本局等候厅。
+              open(
+                context,
+                autoHand: room.autoHandEnabled,
+                autoTurnOrder: room.autoTurnOrderEnabled,
+                onAutoHandChanged: (v) =>
+                    unawaited(notifier.setAutoHandEnabled(v)),
+                onAutoTurnOrderChanged: (v) =>
+                    unawaited(notifier.setAutoTurnOrderEnabled(v)),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }
@@ -791,66 +865,69 @@ class _TurnButton extends StatelessWidget {
 }
 
 /// 阶段状态栏（05b-05e 底栏）：连接态 + 进度 + 下一步提示。
-class _PhaseStatusBar extends StatelessWidget {
+class _PhaseStatusBar extends StatefulWidget {
   const _PhaseStatusBar({required this.room, required this.stage});
 
   final DuelRoomState room;
   final RoomStage stage;
 
   @override
+  State<_PhaseStatusBar> createState() => _PhaseStatusBarState();
+}
+
+class _PhaseStatusBarState extends State<_PhaseStatusBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: _durationOf(widget.stage),
+  )..forward();
+
+  /// 各阶段的设计时长（与倒计时文案一致）。
+  static Duration _durationOf(RoomStage stage) => switch (stage) {
+    RoomSelectingHand() => const Duration(seconds: 5),
+    RoomHandResult() => const Duration(seconds: 2),
+    RoomSelectingTurn() => const Duration(seconds: 10),
+    _ => const Duration(seconds: 5),
+  };
+
+  @override
+  void didUpdateWidget(covariant _PhaseStatusBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.stage.runtimeType != widget.stage.runtimeType) {
+      _controller.duration = _durationOf(widget.stage);
+      _controller
+        ..reset()
+        ..forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final (status, hint, progress) = switch (stage) {
-      RoomSelectingHand() => ('双方已连接 · 出拳决定先后攻', '下一步：选择先后攻 →', 0.75),
-      RoomHandResult() => ('出拳结果 · 胜者选择先后攻', '选择后进入决斗 →', 0.85),
-      RoomSelectingTurn() when room.isFirstTurn != null => (
-        '已选择 · 等待对手确认',
-        '对手确认后进入决斗 →',
-        0.95,
-      ),
-      RoomSelectingTurn() => ('猜拳结果 · 请选择先攻或后攻', '等待选择 →', 0.85),
-      _ => ('等待中', '', 0.5),
-    };
-    return Container(
-      decoration: BoxDecoration(
-        color: duelPanel,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: duelLine),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: const BoxDecoration(
-              color: duelHeal,
-              shape: BoxShape.circle,
+    final k = (math.min(
+      MediaQuery.sizeOf(context).width / 844,
+      MediaQuery.sizeOf(context).height / 390,
+    )).clamp(0.85, 2.4);
+    return Center(
+      child: SizedBox(
+        width: 320 * k,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) => LinearProgressIndicator(
+              value: _controller.value,
+              minHeight: 3,
+              backgroundColor: duelLine,
+              valueColor: const AlwaysStoppedAnimation(duelCyan),
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            status,
-            style: HudTheme.caption.copyWith(fontSize: 10, color: duelHeal),
-          ),
-          const Spacer(),
-          SizedBox(
-            width: 160,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(2),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 4,
-                backgroundColor: duelLine,
-                valueColor: const AlwaysStoppedAnimation(duelCyan),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            hint,
-            style: HudTheme.caption.copyWith(fontSize: 10, color: duelCyan),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1183,7 +1260,12 @@ class _TurnSelectStage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(duelRoomProvider.notifier);
-    final waiting = room.isFirstTurn != null;
+    // 通过猜拳结果判断谁是选择方：输家进入等待态，不能选。
+    final mine = room.myHandResult;
+    final other = room.opponentHandResult;
+    final iLost =
+        mine != null && other != null && _rpsOutcome(mine, other) == -1;
+    final waiting = iLost || room.isFirstTurn != null;
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxHeight < 300;
@@ -1194,7 +1276,9 @@ class _TurnSelectStage extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                waiting ? '等待对手选择先后攻' : '猜拳胜出 · 你先选',
+                iLost && room.isFirstTurn != null
+                    ? (room.isFirstTurn! ? '对手选择了先攻 · 你为后攻' : '对手选择了后攻 · 你为先攻')
+                    : (waiting ? '等待对手选择先后攻' : '猜拳胜出 · 你先选'),
                 style: HudTheme.title.copyWith(
                   color: waiting ? duelTextColor : duelCyan,
                 ),

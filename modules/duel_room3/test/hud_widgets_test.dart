@@ -2,11 +2,11 @@
 library;
 
 import 'package:biz/duel/models/select_state.dart';
-import 'package:duel_room3/hud/announce_card_dialog.dart';
-import 'package:duel_room3/hud/card_detail_panel.dart';
-import 'package:duel_room3/hud/counter_allocator_dialog.dart';
-import 'package:duel_room3/hud/hud_theme.dart';
-import 'package:duel_room3/hud/lp_bar.dart';
+import 'package:duel_room3/field/hud/announce_card_dialog.dart';
+import 'package:duel_room3/field/hud/card_detail_panel.dart';
+import 'package:duel_room3/field/hud/counter_allocator_dialog.dart';
+import 'package:duel_room3/theme/hud_theme.dart';
+import 'package:duel_room3/field/hud/lp_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:resource_data/card_info.dart';
@@ -38,9 +38,8 @@ void main() {
           ),
         ),
       );
-      FilledButton confirm() => tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, '确认'),
-      );
+      FilledButton confirm() =>
+          tester.widget<FilledButton>(find.widgetWithText(FilledButton, '确认'));
       // 初始 0/2 → 禁用
       expect(confirm().onPressed, isNull);
       // 第一张卡 +2（点两次加号）
@@ -69,9 +68,7 @@ void main() {
   });
 
   group('AnnounceCardDialog', () {
-    testWidgets('自由宣言（declarableCodes=null）：搜索出结果并可点选', (
-      tester,
-    ) async {
+    testWidgets('自由宣言（declarableCodes=null）：搜索出结果并可点选', (tester) async {
       int? picked;
       await tester.pumpWidget(
         _wrap(
@@ -127,11 +124,11 @@ void main() {
       return (indicator.valueColor as AlwaysStoppedAnimation<Color?>).value!;
     }
 
-    testWidgets('match 16000 初始：半血 8000 仍是满格色系而非红', (
-      tester,
-    ) async {
+    testWidgets('match 16000 初始：半血 8000 仍是满格色系而非红', (tester) async {
       await tester.pumpWidget(
-        _wrap(const LpBar(playerName: '我', lp: 8000, maxLp: 16000, alignLeft: true)),
+        _wrap(
+          const LpBar(playerName: '我', lp: 8000, maxLp: 16000, alignLeft: true),
+        ),
       );
       final indicator = tester.widget<LinearProgressIndicator>(
         find.byType(LinearProgressIndicator),
@@ -140,7 +137,9 @@ void main() {
       // ratio=0.5 → 中血档（gold）；旧绝对阈值下 8000>4000 会错误显示满血 cyan
       expect(barColorOf(tester), HudTheme.gold);
       await tester.pumpWidget(
-        _wrap(const LpBar(playerName: '我', lp: 3000, maxLp: 16000, alignLeft: true)),
+        _wrap(
+          const LpBar(playerName: '我', lp: 3000, maxLp: 16000, alignLeft: true),
+        ),
       );
       // 3000/16000 = 0.1875 → 危险档（danger 红）；
       // 旧绝对阈值下 3000>2000 会错误显示 gold

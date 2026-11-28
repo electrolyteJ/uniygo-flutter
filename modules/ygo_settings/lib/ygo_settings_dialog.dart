@@ -22,7 +22,6 @@ import 'system_ui.dart';
 const _kSoundKey = 'home_settings.sound_enabled';
 
 // 等候厅默认行为（与 biz duel_room_state 的持久化键保持一致）。
-const String _kAutoDuelKey = 'duel.auto_duel_enabled';
 const String _kAutoHandKey = 'duel.auto_hand_enabled';
 const String _kAutoTurnOrderKey = 'duel.auto_turn_order_enabled';
 
@@ -49,10 +48,8 @@ class YgoSettingsDialog extends StatefulWidget {
     this.onSpectateJumpChanged,
     this.onReplaySpeedFactorChanged,
     this.extraActions = const [],
-    this.autoDuel,
     this.autoHand,
     this.autoTurnOrder,
-    this.onAutoDuelChanged,
     this.onAutoHandChanged,
     this.onAutoTurnOrderChanged,
     this.onClose,
@@ -66,12 +63,10 @@ class YgoSettingsDialog extends StatefulWidget {
   });
 
   /// 等候厅三项开关的初值（等待室打开时传当前房间值；不传读本机偏好）。
-  final bool? autoDuel;
   final bool? autoHand;
   final bool? autoTurnOrder;
 
   /// 等候厅三项开关的即时回调（等待室注入房间 notifier 的 setter）。
-  final ValueChanged<bool>? onAutoDuelChanged;
   final ValueChanged<bool>? onAutoHandChanged;
   final ValueChanged<bool>? onAutoTurnOrderChanged;
 
@@ -123,7 +118,6 @@ class _YgoSettingsDialogState extends State<YgoSettingsDialog> {
   bool _autoMonster = false;
 
   // 等候厅（房间默认行为）：入座 / 猜拳 / 先后手。
-  bool _autoDuel = false;
   bool _autoHand = false;
   bool _autoTurnOrder = false;
   bool _autoSpellTrap = false;
@@ -227,7 +221,6 @@ class _YgoSettingsDialogState extends State<YgoSettingsDialog> {
       _aiServer233 = prefs.getBool(kAiServer233Key) ?? false;
       _aiModel = AiModel.values[(prefs.getInt(kAiModelKey) ?? 0).clamp(0, 2)];
       // 等候厅开关：宿主（等待室）传了当前房间值就优先用它。
-      _autoDuel = widget.autoDuel ?? prefs.getBool(_kAutoDuelKey) ?? false;
       _autoHand = widget.autoHand ?? prefs.getBool(_kAutoHandKey) ?? false;
       _autoTurnOrder =
           widget.autoTurnOrder ?? prefs.getBool(_kAutoTurnOrderKey) ?? false;
@@ -266,9 +259,6 @@ class _YgoSettingsDialogState extends State<YgoSettingsDialog> {
     await prefs.setBool(_kSoundKey, _soundEnabled);
     // 等候厅三项：有即时回调时由宿主的房间 notifier 负责持久化（并处理
     // 已准备态拒绝），这里不再重复写，避免「当前房间没生效但偏好被改了」。
-    if (widget.onAutoDuelChanged == null) {
-      await prefs.setBool(_kAutoDuelKey, _autoDuel);
-    }
     if (widget.onAutoHandChanged == null) {
       await prefs.setBool(_kAutoHandKey, _autoHand);
     }
@@ -297,7 +287,6 @@ class _YgoSettingsDialogState extends State<YgoSettingsDialog> {
       _chainAnimation = false;
       _replaySpeedIndex = 1;
       _autoMonster = false;
-      _autoDuel = false;
       _autoHand = false;
       _autoTurnOrder = false;
       _autoSpellTrap = false;
@@ -312,7 +301,6 @@ class _YgoSettingsDialogState extends State<YgoSettingsDialog> {
     await DuelRoomRendererPreference.set(DuelRoomRenderer.room2d);
     YgoSoundService.enabled = true;
     // 等候厅三项同时作用到当前房间（房间 notifier 自己负责持久化）。
-    widget.onAutoDuelChanged?.call(false);
     widget.onAutoHandChanged?.call(false);
     widget.onAutoTurnOrderChanged?.call(false);
 
@@ -320,9 +308,6 @@ class _YgoSettingsDialogState extends State<YgoSettingsDialog> {
     _prefs = prefs;
     await prefs.setBool(kFullscreenSettingKey, _fullscreen);
     await prefs.setBool(_kSoundKey, _soundEnabled);
-    if (widget.onAutoDuelChanged == null) {
-      await prefs.setBool(_kAutoDuelKey, _autoDuel);
-    }
     if (widget.onAutoHandChanged == null) {
       await prefs.setBool(_kAutoHandKey, _autoHand);
     }
@@ -552,11 +537,6 @@ class _YgoSettingsDialogState extends State<YgoSettingsDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _sectionLabel('等候厅'),
-              _switchRow('自动加入决斗', _autoDuel, (v) {
-                setState(() => _autoDuel = v);
-                widget.onAutoDuelChanged?.call(v);
-              }),
-              _hDivider(),
               _switchRow('自动猜拳', _autoHand, (v) {
                 setState(() => _autoHand = v);
                 widget.onAutoHandChanged?.call(v);

@@ -10,7 +10,7 @@ import 'package:provider/provider.dart';
 import '../../config/route.dart';
 import '../../config/servers.dart';
 import 'package:ygo_settings/ai_settings.dart';
-import '../models/banlist_options.dart';
+import '../util/banlist_util.dart';
 import '../models/room_rule_config.dart';
 
 /// 本地 AI 引擎的连接查询参数（规则经 URI 传给本地引擎）。
@@ -33,7 +33,7 @@ Future<void> startAiDuel(BuildContext context, RoomRuleConfig config) async {
   // 233 服 AI 的推理模型由服务端决定，agent 固定 -1。
   final agent = ai.useServer233 ? -1 : ai.agent;
   final env = ai.useServer233 ? DuelEnvironment.mercury233 : DuelEnvironment.ai;
-  final base = Uri.tryParse(env.schema + '://' + env.host + ':' + env.port.toString());
+  final base = Uri.tryParse('${env.schema}://${env.host}:${env.port}');
   if (!context.mounted) return;
   final api = context.read<MyCardAccountApi>();
   final username = api.account?.username.isNotEmpty == true
@@ -45,7 +45,7 @@ Future<void> startAiDuel(BuildContext context, RoomRuleConfig config) async {
       'uri': base?.replace(queryParameters: aiQueryOf(config, agent: agent)),
       'serverPassword': Room233Password.encodeAiHostPassword(
         // 233 卡表序号（>0 → LFn，0 → NF，-1 → 不写）。
-        lfTableIndex: BanlistCatalog.mercury233IndexAt(config.banlist),
+        lfTableIndex: BanlistUtil.mercury233IndexAt(config.banlist),
         mode: config.mode, // 0=单局 / 1=三局两胜 / 2=双打
         duelRule: config.duelRuleValue,
         rule: config.rule,
@@ -57,7 +57,10 @@ Future<void> startAiDuel(BuildContext context, RoomRuleConfig config) async {
         noShuffleDeck: config.noShuffle,
       ),
       'username': username,
+      // 人机房间：等待室底栏据此提供「呼叫 AI」（发 /ai 让 AI 入座）。
+      'aiRoom': true,
       'roomName': 'AI 人机对战',
+      'roomId': 'AI 人机对战',
     },
   );
 }
